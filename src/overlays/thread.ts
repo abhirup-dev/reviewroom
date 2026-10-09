@@ -1,6 +1,7 @@
 // Thread view: used as the centred popup AND as a dockable panel ("thread:<id>").
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
 import { h, icon, relTime, copyText } from '../core/dom';
+import { loadRaw } from '../core/store';
 import { renderMarkdown } from '../core/markdown';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
@@ -20,15 +21,26 @@ export interface ThreadViewOpts {
 }
 
 // ------------------------------------------------------------------ composer
-export function composer(app: ReviewApp, opts: { placeholder: string; submitLabel: string; initial?: string; autofocus?: boolean; onSubmit(body: string): void; onCancel?(): void }) {
+export function composer(app: ReviewApp, opts: { placeholder: string; submitLabel: string; initial?: string; autofocus?: boolean; draftKey?: string; onSubmit(body: string): void; onCancel?(): void }) {
   // A plain contenteditable where links are atomic chips. People see “request_builder.go:51–53”,
   // never `[…](rr:code/…)`; the markdown with rr: links exists only in what gets saved for the agent.
   const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
   const preview = h('div', { class: 'rr-composer__preview rr-prose', hidden: true });
   let saved: Range | null = null;
+  // unsent text survives a reload (localStorage, per thread or anchor)
+  const keepDraft = (md: string) => {
+    if (!opts.draftKey) return;
+    try {
+      if (md) localStorage.setItem(opts.draftKey, md);
+      else localStorage.removeItem(opts.draftKey);
+    } catch {
+      /* private mode: drafts just don't persist */
+    }
+  };
   const remember = () => {
     const sel = document.getSelection();
     if (sel?.rangeCount && ed.contains(sel.anchorNode)) saved = sel.getRangeAt(0).cloneRange();
+    keepDraft(serialize());
   };
   const restore = () => {
     ed.focus();
@@ -98,7 +110,8 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     document.execCommand('insertText', false, t);
     remember();
   };
-  if (opts.initial) load(opts.initial);
+  const initial = opts.initial ?? (opts.draftKey ? loadRaw(opts.draftKey) : null);
+  if (initial) load(initial);
 
   let mode: 'write' | 'preview' = 'write';
   const tabW = h('button', { class: 'rr-tab is-on', type: 'button', onclick: () => setMode('write') }, 'Write');
@@ -129,6 +142,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     if (!body) return ed.focus();
     opts.onSubmit(body);
     ed.replaceChildren();
+    keepDraft('');
     saved = null;
     setMode('write');
   };
@@ -267,7 +281,21 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
                   body.replaceWith(c.el);
                 },
               }, 'edit'),
-              h('button', { class: 'rr-link-btn', onclick: () => app.deleteMessage(t.id, m.id) }, 'delete'),
+              h('button', {
+                class: 'rr-link-btn',
+                title: t.messages.length === 1 ? 'Delete this comment and its thread' : 'Delete this comment',
+                onclick: (e: Event) => {
+                  if (t.messages.length > 1) return app.deleteMessage(t.id, m.id);
+                  // the only message: deleting it deletes the thread, so ask inline first
+                  const bar = (e.currentTarget as HTMLElement).parentElement!;
+                  bar.style.opacity = '1'; // actions show on hover only; keep the question up
+                  bar.replaceChildren(
+                    h('span', { class: 'rr-muted' }, 'Delete the whole thread?'),
+                    h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => app.deleteMessage(t.id, m.id) }, 'delete'),
+                    h('button', { class: 'rr-link-btn', title: 'Keep the thread', onclick: () => render() }, 'keep'),
+                  );
+                },
+              }, 'delete'),
             )
           : null;
       list.append(
@@ -294,10 +322,12 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       placeholder: t ? 'Reply… (markdown, [[ to link)' : 'Leave a comment or ask the agent… (markdown, [[ to link)',
       submitLabel: t ? 'Reply' : 'Comment',
       autofocus: true,
+      draftKey: `readingroom:draft:${app.meta.id}:${t ? t.id : JSON.stringify(anchor)}`,
       onSubmit: (body) => {
         if (t) app.reply(t.id, body);
         else {
           const nt = app.createThread(anchor, body);
+          if (!nt) return;
           o.id = nt.id;
           render();
         }
@@ -321,7 +351,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
   render();
   off = app.bus.on('state', () => {
     // don't clobber an in-progress draft: only re-render the message list
-    const t = o.id ? app.thread(o.id) : undefined;
+    if (!o.id) return; // composing a new thread: nothing else on screen depends on state
+    const t = app.thread(o.id);
     if (!t) return render();
     const scroll = root.querySelector('.rr-thread__scroll');
     if (scroll) scroll.replaceChildren(messages(t));

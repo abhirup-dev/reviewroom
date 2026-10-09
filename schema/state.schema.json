@@ -6,6 +6,7 @@
   "required": ["version", "round", "rounds", "threads"],
   "properties": {
     "version": { "const": 1 },
+    "rev": { "type": "integer", "minimum": 0, "description": "Bumped by every applied change (op). Missing = 0." },
     "round": { "type": "integer", "minimum": 1, "description": "Current round. Agent replies are tagged with it." },
     "rounds": {
       "type": "array",
@@ -17,7 +18,12 @@
           "status": { "enum": ["open", "sent", "approved"] },
           "startedAt": { "type": "string", "format": "date-time" },
           "sentAt": { "type": "string", "format": "date-time" },
-          "note": { "type": "string" }
+          "note": { "type": "string" },
+          "deliveredAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When `readingroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."
+          }
         }
       }
     },

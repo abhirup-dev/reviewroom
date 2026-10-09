@@ -45,22 +45,23 @@ export function sendDialog(app: ReviewApp) {
   app.escapers.push(esc);
   const go = async (kind: 'feedback' | 'approve') => {
     const n = app.state.round;
+    const text = note.value.trim() || undefined;
+    // one finish at a time: a double click must not end two rounds
+    const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
+    if (buttons.some((b) => b.disabled)) return;
+    buttons.forEach((b) => (b.disabled = true));
     if (app.backend.finish) {
-      const res = await app.backend.finish(kind, note.value.trim() || undefined).catch((e) => ({ ok: false, message: String(e) }));
+      const res = await app.backend.finish(kind, text, n).catch((e) => ({ ok: false, message: String(e) }));
+      if (!res.ok) {
+        buttons.forEach((b) => (b.disabled = false));
+        return app.toast('Failed: ' + (res.message ?? 'unknown'), 'error');
+      }
       close();
-      app.toast(res.ok ? (kind === 'approve' ? 'Approved' : `Round ${n} sent`) : 'Failed: ' + (res.message ?? 'unknown'), res.ok ? 'info' : 'error');
-      if (res.ok) app.root.classList.add('is-waiting');
+      app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
+      app.root.classList.add('is-waiting');
     } else {
-      const md = feedbackMarkdown(app.state, { kind, note: note.value.trim() || undefined });
-      await copyText(md);
-      app.update((s) => {
-        const r = s.rounds.find((x) => x.n === s.round);
-        if (r) Object.assign(r, { status: kind === 'approve' ? 'approved' : 'sent', sentAt: new Date().toISOString(), note: note.value.trim() || undefined });
-        if (kind === 'feedback') {
-          s.round += 1;
-          s.rounds.push({ n: s.round, status: 'open', startedAt: new Date().toISOString() });
-        }
-      });
+      await copyText(feedbackMarkdown(app.state, { kind, note: text }));
+      app.apply({ op: 'finishRound', kind, note: text, round: n });
       close();
       app.toast('Feedback copied — paste it to your agent');
     }

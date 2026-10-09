@@ -1,6 +1,7 @@
-// End-to-end smoke test: demo repo → `readingroom pr` (detached) → API + bundle respond → stop.
+// End-to-end smoke test: demo repo → `readingroom pr` (detached) → API + bundle respond → state ops,
+// rounds and the agent hand-off → stop → file-only writes (lock, corrupt state).
 // Run with `mise run smoke` (or `bun scripts/smoke.mjs`). Exits non-zero on any failure.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -23,6 +24,18 @@ const raw = (url, headers = {}, method = 'GET') =>
     req.on('error', reject);
     req.end(method === 'GET' ? undefined : '{}');
   });
+// async CLI run, for concurrency and blocking `review`
+const cliAsync = (args, input) =>
+  new Promise((resolve) => {
+    const p = spawn(node, [cli, ...args]);
+    let stdout = '', stderr = '';
+    p.stdout.on('data', (d) => (stdout += d));
+    p.stderr.on('data', (d) => (stderr += d));
+    p.on('exit', (code) => resolve({ code, stdout, stderr }));
+    p.stdin.end(input);
+  });
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const check = (cond, msg) => {
   if (!cond) {
     console.error('✗ ' + msg);
@@ -52,7 +65,7 @@ try {
   const outRev = await fetch(url + `api/read?path=x&rev=${encodeURIComponent('--output=' + marker)}`);
   check(!outRev.ok && !fs.existsSync(marker + ':x'), `read rejects an option as rev (${outRev.status})`);
   check((await raw(url + 'api/state', { 'sec-fetch-site': 'cross-site' })) === 403, 'cross-site API request is refused');
-  check((await raw(url + 'api/state', { origin: 'https://evil.example', 'content-type': 'application/json' }, 'PUT')) === 403, 'write from a foreign origin is refused');
+  check((await raw(url + 'api/ops', { origin: 'https://evil.example', 'content-type': 'application/json' }, 'POST')) === 403, 'write from a foreign origin is refused');
   check((await raw(url + 'api/meta', { host: `evil.example:${new URL(url).port}` })) === 403, 'foreign Host header is refused');
   check((await raw(url + 'api/meta')) === 200, 'same-machine API request is allowed');
   const leak = path.join(repo, '.readingroom', 'feat-habit-events-leak');
@@ -60,13 +73,74 @@ try {
   fs.writeFileSync(path.join(leak, 'secret.txt'), 'secret');
   const trav = await fetch(url + '..%2ffeat-habit-events-leak%2fsecret.txt');
   check(trav.status === 403, `static route stays inside the review dir (${trav.status})`);
+
+  // ---- state ops through the running server
+  const dir = path.join(repo, '.readingroom', 'feat-habit-events');
+  const state = () => JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'));
+  const d = ['--repo', repo, '--dir', dir];
+  check(JSON.parse(fs.readFileSync(path.join(dir, 'state.lock'), 'utf8')).port === +port, 'server holds state.lock');
+  const created = await post(url + 'api/ops', { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
+  check(created.ok && (await created.json()).rev >= 1, 'browser op creates a thread');
+  // a CLI reply racing a stream of browser ops (spanning the CLI's whole run): everything must land
+  const browserOps = async () => {
+    const codes = [];
+    for (let i = 0; i < 20; i++) codes.push((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_one', id: 'm_b' + i, body: i ? 'b' + i : 'and?', author: 'you' })).status);
+    codes.push((await post(url + 'api/ops', { op: 'setViewed', path: 'x.go', viewed: true })).status);
+    return codes;
+  };
+  const [cliReply, codes] = await Promise.all([cliAsync(['reply', 't_one', 'because', ...d]), browserOps()]);
+  const s1 = state();
+  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
+  check((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status === 404, 'op on an unknown thread is a 404');
+  check((await post(url + 'api/ops', { op: 'finishRound', kind: 'feedback' })).status === 400, 'rounds cannot be finished through /api/ops');
+  const second = run(node, [cli, 'comment', 'general', 'fyi', ...d]).trim();
+  const bulk = await cliAsync(['reply', '--json', '-', ...d], JSON.stringify([{ thread: 't_one', body: 'bulk one' }, { thread: second, body: 'bulk two', resolve: true }]));
+  const s2 = state();
+  check(bulk.code === 0 && s2.threads[0].messages.at(-1).body === 'bulk one' && s2.threads[1].status === 'resolved', 'reply --json answers several threads');
+  const badBulk = await cliAsync(['reply', '--json', '-', ...d], JSON.stringify([{ thread: 't_one', body: 'x' }, { thread: 't_missing', body: 'y' }]));
+  check(badBulk.code !== 0 && state().threads[0].messages.length === s2.threads[0].messages.length, 'reply --json is all-or-nothing');
+
+  // ---- finishing a round, nobody waiting: one finish wins, the next `review` hands it over
+  const [f1, f2] = await Promise.all([post(url + 'api/finish', { kind: 'feedback', round: 1 }), post(url + 'api/finish', { kind: 'feedback', round: 1 })]);
+  check([f1.status, f2.status].sort().join() === '200,409', `double finish: one wins, the other gets 409 (${f1.status}, ${f2.status})`);
+  check(state().round === 2 && state().rounds[0].deliveredAt === null, 'round advanced once; feedback not yet delivered');
+  const late = await cliAsync(['review', '--no-open', ...d]);
+  check(late.code === 0 && late.stdout.includes('t_one') && late.stdout.includes('and?'), 'review prints feedback sent while no agent was waiting');
+  check(typeof state().rounds[0].deliveredAt === 'string' && (await fetch(url + 'api/meta')).ok, 'delivery recorded; the running server kept running');
+
+  const out = run(node, [cli, 'stop', ...d]);
+  check(out.startsWith('stopped') && !fs.existsSync(path.join(dir, 'state.lock')), 'stop finds and stops the server and releases the lock');
+
+  // ---- the blocking round loop: review waits, reviewer comments, agent replies, reviewer sends
+  const port2 = String(+port + 1);
+  const url2 = `http://127.0.0.1:${port2}/`;
+  const waiting = cliAsync(['review', '--no-open', '--port', port2, ...d]);
+  for (let i = 0; i < 50 && !(await fetch(url2 + 'api/meta').then((r) => r.ok, () => false)); i++) await sleep(100);
+  await post(url2 + 'api/ops', { op: 'createThread', id: 't_loop', anchor: { kind: 'code', path: 'x.go', rev: 'head', start: 1, end: 2 }, msgId: 'm_l1', body: 'rename this', author: 'you' });
+  run(node, [cli, 'reply', 't_loop', 'renamed', ...d]);
+  await post(url2 + 'api/ops', { op: 'addMessage', threadId: 't_loop', id: 'm_l3', body: 'thanks, one more', author: 'you' });
+  check((await post(url2 + 'api/finish', { kind: 'feedback', round: 2 })).ok, 'reviewer sends round 2');
+  const loop = await waiting;
+  check(loop.code === 0 && loop.stdout.includes('t_loop') && loop.stdout.includes('renamed') && loop.stdout.includes('thanks, one more'), 'blocked review prints the round with the agent reply in it');
+  check(fs.readFileSync(path.join(dir, 'rounds', '2', 'feedback.md'), 'utf8').includes('thanks, one more') && typeof state().rounds[1].deliveredAt === 'string', 'feedback.md saved and delivery recorded');
+
+  // ---- no server: CLI writes take the lock, a dead holder's lock is stale
+  fs.writeFileSync(path.join(dir, 'state.lock'), JSON.stringify({ pid: 999999, port: null }));
+  const [c1, c2] = await Promise.all([cliAsync(['comment', 'general', 'one', ...d]), cliAsync(['comment', 'general', 'two', ...d])]);
+  const bodies = state().threads.map((t) => t.messages[0].body);
+  check(c1.code === 0 && c2.code === 0 && bodies.includes('one') && bodies.includes('two') && !fs.existsSync(path.join(dir, 'state.lock')), 'concurrent CLI writes both land (stale lock taken over, then released)');
+
+  // ---- a corrupt state.json is kept aside, never replaced by an empty review
+  fs.writeFileSync(path.join(dir, 'state.json'), '{"threads": [ broken');
+  const bad = await cliAsync(['reply', 't_one', 'x', ...d]);
+  const kept = fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-'));
+  check(bad.code !== 0 && /not valid JSON/.test(bad.stderr) && kept.length === 1 && fs.readFileSync(path.join(dir, kept[0]), 'utf8').includes('broken') && !fs.existsSync(path.join(dir, 'state.json')), 'corrupt state.json is preserved as .corrupt-* and not overwritten');
 } catch (e) {
   console.error(e.stderr || e.message);
   process.exitCode = 1;
 } finally {
   try {
-    const out = run(node, [cli, 'stop', '--repo', repo, '--dir', path.join(repo, '.readingroom', 'feat-habit-events')]);
-    check(out.startsWith('stopped'), 'stop finds and stops the server');
+    run(node, [cli, 'stop', '--repo', repo, '--dir', path.join(repo, '.readingroom', 'feat-habit-events')]);
   } catch {}
   fs.rmSync(tmp, { recursive: true, force: true });
 }

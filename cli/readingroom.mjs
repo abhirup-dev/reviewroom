@@ -11,6 +11,7 @@
 //   readingroom serve  [dir] [...]   same server, never exits (for a long-running session)
 //   readingroom threads [dir] [--all] [--json]       list threads (what the agent must answer)
 //   readingroom reply <thread> "<markdown>" [--resolve] [dir]   answer a thread as the agent ("-" = stdin)
+//   readingroom reply --json <file|->   bulk answers: [{"thread": id, "body": md, "resolve": bool}]
 //   readingroom comment <rr-ref> "<markdown>" [dir]  start a thread as the agent
 //   readingroom resolve <thread> [dir]
 //   readingroom status [dir]
@@ -23,16 +24,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cmd, flags } from './lib/args.mjs';
+import { cmd, flags, die } from './lib/args.mjs';
 import { repoRoot } from './lib/git.mjs';
 import { cmdPr } from './commands/pr.mjs';
 import { cmdServe } from './commands/serve.mjs';
 import { cmdInit } from './commands/init.mjs';
 import { cmdThreads, cmdReply, cmdComment, cmdResolve } from './commands/threads.mjs';
 import { cmdStatus, cmdStop } from './commands/status.mjs';
+import { OpError } from './lib/ops.mjs';
+import { StateError } from './lib/state.mjs';
 
 const repo = repoRoot(flags.repo ? path.resolve(flags.repo) : process.cwd());
 
+try {
 switch (cmd) {
   case 'pr':
     await cmdPr(repo);
@@ -53,17 +57,21 @@ switch (cmd) {
     cmdThreads(repo);
     break;
   case 'reply':
-    cmdReply(repo);
+    await cmdReply(repo);
     break;
   case 'comment':
-    cmdComment(repo);
+    await cmdComment(repo);
     break;
   case 'resolve':
-    cmdResolve(repo);
+    await cmdResolve(repo);
     break;
   case 'status':
     cmdStatus(repo);
     break;
   default:
-    console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 20).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+    console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 21).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+}
+} catch (e) {
+  if (!(e instanceof OpError || e instanceof StateError)) throw e;
+  die(e.message);
 }
