@@ -419,15 +419,53 @@ class CodePanel implements PanelInstance {
     await Promise.all(order.slice(0, order.indexOf(t.path) + 1).map((p) => this.renderBlock(p)));
     this.app.activeFile = t.path;
     this.app.bus.emit('active-file', t.path);
-    if (!t.start) {
-      this.scroller.scrollTo({ top: b.el.offsetTop - 4, behavior: 'smooth' });
-      return;
-    }
     const side = t.side === 'base' ? 'deletions' : 'additions';
-    b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side });
-    // highlighting finishes async; wait two frames for rows to exist
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    if (!this.scrollToRow(b.body, side, t.start)) this.scroller.scrollTo({ top: b.el.offsetTop - 4, behavior: 'smooth' });
+    if (t.start) b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side });
+    const block = b;
+    // Files above the target (and the target itself) finish highlighting asynchronously and change
+    // height after we scroll, so keep the target pinned until the layout settles or the user scrolls.
+    this.pinScroll(() => {
+      const row = t.start ? this.rowFor(block.body, side, t.start) : null;
+      if (row) return { top: this.offsetIn(row) - this.scroller.clientHeight * 0.3, row };
+      return { top: block.el.offsetTop - 4, row: null };
+    });
+  }
+
+  private pinToken = 0;
+  private offsetIn(el: HTMLElement) {
+    return el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
+  }
+  private pinScroll(target: () => { top: number; row: HTMLElement | null }) {
+    const token = ++this.pinToken;
+    const sc = this.scroller;
+    let cancelled = false;
+    const cancel = () => (cancelled = true);
+    const opts = { passive: true } as const;
+    sc.addEventListener('wheel', cancel, opts);
+    sc.addEventListener('pointerdown', cancel, opts);
+    window.addEventListener('keydown', cancel, opts);
+    const done = () => {
+      sc.removeEventListener('wheel', cancel);
+      sc.removeEventListener('pointerdown', cancel);
+      window.removeEventListener('keydown', cancel);
+    };
+    const t0 = performance.now();
+    let flashed = false;
+    let stableFrames = 0;
+    const tick = () => {
+      if (cancelled || token !== this.pinToken) return done();
+      const { top, row } = target();
+      const want = Math.max(0, Math.round(top));
+      if (Math.abs(sc.scrollTop - want) > 2) { sc.scrollTop = want; stableFrames = 0; } else stableFrames++;
+      if (row && !flashed) {
+        flashed = true;
+        row.animate?.([{ outline: '2px solid var(--rr-accent, #2b5fd9)' }, { outline: '2px solid transparent' }], { duration: 1400 });
+      }
+      // settle: the row exists and nothing moved for ~10 frames, or give up after 2.5s
+      if ((row && stableFrames > 10) || performance.now() - t0 > 2500) return done();
+      requestAnimationFrame(tick);
+    };
+    tick();
   }
 
   private rowFor(container: HTMLElement, side: 'additions' | 'deletions', line: number): HTMLElement | null {
@@ -444,7 +482,7 @@ class CodePanel implements PanelInstance {
   private scrollToRow(container: HTMLElement, side: 'additions' | 'deletions', line: number) {
     const row = this.rowFor(container, side, line);
     if (!row) return false;
-    const top = row.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
+    const top = this.offsetIn(row);
     this.scroller.scrollTo({ top: Math.max(0, top - this.scroller.clientHeight * 0.3), behavior: 'smooth' });
     row.animate?.([{ outline: '2px solid var(--rr-accent, #2b5fd9)' }, { outline: '2px solid transparent' }], { duration: 1400 });
     return true;

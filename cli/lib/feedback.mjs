@@ -1,7 +1,7 @@
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
 // agent can act on. Plain JS so both Node and the bundle can import it.
 
-const anchorText = (a) => {
+export const anchorText = (a) => {
   switch (a.kind) {
     case 'doc':
       return `narrative ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` — quote: "${a.quote.exact}"` : ''}`;
@@ -14,7 +14,7 @@ const anchorText = (a) => {
   }
 };
 
-const anchorRef = (a) => {
+export const anchorRef = (a) => {
   switch (a.kind) {
     case 'doc':
       return `rr:doc/${encodeURIComponent(a.target)}${a.path ? '/' + encodeURIComponent(a.path) : ''}`;
