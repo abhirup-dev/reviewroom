@@ -403,7 +403,7 @@ class NarrativePanel implements PanelInstance {
     this.app.viewRound = n;
     this.banner.replaceChildren(
       icon('round', 14),
-      h('span', null, `Viewing the narrative as it was at the end of round ${n} (read-only).`),
+      h('span', null, `As of round ${n} · read-only`),
       h('button', { class: 'rr-btn rr-btn--small', onclick: () => this.app.bus.emit('round-view', 0) }, 'Back to current'),
     );
     this.banner.hidden = false;

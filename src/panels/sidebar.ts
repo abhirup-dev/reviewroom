@@ -299,7 +299,7 @@ class ThreadsPanel implements PanelInstance {
       out.push(h('div', { class: 'rr-group-label' }, label, h('span', null, String(ts.length))));
       ts.forEach((t) => out.push(this.item(t)));
     }
-    if (!out.length) out.push(h('div', { class: 'rr-empty' }, all.length ? 'Nothing here.' : 'No threads yet. Select text, hover a block, or click a line number to start one.'));
+    if (!out.length) out.push(h('div', { class: 'rr-empty' }, all.length ? 'Nothing here.' : 'No threads yet'));
     out.push(
       h(
         'div',
