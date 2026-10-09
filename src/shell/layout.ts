@@ -64,21 +64,36 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
     },
     createRightHeaderActionComponent: (group: DockviewGroupPanel): IHeaderActionsRenderer => {
       const el = h('div', { class: 'rr-group-actions' });
-      const btn = (name: Parameters<typeof icon>[0], label: string, fn: () => void) =>
-        h('button', { class: 'rr-icon-btn', 'aria-label': label, title: label, onclick: fn }, icon(name, 14));
-      const max = btn('maximize', 'Maximise group', () => {
-        if (group.api.isMaximized()) group.api.exitMaximized();
-        else group.api.maximize();
-      });
-      const float = btn('popout', 'Float group', () => {
-        const p = group.activePanel;
-        if (!p) return;
-        if (group.api.location.type === 'floating') api.addGroup({ referenceGroup: group, direction: 'right' }) && p.api.moveTo({ group: api.groups.find((g) => g.api.location.type === 'grid' && g !== group)!, position: 'center' });
-        else api.addFloatingGroup(p, { position: { right: 40, top: 60 }, width: 640, height: 460 });
-      });
-      el.append(float, max);
-      return { element: el, init() {}, dispose() {} };
+      const btn = (name: Parameters<typeof icon>[0], label: string, fn: (b: HTMLElement) => void) => {
+        const b = h('button', { class: 'rr-icon-btn', 'aria-label': label, title: label });
+        b.append(icon(name, 14));
+        b.onclick = () => fn(b);
+        return b;
+      };
+      const paint = () => {
+        const floating = group.api.location.type === 'floating';
+        const kids: HTMLElement[] = [
+          floating ? btn('dock', 'Dock this window', (b) => dockMenu(app, group, b)) : btn('popout', 'Float as a window', () => floatGroup(app, group)),
+        ];
+        if (!floating) kids.push(btn('maximize', group.api.isMaximized() ? 'Restore' : 'Maximise', () => (group.api.isMaximized() ? group.api.exitMaximized() : group.api.maximize())));
+        el.replaceChildren(...kids);
+      };
+      let sub: { dispose(): void } | undefined;
+      return {
+        element: el,
+        init() {
+          paint();
+          sub = group.api.onDidLocationChange(() => paint());
+        },
+        dispose() {
+          sub?.dispose();
+        },
+      };
     },
+    // floating windows can never be dragged out of reach; a visible titlebar is the move handle
+    floatingGroupBounds: 'boundedWithinViewport',
+    floatingGroupDragHandle: 'titlebar',
+    getTabContextMenuItems: () => ['float', 'maximize', 'separator', 'close', 'closeOthers'],
   });
 
   app.dock = api;
@@ -179,4 +194,45 @@ export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, 
   }
   if (!p.api.isVisible) p.api.setActive();
   return p;
+}
+
+
+// ------------------------------------------------------------------ floating / docking helpers
+/** Where a floating window opens: right half of the dock, inside the viewport. */
+export function floatBox(app: ReviewApp, w = 0.5, hgt = 0.62) {
+  const W = app.dock.width || window.innerWidth;
+  const H = app.dock.height || window.innerHeight;
+  const width = Math.round(Math.min(980, Math.max(420, W * w)));
+  const height = Math.round(Math.min(H - 60, Math.max(320, H * hgt)));
+  return { position: { top: Math.max(24, Math.round((H - height) / 3)), left: Math.max(24, W - width - 40) }, width, height };
+}
+
+export function floatGroup(app: ReviewApp, group: DockviewGroupPanel) {
+  const p = group.activePanel;
+  if (p) app.dock.addFloatingGroup(group.panels.length > 1 ? p : group, floatBox(app));
+}
+
+const MAIN = ['narrative', 'code', 'toc', 'files', 'threads'];
+function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement) {
+  const targets = app.dock.groups.filter((g) => g.api.location.type === 'grid' && g !== group);
+  const named = (g: DockviewGroupPanel) => g.panels.map((p) => p.title).join(' · ');
+  const go = (target: DockviewGroupPanel | undefined, position: 'left' | 'right' | 'top' | 'bottom' | 'center') => {
+    if (!target) return;
+    group.api.moveTo({ group: target, position });
+  };
+  const main = targets.find((g) => g.panels.some((p) => p.id === 'code')) ?? targets.find((g) => g.panels.some((p) => p.id === 'narrative')) ?? targets[0];
+  import('./chrome').then(({ popMenu, menuItem, menuLabel }) =>
+    popMenu(anchor, (close) => [
+      menuLabel(`Dock next to ${main ? named(main) : 'the layout'}`),
+      menuItem('Right', () => (close(), go(main, 'right')), { icon: 'split' }),
+      menuItem('Below', () => (close(), go(main, 'bottom')), { icon: 'unified' }),
+      menuItem('Left', () => (close(), go(main, 'left'))),
+      menuItem('Above', () => (close(), go(main, 'top'))),
+      menuItem('As a tab', () => (close(), go(main, 'center'))),
+      targets.length > 1 ? menuLabel('Or as a tab in') : null,
+      ...(targets.length > 1 ? targets.filter((g) => g !== main).map((g) => menuItem(named(g), () => (close(), go(g, 'center')))) : []),
+      menuLabel('Tip: drag the bar above the tabs to move · drag a tab onto any edge to dock it there'),
+    ]),
+  );
+  void MAIN;
 }

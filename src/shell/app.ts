@@ -21,6 +21,7 @@ export interface Prefs {
   inlineThreads: boolean;
   showBaseline: boolean;
   lineDiff: 'word-alt' | 'char' | 'none';
+  popoutPlacement: 'right' | 'below' | 'float';
 }
 
 export const defaultPrefs: Prefs = {
@@ -35,6 +36,7 @@ export const defaultPrefs: Prefs = {
   inlineThreads: true,
   showBaseline: true,
   lineDiff: 'word-alt',
+  popoutPlacement: 'right',
 };
 
 export type CodeTarget = { path: string; side: 'base' | 'head'; start?: number; end?: number; rev?: string; view?: 'diff' | 'file'; panel?: string };
@@ -83,6 +85,8 @@ export class ReviewApp {
   /** Round being viewed in the narrative (current round unless browsing history). */
   viewRound = 0;
   selection: Selection = null;
+  /** Esc handlers for open overlays, newest last; each returns true if it closed something. */
+  escapers: (() => boolean)[] = [];
   activeFile = '';
   private cache = new Map<string, Promise<string | null>>();
   private saveTimer: ReturnType<typeof setTimeout> | undefined;

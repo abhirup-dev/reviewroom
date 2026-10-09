@@ -290,6 +290,7 @@ export function mountThreadPopup(app: ReviewApp) {
     box.replaceChildren(current.el);
     scrim.hidden = false;
   };
+  app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
   app.bus.on('open-thread', ({ id }) => open({ id }));
   app.bus.on('compose-thread', ({ anchor, quote }) => open({ anchor, quote }));
   (app as any).dockThread = dock;

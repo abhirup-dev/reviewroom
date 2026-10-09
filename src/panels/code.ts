@@ -5,7 +5,8 @@ import { h, icon } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import type { ChangedFile, Thread } from '../core/types';
-import { definePanel, type PanelInstance } from '../shell/layout';
+import { definePanel, floatBox, type PanelInstance } from '../shell/layout';
+import { popMenu, menuItem, menuLabel } from '../shell/chrome';
 import type { CodeTarget, ReviewApp } from '../shell/app';
 
 type Meta = { threadId: string };
@@ -57,9 +58,12 @@ class CodePanel implements PanelInstance {
   private lastPointer = { x: 0, y: 0 };
   private offs: (() => void)[] = [];
   private isPrimary: boolean;
+  /** Single-file panel (opened via “open in new panel”): shows only this path as diff, before or after. */
+  private pin?: string;
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
     this.isPrimary = panelId === 'code';
+    this.pin = (params.pin as string) || undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.stack = h('div', { class: 'rr-diff-stack' });
     this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' }, this.stack);
@@ -79,6 +83,12 @@ class CodePanel implements PanelInstance {
       app.bus.on('reveal-code', (t) => {
         if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
       }),
+      app.bus.on('selection', (sel) => {
+        // Esc / clearing the selection also clears the highlighted line range
+        if (sel) return;
+        this.blocks.forEach((b) => b.inst?.setSelectedLines(null));
+        this.fileView?.inst?.setSelectedLines(null);
+      }),
     );
     this.element.addEventListener('rr-code-cmd', (e) => {
       const c = (e as CustomEvent).detail;
@@ -87,8 +97,9 @@ class CodePanel implements PanelInstance {
       else if (c === 'nextFile') this.jumpFile(1);
       else if (c === 'prevFile') this.jumpFile(-1);
     });
-    if (params.path) queueMicrotask(() => this.reveal(params as unknown as CodeTarget));
     this.rebuild();
+    if (this.pin && (params.view === 'base' || params.view === 'head')) queueMicrotask(() => this.openFile(this.pin!, params.view as 'base' | 'head'));
+    else if (params.path && !this.pin) queueMicrotask(() => this.reveal(params as unknown as CodeTarget));
   }
 
   // ------------------------------------------------------------ toolbar
@@ -99,7 +110,21 @@ class CodePanel implements PanelInstance {
     const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string) =>
       h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
     const left: (HTMLElement | null)[] = [];
-    if (this.mode === 'file' && this.fileView) {
+    if (this.pin) {
+      const f = this.app.files.find((x) => x.path === this.pin);
+      const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
+      left.push(
+        h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()!),
+        h(
+          'div',
+          { class: 'rr-seg', role: 'group', 'aria-label': 'View' },
+          h('button', { class: view === 'diff' ? 'is-on' : '', disabled: !f, title: 'Diff of this file', onclick: () => this.setMode('diff') }, 'Diff'),
+          h('button', { class: view === 'base' ? 'is-on' : '', disabled: f?.status === 'added', title: 'Whole file before the change', onclick: () => this.openFile(this.pin!, 'base') }, 'Before'),
+          h('button', { class: view === 'head' ? 'is-on' : '', disabled: f?.status === 'deleted', title: 'Whole file after the change', onclick: () => this.openFile(this.pin!, 'head') }, 'After'),
+        ),
+      );
+      this.app.dock?.getPanel(this.panelId)?.api.setTitle(`${this.pin.split('/').pop()} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`);
+    } else if (this.mode === 'file' && this.fileView) {
       const fv = this.fileView;
       left.push(
         h('button', { class: 'rr-tool rr-tool--back', title: 'Back to the diff', onclick: () => this.setMode('diff') }, icon('chevron', 14), h('span', null, 'Diff')),
@@ -164,7 +189,7 @@ class CodePanel implements PanelInstance {
     this.blocks.forEach((b) => b.inst?.cleanUp());
     this.blocks.clear();
     this.io.disconnect();
-    const files = this.app.visibleFiles();
+    const files = this.pin ? this.app.files.filter((f) => f.path === this.pin) : this.app.visibleFiles();
     this.stack.replaceChildren();
     if (!files.length) this.stack.append(h('div', { class: 'rr-empty' }, this.app.files.length ? 'All files are hidden by the current filters.' : 'No changes in this range.'));
     for (const f of files) {
@@ -209,7 +234,7 @@ class CodePanel implements PanelInstance {
       threads ? h('span', { class: 'rr-count-chip', title: `${threads} open thread(s)` }, icon('thread', 12), String(threads)) : null,
       h('span', { class: 'rr-toolbar__spacer' }),
       h('button', { class: 'rr-icon-btn', title: 'Copy link to file', 'aria-label': 'Copy link to file', onclick: () => app.bus.emit('toast', { text: 'Link copied: ' + copy(formatRef({ type: 'code', path: f.path, rev: 'head' })) }) }, icon('link', 14)),
-      h('button', { class: 'rr-icon-btn', title: 'Open in a new code panel', 'aria-label': 'Open in a new code panel', onclick: () => openInNewPanel(app, { path: f.path, side: 'head', view: 'diff' }) }, icon('popout', 14)),
+      this.pin ? null : popoutButton(app, f, this.panelId),
       h('label', { class: 'rr-viewed' }, cb, 'Viewed'),
     );
   }
@@ -506,10 +531,52 @@ function copy(text: string) {
 }
 
 let counter = 1;
-export function openInNewPanel(app: ReviewApp, target: CodeTarget) {
+export type PopoutView = 'diff' | 'base' | 'head';
+export type Placement = 'right' | 'below' | 'float';
+
+/** Open one file in its own code panel: as a diff, or the whole file before/after the change. */
+export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: Placement = 'right', near?: string) {
   const id = `code:${++counter}`;
-  const ref = app.dock.getPanel('code') ?? app.dock.activePanel;
-  app.dock.addPanel({ id, component: 'code', title: target.path.split('/').pop()!, params: { ...target, panel: id }, position: ref ? { referencePanel: ref.id, direction: 'below' } : undefined } as any);
+  const name = path.split('/').pop()!;
+  const ref = (near && app.dock.getPanel(near)) || app.dock.getPanel('code') || app.dock.activePanel;
+  const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { pin: path, view } };
+  if (placement === 'float') app.dock.addPanel({ ...base, floating: floatBox(app) } as any);
+  else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined } as any);
+}
+
+function popoutButton(app: ReviewApp, f: ChangedFile, panelId: string) {
+  const b = h('button', { class: 'rr-icon-btn', title: 'Open this file in a new panel', 'aria-label': 'Open this file in a new panel', 'aria-haspopup': 'menu' }, icon('popout', 14));
+  b.onclick = () =>
+    popMenu(b, (close) => {
+      const place = app.prefs.popoutPlacement;
+      const placeRow = h(
+        'div',
+        { class: 'rr-menu__row' },
+        h('span', { class: 'rr-muted' }, 'Place'),
+        h(
+          'div',
+          { class: 'rr-seg rr-seg--small' },
+          ...(['right', 'below', 'float'] as const).map((p) =>
+            h('button', { class: place === p ? 'is-on' : '', 'aria-pressed': String(place === p), onclick: (e: Event) => {
+              app.setPref('popoutPlacement', p);
+              (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('is-on', x === e.currentTarget));
+            } }, p === 'right' ? 'Right' : p === 'below' ? 'Below' : 'Floating'),
+          ),
+        ),
+      );
+      const open = (v: PopoutView) => () => {
+        close();
+        openInNewPanel(app, f.path, v, app.prefs.popoutPlacement, panelId);
+      };
+      return [
+        menuLabel(`Open ${f.path.split('/').pop()} in a new panel`),
+        menuItem('Diff', open('diff'), { icon: 'split', hint: 'changes only' }),
+        f.status !== 'added' ? menuItem('Before', open('base'), { icon: 'doc', hint: 'whole file @base' }) : null,
+        f.status !== 'deleted' ? menuItem('After', open('head'), { icon: 'doc', hint: 'whole file @head' }) : null,
+        placeRow,
+      ];
+    });
+  return b;
 }
 
 definePanel({ id: 'code', title: 'Code', icon: 'code', create: (app, params, id) => new CodePanel(app, id, params) });

@@ -161,6 +161,7 @@ export function mountPalette(app: ReviewApp) {
       input.setSelectionRange(input.value.length, input.value.length);
     });
   };
+  app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
   (app as any).openPalette = open;
   (app as any).pickRef = () =>
     new Promise<string | null>((resolve) => {
@@ -193,7 +194,7 @@ export function mountSelectionToolbar(app: ReviewApp) {
     Object.assign(bar.style, { left: x + 'px', top: y + 'px' });
   });
   document.addEventListener('mousedown', (e) => !bar.contains(e.target as Node) && hide(), true);
-  document.addEventListener('keydown', (e) => e.key === 'Escape' && hide());
+  app.escapers.push(() => (bar.hidden ? false : (hide(), true)));
   document.addEventListener('scroll', hide, true);
 }
 
@@ -237,6 +238,7 @@ export function mountHoverCards(app: ReviewApp) {
     }, 220);
   });
   document.addEventListener('mousedown', () => ((card.hidden = true), (current = null), clearTimeout(timer)));
+  app.escapers.push(() => (card.hidden ? false : ((card.hidden = true), (current = null), true)));
   function place(t: Element) {
     const r = t.getBoundingClientRect();
     const c = card.getBoundingClientRect();
