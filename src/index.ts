@@ -14,7 +14,7 @@ import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState } from './core/types';
-import { ReviewApp, isTestFile } from './shell/app';
+import { ReviewApp } from './shell/app';
 import { mountDock, applyPreset, definePanel, ensurePanel, presets, type PanelDef } from './shell/layout';
 import { buildHeader, sendDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
@@ -122,8 +122,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     app.state = { ...emptyState(), ...((await app.backend.load()) ?? {}) };
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
-    app.range = { base: meta.base, head: meta.head, label: 'All changes', key: 'all' };
-    app.files = await provider.files(app.range);
+    await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
   } catch (e) {
     root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, String((e as Error).message ?? e))));
     throw e;
@@ -250,7 +249,6 @@ function registerCommands(app: ReviewApp) {
       app.bus.emit('selection', null);
     } },
   );
-  void isTestFile;
 }
 
 function stepSection(app: ReviewApp, dir: 1 | -1) {
