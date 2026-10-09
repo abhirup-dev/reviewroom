@@ -88,5 +88,5 @@ export async function cmdPr(repo) {
     }
     die(`server did not start — see ${path.join(dir, 'server.log')}`);
   }
-  await cmdServe(repo, !!flags.wait);
+  await cmdServe(repo, !!flags.wait, dir);
 }

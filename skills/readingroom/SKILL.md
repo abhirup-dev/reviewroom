@@ -38,9 +38,11 @@ If `readingroom` is not on PATH, run it from its repo: `node <readingroom>/cli/r
    (`rr:` links, `<rr-flow>`, `<rr-code>`, `<rr-callout>`, `<rr-checklist>`, `window.rr`, theming).
    Verify every line number you cite against the head revision; a wrong link is worse than none.
 3. **Hand over.** Tell the user the URL. When they want to review with you in the loop, run
-   `readingroom review --dir <dir>` in the foreground: it takes over the server (same port, so the open
-   tab reconnects) and **blocks** until they press *Send feedback* or *Approve*, then prints the
-   feedback as markdown and exits.
+   `readingroom review --dir <dir>` as a **background** command with a long timeout (it can wait for
+   hours): it takes over the server (same port, so the open tab reconnects) and blocks until they press
+   *Send feedback* or *Approve*, then prints the feedback as markdown and exits. If they already sent
+   feedback while you weren't waiting, it prints that at once. Always pass `--dir`; the feedback
+   repeats the exact commands to run.
 4. **Answer the round.** For each thread in the feedback, see `references/cli.md`:
    reply with `readingroom reply <thread-id> "<markdown>"`; put substantial answers (tables,
    diagrams, queries, sketches) into a **new section** with `data-round="<next round>"` and link or

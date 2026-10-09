@@ -29,25 +29,27 @@ export const anchorRef = (a) => {
 
 /**
  * @param {import('../../src/core/types').ReviewState} state
- * @param {{ note?: string, kind: 'feedback'|'approve', codeExcerpt?: (a:any)=>string|null }} opts
+ * @param {{ note?: string, kind: 'feedback'|'approve', dir?: string, codeExcerpt?: (a:any)=>string|null }} opts
+ *   dir: the review dir; when known, the commands to run name it (agents run from anywhere)
  */
 export function feedbackMarkdown(state, opts) {
   const round = state.round;
+  const at = opts.dir ? ` --dir '${opts.dir.replace(/'/g, `'\\''`)}'` : '';
   const touched = state.threads.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === round));
   const open = state.threads.filter((t) => t.status === 'open');
   const lines = [];
   if (opts.kind === 'approve') {
     lines.push(`# Review round ${round}: APPROVED`, '');
     if (opts.note) lines.push(opts.note, '');
-    if (open.length) lines.push(`(${open.length} thread(s) still open — see .readingroom/state.json)`);
+    if (open.length) lines.push(`(${open.length} thread(s) still open — list them with \`readingroom threads${at}\`)`);
     return lines.join('\n');
   }
   lines.push(`# Review feedback — round ${round}`, '');
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
-    `${touched.length} thread(s) need your attention. For each one: answer with \`readingroom reply <thread-id> "<markdown>"\``,
+    `${touched.length} thread(s) need your attention. For each one: answer with \`readingroom reply <thread-id> "<markdown>"${at}\``,
     `(add --resolve if the comment is fully addressed), change code and/or the narrative (review.html) as needed,`,
-    `mark new or changed sections with data-round="${round + 1}", then run \`readingroom review\` again to start round ${round + 1}.`,
+    `mark new or changed sections with data-round="${round + 1}", then run \`readingroom review${at}\` again to start round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
     `![](rr:…) on its own line embeds a live preview in the thread.`,
     '',

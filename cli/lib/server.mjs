@@ -141,7 +141,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
         const prev = readState(dir);
         const n = prev.round;
         const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-        const md = feedbackMarkdown(prev, { kind, note, codeExcerpt: (a) => excerpt(prov, a) });
+        const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a) });
         const rdir = path.join(dir, 'rounds', String(n));
         fs.mkdirSync(rdir, { recursive: true });
         if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
