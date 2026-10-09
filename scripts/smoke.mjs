@@ -2,6 +2,7 @@
 // Run with `mise run smoke` (or `bun scripts/smoke.mjs`). Exits non-zero on any failure.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -12,6 +13,16 @@ const repo = path.join(tmp, 'repo');
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 const node = process.execPath;
 const port = String(4900 + Math.floor(Math.random() * 90));
+// raw request so crafted Host / Sec-Fetch-Site / Origin headers reach the server untouched
+const raw = (url, headers = {}, method = 'GET') =>
+  new Promise((resolve, reject) => {
+    const req = http.request(url, { method, headers }, (res) => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode));
+    });
+    req.on('error', reject);
+    req.end(method === 'GET' ? undefined : '{}');
+  });
 const check = (cond, msg) => {
   if (!cond) {
     console.error('✗ ' + msg);
@@ -31,12 +42,31 @@ try {
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
   check(page.includes('<rr-review>'), 'review page is scaffolded');
+
+  // security regressions
+  const marker = path.join(tmp, 'pwned');
+  const inj = await fetch(url + `api/search?rev=worktree&q=${encodeURIComponent('-Otouch ' + marker)}`);
+  check(inj.ok && Array.isArray(await inj.json()) && !fs.existsSync(marker), 'search query starting with - is a pattern, not a git option');
+  const outBase = await fetch(url + `api/files?base=${encodeURIComponent('--output=' + marker)}`);
+  check(!outBase.ok && !fs.existsSync(marker), `files rejects an option as base (${outBase.status})`);
+  const outRev = await fetch(url + `api/read?path=x&rev=${encodeURIComponent('--output=' + marker)}`);
+  check(!outRev.ok && !fs.existsSync(marker + ':x'), `read rejects an option as rev (${outRev.status})`);
+  check((await raw(url + 'api/state', { 'sec-fetch-site': 'cross-site' })) === 403, 'cross-site API request is refused');
+  check((await raw(url + 'api/state', { origin: 'https://evil.example', 'content-type': 'application/json' }, 'PUT')) === 403, 'write from a foreign origin is refused');
+  check((await raw(url + 'api/meta', { host: `evil.example:${new URL(url).port}` })) === 403, 'foreign Host header is refused');
+  check((await raw(url + 'api/meta')) === 200, 'same-machine API request is allowed');
+  const leak = path.join(repo, '.readingroom', 'feat-habit-events-leak');
+  fs.mkdirSync(leak, { recursive: true });
+  fs.writeFileSync(path.join(leak, 'secret.txt'), 'secret');
+  const trav = await fetch(url + '..%2ffeat-habit-events-leak%2fsecret.txt');
+  check(trav.status === 403, `static route stays inside the review dir (${trav.status})`);
 } catch (e) {
   console.error(e.stderr || e.message);
   process.exitCode = 1;
 } finally {
   try {
-    run(node, [cli, 'stop', '--repo', repo, '--dir', path.join(repo, '.readingroom', 'feat-habit-events')]);
+    const out = run(node, [cli, 'stop', '--repo', repo, '--dir', path.join(repo, '.readingroom', 'feat-habit-events')]);
+    check(out.startsWith('stopped'), 'stop finds and stops the server');
   } catch {}
   fs.rmSync(tmp, { recursive: true, force: true });
 }
