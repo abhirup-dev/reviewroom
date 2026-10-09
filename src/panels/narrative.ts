@@ -6,7 +6,8 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 import { h, icon, copyText, debounce } from '../core/dom';
-import { cssPathWithin, formatRef } from '../core/refs';
+import { cssPathWithin, formatRef, parseRef } from '../core/refs';
+import { linkedSymbol } from '../core/symbols';
 import { plainExcerpt } from '../core/markdown';
 import type { Anchor, TextQuote, Thread } from '../core/types';
 import { definePanel, type PanelInstance } from '../shell/layout';
@@ -116,11 +117,28 @@ class NarrativePanel implements PanelInstance {
     );
     this.setupSpy();
     queueMicrotask(() => this.decorate());
+    void this.markSymbols(this.current);
     this.current.querySelectorAll('img').forEach((img) => img.addEventListener('load', () => this.layoutRail(), { once: true }));
   }
 
   private get doc() {
     return this.historic ?? this.current;
+  }
+
+  /** Links whose text names the symbol declared at their target get data-rr-symbol=<kind> (styled in content.css). */
+  private async markSymbols(doc: HTMLElement) {
+    const links = doc.querySelectorAll<HTMLAnchorElement>('a[href^="rr:code/"], a[href^="rr:file/"], a[href^="rr:sym/"]');
+    await Promise.all(
+      [...links].map(async (a) => {
+        const r = parseRef(a.getAttribute('href')!);
+        let target: string | string[] | undefined;
+        if (r?.type === 'sym') target = (await this.app.search(r.name, true).catch(() => [])).find((x) => x.kind === 'definition')?.text;
+        else if ((r?.type === 'code' || r?.type === 'file') && r.start)
+          target = (await this.app.read(r.path, this.app.revOf(r.rev)))?.split('\n').slice(r.start - 1, Math.max(r.end ?? r.start, r.start + 8));
+        const kind = target && linkedSymbol(a.textContent ?? '', target);
+        if (kind) a.dataset.rrSymbol = kind;
+      }),
+    );
   }
 
   // ------------------------------------------------------------ scroll spy / reveal
@@ -394,10 +412,11 @@ class NarrativePanel implements PanelInstance {
     if (!html) return this.app.toast(`No snapshot for round ${n}`, 'error');
     const parsed = new DOMParser().parseFromString(html, 'text/html');
     const review = parsed.querySelector('rr-review');
-    if (!review) return this.app.toast(`Round ${n} snapshot has no <rr-review>`, 'error');
+    if (!review) return this.app.toast(`Couldn't load round ${n}`, 'error');
     const el = document.importNode(review, true) as HTMLElement;
     el.querySelectorAll('script').forEach((s) => s.remove());
     el.classList.add('is-historic');
+    void this.markSymbols(el);
     (this.historic ?? this.current).replaceWith(el);
     this.historic = el;
     this.app.viewRound = n;

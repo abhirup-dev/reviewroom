@@ -2,8 +2,9 @@
   "compilerOptions": {
     "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
     "lib": ["ES2023", "DOM", "DOM.Iterable"], "strict": true, "skipLibCheck": true,
-    "noImplicitAny": true, "declaration": true, "emitDeclarationOnly": true, "outDir": "dist/types",
+    "noImplicitAny": true, "noEmit": true,
     "isolatedModules": true, "useDefineForClassFields": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

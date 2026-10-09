@@ -19,6 +19,10 @@ run = "bun run dev"
 description = "Type-check the client"
 run = "bun run typecheck"
 
+[tasks.test]
+description = "Unit tests (bun test, *.test.ts next to the code)"
+run = "bun test"
+
 [tasks.smoke]
 description = "End-to-end: demo repo → readingroom pr → API responds"
 depends = ["build"]
@@ -26,7 +30,7 @@ run = "bun scripts/smoke.mjs"
 
 [tasks.check]
 description = "Everything an agent should run before committing"
-depends = ["typecheck", "smoke"]
+depends = ["typecheck", "test", "smoke"]
 
 [tasks.demo]
 description = "Create the demo repo in .demo/ and open it in readingroom"

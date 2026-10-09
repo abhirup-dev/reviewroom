@@ -64,6 +64,65 @@
 .rr-prose :where(a:hover) {
   text-decoration-color: currentColor;
 }
+/* links that name a symbol (data-rr-symbol, set by the narrative panel): the code's own vocabulary,
+   in mono with a kind badge — ƒ function, m method, S struct, C class, I interface, T type, E enum, v value */
+.rr-prose a[data-rr-symbol] {
+  --sym: var(--rr-sym-fn);
+  --glyph: 'ƒ';
+  font-family: var(--rr-mono);
+  font-size: 0.84em;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 1px 5px 1px 0;
+  border-radius: var(--rr-radius-sm);
+  background: color-mix(in srgb, var(--sym) 9%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--sym) 45%, transparent);
+}
+.rr-prose a[data-rr-symbol]:hover {
+  background: color-mix(in srgb, var(--sym) 18%, transparent);
+}
+.rr-prose a[data-rr-symbol]::before {
+  content: var(--glyph);
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 5px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.85em;
+  color: var(--rr-surface-doc);
+  background: var(--sym);
+  border-radius: var(--rr-radius-sm) 0 0 var(--rr-radius-sm);
+}
+.rr-prose a[data-rr-symbol] :where(code) {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+.rr-prose a[data-rr-symbol='method'] {
+  --glyph: 'm';
+}
+.rr-prose a:is([data-rr-symbol='struct'], [data-rr-symbol='class'], [data-rr-symbol='interface'], [data-rr-symbol='type'], [data-rr-symbol='enum']) {
+  --sym: var(--rr-sym-type);
+}
+.rr-prose a[data-rr-symbol='struct'] {
+  --glyph: 'S';
+}
+.rr-prose a[data-rr-symbol='class'] {
+  --glyph: 'C';
+}
+.rr-prose a[data-rr-symbol='interface'] {
+  --glyph: 'I';
+}
+.rr-prose a[data-rr-symbol='type'] {
+  --glyph: 'T';
+}
+.rr-prose a[data-rr-symbol='enum'] {
+  --glyph: 'E';
+}
+.rr-prose a[data-rr-symbol='const'] {
+  --sym: var(--rr-sym-value);
+  --glyph: 'v';
+}
 .rr-prose :where(code, kbd, samp) {
   font: 0.84em var(--rr-mono);
   padding: 1px 5px;

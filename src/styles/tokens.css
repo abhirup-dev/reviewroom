@@ -61,6 +61,10 @@
   --rr-del: #c2402a;
   --rr-ok: #1a7f37;
   --rr-ok-soft: #e4f4e8;
+  /* symbol kinds on links that name code: functions, types, values */
+  --rr-sym-fn: #7347c4;
+  --rr-sym-type: #0f7a6b;
+  --rr-sym-value: #9a6200;
   --rr-warn: #a35c00;
   --rr-warn-soft: #fff3dc;
   --rr-risk: #b42318;
@@ -104,6 +108,9 @@
   --rr-del: #e49ab0;
   --rr-ok: #5fc77a;
   --rr-ok-soft: #17291d;
+  --rr-sym-fn: #b9a3f0;
+  --rr-sym-type: #7fcdbf;
+  --rr-sym-value: #e3b56b;
   --rr-warn: #f2b45b;
   --rr-warn-soft: #2e2414;
   --rr-risk: #f58b80;
