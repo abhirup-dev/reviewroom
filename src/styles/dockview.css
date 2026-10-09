@@ -116,21 +116,6 @@
   border-radius: var(--rr-radius-sm);
   background: var(--rr-line-strong);
 }
-.dockview-theme-rr .dv-floating-titlebar::after {
-  content: 'drag to move · dock button on the right re-attaches';
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font: 500 10.5px/1 var(--rr-font);
-  color: var(--rr-faint);
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-}
-.dockview-theme-rr .dv-floating-titlebar:hover::after {
-  opacity: 1;
-}
 .dockview-theme-rr .dv-floating-titlebar:active {
   cursor: grabbing;
 }

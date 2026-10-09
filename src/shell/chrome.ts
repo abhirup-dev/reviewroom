@@ -1,5 +1,7 @@
 // Top bar: identity, rounds, search, picker, layout, theme, send feedback.
 import { h, icon, copyText } from '../core/dom';
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../../cli/lib/feedback.mjs';
 import { applyPreset, ensurePanel, panelDefs, presets } from './layout';
@@ -42,10 +44,11 @@ export function sendDialog(app: ReviewApp) {
   };
   app.escapers.push(esc);
   const go = async (kind: 'feedback' | 'approve') => {
+    const n = app.state.round;
     if (app.backend.finish) {
       const res = await app.backend.finish(kind, note.value.trim() || undefined).catch((e) => ({ ok: false, message: String(e) }));
       close();
-      app.toast(res.ok ? (kind === 'approve' ? 'Approved. The agent has been told.' : `Round ${app.state.round - (kind === 'feedback' ? 0 : 0)} sent — the agent is working on the next round.`) : 'Failed: ' + (res.message ?? 'unknown'), res.ok ? 'info' : 'error');
+      app.toast(res.ok ? (kind === 'approve' ? 'Approved' : `Round ${n} sent`) : 'Failed: ' + (res.message ?? 'unknown'), res.ok ? 'info' : 'error');
       if (res.ok) app.root.classList.add('is-waiting');
     } else {
       const md = feedbackMarkdown(app.state, { kind, note: note.value.trim() || undefined });
@@ -59,7 +62,7 @@ export function sendDialog(app: ReviewApp) {
         }
       });
       close();
-      app.toast('Feedback copied to the clipboard — paste it to your agent.');
+      app.toast('Feedback copied — paste it to your agent');
     }
   };
   const box = h(
@@ -69,10 +72,10 @@ export function sendDialog(app: ReviewApp) {
     h(
       'div',
       { class: 'rr-send__body' },
-      h('p', { class: 'rr-muted' }, pending.length ? `${pending.length} thread${pending.length > 1 ? 's' : ''} with new comments will be sent:` : 'No new comments this round.'),
-      h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length + ' comment(s)'))),
+      h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
+      h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
       note,
-      h('p', { class: 'rr-muted rr-small' }, app.backend.finish ? 'The agent receives this as structured feedback, replies in the threads and updates the review. You’ll see round ' + (app.state.round + 1) + ' here when it’s done.' : 'No local server: the feedback is copied as markdown for you to paste to the agent.'),
+      app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
     ),
     h('footer', { class: 'rr-composer__foot' }, h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => go('approve') }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: () => go('feedback') }, icon('send', 12), 'Send feedback')),
   );
@@ -118,7 +121,6 @@ export function buildHeader(app: ReviewApp): HTMLElement {
         ...panelDefs()
           .filter((d) => !d.onDemand)
           .map((d) => menuItem(d.title, () => (close(), app.dock.getPanel(d.id) ? app.dock.getPanel(d.id)!.api.close() : ensurePanel(app, d.id)), { checked: !!app.dock.getPanel(d.id) })),
-        menuLabel('Tip: drag any tab to an edge to split, or onto another group to stack.'),
       ]);
     bar.replaceChildren(
       h(

@@ -219,7 +219,6 @@ export function floatGroup(app: ReviewApp, group: DockviewGroupPanel) {
   if (p) app.dock.addFloatingGroup(group.panels.length > 1 ? p : group, floatBox(app));
 }
 
-const MAIN = ['narrative', 'code', 'toc', 'files', 'threads'];
 function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement) {
   const targets = app.dock.groups.filter((g) => g.api.location.type === 'grid' && g !== group);
   const named = (g: DockviewGroupPanel) => g.panels.map((p) => p.title).join(' · ');
@@ -238,8 +237,6 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
       menuItem('As a tab', () => (close(), go(main, 'center'))),
       targets.length > 1 ? menuLabel('Or as a tab in') : null,
       ...(targets.length > 1 ? targets.filter((g) => g !== main).map((g) => menuItem(named(g), () => (close(), go(g, 'center')))) : []),
-      menuLabel('Tip: drag the bar above the tabs to move · drag a tab onto any edge to dock it there'),
     ]),
   );
-  void MAIN;
 }

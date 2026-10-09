@@ -196,7 +196,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     h(
       'div',
       { class: 'rr-composer__foot' },
-      h('span', { class: 'rr-muted' }, 'Markdown works · [[ links anything · ', h('kbd', null, keyLabel('mod+enter')), ' sends'),
+      h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link · ', h('kbd', null, keyLabel('mod+enter')), ' send'),
       h('span', { class: 'rr-toolbar__spacer' }),
       opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', onclick: () => opts.onCancel!() }, 'Cancel') : null,
       h('button', { class: 'rr-btn rr-btn--primary', type: 'button', onclick: submit }, opts.submitLabel),
