@@ -8,7 +8,7 @@
 //   </rr-app>
 //
 // Everything else — docking layout, diffs, files, contents, threads, rounds,
-// palette, theming — is provided. See AGENTS.md for the authoring guide.
+// palette, theming — is provided. See skills/readingroom/references/authoring.md.
 import cssText from 'virtual:rr-css';
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';

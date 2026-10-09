@@ -1,4 +1,6 @@
 node_modules/
 .readingroom/
+.demo/
 *.log
 dist/
+examples/*/server.json
