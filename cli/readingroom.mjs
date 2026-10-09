@@ -69,6 +69,17 @@ const fetchRef = (remote, refspec, cwd) => {
     return true;
   } catch { return false; }
 };
+// `git grep --max-count` needs git >= 2.38 (Ubuntu 22.04 ships 2.34); cap in JS otherwise.
+const GREP_MAX = (() => {
+  const m = (git(['--version'], process.cwd(), { soft: true }) || '').match(/(\d+)\.(\d+)/);
+  return !!m && (+m[1] > 2 || (+m[1] === 2 && +m[2] >= 38));
+})();
+const maxCount = (n) => (GREP_MAX ? [`--max-count=${n}`] : []);
+const capPerFile = (hits, n) => {
+  if (GREP_MAX) return hits;
+  const seen = new Map();
+  return hits.filter((h) => { const c = (seen.get(h.path) || 0) + 1; seen.set(h.path, c); return c <= n; });
+};
 const hasRef = (ref, cwd) => !!git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd, { soft: true });
 const repoRoot = (from) => (git(['rev-parse', '--show-toplevel'], from, { soft: true }) || '').trim() || null;
 const WORKTREE = 'worktree';
@@ -132,7 +143,9 @@ function makeProvider(repo, cfg) {
     base,
     head,
     meta() {
-      const subject = !isWT(head) ? git(['log', '-1', '--format=%s', head], repo).trim() : 'Working tree changes';
+      // Without a PR title, the oldest commit of the range describes the change better than the latest fixup.
+      const subject = isWT(head) ? 'Working tree changes'
+        : (git(['log', '--reverse', '--format=%s', `${base}..${head}`], repo, { soft: true }) || '').split('\n')[0].trim() || git(['log', '-1', '--format=%s', head], repo).trim();
       return {
         title: cfg.title || subject,
         repo: cfg.repo || remoteName(repo),
@@ -210,10 +223,10 @@ function makeProvider(repo, cfg) {
       let hits = [];
       if (symbol) {
         const def = `(func|type|class|def|interface|struct|enum|message|service|const|let|var|fn|trait|object)[[:space:]]+(\\([^)]*\\)[[:space:]]*)?${esc}([^[:alnum:]_]|$)`;
-        hits = fix(parse(git(['grep', '-n', '-I', '-E', '--max-count=20', def, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }), 'definition'));
-        const refs = fix(parse(git(['grep', '-n', '-I', '-w', '-F', '--max-count=10', q, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }), 'reference'));
+        hits = capPerFile(fix(parse(git(['grep', '-n', '-I', '-E', ...maxCount(20), def, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }), 'definition')), 20);
+        const refs = capPerFile(fix(parse(git(['grep', '-n', '-I', '-w', '-F', ...maxCount(10), q, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }), 'reference')), 10);
         for (const x of refs) if (!hits.some((y) => y.path === x.path && y.line === x.line)) hits.push(x);
-      } else hits = fix(parse(git(['grep', '-n', '-I', '-i', '-F', '--max-count=20', q, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }), 'text'));
+      } else hits = capPerFile(fix(parse(git(['grep', '-n', '-I', '-i', '-F', ...maxCount(20), q, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }), 'text')), 20);
       return hits.slice(0, limit);
     },
     tree(rev) {
@@ -537,7 +550,7 @@ async function cmdPr() {
     const baseBranch = info?.baseRefName || (typeof flags.base === 'string' ? flags.base : remoteDefaultBranch(remote));
     if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
     const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo)) || die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-    Object.assign(cfg, { base, head: ref, number: +n, title: info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
+    Object.assign(cfg, { base, head: ref, number: +n, title: info?.title || (typeof flags.title === 'string' ? flags.title : undefined), author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
     dir = path.join(repo, '.readingroom', `pr-${n}`);
   } else {
     const branch = String(arg);
@@ -547,7 +560,7 @@ async function cmdPr() {
       head = `${remote}/${branch}`;
       if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called “${branch}”`);
     }
-    Object.assign(cfg, { base: typeof flags.base === 'string' ? flags.base : defaultBase(repo), head });
+    Object.assign(cfg, { base: typeof flags.base === 'string' ? flags.base : defaultBase(repo), head, title: typeof flags.title === 'string' ? flags.title : undefined });
     dir = path.join(repo, '.readingroom', branch.replace(/[^\w.-]+/g, '-'));
   }
   if (typeof flags.dir === 'string') dir = path.resolve(flags.dir);
