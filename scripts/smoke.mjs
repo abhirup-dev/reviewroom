@@ -107,6 +107,16 @@ try {
   const late = await cliAsync(['review', '--no-open', ...d]);
   check(late.code === 0 && late.stdout.includes('t_one') && late.stdout.includes('and?'), 'review prints feedback sent while no agent was waiting');
   check(typeof state().rounds[0].deliveredAt === 'string' && (await fetch(url + 'api/meta')).ok, 'delivery recorded; the running server kept running');
+  check(/--dir '[^']*\/\.readingroom\/feat-habit-events'/.test(late.stdout), 'feedback names the review dir in the commands it asks for'); // git may report the repo via /private/var on macOS
+
+  // ---- bare commands from another branch find the repo's only review; several reviews → ask for --dir
+  run('git', ['-C', repo, 'checkout', '-q', 'main']);
+  check(run(node, [cli, 'threads', '--all', '--repo', repo]).includes('t_one'), 'bare `threads` on another branch finds the only review');
+  fs.mkdirSync(path.join(repo, '.readingroom', 'other'));
+  fs.writeFileSync(path.join(repo, '.readingroom', 'other', 'review.html'), '<rr-review></rr-review>');
+  const ambiguous = await cliAsync(['threads', '--repo', repo]);
+  check(ambiguous.code !== 0 && ambiguous.stderr.includes('--dir'), 'bare `threads` with several reviews asks for --dir');
+  run('git', ['-C', repo, 'checkout', '-q', 'feat/habit-events']);
 
   const out = run(node, [cli, 'stop', ...d]);
   check(out.startsWith('stopped') && !fs.existsSync(path.join(dir, 'state.lock')), 'stop finds and stops the server and releases the lock');

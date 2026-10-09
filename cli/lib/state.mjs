@@ -6,12 +6,19 @@ import { flags, pos, die } from './args.mjs';
 import { git, defaultBase } from './git.mjs';
 import { applyOp, OpError } from './ops.mjs';
 
-export function resolveDir(repo) {
+/** The review dir: --dir, a dir argument, else <repo>/.readingroom/<branch>. For an existing review
+ *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
+export function resolveDir(repo, { existing = false } = {}) {
   if (flags.dir) return path.resolve(flags.dir);
   const p = pos.find((x) => fs.existsSync(x) && fs.statSync(x).isDirectory());
   if (p) return path.resolve(p);
+  const root = path.join(repo, '.readingroom');
   const branch = (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim().replace(/[^\w.-]+/g, '-');
-  return path.join(repo, '.readingroom', branch);
+  const own = path.join(root, branch);
+  if (!existing || fs.existsSync(own)) return own;
+  const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
+  if (reviews.length === 1) return path.join(root, reviews[0]);
+  die(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`readingroom pr <n>\` first, or pass --dir`);
 }
 
 export function loadConfig(dir, repo) {
@@ -139,7 +146,7 @@ export const uid = (p) => p + crypto.randomBytes(4).toString('hex');
 
 export const dirForEdit = (repo) => {
   if (!repo && !flags.dir) die('not inside a git repository (use --dir)');
-  return flags.dir ? path.resolve(flags.dir) : resolveDir(repo);
+  return resolveDir(repo, { existing: true });
 };
 
 
