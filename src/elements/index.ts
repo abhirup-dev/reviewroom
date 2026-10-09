@@ -11,6 +11,7 @@
 //   <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  reviewer sign-off, persisted
 import { File as PierreFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
+import { highlightLines } from '../core/highlight';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
 import { plainExcerpt, renderMarkdown } from '../core/markdown';
 import type { ReviewApp } from '../shell/app';
@@ -55,10 +56,12 @@ async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }
   const lines = text.split('\n');
   const s = Math.max(1, (r.start ?? 1) - (r.start ? context : 0));
   const e = Math.min(lines.length, r.end ? r.end + context : Math.min(lines.length, s + 24));
+  const coloured = await highlightLines(r.path, lines.slice(s - 1, e).join('\n'));
   const pre = h('pre', { class: 'rr-snippet' });
   for (let i = s; i <= e; i++) {
     const on = highlight && r.start && i >= r.start && i <= (r.end ?? r.start);
-    pre.append(h('span', { class: 'rr-snippet__line' + (on ? ' is-target' : '') }, h('span', { class: 'rr-snippet__ln' }, String(i)), h('span', { class: 'rr-snippet__code' }, lines[i - 1] || ' ')));
+    const code = coloured?.[i - s]?.childNodes.length ? coloured[i - s] : lines[i - 1] || ' ';
+    pre.append(h('span', { class: 'rr-snippet__line' + (on ? ' is-target' : '') }, h('span', { class: 'rr-snippet__ln' }, String(i)), h('span', { class: 'rr-snippet__code' }, code)));
   }
   return pre;
 }

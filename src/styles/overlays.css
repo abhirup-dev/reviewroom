@@ -384,6 +384,17 @@ rr-embed {
 .rr-snippet__code {
   padding-right: 12px;
 }
+/* syntax colours carry both themes as variables (src/core/highlight.ts) */
+.rr-snippet__code span {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+  font-weight: var(--shiki-light-font-weight);
+}
+:root[data-rr-theme='dark'] .rr-snippet__code span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight);
+}
 
 /* palette */
 .rr-palette {
