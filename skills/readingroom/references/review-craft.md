@@ -18,8 +18,8 @@ The opening of the page carries most of the value:
 1. **One paragraph** saying what the change does and why (`<p class="rr-lede">`).
 2. **One diagram of the delta in context**: the surrounding flow as `state="baseline"` nodes and the
    change as `new` / `changed` / `removed`, every node clickable (`<rr-flow>` with `ref`s). The
-   baseline matters but must be skippable: put pure background in `data-baseline` blocks so the
-   reviewer can hide it (`b`).
+   baseline matters but must stay out of the way: put pure background in `data-baseline` blocks,
+   which are set apart visually from the change.
 3. A short paragraph of prose that walks the diagram, linking the two or three hunks that hold most
    of the change.
 

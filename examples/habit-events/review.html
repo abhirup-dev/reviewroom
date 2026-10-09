@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Attach recent HABIT events to RankerRequest</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
 <script type="module" src="/_rr/readingroom.js"></script>
 <style>
   /* Author styles: the agent can style its own widgets however it likes. */
@@ -23,7 +21,7 @@
 </head>
 <body>
 <rr-app>
-  <script type="application/json" id="rr-meta">{ "number": 4821, "tags": ["feed relevance", "latency-sensitive"] }</script>
+  <script type="application/json" id="rr-meta">{ "number": 4821 }</script>
   <rr-review>
     <h1>Attach recent HABIT events to the ranker request</h1>
     <p class="rr-lede">The request builder now reads the user's last 7 days of HABIT events through TFS v2 and passes them to the ranker as a new proto field. If the fetch fails the feed still serves, just without the signal.</p>

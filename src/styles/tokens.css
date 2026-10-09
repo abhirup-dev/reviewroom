@@ -1,19 +1,25 @@
 /* Design tokens. Override any of these on :root (or rr-app) to rebrand.
    Light is the default; [data-rr-theme="dark"] on <html> switches. */
 :root {
-  --rr-font: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --rr-font-serif: 'Newsreader', 'Iowan Old Style', 'Charter', Georgia, serif;
+  /* Typography: three voices, all bundled with the tool (no network fonts).
+     --rr-font-read  reading: the narrative and thread messages
+     --rr-font       interface: buttons, toolbars, labels
+     --rr-mono       code, file names, identifiers */
+  --rr-font-read: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+  --rr-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --rr-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --rr-font-serif: var(--rr-font-read); /* older name */
 
   --rr-text-xs: 11px;
   --rr-text-sm: 12px;
   --rr-text: 13px;
-  --rr-text-prose: 15px;
-  --rr-leading-prose: 1.65;
+  --rr-text-prose: 16px;
+  --rr-leading-prose: 1.6;
 
-  --rr-radius-sm: 4px;
-  --rr-radius: 6px;
-  --rr-radius-lg: 10px;
+  /* square by default: radii are only a softening of small controls and floating layers */
+  --rr-radius-sm: 2px; /* chips, buttons, inputs, inline code */
+  --rr-radius: 2px; /* cards and blocks inside a panel */
+  --rr-radius-lg: 4px; /* floating: menus, dialogs, palette, popovers, floating panels */
   --rr-header-h: 52px;
   --rr-bar-h: 36px;
   --rr-doc-width: 760px;
@@ -21,7 +27,7 @@
 
   /* light — surfaces, from the ground up. Each dock panel picks its surface (see panels.css),
      so the reading pane, the code, the navigation and overlays are distinct planes. */
-  --rr-bg: #e4e2db; /* app ground: header and the gaps between panels */
+  --rr-bg: #e4e2db; /* app chrome: the header above the docked panels */
   --rr-surface-nav: #f2f1ec; /* contents, files, threads */
   --rr-surface-nav-2: #e9e7e1; /* inputs and hovers inside navigation */
   --rr-surface-doc: #ffffff; /* the narrative: paper */
@@ -94,8 +100,8 @@
   --rr-highlight: rgba(240, 163, 94, 0.22);
   --rr-highlight-hot: rgba(240, 163, 94, 0.42);
   --rr-flash: rgba(122, 162, 247, 0.16);
-  --rr-add: #5fc77a;
-  --rr-del: #f0806e;
+  --rr-add: #8fc9a3; /* pastel: diffs stay calm on dark */
+  --rr-del: #e49ab0;
   --rr-ok: #5fc77a;
   --rr-ok-soft: #17291d;
   --rr-warn: #f2b45b;

@@ -12,7 +12,8 @@ import type { CodeTarget, ReviewApp } from '../shell/app';
 type Meta = { threadId: string };
 
 /** Blend @pierre/diffs into the panel colours (custom properties cross the shadow boundary). */
-export const PIERRE_CSS = `:host{--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;}`;
+// diff colours come from our --rr-add/--rr-del tokens (so review themes reach the code); dark tints are kept low
+export const PIERRE_CSS = `:host{--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;--diffs-light-addition-color:var(--rr-add);--diffs-dark-addition-color:var(--rr-add);--diffs-light-deletion-color:var(--rr-del);--diffs-dark-deletion-color:var(--rr-del);--diffs-bg-addition-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)));--diffs-bg-deletion-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)));}`;
 
 interface Block {
   file: ChangedFile;

@@ -20,7 +20,6 @@ export interface Prefs {
   hideTests: boolean;
   hiddenTypes: string[];
   inlineThreads: boolean;
-  showBaseline: boolean;
   lineDiff: 'word-alt' | 'char' | 'none';
   popoutPlacement: 'right' | 'below' | 'float';
 }
@@ -35,7 +34,6 @@ export const defaultPrefs: Prefs = {
   hideTests: false,
   hiddenTypes: [],
   inlineThreads: true,
-  showBaseline: true,
   lineDiff: 'word-alt',
   popoutPlacement: 'right',
 };
@@ -227,7 +225,7 @@ export class ReviewApp {
   };
   label(ref: string) {
     const r = parseRef(ref);
-    if (!r) return ref;
+    if (!r) return 'Link';
     if (r.type === 'doc') return this.describeDoc(r.id, r.path);
     if (r.type === 'thread') {
       const t = this.thread(r.id);

@@ -57,10 +57,10 @@ export function mountPalette(app: ReviewApp) {
     };
     if (/^rr:/.test(q.trim()) && parseRef(q.trim())) {
       const ref = q.trim();
-      out.push({ kind: 'link', label: 'Open ' + app.label(ref), detail: 'link', ref, score: 999, run: () => app.open(ref) });
+      out.push({ kind: 'link', label: 'Open ' + app.label(ref), ref, score: 999, run: () => app.open(ref) });
     }
     if (!pick && (mode === '>' || !/^[#/@]/.test(q)))
-      for (const c of app.commands.all()) add({ kind: 'command', label: c.title, detail: c.group, keys: c.keys, run: c.run }, c.title + ' ' + (c.group ?? ''));
+      for (const c of app.commands.all()) if (c.id !== 'palette') add({ kind: 'command', label: c.title, detail: c.group, keys: c.keys, run: c.run }, c.title + ' ' + (c.group ?? ''));
     if (mode === '>' && !pick) return out;
     if (!/^[#/]/.test(q)) {
       for (const f of app.files) {
@@ -69,7 +69,7 @@ export function mountPalette(app: ReviewApp) {
       }
       for (const s of sections()) {
         const ref = formatRef({ type: 'doc', id: s.id });
-        add({ kind: 'section', label: s.title, detail: '#' + s.id, ref, run: () => app.bus.emit('reveal-doc', { id: s.id }) }, s.title + ' ' + s.id);
+        add({ kind: 'section', label: s.title, detail: 'Section', ref, run: () => app.bus.emit('reveal-doc', { id: s.id }) }, s.title + ' ' + s.id);
       }
       for (const t of app.state.threads) {
         const ref = formatRef({ type: 'thread', id: t.id });
@@ -125,7 +125,7 @@ export function mountPalette(app: ReviewApp) {
     hint.replaceChildren(
       ...(pick
         ? [h('span', null, 'Pick something to link · '), h('kbd', null, '#'), ' symbol ', h('kbd', null, '/'), ' text']
-        : [h('kbd', null, '>'), ' commands  ', h('kbd', null, '#'), ' symbols  ', h('kbd', null, '/'), ' search code  ', h('kbd', null, 'rr:'), ' open a link']),
+        : [h('kbd', null, '>'), ' commands  ', h('kbd', null, '#'), ' symbols  ', h('kbd', null, '/'), ' search code']),
     );
   };
 

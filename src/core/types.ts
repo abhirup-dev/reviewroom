@@ -15,8 +15,6 @@ export interface ReviewMeta {
   head: Rev;
   baseLabel?: string;
   headLabel?: string;
-  /** Free-form pills shown in the header. */
-  tags?: string[];
 }
 
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed';

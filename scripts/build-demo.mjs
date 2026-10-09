@@ -89,7 +89,9 @@ const style = pick(/<style>([\s\S]*?)<\/style>/);
 let app = pick(/(<rr-app[\s\S]*<\/rr-app>)/).replace('<rr-app>', '<rr-app provider="static">');
 const json = (id, data) => `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
 app = app.replace('</rr-app>', `${json('rr-fixture', fixture)}\n${json('rr-state', JSON.parse(state))}\n</rr-app>`);
-const fonts = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">';
+// the page has no dist/ next to it, so the bundled fonts (upright styles) travel inline
+const fontFace = (family, file) => `@font-face{font-family:'${family}';font-weight:100 900;font-display:swap;src:url(data:font/woff2;base64,${fs.readFileSync(new URL(`../dist/fonts/${file}`, import.meta.url)).toString('base64')}) format('woff2');}`;
+const fonts = `<style>${fontFace('Inter', 'inter-latin-opsz-normal.woff2')}${fontFace('Source Serif 4', 'source-serif-4-latin-opsz-normal.woff2')}${fontFace('JetBrains Mono', 'jetbrains-mono-latin-wght-normal.woff2')}</style>`;
 const body = `${fonts}\n<style>${style}</style>\n${app}\n<script type="module">${js}</script>`;
 const html = fragment ? `<title>Readingroom</title>\n${body}` : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Readingroom demo</title></head><body>${body}</body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });

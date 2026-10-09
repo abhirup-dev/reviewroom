@@ -13,7 +13,7 @@ is to explain the change so a fast reviewer understands it, and to link every cl
 
 ```html
 <rr-app>
-  <script type="application/json" id="rr-meta">{ "number": 4821, "tags": ["latency-sensitive"] }</script>
+  <script type="application/json" id="rr-meta">{ "number": 4821 }</script>
   <rr-review>
     … anything you want …
   </rr-review>
@@ -32,7 +32,7 @@ goes stale.
 |---|---|
 | `<section id="request-path"><h2>Request path</h2>…</section>` | Contents entry, scroll-spy, `rr:doc/request-path` links, section-level comments |
 | `<section … data-round="2">` | "new in R2" marker after a feedback round (use the round you are writing for) |
-| `data-baseline` on any block | "what already exists" context the reviewer can toggle off (`b`) |
+| `data-baseline` on any block | "what already exists" context, set apart visually from the change |
 | `id` or `data-rr-block` on any element | Stable, linkable, commentable block (reviewers can comment on anything anyway) |
 | `<p class="rr-lede">` | Larger summary paragraph |
 

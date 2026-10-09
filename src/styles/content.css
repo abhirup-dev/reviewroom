@@ -1,43 +1,46 @@
 /* Default typography for the narrative and for markdown in threads.
    Authors can override anything: these are low-specificity element styles under .rr-prose. */
 .rr-prose {
-  font: var(--rr-text-prose) / var(--rr-leading-prose) var(--rr-font);
+  font: var(--rr-text-prose) / var(--rr-leading-prose) var(--rr-font-read);
+  font-optical-sizing: auto;
+  font-variant-numeric: oldstyle-nums proportional-nums;
   color: var(--rr-ink);
   overflow-wrap: break-word;
 }
 .rr-msg__body.rr-prose,
 .rr-composer__preview.rr-prose,
 .rr-embed__doc.rr-prose {
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 14.5px;
+  line-height: 1.5;
 }
 .rr-prose > :first-child {
   margin-top: 0;
 }
 .rr-prose :where(h1, h2, h3, h4) {
   color: var(--rr-ink);
+  font-family: var(--rr-font-read);
+  font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.01em;
+  text-wrap: balance;
   scroll-margin-top: 24px;
 }
 .rr-prose :where(h1) {
-  font: 600 30px/1.2 var(--rr-font-serif);
-  margin: 0 0 12px;
-  letter-spacing: -0.015em;
+  font-size: 32px;
+  line-height: 1.15;
+  margin: 0 0 14px;
+  letter-spacing: -0.02em;
 }
 .rr-prose :where(h2) {
-  font-size: 21px;
-  font-weight: 600;
+  font-size: 23px;
   margin: 44px 0 10px;
 }
 .rr-prose :where(h3) {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
   margin: 28px 0 6px;
 }
 .rr-prose :where(h4) {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
   margin: 20px 0 4px;
 }
 .rr-prose :where(p, ul, ol, dl, table, figure, pre, blockquote, details) {
@@ -49,14 +52,22 @@
 .rr-prose :where(li) {
   margin: 3px 0;
 }
+/* one link treatment everywhere: accent ink + a quiet underline that firms up on hover.
+   Accent is reserved for "you can go there"; nothing else in the narrative is blue. */
 .rr-prose :where(a) {
   color: var(--rr-accent);
-  text-underline-offset: 2px;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--rr-accent) 35%, transparent);
+  text-underline-offset: 3px;
 }
-.rr-prose :where(code) {
-  font: 0.86em var(--rr-mono);
+.rr-prose :where(a:hover) {
+  text-decoration-color: currentColor;
+}
+.rr-prose :where(code, kbd, samp) {
+  font: 0.84em var(--rr-mono);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--rr-radius-sm);
   background: var(--rr-hover);
 }
 .rr-prose :where(pre) {
@@ -80,7 +91,8 @@
 .rr-prose :where(table) {
   border-collapse: collapse;
   width: 100%;
-  font-size: 13px;
+  font-size: 14px;
+  font-variant-numeric: lining-nums tabular-nums;
   display: block;
   overflow-x: auto;
 }
@@ -91,9 +103,8 @@
   vertical-align: top;
 }
 .rr-prose :where(th) {
-  font-weight: 600;
+  font: 600 12px/1.4 var(--rr-font);
   color: var(--rr-muted);
-  font-size: 12px;
   border-bottom-color: var(--rr-line-strong);
 }
 .rr-prose :where(figure) {
@@ -101,7 +112,7 @@
 }
 .rr-prose :where(figcaption) {
   margin-top: 6px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--rr-muted);
 }
 .rr-prose :where(img, svg, canvas, video) {
@@ -117,7 +128,7 @@
   font-weight: 500;
 }
 .rr-doc .rr-lede {
-  font-size: 17px;
+  font-size: 18px;
   color: var(--rr-ink-2);
 }
 
@@ -129,15 +140,11 @@
   vertical-align: 3px;
   font: 600 10px/1 var(--rr-mono);
   padding: 3px 6px;
-  border-radius: 4px;
-  background: var(--rr-accent-soft);
-  color: var(--rr-accent);
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-active);
+  color: var(--rr-ink-2);
 }
-/* baseline toggling: [data-baseline] blocks hide when "Show baseline" is off */
-.rr-doc[data-rr-hide-baseline] [data-baseline],
-.rr-doc[data-rr-hide-baseline] rr-node[state='baseline'] {
-  display: none !important;
-}
+/* baseline: [data-baseline] blocks describe what already existed before the change */
 .rr-doc [data-baseline]:not(rr-node) {
   border: 1px dashed var(--rr-line-strong);
   border-radius: var(--rr-radius);
@@ -167,7 +174,7 @@ rr-flow {
   margin: 8px 0 18px;
   padding: 16px;
   border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-lg);
+  border-radius: var(--rr-radius);
   background: var(--rr-panel-2);
 }
 rr-flow[direction='column'] {
@@ -182,7 +189,7 @@ rr-node {
   gap: 4px;
   padding: 8px 12px;
   border: 1px solid var(--rr-line-strong);
-  border-radius: 8px;
+  border-radius: var(--rr-radius);
   background: var(--rr-panel);
   font: 500 12.5px/1.2 var(--rr-mono);
   color: var(--rr-ink);
@@ -262,14 +269,18 @@ rr-node[state='changed'] .rr-node__badge {
 }
 
 /* ---------------------------------------------------------------- rr-callout */
+/* callouts share one neutral body; the kind shows only as the edge and label colour */
 rr-callout {
+  --tone: var(--rr-line-strong);
+  --tone-ink: var(--rr-muted);
   display: block;
   margin: 0 0 16px;
   padding: 10px 14px 12px;
   border-radius: var(--rr-radius);
   background: var(--rr-panel-2);
   border: 1px solid var(--rr-line);
-  font-size: 14px;
+  border-left: 3px solid var(--tone);
+  font-size: 15px;
 }
 .rr-callout__label {
   display: inline-block;
@@ -277,33 +288,22 @@ rr-callout {
   font: 600 10.5px/1 var(--rr-font);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--rr-muted);
+  color: var(--tone-ink);
 }
 rr-callout > :last-child {
   margin-bottom: 0;
 }
 .rr-callout--risk {
-  background: var(--rr-risk-soft);
-  border-color: color-mix(in srgb, var(--rr-risk) 25%, transparent);
+  --tone: var(--rr-risk);
+  --tone-ink: var(--rr-risk);
 }
-.rr-callout--risk .rr-callout__label {
-  color: var(--rr-risk);
-}
-.rr-callout--question,
-.rr-callout--info {
-  background: var(--rr-accent-soft);
-  border-color: color-mix(in srgb, var(--rr-accent) 20%, transparent);
-}
-.rr-callout--question .rr-callout__label,
-.rr-callout--info .rr-callout__label {
-  color: var(--rr-accent);
+.rr-callout--question {
+  --tone: var(--rr-comment);
+  --tone-ink: var(--rr-comment);
 }
 .rr-callout--ok {
-  background: var(--rr-ok-soft);
-  border-color: color-mix(in srgb, var(--rr-ok) 25%, transparent);
-}
-.rr-callout--ok .rr-callout__label {
-  color: var(--rr-ok);
+  --tone: var(--rr-ok);
+  --tone-ink: var(--rr-ok);
 }
 
 /* ---------------------------------------------------------------- rr-checklist */
@@ -314,7 +314,7 @@ rr-checklist {
   margin: 0 0 16px;
   padding: 6px;
   border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-lg);
+  border-radius: var(--rr-radius);
 }
 rr-check {
   display: flex;
@@ -322,7 +322,7 @@ rr-check {
   gap: 10px;
   padding: 6px 8px;
   border-radius: var(--rr-radius);
-  font-size: 14px;
+  font-size: 15px;
 }
 rr-check:hover {
   background: var(--rr-hover);
@@ -335,11 +335,12 @@ rr-check:hover {
   display: grid;
   place-items: center;
   border: 1.5px solid var(--rr-line-strong);
-  border-radius: 5px;
+  border-radius: var(--rr-radius-sm);
   background: var(--rr-panel);
   cursor: pointer;
   padding: 0;
-  color: #fff;
+  font: inherit;
+  color: var(--rr-surface-doc);
 }
 rr-check[data-state='pass'] .rr-check__box {
   background: var(--rr-ok);

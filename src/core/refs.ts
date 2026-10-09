@@ -86,24 +86,24 @@ export function formatRef(r: Ref): string {
   }
 }
 
-/** Short human label for chips. */
+/** Short human label for chips; never shows ids or CSS paths (ReviewApp.label adds DOM-aware names). */
 export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | undefined): string {
   switch (r.type) {
     case 'doc':
-      return (r.id ? resolveDocTitle?.(r.id) ?? r.id : 'Review') + (r.path ? ' › ' + r.path.split('>').pop()!.replace(/:nth-of-type\((\d+)\)/, ' $1') : '');
+      return (r.id && resolveDocTitle?.(r.id)) || 'Review';
     case 'code':
     case 'file': {
       const base = r.path.split('/').pop()!;
       const lines = r.start ? `:${r.start}${r.end && r.end !== r.start ? '–' + r.end : ''}` : '';
-      const rev = r.rev !== 'head' ? ` @${r.rev.slice(0, 7)}` : '';
+      const rev = r.rev === 'base' ? ' (before)' : r.rev !== 'head' ? ` @${r.rev.slice(0, 7)}` : '';
       return base + lines + rev;
     }
     case 'sym':
       return r.name;
     case 'thread':
-      return 'thread ' + r.id.slice(0, 6);
+      return 'Thread';
     case 'round':
-      return 'round ' + r.n;
+      return 'Round ' + r.n;
   }
 }
 
