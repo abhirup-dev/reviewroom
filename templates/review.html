@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<script type="module" src="/_rr/readingroom.js"></script>
+<style>
+  /* Your own styles go here. Everything inside <rr-review> is yours. */
+</style>
+</head>
+<body>
+<rr-app>
+  <script type="application/json" id="rr-meta">{ "tags": [] }</script>
+  <rr-review>
+    <!--
+      Freeform. Write the review as HTML: any markup, CSS, SVG, canvas, <script>.
+      Conventions that make the tooling light up (all optional):
+        <section id="…"><h2>…</h2> … </section>   → table of contents, scroll-spy, section links
+        data-round="2" on a section              → "new in R2" marker after a feedback round
+        data-baseline on any block                → toggleable "what already exists" context
+        <a href="rr:code/path#L10-20">            → jump links (also rr:doc/<id>, rr:sym/<name>, rr:thread/<id>)
+        <rr-ref>, <rr-embed>, <rr-code>, <rr-flow>, <rr-callout>, <rr-checklist>  → helpers, see AGENTS.md
+        window.rr (after 'readingroom:ready')    → rr.open(), rr.findSymbol(), rr.read(), rr.comment(), …
+    -->
+    <h1>{{TITLE}}</h1>
+    <p class="rr-lede">One-paragraph summary of what this change does and why.</p>
+
+    <section id="overview">
+      <h2>What changed</h2>
+      <rr-flow>
+        <rr-node state="baseline">Existing entry point</rr-node>
+        <rr-node state="new">New piece</rr-node>
+        <rr-node>Downstream</rr-node>
+      </rr-flow>
+      <ul>
+{{FILES}}
+      </ul>
+    </section>
+
+    <section id="risks">
+      <h2>Risks &amp; sign-off</h2>
+      <rr-checklist>
+        <rr-check id="compat">Backwards compatible</rr-check>
+        <rr-check id="tests">Tests cover the new paths</rr-check>
+      </rr-checklist>
+    </section>
+  </rr-review>
+</rr-app>
+</body>
+</html>

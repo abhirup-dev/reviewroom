@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attach recent HABIT events to RankerRequest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<script type="module" src="/_rr/readingroom.js"></script>
+<style>
+  /* Author styles: the agent can style its own widgets however it likes. */
+  .budget { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--rr-line); border-radius: 10px; background: var(--rr-panel-2); margin-bottom: 16px; }
+  .budget__row { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 10px; font-size: 13px; }
+  .budget__track { position: relative; height: 22px; border-radius: 5px; background: var(--rr-hover); overflow: hidden; }
+  .budget__seg { position: absolute; top: 0; bottom: 0; display: grid; place-items: center; font: 500 11px/1 var(--rr-mono); color: #fff; transition: left .35s ease, width .35s ease; cursor: pointer; }
+  .budget__seg--tardis { background: #5b6b8c; }
+  .budget__seg--habit { background: #c7741f; }
+  .budget__limit { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--rr-risk); }
+  .budget__ms { font: 500 12px var(--rr-mono); text-align: right; }
+  .budget__ctl { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--rr-muted); }
+  .rows td:first-child, .rows td:nth-child(2) { font-family: var(--rr-mono); font-size: 12px; }
+</style>
+</head>
+<body>
+<rr-app>
+  <script type="application/json" id="rr-meta">{ "number": 4821, "tags": ["feed relevance", "latency-sensitive"] }</script>
+  <rr-review>
+    <h1>Attach recent HABIT events to the ranker request</h1>
+    <p class="rr-lede">The request builder now reads the user's last 7 days of HABIT events through TFS v2 and passes them to the ranker as a new proto field. If the fetch fails the feed still serves, just without the signal.</p>
+
+    <section id="summary">
+      <h2>Summary</h2>
+      <p>Three pieces, landed in two commits: a new <rr-ref ref="rr:sym/Fetcher">habit.Fetcher</rr-ref> over TFS v2, a <code>HabitEvent</code> message plus <rr-ref ref="rr:code/proto/feed/v2/ranker_request.proto#L25">field 12</rr-ref> on <code>RankerRequest</code>, and one new call inside <rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54">Builder.Build</rr-ref>. A storage table backs the online store.</p>
+      <rr-flow>
+        <rr-node state="baseline">FeedRequest</rr-node>
+        <rr-node state="baseline" ref="rr:code/pkg/ranker/request_builder.go#L42">Builder.Build</rr-node>
+        <rr-node state="baseline" ref="rr:code/pkg/ranker/request_builder.go#L46">Tardis.Fetch</rr-node>
+        <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L20-28">habit.RecentEvents</rr-node>
+        <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L24">tfsv2.BatchGet</rr-node>
+        <rr-node state="changed" ref="rr:code/pkg/ranker/request_builder.go#L55-59">RankerRequest</rr-node>
+      </rr-flow>
+      <p data-baseline>Today the builder fetches four base feature keys from Tardis and forwards them; no per-user event history reaches the ranker. HABIT embeddings are computed offline and are unaffected by this PR.</p>
+    </section>
+
+    <section id="request-path">
+      <h2>Request path &amp; latency</h2>
+      <p>The habit call runs <strong>after</strong> the Tardis fetch, sequentially, so its latency adds straight onto the feed request. The fetcher caps itself with a <rr-ref ref="rr:code/pkg/features/habit/fetcher.go#L21">30 ms deadline</rr-ref>. Staging p99s below; toggle to see what running both calls concurrently would buy.</p>
+      <div class="budget" id="latency-budget" data-rr-block>
+        <div class="budget__row"><span>p99, this PR</span><div class="budget__track" id="bt-track"><div class="budget__seg budget__seg--tardis" id="bt-tardis">Tardis 18</div><div class="budget__seg budget__seg--habit" id="bt-habit">habit 12</div><div class="budget__limit" style="left: 80%" title="Feed budget: 40 ms"></div></div><span class="budget__ms" id="bt-total">30 ms</span></div>
+        <div class="budget__ctl"><label><input type="checkbox" id="bt-par"> run habit alongside Tardis</label><span>red line = 40 ms feed budget · click a bar to open its code</span></div>
+      </div>
+      <script>
+        // Agent-authored interactive widget. Uses window.rr to jump into the diff.
+        window.addEventListener('readingroom:ready', ({ detail: rr }) => {
+          const scale = (ms) => (ms / 50) * 100;
+          const paint = () => {
+            const par = document.getElementById('bt-par').checked;
+            const t = document.getElementById('bt-tardis'), h = document.getElementById('bt-habit');
+            Object.assign(t.style, { left: '0%', width: scale(18) + '%' });
+            Object.assign(h.style, par ? { left: '0%', width: scale(12) + '%', top: '50%' } : { left: scale(18) + '%', width: scale(12) + '%', top: '0' });
+            t.style.bottom = par ? '50%' : '0';
+            document.getElementById('bt-total').textContent = (par ? 18 : 30) + ' ms';
+          };
+          document.getElementById('bt-par').addEventListener('change', paint);
+          document.getElementById('bt-tardis').onclick = () => rr.open('rr:code/pkg/ranker/request_builder.go#L46-49');
+          document.getElementById('bt-habit').onclick = () => rr.open('rr:code/pkg/ranker/request_builder.go#L50-54');
+          paint();
+        });
+      </script>
+      <rr-code ref="rr:code/pkg/ranker/request_builder.go#L46-60" title="Builder.Build, after the change"></rr-code>
+    </section>
+
+    <section id="failure-mode">
+      <h2>Failure mode</h2>
+      <p>On any fetch error the builder logs at warn level and sends an empty list. Because <code>habit_events</code> is <code>repeated</code>, nil serialises as empty and the ranker reads it as "no signal" rather than an error.</p>
+      <rr-callout kind="risk" title="Silent degradation">
+        <p>Nothing counts the degraded requests. If TFS v2 started failing for every user, dashboards would stay green while ranking quality dropped. <b>b.metrics</b> is already injected (<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L32"></rr-ref>), so a counter is one line.</p>
+      </rr-callout>
+    </section>
+
+    <section id="schema">
+      <h2>Proto &amp; storage</h2>
+      <p>Field 12 is appended, never reused, so older ranker builds simply ignore it. The table is additive and its <code>(user_id, ts DESC)</code> index matches the window read.</p>
+      <rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9"></rr-code>
+      <figure id="sample-rows">
+        <table class="rows">
+          <thead><tr><th>user_id</th><th>ts</th><th>event</th><th>post_id</th></tr></thead>
+          <tbody>
+            <tr><td>u_88213</td><td>2026-10-08 21:14:02</td><td>watch_complete</td><td>p_51a9</td></tr>
+            <tr><td>u_88213</td><td>2026-10-08 21:13:10</td><td>like</td><td>p_51a9</td></tr>
+            <tr><td>u_88213</td><td>2026-10-08 21:12:48</td><td>skip</td><td>p_4c02</td></tr>
+          </tbody>
+        </table>
+        <figcaption>Three staging rows for one user, newest first — what the fetcher decodes into <code>HabitEvent</code>.</figcaption>
+      </figure>
+    </section>
+
+    <section id="tests">
+      <h2>Tests</h2>
+      <p>Two new tests: the deadline fires (<rr-ref ref="rr:code/pkg/features/habit/fetcher_test.go#L11-15"></rr-ref>) and decoding caps at 50 rows (<rr-ref ref="rr:code/pkg/features/habit/fetcher_test.go#L17-22"></rr-ref>). Nothing exercises the degrade branch in <code>Build</code>.</p>
+    </section>
+
+    <section id="sign-off">
+      <h2>Risk checklist</h2>
+      <rr-checklist>
+        <rr-check id="proto-compat">Proto change is append-only and wire compatible</rr-check>
+        <rr-check id="migration">Migration is additive, no backfill required</rr-check>
+        <rr-check id="latency">+12 ms sequential p99 is acceptable for the feed budget</rr-check>
+        <rr-check id="observability">Degraded requests are observable</rr-check>
+        <rr-check id="flag">Rollout is behind <code>mfas.habit_events.enabled</code></rr-check>
+      </rr-checklist>
+    </section>
+
+    <section id="parallel-sketch" data-round="2">
+      <h2>Parallel fetch sketch</h2>
+      <p>Added after round 1 (<rr-ref ref="rr:thread/t_seq01">your question on sequencing</rr-ref>). Both calls only need the user id, so they can share an errgroup; habit stays best-effort by swallowing its own error.</p>
+      <rr-code lang="go" title="suggested change">g, gctx := errgroup.WithContext(ctx)
+g.Go(func() error { var err error; feats, err = b.tardis.Fetch(gctx, uid, baseKeys); return err })
+g.Go(func() error {
+	ev, err := b.habit.RecentEvents(gctx, uid, habitWindow)
+	if err != nil {
+		b.metrics.Inc("habit_degraded_total")
+		return nil // best effort
+	}
+	habitEvents = ev
+	return nil
+})
+if err := g.Wait(); err != nil {
+	return nil, err
+}</rr-code>
+      <p>Caveat: <code>feats</code> and <code>habitEvents</code> must be declared before the group — the current diff declares them inline at <rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50"></rr-ref>.</p>
+    </section>
+  </rr-review>
+</rr-app>
+</body>
+</html>

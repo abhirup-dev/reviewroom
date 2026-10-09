@@ -1,0 +1,105 @@
+# readingroom
+
+An agent-driven code review workbench. The agent writes a **freeform HTML narrative** of a change;
+readingroom puts it next to a **live diff of your local clone** and gives you everything around it:
+docking panels, contents, a file tree, symbol search, anchored comment threads, and Crit-style
+**review rounds** with the agent.
+
+```
+┌ header: PR · round · ⌘K · pick · layout · theme · Send feedback ──────────────────────────┐
+│ Contents  │ Review (agent's HTML)                       ┊ │ Code (@pierre/diffs)           │
+│ Pinned    │   prose, <rr-flow> diagrams, widgets,       ┊ │   all files, split/unified,    │
+│───────────│   live <rr-code> snippets, rr: links        ┊ │   ws, +/− focus, wrap,         │
+│ Files     │   highlights + thread chips in the margin → ┊ │   inline threads, base/head    │
+│ Threads   │                                             ┊ │   full file, commit ranges     │
+└───────────┴─────────────────────────────────────────────┴─┴────────────────────────────────┘
+       every pane is a dockview panel: drag tabs to split/stack, float, maximise; layouts persist
+```
+
+## Quick start
+
+```bash
+cd readingroom && npm install && npm run build && npm link   # once
+cd ~/Codes/your-repo && git checkout your-branch
+readingroom init --base main          # scaffolds .readingroom/<branch>/review.html
+readingroom review                    # opens the browser; blocks until you send feedback
+```
+
+Try it on a demo repo: `bash examples/make-demo-repo.sh /tmp/mfas-demo` then
+`cd /tmp/mfas-demo && readingroom serve --dir <readingroom>/examples/habit-events`.
+
+Install the Claude Code skill so your agent runs the loop: copy `skill/readingroom-review/` into
+`~/.claude/skills/`. The agent authoring guide is [AGENTS.md](AGENTS.md).
+
+## The review loop
+
+1. The agent writes `review.html` and runs `readingroom review` (blocks).
+2. You read, jump into code, comment on anything, and press **Send feedback** (or **Approve**).
+3. The command exits printing structured feedback; the agent replies per thread
+   (`readingroom reply <id> "…"`), adds `data-round="2"` sections for bigger answers, changes code,
+   and runs `readingroom review` again. Your open tab reconnects and shows round 2.
+
+Everything is kept in `.readingroom/<branch>/` (auto-added to `.git/info/exclude`):
+`review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
+`rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
+
+## Commenting
+
+- **Select text** in the narrative → Comment / Copy link / Pin.
+- **Hover any block** (paragraph, list item, table, diagram, widget) → gutter handle → comment on the whole block.
+- **Hold Alt** (or press `x`, or the target button) to pick **any element**, devtools-style.
+- **Code:** click/drag line numbers to select a range, or the `+` in the gutter.
+- Threads render as passive highlights + chips in the margin (narrative) or compact rows (code),
+  open as a centred markdown popup, and can be **docked** as a panel.
+- In the composer, `[[` links anything (sections, files, lines, symbols, threads); a pasted `rr:` link becomes a chip;
+  `![](rr:…)` embeds a live preview.
+
+## Keyboard
+
+| | |
+|---|---|
+| `⌘K` / `Ctrl K` | Go to anything (files, sections, threads, commands; `#` symbols, `/` search code) |
+| `g n` `g c` `g f` `g t` `g o` | Focus narrative / code / files / threads / contents |
+| `n` `p` or `]` `[` | Next / previous section (narrative) |
+| `j` `k`, `J` `K` / `] f` `[ f` | Next / previous change, file (code) |
+| `s` `w` `i` `+` `-` `v` | Split/unified, wrap, ignore whitespace, focus new/old, mark viewed (code) |
+| `b` | Toggle baseline context |
+| `c` | Comment on current selection |
+| `x` / hold `Alt` | Pick an element to comment on |
+| `Alt 1–4` | Layouts: reading, wide code, code focus, narrative focus |
+| `⌘⇧↵` | Finish round & send feedback |
+
+## Code sources
+
+1. **Local clone** (default, via the CLI server): `git diff`, `git show`, `git grep` — no rate limits,
+   symbol search across the whole repo, works offline, `--head worktree` for uncommitted changes.
+2. **GitHub** fallback (`<rr-app repo="owner/name">` + base/head in `#rr-meta`): 2 API calls per
+   review; file contents come from raw.githubusercontent.com. Token: `localStorage['readingroom:github-token']`.
+3. **Static fixture** (`<script type="application/json" id="rr-fixture">`): self-contained demos.
+
+Write your own by implementing `CodeProvider` (`src/providers/index.ts`).
+
+## Package layout
+
+```
+src/
+  index.ts            boot(), window.rr API, commands
+  core/               types, rr: refs, commands/keys, markdown, emitter, dom helpers
+  providers/          LocalProvider + ServerState (CLI), GitHubProvider, StaticProvider, BrowserState
+  shell/              ReviewApp (shared context), dockview layout + presets, header
+  panels/             narrative, code (@pierre/diffs), files/contents/threads
+  overlays/           thread popup/panel + composer, palette, selection toolbar, hover previews, toasts
+  elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
+  styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
+cli/readingroom.mjs   zero-dependency server + round commands
+templates/            review.html scaffold
+schema/               JSON schema for state.json
+skill/                Claude Code skill for the review loop
+```
+
+Exports: `import { boot, definePanel, ReviewApp, LocalProvider, … } from 'readingroom'`;
+`readingroom/style.css` if you want the stylesheet as a file (it is injected automatically otherwise).
+Restyle by overriding `--rr-*` variables; add panels with `definePanel()`; add commands with
+`rr.commands.register()`.
+
+Built on [@pierre/diffs](https://diffs.com) (diff rendering) and [dockview](https://dockview.dev) (docking).

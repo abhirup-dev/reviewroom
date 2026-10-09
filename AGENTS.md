@@ -1,0 +1,122 @@
+# Writing a readingroom review (guide for agents)
+
+You are writing the **narrative** half of a code review. The other half — the live diff, file
+tree, contents, threads, rounds, palette, theming, docking — is provided by readingroom. Your job
+is to explain the change so a fast reviewer understands it, and to link every claim to the code.
+
+## The file
+
+`readingroom init` creates `<repo>/.readingroom/<branch>/review.html`. It is an ordinary HTML file:
+
+```html
+<rr-app>
+  <script type="application/json" id="rr-meta">{ "number": 4821, "tags": ["latency-sensitive"] }</script>
+  <rr-review>
+    … anything you want …
+  </rr-review>
+</rr-app>
+```
+
+There are **no restrictions** inside `<rr-review>`: write any HTML, inline `<style>`, SVG, `<canvas>`,
+`<script>`, tables, charts. Put extra assets (images, js, css) next to `review.html` and reference
+them relatively. **Never paste code from the diff into the narrative** — link to it or use
+`<rr-code ref=…>`, which renders the live lines from the repo. The review stays small and never
+goes stale.
+
+## Conventions the tooling understands (all optional)
+
+| You write | You get |
+|---|---|
+| `<section id="request-path"><h2>Request path</h2>…</section>` | Contents entry, scroll-spy, `rr:doc/request-path` links, section-level comments |
+| `<section … data-round="2">` | "new in R2" marker after a feedback round (use the round you are writing for) |
+| `data-baseline` on any block | "what already exists" context the reviewer can toggle off (`b`) |
+| `id` or `data-rr-block` on any element | Stable, linkable, commentable block (reviewers can comment on anything anyway) |
+| `<p class="rr-lede">` | Larger summary paragraph |
+
+## Links: `rr:` refs
+
+Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref>`, `<rr-embed ref>`,
+`rr.open()`, and in thread replies.
+
+| Ref | Points at |
+|---|---|
+| `rr:code/pkg/x.go#L45-54` | Lines 45–54 of the new file in the diff (`@base` for the old side) |
+| `rr:code/pkg/x.go` | The file in the diff |
+| `rr:file/pkg/y.go@head#L10` | A file **outside** the diff, full view (any rev: `@base`, `@<sha>`) |
+| `rr:sym/RecentEvents` | A symbol; resolved by searching the repo (definition first) |
+| `rr:doc/request-path` | A section/element id in the narrative |
+| `rr:thread/t_ab12cd` | A comment thread |
+
+Line numbers are the **new** file's numbers unless you add `@base`. Check them with
+`git show HEAD:path | sed -n '45,54p'` before you write them.
+
+## Helper elements
+
+```html
+<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54">Builder.Build</rr-ref>   <!-- chip; hover = preview -->
+<rr-embed ref="rr:doc/parallel-sketch"></rr-embed>                                     <!-- mini preview card -->
+<rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9" title="table"></rr-code>  <!-- live, highlighted -->
+<rr-code lang="go" title="suggested change">…new code that is NOT in the diff…</rr-code>
+<rr-flow>                                                                              <!-- left→right flow -->
+  <rr-node state="baseline">FeedRequest</rr-node>
+  <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L20-28">habit.RecentEvents</rr-node>
+  <rr-node state="changed">RankerRequest</rr-node>                                     <!-- states: new changed removed baseline -->
+</rr-flow>
+<rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
+<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- reviewer sign-off, persisted -->
+<rr-markdown>## You can also write markdown blocks</rr-markdown>
+```
+
+Use `<rr-flow>` for the one diagram every review should have: the delta against the baseline.
+Use `state="baseline"` for what exists, `new`/`changed` for the PR.
+
+## Scripting: `window.rr`
+
+Interactive widgets can drive the reviewer straight into the code:
+
+```html
+<script>
+  window.addEventListener('readingroom:ready', ({ detail: rr }) => {
+    document.querySelector('#bar').onclick = () => rr.open('rr:code/pkg/x.go#L46-49');
+  });
+</script>
+```
+
+| API | |
+|---|---|
+| `rr.open(ref)` | Navigate to any `rr:` ref |
+| `rr.findSymbol(name)` | Jump to a definition |
+| `rr.read(path, 'head' \| 'base' \| sha)` | File contents (string) |
+| `rr.files()` / `rr.search(q, symbol?)` | Changed files / repo search hits |
+| `rr.comment(ref, body?)` | Open the composer on (or create) a thread |
+| `rr.on(event, fn)` | `state`, `theme`, `active-section`, `active-file`, `selection`… |
+| `rr.commands.register({ id, title, keys, run })` | Add palette commands / shortcuts |
+| `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
+| `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus')` | Switch layout |
+| `rr.theme()` | `'light'` or `'dark'` — read `--rr-*` CSS variables to match colours |
+
+Use the CSS variables (`--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-panel`, `--rr-accent`, `--rr-add`,
+`--rr-del`, `--rr-comment`, `--rr-mono`…) in your own styles so widgets follow light/dark.
+
+## The round loop
+
+1. Write `review.html`. Run `readingroom review` — it opens the browser and **blocks**.
+2. The reviewer comments and clicks **Send feedback**. The command prints the feedback and exits.
+3. For every thread in the feedback:
+   - answer with `readingroom reply <thread-id> "<markdown>"` (`--resolve` when fully addressed);
+   - if the answer is substantial (a diagram, table, query, sketch), **add a section** to
+     `review.html` with `data-round="<next round>"` and reply with a link or an embed to it
+     (`![](rr:doc/<id>)` on its own line) instead of repeating it in the thread.
+   - link to code (`[Build](rr:code/…#L50-54)`) rather than quoting it; `![](rr:code/…#L50-54)`
+     embeds a live snippet.
+4. Change code if asked. Run `readingroom review` again: the open tab reconnects and shows round N+1.
+
+`readingroom threads` lists open threads; `readingroom comment <ref> "<md>"` starts a thread
+yourself (e.g. to flag something the reviewer should look at).
+
+## Writing well
+
+Lead with one paragraph and one `<rr-flow>`. Then sections in the order a reviewer would trace the
+change (entry point → new code → storage → failure modes → tests → risks). Every factual claim
+about the code gets a link. Prefer short sections the reviewer can comment on individually. Say
+what is *not* tested. End with an `<rr-checklist>` of the risks that need a human sign-off.
