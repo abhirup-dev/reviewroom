@@ -2,8 +2,8 @@
    Light is the default; [data-rr-theme="dark"] on <html> switches. */
 :root {
   /* Typography: three voices, all bundled with the tool (no network fonts).
-     --rr-font-read  reading: the narrative and thread messages
-     --rr-font       interface: buttons, toolbars, labels
+     --rr-font-read  reading: the narrative
+     --rr-font       interface: buttons, toolbars, labels, comments
      --rr-mono       code, file names, identifiers */
   --rr-font-read: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
   --rr-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;

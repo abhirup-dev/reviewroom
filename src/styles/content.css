@@ -7,11 +7,21 @@
   color: var(--rr-ink);
   overflow-wrap: break-word;
 }
-.rr-msg__body.rr-prose,
-.rr-composer__preview.rr-prose,
 .rr-embed__doc.rr-prose {
   font-size: 14.5px;
   line-height: 1.5;
+}
+/* comments are conversation, not narrative: one interface face for reading and writing them */
+.rr-msg__body.rr-prose,
+.rr-composer__preview.rr-prose {
+  font: 13.5px/1.55 var(--rr-font);
+  font-variant-numeric: normal;
+}
+:is(.rr-msg__body, .rr-composer__preview).rr-prose :where(h1, h2, h3, h4) {
+  font-family: inherit;
+  font-size: 1.05em;
+  margin: 12px 0 4px;
+  letter-spacing: 0;
 }
 .rr-prose > :first-child {
   margin-top: 0;
