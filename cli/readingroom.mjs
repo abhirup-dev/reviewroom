@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { feedbackMarkdown } from './lib/feedback.mjs';
+import { feedbackMarkdown, anchorText, anchorRef } from './lib/feedback.mjs';
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(PKG, 'dist');
@@ -302,6 +302,7 @@ function startServer({ repo, dir, cfg, onFinish }) {
         if (!f.startsWith(DIST)) return json(res, 403, {});
         return serveFile(res, f);
       }
+      if (url.pathname === '/favicon.ico') { res.writeHead(204, { 'cache-control': 'max-age=86400' }); return res.end(); }
       if (url.pathname === '/api/meta') return json(res, 200, prov.meta());
       if (url.pathname === '/api/commits') return json(res, 200, prov.commits());
       if (url.pathname === '/api/files') return json(res, 200, prov.files(q.base || prov.base, q.head || prov.head));
@@ -635,7 +636,7 @@ switch (cmd) {
     console.log(`round ${s.round} · ${list.length} ${flags.all ? '' : 'open '}thread(s)`);
     for (const t of list) {
       const last = t.messages[t.messages.length - 1];
-      console.log(`\n${t.id}  [${t.status}]  ${JSON.stringify(t.anchor)}`);
+      console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
       for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
       if (last?.author === 'you') console.log('  → awaiting agent reply');
     }
