@@ -85,6 +85,9 @@
   overflow: auto;
   padding: 6px 14px 12px;
 }
+.rr-thread__scroll:empty {
+  display: none;
+}
 .rr-round-sep {
   display: flex;
   align-items: center;
