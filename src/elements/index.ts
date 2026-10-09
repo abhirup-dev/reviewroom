@@ -121,7 +121,7 @@ class RREmbed extends HTMLElement {
     const body = h('div', { class: 'rr-embed__body' }, h('div', { class: 'rr-skeleton' }));
     const head = h(
       'button',
-      { class: 'rr-embed__head', title: 'Open', onclick: () => withApp((a) => a.open(ref)) },
+      { class: 'rr-embed__head', title: 'Open the original', onclick: () => withApp((a) => a.open(ref)) },
       h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '?'),
       h('span', { class: 'rr-embed__title' }, caption || ''),
       h('span', { class: 'rr-embed__open' }, 'open', icon('chevron', 12)),
@@ -196,7 +196,7 @@ class RRNode extends HTMLElement {
     this.setAttribute('role', 'listitem');
     const ref = this.getAttribute('ref');
     const state = this.getAttribute('state');
-    if (state && state !== 'same') this.append(h('span', { class: 'rr-node__badge' }, state));
+    if (state && state !== 'same') this.append(h('span', { class: 'rr-node__badge', title: { new: 'Added in this PR', changed: 'Changed in this PR', removed: 'Removed in this PR', baseline: 'Already existed before this PR' }[state] ?? state }, state));
     if (ref) {
       this.tabIndex = 0;
       this.classList.add('is-link');

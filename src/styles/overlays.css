@@ -622,3 +622,38 @@ rr-embed {
   opacity: 0.4;
   cursor: default;
 }
+
+/* tooltips */
+.rr-tooltip {
+  position: fixed;
+  z-index: 1300;
+  max-width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--rr-ink);
+  color: var(--rr-bg);
+  font: 500 12px/1.4 var(--rr-font);
+  box-shadow: var(--rr-shadow);
+  pointer-events: none;
+  animation: rr-fade 0.1s ease-out;
+}
+.rr-tooltip[hidden] {
+  display: none;
+}
+.rr-tooltip kbd {
+  border-color: color-mix(in srgb, var(--rr-bg) 30%, transparent);
+  background: color-mix(in srgb, var(--rr-bg) 14%, transparent);
+  color: var(--rr-bg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-tooltip,
+  .rr-scrim,
+  .rr-modal,
+  .rr-palette {
+    animation: none;
+  }
+}

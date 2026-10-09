@@ -44,7 +44,7 @@ class FilesPanel implements PanelInstance {
     const seg = h(
       'div',
       { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Group files' },
-      ...(['tree', 'type', 'flat'] as const).map((g) => h('button', { class: p.fileGroup === g ? 'is-on' : '', 'aria-pressed': String(p.fileGroup === g), onclick: () => app.setPref('fileGroup', g) }, g === 'tree' ? 'Tree' : g === 'type' ? 'Type' : 'Flat')),
+      ...(['tree', 'type', 'flat'] as const).map((g) => h('button', { title: { tree: 'Group by folder', type: 'Group by file type (tests separate)', flat: 'Plain list of paths' }[g], class: p.fileGroup === g ? 'is-on' : '', 'aria-pressed': String(p.fileGroup === g), onclick: () => app.setPref('fileGroup', g) }, g === 'tree' ? 'Tree' : g === 'type' ? 'Type' : 'Flat')),
     );
     const chips = h(
       'div',
@@ -79,10 +79,10 @@ class FilesPanel implements PanelInstance {
         title: f.path,
         onclick: () => app.bus.emit('reveal-code', { path: f.path, side: f.status === 'deleted' ? 'base' : 'head' }),
       },
-      h('span', { class: `rr-status rr-status--${f.status}` }, STATUS[f.status]),
+      h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h('span', { class: 'rr-file-row__name' }, label),
-      threads ? h('span', { class: 'rr-count-chip' }, icon('thread', 11), String(threads)) : null,
-      h('span', { class: 'rr-delta rr-delta--small' }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
+      threads ? h('span', { class: 'rr-count-chip', title: `${threads} open thread${threads > 1 ? 's' : ''}` }, icon('thread', 11), String(threads)) : null,
+      h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
       viewed ? h('span', { class: 'rr-viewed-mark', title: 'Viewed' }, icon('check', 12)) : null,
     );
   }
@@ -134,6 +134,7 @@ class FilesPanel implements PanelInstance {
                 class: 'rr-dir-row' + (closed ? ' is-closed' : ''),
                 style: `--depth:${depth}`,
                 'aria-expanded': String(!closed),
+                title: closed ? 'Expand folder' : 'Collapse folder',
                 onclick: () => {
                   closed ? this.collapsedDirs.delete(key) : this.collapsedDirs.add(key);
                   this.renderList();
@@ -204,10 +205,10 @@ class TocPanel implements PanelInstance {
       items.push(
         h(
           'button',
-          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, onclick: () => app.bus.emit('reveal-doc', { id: s.id }) },
+          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}”`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }) },
           h('span', { class: 'rr-toc-item__title' }, title),
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
-          n ? h('span', { class: 'rr-count-chip' }, icon('thread', 11), String(n)) : null,
+          n ? h('span', { class: 'rr-count-chip', title: `${n} open thread${n > 1 ? 's' : ''} in this section` }, icon('thread', 11), String(n)) : null,
         ),
       );
       s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
@@ -224,7 +225,7 @@ class TocPanel implements PanelInstance {
       hasBaseline
         ? h(
             'label',
-            { class: 'rr-switch' },
+            { class: 'rr-switch', title: 'Show or hide the blocks that describe what already existed before this PR', 'data-keys': 'b' },
             h('input', { type: 'checkbox', checked: app.prefs.showBaseline, onchange: (e: Event) => app.setPref('showBaseline', (e.target as HTMLInputElement).checked) }),
             h('span', null, 'Show baseline context'),
           )
@@ -269,8 +270,8 @@ class ThreadsPanel implements PanelInstance {
     const r = ref ? parseRef(ref) : null;
     return h(
       'button',
-      { class: 'rr-thread-item' + (t.status === 'resolved' ? ' is-resolved' : ''), onclick: () => app.bus.emit('open-thread', { id: t.id }) },
-      h('div', { class: 'rr-thread-item__anchor' }, h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'), h('span', null, app.anchorLabel(t.anchor)), h('span', { class: 'rr-round-badge' }, 'R' + t.createdRound)),
+      { class: 'rr-thread-item' + (t.status === 'resolved' ? ' is-resolved' : ''), title: 'Open thread', onclick: () => app.bus.emit('open-thread', { id: t.id }) },
+      h('div', { class: 'rr-thread-item__anchor' }, h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'), h('span', null, app.anchorLabel(t.anchor)), h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound)),
       h('div', { class: 'rr-thread-item__text' }, plainExcerpt(t.messages[0]?.body ?? '', 120)),
       h(
         'div',
@@ -291,9 +292,9 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-seg rr-seg--small rr-seg--fill' },
-        ...(['open', 'resolved', 'all'] as const).map((f) => h('button', { class: this.filter === f ? 'is-on' : '', onclick: () => ((this.filter = f), this.render()) }, `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`)),
+        ...(['open', 'resolved', 'all'] as const).map((f) => h('button', { title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], class: this.filter === f ? 'is-on' : '', onclick: () => ((this.filter = f), this.render()) }, `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`)),
       ),
-      h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'General comment'),
+      h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: 'A comment about the whole PR, not tied to a line or section', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'General comment'),
     );
     const list = all.filter((t) => this.match(t, this.filter));
     const groups: [string, Thread[]][] = [

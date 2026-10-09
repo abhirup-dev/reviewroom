@@ -21,6 +21,7 @@ import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvide
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
 import { mountHoverCards, mountPalette, mountSelectionToolbar, mountToasts } from './overlays/misc';
+import { mountTooltips, tip } from './overlays/tooltip';
 import './panels/narrative';
 import './panels/code';
 import './panels/sidebar';
@@ -118,6 +119,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   root.replaceChildren(buildHeader(app), dockHost);
   root.classList.add('rr-root');
   mountToasts(app);
+  mountTooltips(app);
   mountPalette(app);
   mountSelectionToolbar(app);
   mountHoverCards(app);
@@ -172,6 +174,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     toast: (t: string) => app.toast(t),
     theme: () => app.resolvedTheme(),
     markdown: renderMarkdown,
+    tip,
   };
   (window as any).rr = api;
   window.dispatchEvent(new CustomEvent('readingroom:ready', { detail: api }));
