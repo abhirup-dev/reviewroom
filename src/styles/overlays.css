@@ -348,9 +348,12 @@ rr-embed {
   font-size: 12.5px;
 }
 .rr-snippet {
+  /* every line is as wide as the longest one, so target shading spans the full scroll width */
+  display: grid; /* one auto column: stretches to the card, grows to the longest line */
   margin: 0;
   padding: 6px 0;
   font: 12px/1.6 var(--rr-mono);
+  tab-size: 4;
   overflow-x: auto;
   background: var(--rr-panel);
 }
@@ -359,15 +362,24 @@ rr-embed {
   white-space: pre;
 }
 .rr-snippet__line.is-target {
-  background: var(--rr-highlight);
+  background: var(--rr-flash);
 }
 .rr-snippet__ln {
+  /* line numbers stay put while the code scrolls sideways */
+  position: sticky;
+  left: 0;
   width: 44px;
   flex: none;
   padding-right: 10px;
   text-align: right;
   color: var(--rr-faint);
+  background: var(--rr-panel);
   user-select: none;
+}
+.rr-snippet__line.is-target .rr-snippet__ln {
+  color: var(--rr-accent);
+  background: linear-gradient(var(--rr-flash), var(--rr-flash)), var(--rr-panel);
+  box-shadow: inset 2px 0 0 var(--rr-accent);
 }
 .rr-snippet__code {
   padding-right: 12px;

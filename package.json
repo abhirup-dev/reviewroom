@@ -8,10 +8,7 @@
     "readingroom": "./cli/readingroom.mjs"
   },
   "exports": {
-    ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/readingroom.js"
-    },
+    ".": "./dist/readingroom.js",
     "./style.css": "./dist/readingroom.css",
     "./schema/state.json": "./schema/state.schema.json",
     "./package.json": "./package.json"
@@ -21,36 +18,29 @@
     "cli",
     "schema",
     "templates",
-    "README.md",
-    "examples",
-    "scripts",
     "skills",
-    "AGENTS.md",
-    "mise.toml"
+    "README.md"
   ],
   "scripts": {
-    "build": "bun ./build.mjs",
-    "dev": "bun ./build.mjs --watch",
+    "build": "bun scripts/build.mjs",
+    "dev": "bun scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "smoke": "bun scripts/smoke.mjs",
-    "build:demo": "bun scripts/build-demo.mjs"
+    "prepack": "bun scripts/build.mjs"
   },
   "engines": {
     "node": ">=20"
-  },
-  "dependencies": {
-    "@pierre/diffs": "^1.5.2",
-    "dockview-core": "^8.4.1",
-    "dompurify": "^3.4.16",
-    "marked": "^18.1.0"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.0",
+    "@pierre/diffs": "^1.5.2",
     "@types/node": "^22",
-    "esbuild": "^0.28.2",
+    "dockview-core": "^8.4.1",
+    "dompurify": "^3.4.16",
+    "marked": "^18.1.0",
     "typescript": "^7.0.2"
   },
-  "packageManager": "bun@1.2.0"
+  "packageManager": "bun@1.4.2"
 }
