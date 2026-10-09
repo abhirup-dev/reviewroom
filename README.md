@@ -19,17 +19,13 @@ docking panels, contents, a file tree, symbol search, anchored comment threads, 
 ## Quick start
 
 ```bash
-cd readingroom && npm install && npm run build && npm link   # once
-cd ~/Codes/your-repo && git checkout your-branch
-readingroom init --base main          # scaffolds .readingroom/<branch>/review.html
-readingroom review                    # opens the browser; blocks until you send feedback
+cd readingroom && mise install && mise run setup      # once: deps, build, `readingroom` on PATH
+readingroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the browser
 ```
 
-Try it on a demo repo: `bash examples/make-demo-repo.sh /tmp/mfas-demo` then
-`cd /tmp/mfas-demo && readingroom serve --dir <readingroom>/examples/habit-events`.
-
-Install the Claude Code skill so your agent runs the loop: copy `skill/readingroom-review/` into
-`~/.claude/skills/`. The agent authoring guide is [AGENTS.md](AGENTS.md).
+`mise run demo` opens a review of a bundled demo repo. Agents use the skill in
+[`skills/readingroom/`](skills/readingroom/SKILL.md) (copy it to `~/.claude/skills/` or point your
+agent at it). Contributing to readingroom itself: [AGENTS.md](AGENTS.md).
 
 ## The review loop
 
@@ -68,6 +64,7 @@ Everything is kept in `.readingroom/<branch>/` (auto-added to `.git/info/exclude
 | `x` / hold `Alt` | Pick an element to comment on |
 | `Alt 1–4` | Layouts: reading, wide code, code focus, narrative focus |
 | `⌘⇧↵` | Finish round & send feedback |
+| hover anything | Tooltip explaining it, with its shortcut |
 
 ## Code sources
 
@@ -94,7 +91,7 @@ src/
 cli/readingroom.mjs   zero-dependency server + round commands
 templates/            review.html scaffold
 schema/               JSON schema for state.json
-skill/                Claude Code skill for the review loop
+skills/readingroom/   the skill agents use (SKILL.md + references/)
 ```
 
 Exports: `import { boot, definePanel, ReviewApp, LocalProvider, … } from 'readingroom'`;

@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // readingroom CLI — local server + review rounds.  Zero dependencies.
 //
+//   readingroom pr <number|url|branch> [--repo path] [--detach] [--wait]
+//                      one step: fetch the PR (gh if available), scaffold .readingroom/pr-<n>/,
+//                      start the server. --detach backgrounds it; --wait blocks for the round.
+//   readingroom stop   [dir]            stop a detached server
 //   readingroom init   [dir] [--base main] [--head HEAD] [--title "…"]   scaffold a review
 //   readingroom review [dir] [...]   serve, open the browser, block until the reviewer sends
 //                                    feedback or approves; print the feedback for the agent
@@ -126,8 +130,8 @@ function makeProvider(repo, cfg) {
         url: cfg.url,
         base,
         head,
-        baseLabel: cfg.base,
-        headLabel: isWT(head) ? 'working tree' : (git(['rev-parse', '--abbrev-ref', cfg.head], repo, { soft: true }) || cfg.head).trim(),
+        baseLabel: cfg.baseLabel || cfg.base,
+        headLabel: cfg.headLabel || (isWT(head) ? 'working tree' : (git(['rev-parse', '--abbrev-ref', cfg.head], repo, { soft: true }) || cfg.head).trim()),
       };
     },
     commits() {
@@ -365,10 +369,46 @@ function ensureExcluded(repo) {
 // ------------------------------------------------------------------ commands
 const repo = repoRoot(flags.repo ? path.resolve(flags.repo) : process.cwd());
 
+function scaffold(dir, cfg) {
+  const target = path.join(dir, 'review.html');
+  if (fs.existsSync(target) && !flags.force) return false;
+  const prov = makeProvider(repo, cfg);
+  const meta = prov.meta();
+  const files = prov.files(prov.base, prov.head);
+  let html = fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
+  html = html.replaceAll('{{TITLE}}', meta.title.replace(/[<&]/g, '')).replace('{{FILES}}', files.map((f) => `          <li><rr-ref ref="rr:code/${f.path}"></rr-ref> — ${f.status}, +${f.additions} −${f.deletions}</li>`).join('\n'));
+  fs.writeFileSync(target, html);
+  return true;
+}
+
+// A running server records itself so `review`/`stop` can find (and take over) it.
+const serverFile = (dir) => path.join(dir, 'server.json');
+function liveServer(dir) {
+  try {
+    const rec = JSON.parse(fs.readFileSync(serverFile(dir), 'utf8'));
+    process.kill(rec.pid, 0);
+    return rec;
+  } catch {
+    return null;
+  }
+}
+async function stopServer(dir) {
+  const rec = liveServer(dir);
+  if (!rec || rec.pid === process.pid) return null;
+  try {
+    process.kill(rec.pid, 'SIGTERM');
+  } catch {}
+  for (let i = 0; i < 30 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
+  return rec;
+}
+
 async function cmdServe(blocking) {
   if (!repo) die('not inside a git repository (use --repo <path>)');
   const dir = resolveDir(repo);
   const cfg = loadConfig(dir, repo);
+  // take over a detached server for the same review (same port, so an open tab reconnects)
+  const prev = await stopServer(dir);
+  if (prev && !flags.port) flags.port = String(prev.port);
   fs.mkdirSync(dir, { recursive: true });
   if (dir.startsWith(path.join(repo, '.readingroom'))) ensureExcluded(repo);
   if (!fs.existsSync(path.join(dir, 'config.json')) || flags.base || flags.head || flags.title) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
@@ -378,6 +418,14 @@ async function cmdServe(blocking) {
   const { server } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
   const port = await listen(server, +(flags.port || 4848));
   const url = `http://127.0.0.1:${port}/`;
+  fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt: new Date().toISOString() }));
+  const cleanup = () => {
+    try {
+      if (JSON.parse(fs.readFileSync(serverFile(dir), 'utf8')).pid === process.pid) fs.unlinkSync(serverFile(dir));
+    } catch {}
+  };
+  process.on('exit', cleanup);
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   const s = readState(dir);
   console.error(`readingroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
   if (!flags['no-open']) {
@@ -439,7 +487,96 @@ function parseAnchor(ref) {
   return { kind: 'general' };
 }
 
+// ------------------------------------------------------------------ pr: the one-step entry point
+function gh(args) {
+  try {
+    return JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+  } catch {
+    return null;
+  }
+}
+function remoteDefaultBranch(remote) {
+  const r = (git(['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`], repo, { soft: true }) || '').trim();
+  if (r) return r.replace(`refs/remotes/${remote}/`, '');
+  for (const b of ['main', 'master', 'moj_master']) if (git(['rev-parse', '--verify', '--quiet', `${remote}/${b}`], repo, { soft: true })) return b;
+  return 'main';
+}
+
+async function cmdPr() {
+  if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
+  const arg = pos.shift() || die('usage: readingroom pr <number | PR url | branch>');
+  const remote = typeof flags.remote === 'string' ? flags.remote : 'origin';
+  const m = String(arg).match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
+  const cfg = {};
+  let dir;
+  if (m) {
+    const n = m[1];
+    const info = gh(['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
+    console.error(`readingroom: fetching PR #${n}${info ? ` “${info.title}”` : ''} from ${remote}…`);
+    const ref = `refs/readingroom/pr-${n}`;
+    if (!git(['fetch', '--quiet', remote, `+refs/pull/${n}/head:${ref}`], repo, { soft: true }) && !git(['rev-parse', '--verify', '--quiet', ref], repo, { soft: true })) {
+      if (info?.headRefName && git(['fetch', '--quiet', remote, `+refs/heads/${info.headRefName}:${ref}`], repo, { soft: true }) === null) die(`could not fetch PR #${n} from ${remote}`);
+      if (!info) die(`could not fetch refs/pull/${n}/head from ${remote} (is it a GitHub remote? is \`gh\` logged in?)`);
+    }
+    const baseBranch = info?.baseRefName || (typeof flags.base === 'string' ? flags.base : remoteDefaultBranch(remote));
+    git(['fetch', '--quiet', remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`], repo, { soft: true });
+    Object.assign(cfg, { base: `${remote}/${baseBranch}`, head: ref, number: +n, title: info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
+    dir = path.join(repo, '.readingroom', `pr-${n}`);
+  } else {
+    const branch = String(arg);
+    let head = branch;
+    if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
+      git(['fetch', '--quiet', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`], repo, { soft: true });
+      head = `${remote}/${branch}`;
+      if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called “${branch}”`);
+    }
+    Object.assign(cfg, { base: typeof flags.base === 'string' ? flags.base : defaultBase(repo), head });
+    dir = path.join(repo, '.readingroom', branch.replace(/[^\w.-]+/g, '-'));
+  }
+  if (typeof flags.dir === 'string') dir = path.resolve(flags.dir);
+  fs.mkdirSync(dir, { recursive: true });
+  ensureExcluded(repo);
+  const prevCfg = fs.existsSync(path.join(dir, 'config.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')) : {};
+  const full = { ...prevCfg, ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined && v !== null)) };
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(full, null, 2));
+  const fresh = scaffold(dir, full);
+  const prov = makeProvider(repo, full);
+  const files = prov.files(prov.base, prov.head);
+  console.error(`readingroom: ${files.length} files changed · review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded — fill it in)' : ''}`);
+  flags.dir = dir;
+  for (const k of ['base', 'head', 'title']) delete flags[k];
+
+  if (flags.detach) {
+    const args = [fileURLToPath(import.meta.url), 'serve', '--repo', repo, '--dir', dir];
+    if (flags.port) args.push('--port', String(flags.port));
+    if (flags['no-open']) args.push('--no-open');
+    await stopServer(dir);
+    const out = fs.openSync(path.join(dir, 'server.log'), 'a');
+    spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
+    for (let i = 0; i < 50; i++) {
+      const rec = liveServer(dir);
+      if (rec) {
+        console.log(rec.url);
+        console.error(`readingroom: server running in the background (pid ${rec.pid}) · stop with \`readingroom stop --dir ${path.relative(process.cwd(), dir) || '.'}\``);
+        return process.exit(0);
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    die(`server did not start — see ${path.join(dir, 'server.log')}`);
+  }
+  await cmdServe(!!flags.wait);
+}
+
 switch (cmd) {
+  case 'pr':
+    await cmdPr();
+    break;
+  case 'stop': {
+    const dir = dirForEdit();
+    const rec = await stopServer(dir);
+    console.log(rec ? `stopped server on port ${rec.port}` : 'no server running for this review');
+    break;
+  }
   case 'serve':
     await cmdServe(false);
     break;
@@ -452,16 +589,7 @@ switch (cmd) {
     fs.mkdirSync(dir, { recursive: true });
     const cfg = loadConfig(dir, repo);
     fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
-    const target = path.join(dir, 'review.html');
-    if (fs.existsSync(target) && !flags.force) console.error(`readingroom: ${target} exists (use --force to overwrite)`);
-    else {
-      const prov = makeProvider(repo, cfg);
-      const meta = prov.meta();
-      const files = prov.files(prov.base, prov.head);
-      let html = fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
-      html = html.replaceAll('{{TITLE}}', meta.title.replace(/[<&]/g, '')).replace('{{FILES}}', files.map((f) => `          <li><rr-ref ref="rr:code/${f.path}"></rr-ref> — ${f.status}, +${f.additions} −${f.deletions}</li>`).join('\n'));
-      fs.writeFileSync(target, html);
-    }
+    if (!scaffold(dir, cfg)) console.error(`readingroom: ${path.join(dir, 'review.html')} exists (use --force to overwrite)`);
     ensureExcluded(repo);
     console.log(dir);
     break;
@@ -519,6 +647,16 @@ switch (cmd) {
     const s = readState(dir);
     const open = s.threads.filter((t) => t.status === 'open');
     const waiting = open.filter((t) => t.messages[t.messages.length - 1]?.author === 'you');
+    if (flags.json) {
+      const cfg = fs.existsSync(path.join(dir, 'config.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')) : {};
+      let base, head;
+      try {
+        const p = makeProvider(repo, loadConfig(dir, repo));
+        ({ base, head } = p);
+      } catch {}
+      console.log(JSON.stringify({ dir, review: path.join(dir, 'review.html'), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
+      break;
+    }
     console.log(`${dir}\nround ${s.round} (${s.rounds.find((r) => r.n === s.round)?.status}) · ${s.threads.length} threads · ${open.length} open · ${waiting.length} awaiting agent reply`);
     break;
   }

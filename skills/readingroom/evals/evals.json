@@ -1,0 +1,23 @@
+{
+  "skill_name": "readingroom",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Can you set up a readingroom review for PR 128 in ~/Codes/tardis-feature-service-sdk? Keep the narrative short.",
+      "expected_output": "Runs `readingroom pr 128 --repo … --detach`, reads the diff, writes a review.html with a lede, a clickable rr-flow delta diagram, linked sections and a sign-off checklist; reports the URL.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I sent my feedback in readingroom, go through the threads and answer them. For the one about the cache, show me what the keys look like.",
+      "expected_output": "Reads the feedback (threads / status --json), replies to each thread with readingroom reply, adds a data-round section with a key visualisation for the cache question and links/embeds it from the reply, then reruns readingroom review.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "walk me through what https://github.com/sharechat/moj-feed-aggregator-service/pull/412 changes, top-down from the handler",
+      "expected_output": "Uses readingroom pr with the URL, orders sections top-down from the entry point with a reading-order list, links every claim to code.",
+      "files": []
+    }
+  ]
+}

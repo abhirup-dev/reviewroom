@@ -20,19 +20,20 @@
     "dist",
     "cli",
     "schema",
-    "skill",
     "templates",
-    "AGENTS.md",
     "README.md",
     "examples",
-    "scripts"
+    "scripts",
+    "skills",
+    "AGENTS.md",
+    "mise.toml"
   ],
   "scripts": {
-    "build": "node build.mjs",
-    "dev": "node build.mjs --watch",
+    "build": "bun ./build.mjs",
+    "dev": "bun ./build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "demo": "node cli/readingroom.mjs serve examples/habit-events",
-    "build:demo": "node scripts/build-demo.mjs"
+    "smoke": "bun scripts/smoke.mjs",
+    "build:demo": "bun scripts/build-demo.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -47,5 +48,6 @@
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "@types/node": "^22"
-  }
+  },
+  "packageManager": "bun@1.2.0"
 }

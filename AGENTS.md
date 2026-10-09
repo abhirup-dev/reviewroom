@@ -1,146 +1,72 @@
-# Writing a readingroom review (guide for agents)
+# readingroom — contributor guide
 
-You are writing the **narrative** half of a code review. The other half — the live diff, file
-tree, contents, threads, rounds, palette, theming, docking — is provided by readingroom. Your job
-is to explain the change so a fast reviewer understands it, and to link every claim to the code.
+This file is for agents and people **changing readingroom itself**. If you are using readingroom to
+review a PR, read `skills/readingroom/SKILL.md` instead.
 
-## The file
+## What it is
 
-`readingroom init` creates `<repo>/.readingroom/<branch>/review.html`. It is an ordinary HTML file:
+A local, agent-driven code review workbench. An agent writes a freeform HTML narrative of a change;
+readingroom serves it next to a live diff of the local git clone, with dockable panels, anchored
+comment threads and feedback rounds between reviewer and agent. Two halves:
 
-```html
-<rr-app>
-  <script type="application/json" id="rr-meta">{ "number": 4821, "tags": ["latency-sensitive"] }</script>
-  <rr-review>
-    … anything you want …
-  </rr-review>
-</rr-app>
+- **CLI + server** (`cli/`): plain Node, zero dependencies. Reads git, serves the page and its API,
+  stores threads/rounds on disk, runs the round loop.
+- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with esbuild. Boots from a
+  `<rr-app>` element in the review page.
+
+## Map
+
+```
+cli/readingroom.mjs   commands (pr, review, serve, reply, …), git provider, HTTP API, round loop
+cli/lib/              code shared by CLI and client (feedback markdown)
+src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
+src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
+src/providers/        where code comes from (local server, GitHub, static fixture) and where state lives
+src/shell/            ReviewApp (shared context + events), dock layout & presets, header
+src/panels/           dockable panels: narrative, code, files/contents/threads
+src/overlays/         thread popup/panel + composer, palette, selection toolbar, hover previews, tooltips, toasts
+src/elements/         custom elements review authors use (<rr-ref>, <rr-code>, <rr-flow>, …)
+src/styles/           tokens.css (every colour/font as --rr-* variables) + component styles
+schema/               JSON schema of state.json (the contract between UI, CLI and agents)
+skills/readingroom/   the skill agents use to run reviews (entry point + references)
+templates/            review.html scaffold
+examples/             demo review + script that creates the demo git repo
+scripts/              smoke test, static demo builder
 ```
 
-There are **no restrictions** inside `<rr-review>`: write any HTML, inline `<style>`, SVG, `<canvas>`,
-`<script>`, tables, charts. Put extra assets (images, js, css) next to `review.html` and reference
-them relatively. **Never paste code from the diff into the narrative** — link to it or use
-`<rr-code ref=…>`, which renders the live lines from the repo. The review stays small and never
-goes stale.
+## Contracts (change deliberately, update the skill when you do)
 
-## Conventions the tooling understands (all optional)
+- **The narrative is the author's.** The client never rewrites `<rr-review>` content; it layers
+  tools around it (highlights via the CSS Highlight API, overlays, data attributes only).
+- **`rr:` links** (`src/core/refs.ts`) are the public addressing scheme used in HTML, threads, the
+  CLI and agent replies. Keep old forms parsing.
+- **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it.
+- **CLI commands and flags** documented in `skills/readingroom/references/cli.md`.
+- **`window.rr` and the custom elements** documented in `skills/readingroom/references/authoring.md`.
 
-| You write | You get |
-|---|---|
-| `<section id="request-path"><h2>Request path</h2>…</section>` | Contents entry, scroll-spy, `rr:doc/request-path` links, section-level comments |
-| `<section … data-round="2">` | "new in R2" marker after a feedback round (use the round you are writing for) |
-| `data-baseline` on any block | "what already exists" context the reviewer can toggle off (`b`) |
-| `id` or `data-rr-block` on any element | Stable, linkable, commentable block (reviewers can comment on anything anyway) |
-| `<p class="rr-lede">` | Larger summary paragraph |
+## Conventions
 
-## Links: `rr:` refs
+- No UI framework. Panels are registered with `definePanel()`; everything talks through
+  `ReviewApp` and its event bus. Commands (palette + shortcuts) go through the command registry.
+- Colours and fonts only through `--rr-*` tokens; each panel kind sets its own surface.
+- Any control whose purpose isn't obvious gets a `title` (rendered as the app's tooltip; add
+  `data-keys` for a shortcut hint).
+- Never show implementation detail to the reviewer: no raw `rr:` strings, ids or CSS paths in
+  visible text. Use `app.label()` / `describeElement()` for human names.
+- Keep the CLI dependency-free so it runs anywhere Node does.
 
-Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref>`, `<rr-embed ref>`,
-`rr.open()`, and in thread replies.
+## Working on it
 
-| Ref | Points at |
-|---|---|
-| `rr:code/pkg/x.go#L45-54` | Lines 45–54 of the new file in the diff (`@base` for the old side) |
-| `rr:code/pkg/x.go` | The file in the diff |
-| `rr:file/pkg/y.go@head#L10` | A file **outside** the diff, full view (any rev: `@base`, `@<sha>`) |
-| `rr:sym/RecentEvents` | A symbol; resolved by searching the repo (definition first) |
-| `rr:doc/request-path` | A section/element id in the narrative |
-| `rr:thread/t_ab12cd` | A comment thread |
+Toolchain via [mise](https://mise.jdx.dev) (Node for the CLI, Bun for installs and scripts):
 
-Line numbers are the **new** file's numbers unless you add `@base`. Check them with
-`git show HEAD:path | sed -n '45,54p'` before you write them.
-
-## Helper elements
-
-```html
-<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54">Builder.Build</rr-ref>   <!-- chip; hover = preview -->
-<rr-embed ref="rr:doc/parallel-sketch"></rr-embed>                                     <!-- mini preview card -->
-<rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9" title="table"></rr-code>  <!-- live, highlighted -->
-<rr-code lang="go" title="suggested change">…new code that is NOT in the diff…</rr-code>
-<rr-flow>                                                                              <!-- left→right flow -->
-  <rr-node state="baseline">FeedRequest</rr-node>
-  <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L20-28">habit.RecentEvents</rr-node>
-  <rr-node state="changed">RankerRequest</rr-node>                                     <!-- states: new changed removed baseline -->
-</rr-flow>
-<rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
-<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- reviewer sign-off, persisted -->
-<rr-markdown>## You can also write markdown blocks</rr-markdown>
+```bash
+mise install          # once
+mise run setup        # bun install, build, put `readingroom` on PATH (bun link)
+mise run dev          # rebuild on change
+mise run check        # typecheck + end-to-end smoke test: run before committing
+mise run demo         # demo repo + live review on localhost
+mise run demo-page    # self-contained demo HTML in .demo/
 ```
 
-Use `<rr-flow>` for the one diagram every review should have: the delta against the baseline.
-Use `state="baseline"` for what exists, `new`/`changed` for the PR.
-
-## Scripting: `window.rr`
-
-Interactive widgets can drive the reviewer straight into the code:
-
-```html
-<script>
-  window.addEventListener('readingroom:ready', ({ detail: rr }) => {
-    document.querySelector('#bar').onclick = () => rr.open('rr:code/pkg/x.go#L46-49');
-  });
-</script>
-```
-
-| API | |
-|---|---|
-| `rr.open(ref)` | Navigate to any `rr:` ref |
-| `rr.findSymbol(name)` | Jump to a definition |
-| `rr.read(path, 'head' \| 'base' \| sha)` | File contents (string) |
-| `rr.files()` / `rr.search(q, symbol?)` | Changed files / repo search hits |
-| `rr.comment(ref, body?)` | Open the composer on (or create) a thread |
-| `rr.on(event, fn)` | `state`, `theme`, `active-section`, `active-file`, `selection`… |
-| `rr.commands.register({ id, title, keys, run })` | Add palette commands / shortcuts |
-| `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
-| `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus')` | Switch layout |
-| `rr.theme()` | `'light'` or `'dark'` — read `--rr-*` CSS variables to match colours |
-
-Use the CSS variables (`--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-panel`, `--rr-accent`, `--rr-add`,
-`--rr-del`, `--rr-comment`, `--rr-mono`…) in your own styles so widgets follow light/dark.
-
-## Theming (optional)
-
-Every colour is a `--rr-*` CSS variable, and each panel sits on its own surface so the reading
-pane, the code, the navigation and pop-ups are visibly separate layers:
-
-| Token | Used for |
-|---|---|
-| `bg` | app ground: header and the gaps between panels |
-| `surface-doc` / `surface-doc-2` | the narrative (paper) / figures and flows inside it |
-| `surface-code` / `surface-well` | code / the area behind file cards |
-| `surface-nav` / `surface-nav-2` | Contents, Files, Threads / inputs inside them |
-| `surface-bar` / `surface-bar-active` | panel tab bars / the focused panel's bar |
-| `surface-overlay` | menus, dialogs, palette, previews |
-| `accent`, `comment`, `add`, `del`, `ink`, `muted`, `line` | links, threads, diff colours, text, rules |
-
-Override any of them per review in `#rr-meta` (light and dark separately; the `--rr-` prefix is optional):
-
-```json
-{ "theme": { "light": { "surface-doc": "#fffdf7", "accent": "#0b6bcb" },
-             "dark":  { "surface-doc": "#1c1a17", "bg": "#000" } } }
-```
-
-Keep text readable on whatever you choose (4.5:1 for body text).
-
-## The round loop
-
-1. Write `review.html`. Run `readingroom review` — it opens the browser and **blocks**.
-2. The reviewer comments and clicks **Send feedback**. The command prints the feedback and exits.
-3. For every thread in the feedback:
-   - answer with `readingroom reply <thread-id> "<markdown>"` (`--resolve` when fully addressed);
-   - if the answer is substantial (a diagram, table, query, sketch), **add a section** to
-     `review.html` with `data-round="<next round>"` and reply with a link or an embed to it
-     (`![](rr:doc/<id>)` on its own line) instead of repeating it in the thread.
-   - link to code (`[Build](rr:code/…#L50-54)`) rather than quoting it; `![](rr:code/…#L50-54)`
-     embeds a live snippet.
-4. Change code if asked. Run `readingroom review` again: the open tab reconnects and shows round N+1.
-
-`readingroom threads` lists open threads; `readingroom comment <ref> "<md>"` starts a thread
-yourself (e.g. to flag something the reviewer should look at).
-
-## Writing well
-
-Lead with one paragraph and one `<rr-flow>`. Then sections in the order a reviewer would trace the
-change (entry point → new code → storage → failure modes → tests → risks). Every factual claim
-about the code gets a link. Prefer short sections the reviewer can comment on individually. Say
-what is *not* tested. End with an `<rr-checklist>` of the risks that need a human sign-off.
+`dist/` is build output and not committed. Verify UI changes in a real browser (light and dark,
+wide and laptop widths) on the demo before calling them done.
