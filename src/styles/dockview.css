@@ -99,3 +99,47 @@
   width: 24px;
   height: 24px;
 }
+
+/* floating windows: a real, visible move handle */
+.dockview-theme-rr {
+  --dv-floating-titlebar-height: 24px;
+}
+.dockview-theme-rr .dv-floating-titlebar {
+  position: relative;
+  background: var(--rr-panel-2);
+  cursor: grab;
+  border-radius: 10px 10px 0 0;
+}
+.dockview-theme-rr .dv-floating-titlebar::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 36px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+.dockview-theme-rr .dv-floating-titlebar::after {
+  content: 'drag to move · dock button on the right re-attaches';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 500 10.5px/1 var(--rr-font);
+  color: var(--rr-faint);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.dockview-theme-rr .dv-floating-titlebar:hover::after {
+  opacity: 1;
+}
+.dockview-theme-rr .dv-floating-titlebar:active {
+  cursor: grabbing;
+}
+.dockview-theme-rr .dv-resize-container {
+  box-shadow: var(--rr-shadow-lg);
+  border: 1px solid var(--rr-line-strong);
+}

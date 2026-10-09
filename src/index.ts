@@ -220,10 +220,15 @@ function registerCommands(app: ReviewApp) {
     { id: 'comment.general', title: 'New general comment', group: 'Comments', run: () => app.compose({ kind: 'general' }) },
     { id: 'round.send', title: 'Finish round & send feedback', group: 'Rounds', keys: ['mod+shift+enter'], run: () => sendDialog(app) },
     { id: 'round.current', title: 'Back to current round', group: 'Rounds', run: () => app.bus.emit('round-view', 0) },
-    { id: 'escape', title: 'Clear selection', group: 'View', keys: ['escape'], run: () => {
+    { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
+      // innermost first: menus, then overlays (newest first), then the selection, then pick mode
+      const menus = document.querySelectorAll('.rr-menu');
+      if (menus.length) return menus.forEach((m) => m.remove());
+      for (const f of [...app.escapers].reverse()) if (f()) return;
+      if (app.root.classList.contains('is-picking')) return app.bus.emit('picker', false);
       app.selection = null;
+      document.getSelection()?.removeAllRanges();
       app.bus.emit('selection', null);
-      if (app.root.classList.contains('is-picking')) app.bus.emit('picker', false);
     } },
   );
   void isTestFile;

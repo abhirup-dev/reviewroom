@@ -607,3 +607,18 @@ rr-embed {
   opacity: 0;
   transform: translateY(6px);
 }
+.rr-menu__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 8px 8px 6px 32px;
+  border-top: 1px solid var(--rr-line);
+  font-size: var(--rr-text-sm);
+}
+.rr-menu__item:disabled,
+.rr-seg > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

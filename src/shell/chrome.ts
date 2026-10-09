@@ -35,7 +35,12 @@ export function sendDialog(app: ReviewApp) {
   const pending = app.pendingFeedback();
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' }) as HTMLTextAreaElement;
   const scrim = h('div', { class: 'rr-scrim' });
-  const close = () => scrim.remove();
+  const esc = () => (close(), true);
+  const close = () => {
+    scrim.remove();
+    app.escapers = app.escapers.filter((f) => f !== esc);
+  };
+  app.escapers.push(esc);
   const go = async (kind: 'feedback' | 'approve') => {
     if (app.backend.finish) {
       const res = await app.backend.finish(kind, note.value.trim() || undefined).catch((e) => ({ ok: false, message: String(e) }));

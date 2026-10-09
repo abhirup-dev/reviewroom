@@ -110,7 +110,8 @@ class NarrativePanel implements PanelInstance {
     this.element = h('div', { class: 'rr-narrative' }, this.scroller);
 
     this.wrap.addEventListener('pointermove', (e) => this.onMove(e));
-    this.wrap.addEventListener('pointerleave', () => this.hideHandle());
+    this.wrap.addEventListener('pointerleave', () => this.scheduleHide(200));
+    this.handle.addEventListener('pointerleave', () => this.scheduleHide());
     this.wrap.addEventListener('click', (e) => this.onClick(e), true);
     this.wrap.addEventListener('mouseup', (e) => setTimeout(() => this.onMouseUp(e), 0));
     this.scroller.addEventListener('scroll', debounce(() => this.hideHandle(), 30), { passive: true });
@@ -181,22 +182,39 @@ class NarrativePanel implements PanelInstance {
     return el && this.doc.contains(el) ? el : null;
   }
 
+  private hideTimer: ReturnType<typeof setTimeout> | undefined;
   private onMove(e: PointerEvent) {
-    if ((e.target as Element).closest('.rr-block-handle,.rr-rail')) return;
+    const t = e.target as Element;
+    if (t.closest('.rr-block-handle')) return clearTimeout(this.hideTimer);
+    if (t.closest('.rr-rail')) return this.scheduleHide();
     this.picking = this.pickToggle || e.altKey;
     this.wrap.classList.toggle('is-picking', this.picking);
-    const el = this.blockAt(e.target);
-    if (!el) return this.hideHandle(true);
+    // Moving from a block towards its handle crosses the gutter (and sometimes a
+    // neighbouring block's edge): keep the current block while the pointer is in
+    // that corridor so the handle stays reachable.
+    if (this.hoverBlock && !this.picking) {
+      const r = this.hoverBlock.getBoundingClientRect();
+      const h = this.handle.getBoundingClientRect();
+      if (e.clientX <= r.left + 24 && e.clientX >= h.left - 8 && e.clientY >= r.top - 10 && e.clientY <= Math.max(r.bottom, h.bottom) + 10) return clearTimeout(this.hideTimer);
+    }
+    const el = this.blockAt(t);
+    if (!el) return this.scheduleHide();
+    clearTimeout(this.hideTimer);
     if (el === this.hoverBlock) return;
+    this.showFor(el);
+  }
+
+  private showFor(el: Element) {
     this.hoverBlock = el;
     const wr = this.wrap.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     Object.assign(this.outline.style, { top: r.top - wr.top - 3 + 'px', left: r.left - wr.left - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 6 + 'px' });
     this.outline.hidden = false;
     this.outline.dataset.label = this.picking ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') : '';
-    const docLeft = this.doc.getBoundingClientRect().left - wr.left;
-    Object.assign(this.handle.style, { top: r.top - wr.top - 2 + 'px', left: Math.max(4, docLeft - 40) + 'px' });
+    // sit flush against the block's left edge (outline included) so there is no dead gap to cross
     this.handle.hidden = false;
+    const hw = this.handle.offsetWidth || 34;
+    Object.assign(this.handle.style, { top: r.top - wr.top - 3 + 'px', left: Math.max(2, r.left - wr.left - 6 - hw) + 'px' });
   }
 
   private pickToggle = false;
@@ -205,8 +223,16 @@ class NarrativePanel implements PanelInstance {
     this.wrap.classList.toggle('is-picking', on);
   }
 
-  private hideHandle(keepIfOverHandle = false) {
-    if (keepIfOverHandle && this.handle.matches(':hover')) return;
+  private scheduleHide(ms = 320) {
+    clearTimeout(this.hideTimer);
+    this.hideTimer = setTimeout(() => {
+      if (this.handle.matches(':hover')) return;
+      this.hideHandle();
+    }, ms);
+  }
+
+  private hideHandle() {
+    clearTimeout(this.hideTimer);
     this.hoverBlock = null;
     this.outline.hidden = true;
     this.handle.hidden = true;
