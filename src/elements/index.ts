@@ -49,7 +49,7 @@ class RRRef extends HTMLElement {
 
 // ------------------------------------------------------------------ snippets
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, highlight = true): Promise<HTMLElement> {
-  const rev = r.rev === 'base' ? app.range.base : r.rev === 'head' ? app.range.head : r.rev;
+  const rev = app.revOf(r.rev);
   const text = await app.read(r.path, rev);
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
   const lines = text.split('\n');
@@ -156,7 +156,7 @@ class RRCode extends HTMLElement {
       let ranged = false;
       const r = ref ? parseRef(ref) : null;
       if (r && (r.type === 'code' || r.type === 'file')) {
-        const rev = r.rev === 'base' ? app.range.base : r.rev === 'head' ? app.range.head : r.rev;
+        const rev = app.revOf(r.rev);
         const text = (await app.read(r.path, rev)) ?? '';
         const lines = text.split('\n');
         contents = lines.slice((r.start ?? 1) - 1, r.end ?? lines.length).join('\n');

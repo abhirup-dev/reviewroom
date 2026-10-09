@@ -118,6 +118,10 @@ export class ReviewApp {
   revFor(side: 'base' | 'head', range = this.range) {
     return side === 'base' ? range.base : range.head;
   }
+  /** A ref's rev ('base' | 'head' | sha) as a concrete revision. */
+  revOf(rev: string) {
+    return rev === 'base' || rev === 'head' ? this.revFor(rev) : rev;
+  }
   read(path: string, rev: string): Promise<string | null> {
     const key = rev + ':' + path;
     let p = this.cache.get(key);
