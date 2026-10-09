@@ -59,6 +59,17 @@ const git = (args, cwd, opts = {}) => {
     throw new Error(`git ${args.join(' ')}: ${(e.stderr || e.message).toString().trim()}`);
   }
 };
+// Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.
+const fetchRef = (remote, refspec, cwd) => {
+  try {
+    execFileSync('git', ['fetch', '--quiet', remote, refspec], {
+      cwd, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND || 'ssh -o BatchMode=yes -o ConnectTimeout=10' },
+    });
+    return true;
+  } catch { return false; }
+};
+const hasRef = (ref, cwd) => !!git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd, { soft: true });
 const repoRoot = (from) => (git(['rev-parse', '--show-toplevel'], from, { soft: true }) || '').trim() || null;
 const WORKTREE = 'worktree';
 
@@ -513,20 +524,26 @@ async function cmdPr() {
     const n = m[1];
     const info = gh(['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
     console.error(`readingroom: fetching PR #${n}${info ? ` “${info.title}”` : ''} from ${remote}…`);
-    const ref = `refs/readingroom/pr-${n}`;
-    if (!git(['fetch', '--quiet', remote, `+refs/pull/${n}/head:${ref}`], repo, { soft: true }) && !git(['rev-parse', '--verify', '--quiet', ref], repo, { soft: true })) {
-      if (info?.headRefName && git(['fetch', '--quiet', remote, `+refs/heads/${info.headRefName}:${ref}`], repo, { soft: true }) === null) die(`could not fetch PR #${n} from ${remote}`);
-      if (!info) die(`could not fetch refs/pull/${n}/head from ${remote} (is it a GitHub remote? is \`gh\` logged in?)`);
+    let ref = `refs/readingroom/pr-${n}`;
+    const fetched = fetchRef(remote, `+refs/pull/${n}/head:${ref}`, repo)
+      || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${ref}`, repo));
+    if (!fetched) {
+      // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
+      const local = [ref, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
+      if (!local) die(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: readingroom pr <branch>`);
+      console.error(`readingroom: fetch failed; using local ${local} (may be behind the PR)`);
+      ref = local;
     }
     const baseBranch = info?.baseRefName || (typeof flags.base === 'string' ? flags.base : remoteDefaultBranch(remote));
-    git(['fetch', '--quiet', remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`], repo, { soft: true });
-    Object.assign(cfg, { base: `${remote}/${baseBranch}`, head: ref, number: +n, title: info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
+    if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
+    const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo)) || die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
+    Object.assign(cfg, { base, head: ref, number: +n, title: info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
     dir = path.join(repo, '.readingroom', `pr-${n}`);
   } else {
     const branch = String(arg);
     let head = branch;
     if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
-      git(['fetch', '--quiet', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`], repo, { soft: true });
+      fetchRef(remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`, repo);
       head = `${remote}/${branch}`;
       if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called “${branch}”`);
     }
