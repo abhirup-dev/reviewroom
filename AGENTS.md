@@ -11,7 +11,7 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 
 - **CLI + server** (`cli/`): plain Node, zero dependencies. Reads git, serves the page and its API,
   stores threads/rounds on disk, runs the round loop.
-- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with esbuild. Boots from a
+- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with Bun (`scripts/build.mjs`). Boots from a
   `<rr-app>` element in the review page.
 
 ## Map
@@ -31,7 +31,7 @@ schema/               JSON schema of state.json (the contract between UI, CLI an
 skills/readingroom/   the skill agents use to run reviews (entry point + references)
 templates/            review.html scaffold
 examples/             demo review + script that creates the demo git repo
-scripts/              smoke test, static demo builder
+scripts/              build (Bun), smoke test, static demo builder
 ```
 
 ## Contracts (change deliberately, update the skill when you do)

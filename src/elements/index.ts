@@ -51,7 +51,7 @@ class RRRef extends HTMLElement {
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, highlight = true): Promise<HTMLElement> {
   const rev = r.rev === 'base' ? app.range.base : r.rev === 'head' ? app.range.head : r.rev;
   const text = await app.read(r.path, rev);
-  if (text === null) return h('div', { class: 'rr-empty' }, `${r.path} not found at ${r.rev}`);
+  if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
   const lines = text.split('\n');
   const s = Math.max(1, (r.start ?? 1) - (r.start ? context : 0));
   const e = Math.min(lines.length, r.end ? r.end + context : Math.min(lines.length, s + 24));
@@ -65,7 +65,7 @@ async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }
 
 export async function renderPreview(app: ReviewApp, ref: string, opts: { compact?: boolean } = {}): Promise<HTMLElement> {
   const r = parseRef(ref);
-  if (!r) return h('div', { class: 'rr-empty' }, 'Bad link ' + ref);
+  if (!r) return h('div', { class: 'rr-empty' }, 'This link is broken');
   switch (r.type) {
     case 'doc': {
       const el = app.doc && findDocElement(app.doc, r.id, r.path);

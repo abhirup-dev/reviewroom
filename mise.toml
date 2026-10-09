@@ -1,7 +1,7 @@
 # Toolchain + tasks. `mise install` once, then `mise run setup`.
 [tools]
 node = "22"   # runs the CLI (zero dependencies, plain Node)
-bun = "1.2"   # installs deps, runs build/dev/check scripts
+bun = "1.4"   # installs deps, bundles the client, runs scripts
 
 [tasks.setup]
 description = "Install dependencies, build, and put `readingroom` on your PATH"
@@ -17,7 +17,7 @@ run = "bun run dev"
 
 [tasks.typecheck]
 description = "Type-check the client"
-run = "bunx tsc --noEmit"
+run = "bun run typecheck"
 
 [tasks.smoke]
 description = "End-to-end: demo repo → readingroom pr → API responds"

@@ -1,10 +1,10 @@
 // Build a single self-contained demo page (no server): static provider + fixture
 // generated from a git repo + an example review + seeded threads.
 //
-//   node scripts/build-demo.mjs <repo> <base> <head> <example-dir> <out.html> [--fragment]
+//   bun scripts/build-demo.mjs <repo> <base> <head> <example-dir> <out.html> [--fragment]
 //
 // --fragment omits <!doctype>/<html>/<head>/<body> (for hosts that wrap the page themselves).
-import * as esbuild from 'esbuild';
+import { clientBuild, clientCss, fontFile } from './build.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,16 +26,11 @@ const stub = {
     b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export default []', loader: 'js' }));
   },
 };
-const css = ['dockview-base', 'tokens', 'shell', 'panels', 'overlays', 'content', 'dockview'].map((f) => fs.readFileSync(`src/styles/${f}.css`, 'utf8')).join('\n');
-const cssPlugin = {
-  name: 'rr-css',
-  setup(b) {
-    b.onResolve({ filter: /^virtual:rr-css$/ }, () => ({ path: 'x', namespace: 'rrcss' }));
-    b.onLoad({ filter: /.*/, namespace: 'rrcss' }, () => ({ contents: `export default ${JSON.stringify(css)}`, loader: 'js' }));
-  },
-};
-const res = await esbuild.build({ entryPoints: ['src/index.ts'], bundle: true, format: 'esm', splitting: false, write: false, minify: true, target: 'es2022', legalComments: 'none', plugins: [stub, cssPlugin] });
-let js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+// the page has no dist/ next to it, so the fonts travel inline
+const css = clientCss((pkg, file) => `data:font/woff2;base64,${fs.readFileSync(fontFile(pkg, file)).toString('base64')}`);
+const res = await clientBuild({ css, plugins: [stub] });
+if (!res.success) throw new AggregateError(res.logs, 'bundle failed');
+let js = (await res.outputs[0].text()).replace(/<\/script/gi, '<\\/script');
 
 // 2) fixture from git
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'ignore'] });
@@ -89,10 +84,7 @@ const style = pick(/<style>([\s\S]*?)<\/style>/);
 let app = pick(/(<rr-app[\s\S]*<\/rr-app>)/).replace('<rr-app>', '<rr-app provider="static">');
 const json = (id, data) => `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
 app = app.replace('</rr-app>', `${json('rr-fixture', fixture)}\n${json('rr-state', JSON.parse(state))}\n</rr-app>`);
-// the page has no dist/ next to it, so the bundled fonts (upright styles) travel inline
-const fontFace = (family, file) => `@font-face{font-family:'${family}';font-weight:100 900;font-display:swap;src:url(data:font/woff2;base64,${fs.readFileSync(new URL(`../dist/fonts/${file}`, import.meta.url)).toString('base64')}) format('woff2');}`;
-const fonts = `<style>${fontFace('Inter', 'inter-latin-opsz-normal.woff2')}${fontFace('Source Serif 4', 'source-serif-4-latin-opsz-normal.woff2')}${fontFace('JetBrains Mono', 'jetbrains-mono-latin-wght-normal.woff2')}</style>`;
-const body = `${fonts}\n<style>${style}</style>\n${app}\n<script type="module">${js}</script>`;
+const body = `<style>${style}</style>\n${app}\n<script type="module">${js}</script>`;
 const html = fragment ? `<title>Readingroom</title>\n${body}` : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Readingroom demo</title></head><body>${body}</body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
