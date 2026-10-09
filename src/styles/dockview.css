@@ -1,0 +1,101 @@
+/* dockview theme mapped onto readingroom tokens: panels are rounded cards on the page ground. */
+.dockview-theme-rr {
+  --dv-paneview-active-outline-color: var(--rr-accent);
+  --dv-tabs-and-actions-container-font-size: 12.5px;
+  --dv-tabs-and-actions-container-height: 34px;
+  --dv-drag-over-background-color: color-mix(in srgb, var(--rr-accent) 14%, transparent);
+  --dv-drag-over-border-color: var(--rr-accent);
+  --dv-drag-over-border: 2px solid var(--rr-accent);
+  --dv-edge-dock-indicator-color: var(--rr-accent);
+  --dv-tabs-container-scrollbar-color: var(--rr-line-strong);
+  --dv-icon-hover-background-color: var(--rr-hover);
+  --dv-floating-box-shadow: var(--rr-shadow-lg);
+  --dv-floating-border: 1px solid var(--rr-line);
+  --dv-overlay-z-index: 999;
+  --dv-tab-font-size: inherit;
+  --dv-border-radius: 10px;
+  --dv-tab-margin: 0;
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--rr-accent);
+  --dv-active-sash-transition-duration: 0.1s;
+  --dv-active-sash-transition-delay: 0.3s;
+  --dv-spacing-padding: 0px;
+  --dv-tab-border-radius: 0px;
+  --dv-sash-border-radius: 2px;
+  --dv-dropdown-border-radius: 8px;
+  --dv-tab-close-icon-size: 12px;
+  --dv-floating-group-border: 1px solid var(--rr-line);
+  --dv-floating-group-dragging-opacity: 0.6;
+  --dv-floating-titlebar-height: 22px;
+  --dv-floating-titlebar-background-color: var(--rr-panel-2);
+  --dv-floating-titlebar-border-bottom: 1px solid var(--rr-line);
+
+  --dv-group-view-background-color: var(--rr-panel);
+  --dv-tabs-and-actions-container-background-color: var(--rr-panel);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--rr-panel);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--rr-panel);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--rr-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--rr-panel);
+  --dv-tab-divider-color: transparent;
+  --dv-activegroup-visiblepanel-tab-color: var(--rr-ink);
+  --dv-activegroup-hiddenpanel-tab-color: var(--rr-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--rr-ink-2);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--rr-faint);
+  --dv-separator-border: transparent;
+  --dv-paneview-header-border-color: var(--rr-line);
+  --dv-scrollbar-background-color: var(--rr-line-strong);
+  color: var(--rr-ink);
+  font-family: var(--rr-font);
+}
+.dockview-theme-rr .dv-groupview {
+  border: 1px solid var(--rr-line);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--rr-shadow-sm);
+}
+.dockview-theme-rr .dv-groupview.dv-active-group {
+  border-color: var(--rr-line-strong);
+}
+.dockview-theme-rr .dv-tabs-and-actions-container {
+  border-bottom: 1px solid var(--rr-line);
+  padding-left: 4px;
+}
+.dockview-theme-rr .dv-tab {
+  padding: 0 10px;
+  font-weight: 500;
+  position: relative;
+}
+.dockview-theme-rr .dv-tab.dv-active-tab::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--rr-ink);
+}
+.dockview-theme-rr .dv-inactive-group .dv-tab.dv-active-tab::after {
+  background: var(--rr-line-strong);
+}
+.dockview-theme-rr .dv-default-tab .dv-default-tab-action {
+  opacity: 0;
+}
+.dockview-theme-rr .dv-tab:hover .dv-default-tab-action,
+.dockview-theme-rr .dv-tab.dv-active-tab .dv-default-tab-action {
+  opacity: 0.7;
+}
+.dockview-theme-rr .dv-resize-container {
+  border-radius: 10px;
+}
+.rr-group-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  padding: 0 6px;
+}
+.rr-group-actions .rr-icon-btn {
+  width: 24px;
+  height: 24px;
+}

@@ -1,0 +1,383 @@
+/* Default typography for the narrative and for markdown in threads.
+   Authors can override anything: these are low-specificity element styles under .rr-prose. */
+.rr-prose {
+  font: var(--rr-text-prose) / var(--rr-leading-prose) var(--rr-font);
+  color: var(--rr-ink);
+  overflow-wrap: break-word;
+}
+.rr-msg__body.rr-prose,
+.rr-composer__preview.rr-prose,
+.rr-embed__doc.rr-prose {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.rr-prose > :first-child {
+  margin-top: 0;
+}
+.rr-prose :where(h1, h2, h3, h4) {
+  color: var(--rr-ink);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 24px;
+}
+.rr-prose :where(h1) {
+  font: 600 30px/1.2 var(--rr-font-serif);
+  margin: 0 0 12px;
+  letter-spacing: -0.015em;
+}
+.rr-prose :where(h2) {
+  font-size: 21px;
+  font-weight: 600;
+  margin: 44px 0 10px;
+}
+.rr-prose :where(h3) {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 28px 0 6px;
+}
+.rr-prose :where(h4) {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 20px 0 4px;
+}
+.rr-prose :where(p, ul, ol, dl, table, figure, pre, blockquote, details) {
+  margin: 0 0 14px;
+}
+.rr-prose :where(ul, ol) {
+  padding-left: 22px;
+}
+.rr-prose :where(li) {
+  margin: 3px 0;
+}
+.rr-prose :where(a) {
+  color: var(--rr-accent);
+  text-underline-offset: 2px;
+}
+.rr-prose :where(code) {
+  font: 0.86em var(--rr-mono);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--rr-hover);
+}
+.rr-prose :where(pre) {
+  padding: 12px 14px;
+  border-radius: var(--rr-radius);
+  background: var(--rr-panel-2);
+  border: 1px solid var(--rr-line);
+  overflow: auto;
+  font: 12.5px/1.6 var(--rr-mono);
+}
+.rr-prose :where(pre code) {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+.rr-prose :where(blockquote) {
+  padding: 2px 14px;
+  border-left: 3px solid var(--rr-line-strong);
+  color: var(--rr-ink-2);
+}
+.rr-prose :where(table) {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  display: block;
+  overflow-x: auto;
+}
+.rr-prose :where(th, td) {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--rr-line);
+  text-align: left;
+  vertical-align: top;
+}
+.rr-prose :where(th) {
+  font-weight: 600;
+  color: var(--rr-muted);
+  font-size: 12px;
+  border-bottom-color: var(--rr-line-strong);
+}
+.rr-prose :where(figure) {
+  margin-inline: 0;
+}
+.rr-prose :where(figcaption) {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--rr-muted);
+}
+.rr-prose :where(img, svg, canvas, video) {
+  max-width: 100%;
+}
+.rr-prose :where(hr) {
+  border: 0;
+  border-top: 1px solid var(--rr-line);
+  margin: 28px 0;
+}
+.rr-prose :where(summary) {
+  cursor: pointer;
+  font-weight: 500;
+}
+.rr-doc .rr-lede {
+  font-size: 17px;
+  color: var(--rr-ink-2);
+}
+
+/* section round markers: <section data-round="2"> */
+.rr-doc section[data-round]:not([data-round='1']) > :is(h2, h3):first-child::after {
+  content: 'R' attr(data-round);
+  content: 'new in R' attr(data-round);
+  margin-left: 10px;
+  vertical-align: 3px;
+  font: 600 10px/1 var(--rr-mono);
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+/* baseline toggling: [data-baseline] blocks hide when "Show baseline" is off */
+.rr-doc[data-rr-hide-baseline] [data-baseline],
+.rr-doc[data-rr-hide-baseline] rr-node[state='baseline'] {
+  display: none !important;
+}
+.rr-doc [data-baseline]:not(rr-node) {
+  border: 1px dashed var(--rr-line-strong);
+  border-radius: var(--rr-radius);
+  padding: 10px 14px;
+  color: var(--rr-ink-2);
+  background: var(--rr-panel-2);
+}
+.rr-doc [data-baseline]:not(rr-node)::before {
+  content: 'Baseline — what already exists';
+  display: block;
+  font: 600 10.5px/1 var(--rr-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--rr-faint);
+  margin-bottom: 6px;
+}
+.rr-doc.is-historic {
+  filter: saturate(0.6);
+}
+
+/* ---------------------------------------------------------------- rr-flow */
+rr-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 0;
+  margin: 8px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius-lg);
+  background: var(--rr-panel-2);
+}
+rr-flow[direction='column'] {
+  flex-direction: column;
+  align-items: flex-start;
+}
+rr-node {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--rr-line-strong);
+  border-radius: 8px;
+  background: var(--rr-panel);
+  font: 500 12.5px/1.2 var(--rr-mono);
+  color: var(--rr-ink);
+  text-align: center;
+}
+rr-node + rr-node {
+  margin-left: 30px;
+}
+rr-node + rr-node::before {
+  content: '';
+  position: absolute;
+  left: -27px;
+  top: 50%;
+  width: 22px;
+  border-top: 1.5px solid var(--rr-faint);
+}
+rr-node + rr-node::after {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: calc(50% - 4px);
+  border: 4px solid transparent;
+  border-left: 5px solid var(--rr-faint);
+}
+rr-flow[direction='column'] rr-node + rr-node {
+  margin: 22px 0 0;
+}
+rr-flow[direction='column'] rr-node + rr-node::before {
+  left: 24px;
+  top: -20px;
+  width: 0;
+  height: 16px;
+  border-top: 0;
+  border-left: 1.5px solid var(--rr-faint);
+}
+rr-flow[direction='column'] rr-node + rr-node::after {
+  left: 20px;
+  top: -6px;
+  border: 4px solid transparent;
+  border-top: 5px solid var(--rr-faint);
+}
+rr-node.is-link {
+  cursor: pointer;
+}
+rr-node.is-link:hover {
+  border-color: var(--rr-accent);
+}
+rr-node[state='new'] {
+  border-color: var(--rr-add);
+  background: color-mix(in srgb, var(--rr-add) 9%, var(--rr-panel));
+}
+rr-node[state='changed'] {
+  border-color: var(--rr-warn);
+  background: color-mix(in srgb, var(--rr-warn) 10%, var(--rr-panel));
+}
+rr-node[state='removed'] {
+  border-color: var(--rr-del);
+  text-decoration: line-through;
+  color: var(--rr-muted);
+}
+rr-node[state='baseline'] {
+  border-style: dashed;
+  color: var(--rr-muted);
+  background: transparent;
+}
+.rr-node__badge {
+  font: 600 9.5px/1 var(--rr-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--rr-muted);
+}
+rr-node[state='new'] .rr-node__badge {
+  color: var(--rr-add);
+}
+rr-node[state='changed'] .rr-node__badge {
+  color: var(--rr-warn);
+}
+
+/* ---------------------------------------------------------------- rr-callout */
+rr-callout {
+  display: block;
+  margin: 0 0 16px;
+  padding: 10px 14px 12px;
+  border-radius: var(--rr-radius);
+  background: var(--rr-panel-2);
+  border: 1px solid var(--rr-line);
+  font-size: 14px;
+}
+.rr-callout__label {
+  display: inline-block;
+  margin-bottom: 4px;
+  font: 600 10.5px/1 var(--rr-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rr-muted);
+}
+rr-callout > :last-child {
+  margin-bottom: 0;
+}
+.rr-callout--risk {
+  background: var(--rr-risk-soft);
+  border-color: color-mix(in srgb, var(--rr-risk) 25%, transparent);
+}
+.rr-callout--risk .rr-callout__label {
+  color: var(--rr-risk);
+}
+.rr-callout--question,
+.rr-callout--info {
+  background: var(--rr-accent-soft);
+  border-color: color-mix(in srgb, var(--rr-accent) 20%, transparent);
+}
+.rr-callout--question .rr-callout__label,
+.rr-callout--info .rr-callout__label {
+  color: var(--rr-accent);
+}
+.rr-callout--ok {
+  background: var(--rr-ok-soft);
+  border-color: color-mix(in srgb, var(--rr-ok) 25%, transparent);
+}
+.rr-callout--ok .rr-callout__label {
+  color: var(--rr-ok);
+}
+
+/* ---------------------------------------------------------------- rr-checklist */
+rr-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 16px;
+  padding: 6px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius-lg);
+}
+rr-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--rr-radius);
+  font-size: 14px;
+}
+rr-check:hover {
+  background: var(--rr-hover);
+}
+.rr-check__box {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--rr-line-strong);
+  border-radius: 5px;
+  background: var(--rr-panel);
+  cursor: pointer;
+  padding: 0;
+  color: #fff;
+}
+rr-check[data-state='pass'] .rr-check__box {
+  background: var(--rr-ok);
+  border-color: var(--rr-ok);
+}
+rr-check[data-state='fail'] .rr-check__box {
+  background: var(--rr-risk);
+  border-color: var(--rr-risk);
+}
+rr-check[data-state='fail'] {
+  color: var(--rr-risk);
+}
+
+/* ---------------------------------------------------------------- rr-code */
+rr-code {
+  display: block;
+  margin: 0 0 16px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  overflow: hidden;
+  font-size: 13px;
+}
+.rr-code__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-panel-2);
+  font: 500 12px/1 var(--rr-mono);
+  color: var(--rr-muted);
+}
+.rr-code__head .rr-link-btn {
+  font: 500 11.5px/1 var(--rr-font);
+}
+.rr-code__body {
+  --diffs-font-family: var(--rr-mono);
+  --diffs-font-size: 12.5px;
+}

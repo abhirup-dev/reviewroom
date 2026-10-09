@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "readingroom/state.schema.json",
+  "title": "readingroom review state (.readingroom/<branch>/state.json)",
+  "type": "object",
+  "required": ["version", "round", "rounds", "threads"],
+  "properties": {
+    "version": { "const": 1 },
+    "round": { "type": "integer", "minimum": 1, "description": "Current round. Agent replies are tagged with it." },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["n", "status", "startedAt"],
+        "properties": {
+          "n": { "type": "integer" },
+          "status": { "enum": ["open", "sent", "approved"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "sentAt": { "type": "string", "format": "date-time" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "threads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "anchor", "status", "createdRound", "messages"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["open", "resolved"] },
+          "createdRound": { "type": "integer" },
+          "title": { "type": "string" },
+          "anchor": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["kind", "target"],
+                "properties": {
+                  "kind": { "const": "doc" },
+                  "target": { "type": "string", "description": "Element id in the narrative ('' = review root)" },
+                  "path": { "type": "string", "description": "CSS path below the target for blocks without an id" },
+                  "quote": {
+                    "type": "object",
+                    "required": ["exact"],
+                    "properties": { "exact": { "type": "string" }, "prefix": { "type": "string" }, "suffix": { "type": "string" } }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["kind", "path", "rev", "start", "end"],
+                "properties": {
+                  "kind": { "const": "code" },
+                  "path": { "type": "string" },
+                  "rev": { "enum": ["base", "head"] },
+                  "start": { "type": "integer" },
+                  "end": { "type": "integer" }
+                }
+              },
+              { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "symbol" }, "name": { "type": "string" } } },
+              { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "general" } } }
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "author", "round", "body", "at"],
+              "properties": {
+                "id": { "type": "string" },
+                "author": { "enum": ["you", "agent"] },
+                "round": { "type": "integer" },
+                "body": { "type": "string", "description": "Markdown. rr: links render as chips; ![](rr:…) as embeds." },
+                "at": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "viewed": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "path -> round it was marked viewed" },
+    "pins": { "type": "array", "items": { "type": "string" } },
+    "checks": { "type": "object", "additionalProperties": { "enum": ["todo", "pass", "fail"] } }
+  }
+}
