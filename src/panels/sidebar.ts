@@ -4,7 +4,7 @@ import { parseRef, refIcon } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import type { ChangedFile, Thread } from '../core/types';
 import { definePanel, type PanelInstance } from '../shell/layout';
-import { fileType, isTestFile, type ReviewApp } from '../shell/app';
+import { fileType, isTestFile, reviewOrder, type ReviewApp } from '../shell/app';
 
 const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
 const TYPE_LABEL: Record<string, string> = { go: 'Go', ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', py: 'Python', proto: 'Protobuf', sql: 'SQL', md: 'Markdown', yaml: 'YAML', yml: 'YAML', json: 'JSON', java: 'Java', kt: 'Kotlin', rs: 'Rust', sh: 'Shell', css: 'CSS', html: 'HTML' };
@@ -117,8 +117,10 @@ class FilesPanel implements PanelInstance {
         }
         n.files.push(f);
       }
+      const onlyTests = (n: Node): boolean => n.files.every((f) => isTestFile(f.path)) && [...n.dirs.values()].every(onlyTests);
       const walk = (n: Node, depth: number, prefix: string) => {
-        for (const d of [...n.dirs.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+        // folders holding only tests come after the rest, like test files within a folder
+        for (const d of [...n.dirs.values()].sort((a, b) => Number(onlyTests(a)) - Number(onlyTests(b)) || a.name.localeCompare(b.name))) {
           let name = d.name;
           let node = d;
           while (node.files.length === 0 && node.dirs.size === 1) {
@@ -146,7 +148,7 @@ class FilesPanel implements PanelInstance {
           );
           if (!closed) walk(node, depth + 1, key + '/');
         }
-        n.files.sort((a, b) => a.path.localeCompare(b.path)).forEach((f) => out.push(this.row(f, f.path.split('/').pop()!, depth)));
+        n.files.sort(reviewOrder).forEach((f) => out.push(this.row(f, f.path.split('/').pop()!, depth)));
       };
       walk(root, 0, '');
     }

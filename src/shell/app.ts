@@ -67,6 +67,8 @@ export interface AppEvents extends Record<string, unknown> {
 const isTest = (p: string) => /(^|\/)(__tests__|tests?|spec)(\/)|[._-](test|spec)\.[a-z]+$|_test\.go$/.test(p);
 export const fileType = (p: string) => (p.includes('.') ? p.split('.').pop()!.toLowerCase() : 'other');
 export const isTestFile = isTest;
+/** Reading order: the change itself first, then its tests; alphabetical within each. */
+export const reviewOrder = (a: { path: string }, b: { path: string }) => Number(isTest(a.path)) - Number(isTest(b.path)) || a.path.localeCompare(b.path);
 
 export class ReviewApp {
   readonly bus = new Emitter<AppEvents>();
@@ -136,7 +138,7 @@ export class ReviewApp {
   }
   async setRange(r: DiffRange) {
     this.range = r;
-    this.files = await this.provider.files(r);
+    this.files = (await this.provider.files(r)).sort(reviewOrder);
     this.bus.emit('range', r);
     this.bus.emit('files', this.files);
   }
