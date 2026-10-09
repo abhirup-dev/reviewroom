@@ -9,6 +9,8 @@ import { scaffold } from '../lib/scaffold.mjs';
 import { liveServer, stopServer } from '../lib/server.mjs';
 import { cmdServe } from './serve.mjs';
 
+// a path as the user would type it: relative when inside the cwd, else absolute
+const shortPath = (p) => (path.relative(process.cwd(), p).startsWith('..') ? p : path.relative(process.cwd(), p) || '.');
 // --detach respawns the bin entry, not this module
 const ENTRY = fileURLToPath(new URL('../readingroom.mjs', import.meta.url));
 
@@ -81,7 +83,7 @@ export async function cmdPr(repo) {
       const rec = liveServer(dir);
       if (rec) {
         console.log(rec.url);
-        console.error(`readingroom: server running in the background (pid ${rec.pid}) · stop with \`readingroom stop --dir ${path.relative(process.cwd(), dir) || '.'}\``);
+        console.error(`readingroom: server running in the background (pid ${rec.pid}) · stop with \`readingroom stop --dir ${shortPath(dir)}\``);
         return process.exit(0);
       }
       await new Promise((r) => setTimeout(r, 100));

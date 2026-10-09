@@ -17,6 +17,9 @@
   font: 13.5px/1.55 var(--rr-font);
   font-variant-numeric: normal;
 }
+:is(.rr-msg__body, .rr-composer__preview).rr-prose :where(table) {
+  font-size: inherit;
+}
 :is(.rr-msg__body, .rr-composer__preview).rr-prose :where(h1, h2, h3, h4) {
   font-family: inherit;
   font-size: 1.05em;
