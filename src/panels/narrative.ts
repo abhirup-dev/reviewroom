@@ -100,9 +100,9 @@ class NarrativePanel implements PanelInstance {
     this.handle = h(
       'div',
       { class: 'rr-block-handle', hidden: true },
-      h('button', { class: 'rr-icon-btn', title: 'Comment on this block', 'aria-label': 'Comment on this block', onclick: () => this.commentOnBlock() }, icon('thread', 14)),
-      h('button', { class: 'rr-icon-btn', title: 'Copy link to this block', 'aria-label': 'Copy link to this block', onclick: () => this.linkBlock() }, icon('link', 14)),
-      h('button', { class: 'rr-icon-btn', title: 'Pin', 'aria-label': 'Pin this block', onclick: () => this.pinBlock() }, icon('pin', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Comment on this whole block', 'data-keys': 'c', 'aria-label': 'Comment on this block', onclick: () => this.commentOnBlock() }, icon('thread', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this block (paste it into any comment)', 'aria-label': 'Copy link to this block', onclick: () => this.linkBlock() }, icon('link', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Pin to Contents for quick access', 'aria-label': 'Pin this block', onclick: () => this.pinBlock() }, icon('pin', 14)),
     );
     this.banner = h('div', { class: 'rr-banner', hidden: true });
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.current, this.rail, this.outline, this.handle);

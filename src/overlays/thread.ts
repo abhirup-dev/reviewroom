@@ -153,10 +153,10 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         app.anchorLabel(anchor),
       ),
-      t ? h('span', { class: `rr-pill ${t.status === 'resolved' ? 'rr-pill--ok' : ''}` }, t.status) : h('span', { class: 'rr-pill rr-pill--accent' }, 'new thread'),
+      t ? h('span', { class: `rr-pill ${t.status === 'resolved' ? 'rr-pill--ok' : ''}`, title: t.status === 'resolved' ? 'Resolved: still visible under Threads › Resolved' : 'Open: included in the next feedback round if you add a comment' }, t.status) : h('span', { class: 'rr-pill rr-pill--accent' }, 'new thread'),
       h('span', { class: 'rr-toolbar__spacer' }),
       t
-        ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', onclick: () => app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open') }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
+        ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open') }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
         : null,
       t ? h('button', { class: 'rr-icon-btn', title: 'Copy link to thread', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Thread link copied')) }, icon('link', 14)) : null,
       t && !o.docked && o.onDock ? h('button', { class: 'rr-icon-btn', title: 'Dock as a panel', 'aria-label': 'Dock as a panel', onclick: () => o.onDock!(t.id) }, icon('dock', 14)) : null,

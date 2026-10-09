@@ -33,6 +33,7 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
     {
       class: 'rr-inline-thread' + (t.status === 'resolved' ? ' is-resolved' : '') + (app.unreadAgent(t) ? ' has-agent' : ''),
       'data-thread': t.id,
+      title: `Open thread · ${t.messages.length} message${t.messages.length > 1 ? 's' : ''}${t.status === 'resolved' ? ' · resolved' : ''}`,
       onclick: (e: Event) => {
         e.stopPropagation();
         app.bus.emit('open-thread', { id: t.id });
@@ -105,10 +106,10 @@ class CodePanel implements PanelInstance {
   // ------------------------------------------------------------ toolbar
   private renderToolbar() {
     const p = this.app.prefs;
-    const seg = (items: [string, string, boolean, () => void][]) =>
-      h('div', { class: 'rr-seg', role: 'group' }, ...items.map(([label, title, on, fn]) => h('button', { class: on ? 'is-on' : '', title, 'aria-pressed': String(on), onclick: fn }, label)));
-    const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string) =>
-      h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
+    const seg = (items: [string, string, boolean, () => void, string?][]) =>
+      h('div', { class: 'rr-seg', role: 'group' }, ...items.map(([label, title, on, fn, keys]) => h('button', { class: on ? 'is-on' : '', title, 'data-keys': keys, 'aria-pressed': String(on), onclick: fn }, label)));
+    const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string, keys?: string) =>
+      h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'data-keys': keys, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
     const left: (HTMLElement | null)[] = [];
     if (this.pin) {
       const f = this.app.files.find((x) => x.path === this.pin);
@@ -140,9 +141,9 @@ class CodePanel implements PanelInstance {
       const adds = vis.reduce((a, f) => a + f.additions, 0);
       const dels = vis.reduce((a, f) => a + f.deletions, 0);
       left.push(
-        h('span', { class: 'rr-toolbar__title' }, `${vis.length} file${vis.length === 1 ? '' : 's'}`),
-        h('span', { class: 'rr-delta' }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '−' + dels)),
-        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: this.app.range.label }, this.app.range.label.split(' · ')[0]) : null,
+        h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, `${vis.length} file${vis.length === 1 ? '' : 's'}`),
+        h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '−' + dels)),
+        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
       );
     }
     this.toolbar.replaceChildren(
@@ -153,22 +154,22 @@ class CodePanel implements PanelInstance {
         { class: 'rr-toolbar__group' },
         this.mode === 'diff'
           ? seg([
-              ['Split', 'Side-by-side diff', p.diffStyle === 'split', () => this.app.setPref('diffStyle', 'split')],
-              ['Unified', 'Unified diff', p.diffStyle === 'unified', () => this.app.setPref('diffStyle', 'unified')],
+              ['Split', 'Side-by-side: old on the left, new on the right', p.diffStyle === 'split', () => this.app.setPref('diffStyle', 'split'), 's'],
+              ['Unified', 'One column: removed lines above the lines that replace them', p.diffStyle === 'unified', () => this.app.setPref('diffStyle', 'unified'), 's'],
             ])
           : null,
         this.mode === 'diff'
           ? seg([
               ['All', 'Show added and removed lines', p.focus === 'all', () => this.app.setPref('focus', 'all')],
-              ['+', 'Focus on new code (hide removed lines)', p.focus === 'additions', () => this.app.setPref('focus', 'additions')],
-              ['−', 'Focus on old code (hide added lines)', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions')],
+              ['+', 'Focus on new code: hide removed lines', p.focus === 'additions', () => this.app.setPref('focus', 'additions'), '+'],
+              ['−', 'Focus on old code: hide added lines', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions'), '-'],
             ])
           : null,
-        this.mode === 'diff' ? tog('filter', 'Ignore whitespace', p.ignoreWhitespace, () => this.app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws') : null,
-        tog('wrap', 'Wrap long lines', p.wrap, () => this.app.setPref('wrap', !p.wrap)),
-        this.mode === 'diff' ? tog('thread', 'Show threads inline', p.inlineThreads, () => this.app.setPref('inlineThreads', !p.inlineThreads)) : null,
+        this.mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => this.app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
+        tog('wrap', 'Wrap long lines instead of scrolling sideways', p.wrap, () => this.app.setPref('wrap', !p.wrap), undefined, 'w'),
+        this.mode === 'diff' ? tog('thread', 'Show comment threads inside the diff, under the lines they are on', p.inlineThreads, () => this.app.setPref('inlineThreads', !p.inlineThreads)) : null,
         this.mode === 'diff'
-          ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change (k)', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (j)', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
+          ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
           : null,
       ),
     );
@@ -221,21 +222,21 @@ class CodePanel implements PanelInstance {
     return h(
       'header',
       { class: 'rr-file__head' },
-      h('button', { class: 'rr-icon-btn rr-file__chev', 'aria-label': 'Collapse file', onclick: () => this.toggleCollapse(f.path) }, icon('chevronDown', 14)),
-      h('span', { class: `rr-status rr-status--${f.status}` }, STATUS[f.status]),
+      h('button', { class: 'rr-icon-btn rr-file__chev', 'aria-label': 'Collapse file', title: 'Collapse or expand this file', onclick: () => this.toggleCollapse(f.path) }, icon('chevronDown', 14)),
+      h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added in this PR', modified: 'Modified', deleted: 'Deleted in this PR', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h(
         'button',
-        { class: 'rr-file__path', title: 'Open full file at head', onclick: () => this.openFile(f.path, f.status === 'deleted' ? 'base' : 'head') },
+        { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, f.status === 'deleted' ? 'base' : 'head') },
         f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' → ') : null,
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),
       ),
-      h('span', { class: 'rr-delta' }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
-      threads ? h('span', { class: 'rr-count-chip', title: `${threads} open thread(s)` }, icon('thread', 12), String(threads)) : null,
+      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
+      threads ? h('span', { class: 'rr-count-chip', title: `${threads} open comment thread${threads > 1 ? 's' : ''} in this file` }, icon('thread', 12), String(threads)) : null,
       h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-icon-btn', title: 'Copy link to file', 'aria-label': 'Copy link to file', onclick: () => app.bus.emit('toast', { text: 'Link copied: ' + copy(formatRef({ type: 'code', path: f.path, rev: 'head' })) }) }, icon('link', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => app.bus.emit('toast', { text: 'Link copied: ' + copy(formatRef({ type: 'code', path: f.path, rev: 'head' })) }) }, icon('link', 14)),
       this.pin ? null : popoutButton(app, f, this.panelId),
-      h('label', { class: 'rr-viewed' }, cb, 'Viewed'),
+      h('label', { class: 'rr-viewed', title: 'Mark as viewed: collapses the file and counts toward your progress', 'data-keys': 'v' }, cb, 'Viewed'),
     );
   }
 

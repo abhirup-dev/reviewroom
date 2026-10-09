@@ -91,7 +91,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
     const pending = app.pendingFeedback().length;
     const round = app.state.rounds.find((r) => r.n === app.state.round);
     const themeIcon = app.resolvedTheme() === 'dark' ? 'moon' : 'sun';
-    const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Rounds' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
+    const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Review rounds: view the narrative as it was at the end of an earlier round' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
     roundBtn.onclick = () =>
       popMenu(roundBtn, (close) => [
         menuLabel('Review rounds'),
@@ -109,7 +109,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
             ),
           ),
       ]);
-    const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layout & panels', 'aria-haspopup': 'menu' }, icon('layout', 16));
+    const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layout presets and which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
     layoutBtn.onclick = () =>
       popMenu(layoutBtn, (close) => [
         menuLabel('Layout presets'),
@@ -132,13 +132,13 @@ export function buildHeader(app: ReviewApp): HTMLElement {
           h(
             'div',
             { class: 'rr-header__meta' },
-            m.repo ? h('span', { class: 'rr-pill' }, m.repo) : null,
-            m.author ? h('span', { class: 'rr-pill' }, 'by ' + m.author) : null,
-            h('span', { class: 'rr-pill rr-pill--mono', title: `${m.base} → ${m.head}` }, `${m.baseLabel ?? short(m.base)} ← ${m.headLabel ?? short(m.head)}`),
-            h('span', { class: 'rr-pill' }, `${app.files.length} files`),
-            app.commits.length ? h('span', { class: 'rr-pill' }, `${app.commits.length} commit${app.commits.length > 1 ? 's' : ''}`) : null,
+            m.repo ? h('span', { class: 'rr-pill', title: 'Repository' }, m.repo) : null,
+            m.author ? h('span', { class: 'rr-pill', title: 'Author of the change' }, 'by ' + m.author) : null,
+            h('span', { class: 'rr-pill rr-pill--mono', title: `Diff of ${m.headLabel ?? m.head} against ${m.baseLabel ?? m.base} (merge base ${short(m.base)})` }, `${m.baseLabel ?? short(m.base)} ← ${m.headLabel ?? short(m.head)}`),
+            h('span', { class: 'rr-pill', title: 'Files changed' }, `${app.files.length} files`),
+            app.commits.length ? h('span', { class: 'rr-pill', title: 'Commits in this PR; pick one in Files to review it alone' }, `${app.commits.length} commit${app.commits.length > 1 ? 's' : ''}`) : null,
             ...(m.tags ?? []).map((t) => h('span', { class: 'rr-pill' }, t)),
-            h('span', { class: 'rr-pill rr-pill--src', title: 'Where code is read from' }, app.provider.name === 'local' ? 'local clone' : app.provider.name),
+            h('span', { class: 'rr-pill rr-pill--src', title: app.provider.name === 'local' ? 'Code is read from your local clone with git (no API limits)' : app.provider.name === 'github' ? 'Code is read from GitHub' : 'Code is embedded in this page' }, app.provider.name === 'local' ? 'local clone' : app.provider.name),
           ),
         ),
       ),
@@ -146,14 +146,14 @@ export function buildHeader(app: ReviewApp): HTMLElement {
       h(
         'div',
         { class: 'rr-header__actions' },
-        h('button', { class: 'rr-search-btn', onclick: () => (app as any).openPalette(''), title: 'Search & commands' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
+        h('button', { class: 'rr-search-btn', onclick: () => (app as any).openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         roundBtn,
-        h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element to comment on (or hold Alt)', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
+        h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
         layoutBtn,
-        h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${app.prefs.theme}`, 'aria-label': 'Toggle theme', onclick: () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system') }, icon(themeIcon, 16)),
+        h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme}. Click to switch`, 'aria-label': 'Toggle theme', onclick: () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system') }, icon(themeIcon, 16)),
         h(
           'button',
-          { class: 'rr-btn rr-btn--primary rr-send-btn', title: 'Finish this round and send your comments to the agent', onclick: () => sendDialog(app), disabled: round?.status !== 'open' && !!round },
+          { class: 'rr-btn rr-btn--primary rr-send-btn', title: app.backend.finish ? 'Finish this round: the agent gets your new comments and starts the next round' : 'Copy this round’s comments as markdown to paste to your agent', 'data-keys': 'mod+shift+enter', onclick: () => sendDialog(app), disabled: round?.status !== 'open' && !!round },
           icon('send', 14),
           h('span', null, app.backend.finish ? 'Send feedback' : 'Export feedback'),
           pending ? h('span', { class: 'rr-badge' }, String(pending)) : null,

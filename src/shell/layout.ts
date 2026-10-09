@@ -97,6 +97,13 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   });
 
   app.dock = api;
+  // dockview's own tab buttons get tooltips too
+  const labelTabs = () =>
+    requestAnimationFrame(() =>
+      host.querySelectorAll('.dv-default-tab-action:not([data-tip])').forEach((el) => ((el as HTMLElement).dataset.tip = 'Close panel (reopen it from the layout menu)')),
+    );
+  api.onDidAddPanel(labelTabs);
+  api.onDidLayoutFromJSON?.(labelTabs);
   const saved = loadRaw(layoutKey(app));
   let restored = false;
   if (saved) {
