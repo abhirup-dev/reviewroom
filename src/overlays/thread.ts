@@ -246,9 +246,10 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         'button',
         { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: () => ref && app.open(ref) },
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
-        app.anchorLabel(anchor),
+        // the quote itself is shown below; the chip says where it is
+        ref ? app.label(ref) : app.anchorLabel(anchor),
       ),
-      t ? h('span', { class: `rr-pill ${t.status === 'resolved' ? 'rr-pill--ok' : ''}`, title: t.status === 'resolved' ? 'Resolved: still visible under Threads › Resolved' : 'Open: included in the next feedback round if you add a comment' }, t.status) : h('span', { class: 'rr-pill rr-pill--accent' }, 'new thread'),
+      t?.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok', title: 'Still listed under Threads › Resolved' }, 'resolved') : null,
       h('span', { class: 'rr-toolbar__spacer' }),
       t
         ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open') }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
@@ -302,8 +303,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         h(
           'article',
           { class: `rr-msg rr-msg--${m.author}` },
-          h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.author === 'agent' ? 'AI' : 'You'.slice(0, 2)),
-          h('div', { class: 'rr-msg__main' }, h('div', { class: 'rr-msg__meta' }, h('strong', null, m.author === 'agent' ? 'agent' : 'you'), h('span', { class: 'rr-muted' }, relTime(m.at)), actions), body),
+          h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.author === 'agent' ? 'AI' : 'Y'),
+          h('div', { class: 'rr-msg__main' }, h('div', { class: 'rr-msg__meta' }, h('strong', null, m.author === 'agent' ? 'Agent' : 'You'), h('span', { class: 'rr-muted' }, relTime(m.at)), actions), body),
         ),
       );
     }
@@ -319,7 +320,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       return;
     }
     const c = composer(app, {
-      placeholder: t ? 'Reply… (markdown, [[ to link)' : 'Leave a comment or ask the agent… (markdown, [[ to link)',
+      placeholder: t ? 'Reply…' : 'Comment or ask the agent…',
       submitLabel: t ? 'Reply' : 'Comment',
       autofocus: true,
       draftKey: `readingroom:draft:${app.meta.id}:${t ? t.id : JSON.stringify(anchor)}`,
