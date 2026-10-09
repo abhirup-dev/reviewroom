@@ -110,7 +110,7 @@ Use the CSS variables (`--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-panel`, `--r
 
 | Token | Face | For |
 |---|---|---|
-| `--rr-font-read` | Source Serif 4 | prose: the narrative and thread messages (the default inside `<rr-review>`) |
+| `--rr-font-read` | Source Serif 4 | prose: the narrative (the default inside `<rr-review>`) |
 | `--rr-font` | Inter | interface-like bits in widgets: labels, legends, table headers |
 | `--rr-mono` | JetBrains Mono | code, identifiers, file names, numbers in tables |
 

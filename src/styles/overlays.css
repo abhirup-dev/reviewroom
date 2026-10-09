@@ -147,16 +147,13 @@
 .rr-msg:hover .rr-msg__actions {
   opacity: 1;
 }
-.rr-msg__body {
-  font-size: 14.5px;
-}
 .rr-quote {
   margin: 0;
   padding: 8px 12px;
-  border-radius: var(--rr-radius);
+  border-left: 3px solid var(--rr-comment);
   background: var(--rr-comment-soft);
   color: var(--rr-ink-2);
-  font: italic 14px/1.5 var(--rr-font-read);
+  font: 13px/1.5 var(--rr-font);
 }
 .rr-anchor-ctx {
   font-size: 12px;
@@ -201,7 +198,7 @@
   border-radius: var(--rr-radius);
   background: var(--rr-panel);
   color: var(--rr-ink);
-  font: 13px/1.5 var(--rr-font);
+  font: 13.5px/1.55 var(--rr-font);
   resize: vertical;
 }
 .rr-composer__preview {
@@ -251,7 +248,7 @@ rr-ref {
   border-radius: var(--rr-radius-sm);
   background: var(--rr-accent-soft);
   color: var(--rr-accent);
-  font: 500 12px/1 var(--rr-mono);
+  font: 500 12px/1 var(--rr-font);
   vertical-align: baseline;
   cursor: pointer;
   white-space: nowrap;
@@ -263,8 +260,8 @@ rr-ref:hover,
 .rr-chip:hover {
   border-color: var(--rr-accent);
 }
-rr-ref[data-kind='doc'] {
-  font-family: var(--rr-font);
+rr-ref:is([data-kind='code'], [data-kind='file'], [data-kind='sym']) {
+  font-family: var(--rr-mono);
 }
 .rr-chip--anchor {
   height: 26px;
@@ -461,6 +458,10 @@ rr-embed {
   min-width: 0;
 }
 .rr-palette__kind--text + .rr-palette__label,
+.rr-palette__item:has(:is(.rr-palette__kind--file, .rr-palette__kind--text, .rr-palette__kind--symbol)) .rr-palette__detail {
+  font-family: var(--rr-mono); /* paths */
+  font-size: 11px;
+}
 .rr-palette__kind--symbol + .rr-palette__label {
   font: 12px var(--rr-mono);
 }
@@ -468,7 +469,7 @@ rr-embed {
   margin-left: auto;
   padding-left: 12px;
   color: var(--rr-faint);
-  font: 11px var(--rr-mono);
+  font: 11.5px var(--rr-font);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -559,7 +560,6 @@ rr-embed {
 }
 .rr-seltool__label {
   color: var(--rr-muted);
-  font-family: var(--rr-mono);
   margin-right: 4px;
   max-width: 220px;
   overflow: hidden;
