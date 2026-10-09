@@ -127,7 +127,7 @@ class RREmbed extends HTMLElement {
       { class: 'rr-embed__head', title: 'Open the original', onclick: () => withApp((a) => a.open(ref)) },
       h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '?'),
       h('span', { class: 'rr-embed__title' }, caption || ''),
-      h('span', { class: 'rr-embed__open' }, 'open', icon('chevron', 12)),
+      h('span', { class: 'rr-embed__open', 'aria-hidden': 'true' }, icon('popout', 14)),
     );
     this.replaceChildren(head, body);
     this.classList.add('rr-embed');

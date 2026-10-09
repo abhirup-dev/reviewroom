@@ -250,6 +250,10 @@ kbd {
   background: var(--rr-hover);
   color: var(--rr-ink);
 }
+.rr-icon-btn[aria-pressed='true'] {
+  background: var(--rr-active);
+  color: var(--rr-ink);
+}
 .rr-link-btn {
   border: 0;
   background: none;

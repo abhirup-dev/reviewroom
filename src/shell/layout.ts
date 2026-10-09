@@ -78,15 +78,15 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
         if (!floating) kids.push(btn('maximize', group.api.isMaximized() ? 'Restore' : 'Maximise', () => (group.api.isMaximized() ? group.api.exitMaximized() : group.api.maximize())));
         el.replaceChildren(...kids);
       };
-      let sub: { dispose(): void } | undefined;
+      let subs: { dispose(): void }[] = [];
       return {
         element: el,
         init() {
           paint();
-          sub = group.api.onDidLocationChange(() => paint());
+          subs = [group.api.onDidLocationChange(paint), api.onDidMaximizedGroupChange(paint)];
         },
         dispose() {
-          sub?.dispose();
+          subs.forEach((d) => d.dispose());
         },
       };
     },

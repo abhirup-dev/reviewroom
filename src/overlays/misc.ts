@@ -200,8 +200,10 @@ export function mountSelectionToolbar(app: ReviewApp) {
 
 // ================================================================ hover previews
 export function mountHoverCards(app: ReviewApp) {
-  const card = h('div', { class: 'rr-hovercard', hidden: true, role: 'tooltip' });
+  const card = h('div', { class: 'rr-hovercard', hidden: true, role: 'dialog', 'aria-label': 'Preview' });
   document.body.append(card);
+  let wrapped = false; // remembered across previews
+  const hide = () => ((card.hidden = true), (current = null), clearTimeout(timer));
   let timer: ReturnType<typeof setTimeout> | undefined;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let current: Element | null = null;
@@ -217,12 +219,27 @@ export function mountHoverCards(app: ReviewApp) {
       const ref = t.getAttribute('ref') || t.getAttribute('href')!;
       const r = parseRef(ref);
       if (!r) return;
-      card.replaceChildren(h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), app.label(ref), h('span', { class: 'rr-muted' }, 'click to open')), h('div', { class: 'rr-skeleton' }));
+      const wrapBtn = h('button', { class: 'rr-icon-btn', title: 'Wrap long lines', 'aria-label': 'Wrap long lines', 'aria-pressed': String(wrapped), hidden: true }, icon('wrap', 14));
+      wrapBtn.onclick = () => {
+        wrapped = !wrapped;
+        card.style.width = card.offsetWidth + 'px'; // keep the size; only the lines reflow
+        card.classList.toggle('is-wrapped', wrapped);
+        wrapBtn.setAttribute('aria-pressed', String(wrapped));
+        place(t);
+      };
+      const openBtn = h('button', { class: 'rr-icon-btn', title: 'Open', 'aria-label': 'Open', onclick: () => (hide(), app.open(ref)) }, icon('popout', 14));
+      card.replaceChildren(
+        h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), h('span', { class: 'rr-hovercard__title' }, app.label(ref)), wrapBtn, openBtn),
+        h('div', { class: 'rr-skeleton' }),
+      );
+      card.style.width = '';
+      card.classList.toggle('is-wrapped', wrapped);
       card.hidden = false;
       place(t);
       const body = await renderPreview(app, ref, { compact: true });
       if (current !== t) return;
       card.lastElementChild!.replaceWith(h('div', { class: 'rr-hovercard__body' }, body));
+      wrapBtn.hidden = !(body.matches('.rr-snippet') || body.querySelector('.rr-snippet'));
       place(t);
     }, 380);
   });
@@ -237,8 +254,8 @@ export function mountHoverCards(app: ReviewApp) {
       current = null;
     }, 220);
   });
-  document.addEventListener('mousedown', () => ((card.hidden = true), (current = null), clearTimeout(timer)));
-  app.escapers.push(() => (card.hidden ? false : ((card.hidden = true), (current = null), true)));
+  document.addEventListener('mousedown', (e) => !card.contains(e.target as Node) && hide());
+  app.escapers.push(() => (card.hidden ? false : (hide(), true)));
   function place(t: Element) {
     const r = t.getBoundingClientRect();
     const c = card.getBoundingClientRect();
