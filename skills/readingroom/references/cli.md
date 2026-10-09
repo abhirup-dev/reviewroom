@@ -5,7 +5,7 @@ All commands accept `--repo <path>` (defaults to the git repo of the cwd) and `-
 
 | Command | What it does |
 |---|---|
-| `readingroom pr <number \| PR url \| branch> [--detach] [--wait] [--base <ref>] [--port N] [--no-open]` | Fetch the PR head (`refs/pull/<n>/head`, metadata from `gh` when logged in), scaffold `review.html` if missing, start the server. `--detach` backgrounds it and prints the URL; `--wait` blocks like `review`. |
+| `readingroom pr <number \| PR url \| branch> [--detach] [--wait] [--base <ref>] [--title "…"] [--port N] [--no-open]` | Fetch the PR head (`refs/pull/<n>/head`, metadata from `gh` when logged in), scaffold `review.html` if missing, start the server. `--detach` backgrounds it and prints the URL; `--wait` blocks like `review`. |
 | `readingroom status [--json]` | Round, threads, threads awaiting your reply; `--json` adds base/head shas, review path and server URL. |
 | `readingroom serve` | Run the server in the foreground (never exits). |
 | `readingroom review` | Run the server, open the browser if no tab connects, **block** until the reviewer sends feedback or approves, print the feedback, exit. Takes over a detached server on the same port. |
@@ -17,6 +17,10 @@ All commands accept `--repo <path>` (defaults to the git repo of the cwd) and `-
 | `readingroom init [--base] [--head] [--title]` | Scaffold without fetching (local branches, `--head worktree` for uncommitted changes). |
 
 Thread ids can be abbreviated to a unique prefix.
+
+`pr` never prompts: if the fetch fails (offline, SSH key not loaded, no `gh`), it falls back to a
+local branch named `pr-<n>` or `pr/<n>` and says so; otherwise pass the branch name instead of the
+number. Without `gh` there is no PR title or author: pass `--title`, or the oldest commit subject is used.
 
 ## Rounds
 
