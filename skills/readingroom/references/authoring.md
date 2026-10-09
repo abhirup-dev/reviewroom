@@ -53,6 +53,11 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 Line numbers are the **new** file's numbers unless you add `@base`. Check them with
 `git show HEAD:path | sed -n '45,54p'` before you write them.
 
+**Name symbols exactly.** When a link's text is the identifier declared at its target
+(`<a href="rr:code/pkg/x.go#L45-54">BuildRequest</a>`, range starting at the declaration or its doc
+comment), the link renders as code with a kind badge (function, method, struct, interface, type…).
+Use plain prose for links that point at behaviour rather than a declaration ("the retry loop").
+
 ## Helper elements
 
 ```html
@@ -99,7 +104,18 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.theme()` | `'light'` or `'dark'` — read `--rr-*` CSS variables to match colours |
 
 Use the CSS variables (`--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-panel`, `--rr-accent`, `--rr-add`,
-`--rr-del`, `--rr-comment`, `--rr-mono`…) in your own styles so widgets follow light/dark.
+`--rr-del`, `--rr-comment`…) in your own styles so widgets follow light/dark.
+
+**Typography is set by the tool; don't load fonts.** Three bundled faces, as tokens:
+
+| Token | Face | For |
+|---|---|---|
+| `--rr-font-read` | Source Serif 4 | prose: the narrative and thread messages (the default inside `<rr-review>`) |
+| `--rr-font` | Inter | interface-like bits in widgets: labels, legends, table headers |
+| `--rr-mono` | JetBrains Mono | code, identifiers, file names, numbers in tables |
+
+Size tokens: `--rr-text-prose` (body), `--rr-text`, `--rr-text-sm`, `--rr-text-xs`. Headings, lists,
+tables, code and callouts inside `<rr-review>` are already styled; write plain semantic HTML.
 
 ## Theming (optional)
 
@@ -108,13 +124,15 @@ pane, the code, the navigation and pop-ups are visibly separate layers:
 
 | Token | Used for |
 |---|---|
-| `bg` | app ground: header and the gaps between panels |
+| `bg` | header bar |
 | `surface-doc` / `surface-doc-2` | the narrative (paper) / figures and flows inside it |
 | `surface-code` / `surface-well` | code / the area behind file cards |
 | `surface-nav` / `surface-nav-2` | Contents, Files, Threads / inputs inside them |
 | `surface-bar` / `surface-bar-active` | panel tab bars / the focused panel's bar |
 | `surface-overlay` | menus, dialogs, palette, previews |
-| `accent`, `comment`, `add`, `del`, `ink`, `muted`, `line` | links, threads, diff colours, text, rules |
+| `accent`, `comment`, `add`, `del`, `ink`, `muted`, `line` | links (accent is only for links), threads, diff colours, text, rules |
+| `sym-fn`, `sym-type`, `sym-value` | kind badges on symbol links |
+| `radius-sm`, `radius`, `radius-lg` | near-square by default (2px / 2px / 4px) |
 
 Override any of them per review in `#rr-meta` (light and dark separately; the `--rr-` prefix is optional):
 
