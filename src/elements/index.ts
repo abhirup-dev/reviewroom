@@ -141,9 +141,10 @@ class RREmbed extends HTMLElement {
 // ------------------------------------------------------------------ rr-code
 class RRCode extends HTMLElement {
   private inst?: PierreFile;
+  private app?: ReviewApp;
   private off?: () => void;
   connectedCallback() {
-    if (this.dataset.ready) return;
+    if (this.dataset.ready) return this.listen(); // re-attached (panel reopened or moved)
     this.dataset.ready = '1';
     const ref = this.getAttribute('ref');
     const inline = this.textContent || '';
@@ -171,17 +172,24 @@ class RRCode extends HTMLElement {
         'div',
         { class: 'rr-code__head' },
         h('span', null, headLabel),
-        ref ? h('button', { class: 'rr-link-btn', onclick: () => app.open(ref) }, 'open in diff', icon('chevron', 12)) : null,
+        ref ? h('button', { class: 'rr-icon-btn', title: 'Open in the code panel', 'aria-label': 'Open in the code panel', onclick: () => app.open(ref) }, icon('popout', 14)) : null,
       );
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
       this.inst = new PierreFile({ theme: { dark: 'pierre-dark', light: 'pierre-light' }, themeType: app.resolvedTheme(), disableFileHeader: true, overflow: 'scroll', disableLineNumbers: ranged, unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, 'var(--rr-panel-2)') });
       this.inst.render({ file: { name, contents, lang: lang as any }, containerWrapper: body });
-      this.off = app.bus.on('theme', (t) => this.inst?.setThemeType(t));
+      this.app = app;
+      this.listen();
     });
+  }
+  private listen() {
+    if (!this.app || !this.inst || this.off) return;
+    this.inst.setThemeType(this.app.resolvedTheme()); // catch up on changes made while detached
+    this.off = this.app.bus.on('theme', (t) => this.inst?.setThemeType(t));
   }
   disconnectedCallback() {
     this.off?.();
+    this.off = undefined;
   }
 }
 
@@ -225,8 +233,10 @@ class RRCallout extends HTMLElement {
 const CYCLE = ['todo', 'pass', 'fail'] as const;
 class RRCheck extends HTMLElement {
   private off?: () => void;
+  private bus?: ReviewApp['bus'];
+  private repaint?: () => void;
   connectedCallback() {
-    if (this.dataset.ready) return;
+    if (this.dataset.ready) return this.listen(); // re-attached (panel reopened or moved)
     this.dataset.ready = '1';
     const id = this.id || this.getAttribute('key') || (this.textContent || '').trim().slice(0, 40);
     const authored = (this.getAttribute('state') as (typeof CYCLE)[number]) || 'todo';
@@ -239,8 +249,9 @@ class RRCheck extends HTMLElement {
       btn.title = { todo: 'Not checked', pass: 'Signed off', fail: 'Needs work' }[st];
     };
     withApp((app) => {
-      paint(app);
-      this.off = app.bus.on('state', () => paint(app));
+      this.bus = app.bus;
+      this.repaint = () => paint(app);
+      this.listen();
       btn.addEventListener('click', () => {
         const cur = app.state.checks?.[id] ?? authored;
         const next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
@@ -248,8 +259,14 @@ class RRCheck extends HTMLElement {
       });
     });
   }
+  private listen() {
+    if (!this.bus || !this.repaint || this.off) return;
+    this.repaint(); // catch up on changes made while detached
+    this.off = this.bus.on('state', this.repaint);
+  }
   disconnectedCallback() {
     this.off?.();
+    this.off = undefined;
   }
 }
 
