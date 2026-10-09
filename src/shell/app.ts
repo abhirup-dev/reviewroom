@@ -5,6 +5,7 @@ import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
 import { uid } from '../core/dom';
+import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, ChangedFile, Commit, DiffRange, Message, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
@@ -213,6 +214,11 @@ export class ReviewApp {
     return hits;
   }
 
+  /** Human name for a narrative element (section title, or “Table in Proto & storage”). */
+  describeDoc(id: string, path?: string): string {
+    const el = this.doc && findDocElement(this.doc, id, path);
+    return el ? describeElement(el) : id ? id.replace(/[-_]+/g, ' ') : 'Review';
+  }
   docTitle = (id: string): string | undefined => {
     const el = this.doc?.querySelector(`#${CSS.escape(id)}`);
     if (!el) return undefined;
@@ -221,7 +227,14 @@ export class ReviewApp {
   };
   label(ref: string) {
     const r = parseRef(ref);
-    return r ? refLabel(r, this.docTitle) : ref;
+    if (!r) return ref;
+    if (r.type === 'doc') return this.describeDoc(r.id, r.path);
+    if (r.type === 'thread') {
+      const t = this.thread(r.id);
+      return t ? 'Thread on ' + this.anchorLabel(t.anchor) : 'Thread';
+    }
+    if (r.type === 'sym') return r.name;
+    return refLabel(r, this.docTitle);
   }
   anchorRef(a: Anchor): string | null {
     switch (a.kind) {

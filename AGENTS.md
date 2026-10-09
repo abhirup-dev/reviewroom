@@ -98,6 +98,30 @@ Interactive widgets can drive the reviewer straight into the code:
 Use the CSS variables (`--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-panel`, `--rr-accent`, `--rr-add`,
 `--rr-del`, `--rr-comment`, `--rr-mono`…) in your own styles so widgets follow light/dark.
 
+## Theming (optional)
+
+Every colour is a `--rr-*` CSS variable, and each panel sits on its own surface so the reading
+pane, the code, the navigation and pop-ups are visibly separate layers:
+
+| Token | Used for |
+|---|---|
+| `bg` | app ground: header and the gaps between panels |
+| `surface-doc` / `surface-doc-2` | the narrative (paper) / figures and flows inside it |
+| `surface-code` / `surface-well` | code / the area behind file cards |
+| `surface-nav` / `surface-nav-2` | Contents, Files, Threads / inputs inside them |
+| `surface-bar` / `surface-bar-active` | panel tab bars / the focused panel's bar |
+| `surface-overlay` | menus, dialogs, palette, previews |
+| `accent`, `comment`, `add`, `del`, `ink`, `muted`, `line` | links, threads, diff colours, text, rules |
+
+Override any of them per review in `#rr-meta` (light and dark separately; the `--rr-` prefix is optional):
+
+```json
+{ "theme": { "light": { "surface-doc": "#fffdf7", "accent": "#0b6bcb" },
+             "dark":  { "surface-doc": "#1c1a17", "bg": "#000" } } }
+```
+
+Keep text readable on whatever you choose (4.5:1 for body text).
+
 ## The round loop
 
 1. Write `review.html`. Run `readingroom review` — it opens the browser and **blocks**.

@@ -1,4 +1,20 @@
 /* Panels: generic scroll areas, side panels, code panel, narrative. */
+/* Each panel kind sits on its own surface; components inside just use --rr-panel/--rr-panel-2. */
+.rr-panel-host[data-rr-kind='narrative'],
+.rr-panel-host[data-rr-kind='thread'] {
+  --rr-panel: var(--rr-surface-doc);
+  --rr-panel-2: var(--rr-surface-doc-2);
+}
+.rr-panel-host[data-rr-kind='code'] {
+  --rr-panel: var(--rr-surface-code);
+  --rr-panel-2: var(--rr-surface-well);
+}
+.rr-panel-host[data-rr-kind='files'],
+.rr-panel-host[data-rr-kind='toc'],
+.rr-panel-host[data-rr-kind='threads'] {
+  --rr-panel: var(--rr-surface-nav);
+  --rr-panel-2: var(--rr-surface-nav-2);
+}
 .rr-panel-host {
   height: 100%;
   width: 100%;
@@ -22,6 +38,7 @@
 
 /* ---------------------------------------------------------------- toolbar */
 .rr-toolbar {
+  --rr-panel: var(--rr-surface-bar-active);
   height: var(--rr-bar-h);
   flex: none;
   display: flex;
@@ -321,6 +338,8 @@
   font-size: var(--rr-text-sm);
 }
 .rr-chip__icon {
+  display: inline-flex;
+  align-items: center;
   font: 600 11px/1 var(--rr-mono);
   opacity: 0.8;
   flex: none;
@@ -361,7 +380,7 @@
   gap: 8px;
   height: 38px;
   padding: 0 8px 0 4px;
-  background: var(--rr-panel);
+  background: color-mix(in srgb, var(--rr-surface-bar-active) 70%, var(--rr-panel));
   border-bottom: 1px solid var(--rr-line);
 }
 .rr-file.is-collapsed .rr-file__head {

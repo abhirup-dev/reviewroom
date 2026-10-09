@@ -234,7 +234,7 @@ class CodePanel implements PanelInstance {
       h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
       threads ? h('span', { class: 'rr-count-chip', title: `${threads} open comment thread${threads > 1 ? 's' : ''} in this file` }, icon('thread', 12), String(threads)) : null,
       h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => app.bus.emit('toast', { text: 'Link copied: ' + copy(formatRef({ type: 'code', path: f.path, rev: 'head' })) }) }, icon('link', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
       this.pin ? null : popoutButton(app, f, this.panelId),
       h('label', { class: 'rr-viewed', title: 'Mark as viewed: collapses the file and counts toward your progress', 'data-keys': 'v' }, cb, 'Viewed'),
     );

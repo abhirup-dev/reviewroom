@@ -19,18 +19,30 @@
   --rr-doc-width: 760px;
   --rr-rail-width: 232px;
 
-  /* light */
-  --rr-bg: #f4f3ef;
-  --rr-panel: #ffffff;
-  --rr-panel-2: #fafaf8;
+  /* light — surfaces, from the ground up. Each dock panel picks its surface (see panels.css),
+     so the reading pane, the code, the navigation and overlays are distinct planes. */
+  --rr-bg: #e4e2db; /* app ground: header and the gaps between panels */
+  --rr-surface-nav: #f2f1ec; /* contents, files, threads */
+  --rr-surface-nav-2: #e9e7e1; /* inputs and hovers inside navigation */
+  --rr-surface-doc: #ffffff; /* the narrative: paper */
+  --rr-surface-doc-2: #f6f5f1; /* figures, flows, snippets inside the narrative */
+  --rr-surface-code: #fdfdfc; /* code */
+  --rr-surface-well: #eeede8; /* behind the file cards in the code panel */
+  --rr-surface-bar: #ebe9e3; /* panel tab bars */
+  --rr-surface-bar-active: #f7f6f2; /* tab bar of the focused panel */
+  --rr-surface-overlay: #ffffff; /* menus, dialogs, palette, popovers */
+  --rr-surface-overlay-2: #f5f4f0;
+  --rr-panel: var(--rr-surface-overlay); /* "current surface": redefined per panel */
+  --rr-panel-2: var(--rr-surface-overlay-2);
   --rr-ink: #1b1a17;
   --rr-ink-2: #3d3b36;
   --rr-muted: #67635b;
   --rr-faint: #8d897f;
   --rr-line: #e4e1d9;
   --rr-line-strong: #d3cfc5;
-  --rr-hover: #f0eee8;
-  --rr-active: #e9e6de;
+  /* translucent so they read correctly on every surface */
+  --rr-hover: rgba(27, 26, 23, 0.055);
+  --rr-active: rgba(27, 26, 23, 0.09);
   --rr-accent: #2557d6;
   --rr-accent-ink: #ffffff;
   --rr-accent-soft: #e8eefc;
@@ -55,17 +67,25 @@
 }
 
 :root[data-rr-theme='dark'] {
-  --rr-bg: #0f1114;
-  --rr-panel: #16191d;
-  --rr-panel-2: #1a1d22;
+  --rr-bg: #07080a;
+  --rr-surface-nav: #111317;
+  --rr-surface-nav-2: #181b20;
+  --rr-surface-doc: #1b1e24;
+  --rr-surface-doc-2: #22262d;
+  --rr-surface-code: #0e1013;
+  --rr-surface-well: #0a0b0d;
+  --rr-surface-bar: #121418;
+  --rr-surface-bar-active: #1a1d23;
+  --rr-surface-overlay: #22262d;
+  --rr-surface-overlay-2: #2a2f37;
   --rr-ink: #e8e6e1;
   --rr-ink-2: #c9c6bf;
   --rr-muted: #a09c93;
   --rr-faint: #7b776f;
   --rr-line: #262a30;
   --rr-line-strong: #343941;
-  --rr-hover: #1f2329;
-  --rr-active: #262b32;
+  --rr-hover: rgba(232, 230, 225, 0.06);
+  --rr-active: rgba(232, 230, 225, 0.1);
   --rr-accent: #7aa2f7;
   --rr-accent-ink: #0d1117;
   --rr-accent-soft: #1b2638;

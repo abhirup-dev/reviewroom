@@ -16,7 +16,7 @@ interface Item {
   run(): void;
 }
 
-const KIND_ICON: Record<Item['kind'], string> = { command: '›', file: '▤', section: '§', thread: '💬', symbol: 'ƒ', text: '⌕', link: '↗' };
+const KIND_ICON: Record<Item['kind'], Parameters<typeof icon>[0]> = { command: 'chevron', file: 'files', section: 'doc', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
 
 // ================================================================ palette
 export function mountPalette(app: ReviewApp) {
@@ -57,7 +57,7 @@ export function mountPalette(app: ReviewApp) {
     };
     if (/^rr:/.test(q.trim()) && parseRef(q.trim())) {
       const ref = q.trim();
-      out.push({ kind: 'link', label: 'Open ' + app.label(ref), detail: ref, ref, score: 999, run: () => app.open(ref) });
+      out.push({ kind: 'link', label: 'Open ' + app.label(ref), detail: 'link', ref, score: 999, run: () => app.open(ref) });
     }
     if (!pick && (mode === '>' || !/^[#/@]/.test(q)))
       for (const c of app.commands.all()) add({ kind: 'command', label: c.title, detail: c.group, keys: c.keys, run: c.run }, c.title + ' ' + (c.group ?? ''));
@@ -113,7 +113,7 @@ export function mountPalette(app: ReviewApp) {
         h(
           'div',
           { class: 'rr-palette__item' + (i === sel ? ' is-sel' : ''), role: 'option', 'aria-selected': String(i === sel), onmousemove: () => i !== sel && ((sel = i), paint()), onclick: () => choose(i) },
-          h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, KIND_ICON[it.kind]),
+          h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(KIND_ICON[it.kind], 12)),
           h('span', { class: 'rr-palette__label' }, it.label),
           it.detail ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
           it.keys?.length ? h('kbd', null, keyLabel(it.keys[0])) : null,
@@ -184,7 +184,7 @@ export function mountSelectionToolbar(app: ReviewApp) {
     bar.replaceChildren(
       h('span', { class: 'rr-seltool__label' }, label),
       h('button', { class: 'rr-btn rr-btn--small rr-btn--primary', onclick: () => (hide(), app.compose(anchor as any, s.kind === 'doc' ? s.label : undefined)) }, icon('thread', 12), 'Comment'),
-      h('button', { class: 'rr-icon-btn', title: 'Copy link', 'aria-label': 'Copy link', onclick: () => (copyText(ref), app.toast('Link copied: ' + ref), hide()) }, icon('link', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this (paste it into any comment)', 'aria-label': 'Copy link', onclick: () => (copyText(ref), app.toast(`Link to ${label} copied`), hide()) }, icon('link', 14)),
       h('button', { class: 'rr-icon-btn', title: 'Pin', 'aria-label': 'Pin', onclick: () => (app.togglePin(ref), app.toast('Pinned'), hide()) }, icon('pin', 14)),
     );
     bar.hidden = false;
@@ -217,7 +217,7 @@ export function mountHoverCards(app: ReviewApp) {
       const ref = t.getAttribute('ref') || t.getAttribute('href')!;
       const r = parseRef(ref);
       if (!r) return;
-      card.replaceChildren(h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), app.label(ref), h('span', { class: 'rr-muted' }, ' · click to open')), h('div', { class: 'rr-skeleton' }));
+      card.replaceChildren(h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), app.label(ref), h('span', { class: 'rr-muted' }, 'click to open')), h('div', { class: 'rr-skeleton' }));
       card.hidden = false;
       place(t);
       const body = await renderPreview(app, ref, { compact: true });

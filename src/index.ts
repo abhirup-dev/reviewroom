@@ -73,6 +73,20 @@ async function pickProvider(root: HTMLElement, meta: Partial<ReviewMeta>, fx: Fi
   throw new Error('No code source: run `readingroom serve`, or set repo/base/head for GitHub, or embed #rr-fixture.');
 }
 
+/** Agent-supplied colours: { "theme": { "light": { "surface-doc": "#fffdf8" }, "dark": { "bg": "#000" } } } in #rr-meta. */
+export type ThemeOverrides = { light?: Record<string, string>; dark?: Record<string, string> };
+function applyThemeOverrides(t: ThemeOverrides) {
+  const decl = (o: Record<string, string> = {}) =>
+    Object.entries(o)
+      .filter(([k, v]) => /^[\w-]+$/.test(k) && !/[;{}<]/.test(v))
+      .map(([k, v]) => `${k.startsWith('--') ? k : '--rr-' + k}:${v};`)
+      .join('');
+  const s = document.createElement('style');
+  s.dataset.readingroomTheme = '';
+  s.textContent = `:root{${decl(t.light)}}:root[data-rr-theme='dark']{${decl(t.dark)}}`;
+  document.head.append(s);
+}
+
 export async function boot(root: HTMLElement | null = document.querySelector('rr-app')): Promise<ReviewApp> {
   if (!root) throw new Error('readingroom: no <rr-app> element');
   injectCSS();
@@ -81,7 +95,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.applyTheme();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => app.prefs.theme === 'system' && app.applyTheme());
 
-  const authored = readJSON<Partial<ReviewMeta>>('#rr-meta', root) ?? {};
+  const authored = readJSON<Partial<ReviewMeta> & { theme?: ThemeOverrides }>('#rr-meta', root) ?? {};
+  if (authored.theme) applyThemeOverrides(authored.theme);
   for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) (authored as any)[k] = root.getAttribute(k);
   const fixture = readJSON<Fixture>('#rr-fixture');
   const seedState = readJSON<ReviewState>('#rr-state');
