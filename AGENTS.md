@@ -17,8 +17,10 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 ## Map
 
 ```
-cli/readingroom.mjs   commands (pr, review, serve, reply, …), git provider, HTTP API, round loop
-cli/lib/              code shared by CLI and client (feedback markdown)
+cli/readingroom.mjs   entry: usage text + dispatch to commands/
+cli/commands/         one module per command group (pr, serve/review, init, threads/reply/comment/resolve, status/stop)
+cli/lib/              git.mjs (validated git layer), server.mjs (HTTP API, origin guards, SSE), state.mjs,
+                      scaffold.mjs, args.mjs; feedback.mjs is shared with the client
 src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
 src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
 src/providers/        where code comes from (local server, GitHub, static fixture) and where state lives
