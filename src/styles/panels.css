@@ -129,7 +129,7 @@
 .rr-filter-chip {
   height: 22px;
   padding: 0 8px;
-  border-radius: 11px;
+  border-radius: var(--rr-radius-sm);
   border: 1px dashed var(--rr-line-strong);
   background: transparent;
   color: var(--rr-faint);
@@ -147,7 +147,7 @@
 .rr-progress {
   position: relative;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--rr-radius-sm);
   background: var(--rr-hover);
   overflow: hidden;
   font-size: var(--rr-text-xs);
@@ -208,7 +208,7 @@
 }
 .rr-file-row.is-active,
 .rr-toc-item.is-active {
-  background: var(--rr-accent-soft);
+  background: var(--rr-active);
   color: var(--rr-ink);
 }
 .rr-file-row.is-viewed .rr-file-row__name {
@@ -242,20 +242,41 @@
   margin: 10px 8px;
   font-size: var(--rr-text-sm);
 }
+/* contents: section titles wrap to two lines instead of truncating; sub-sections hang off a guide line */
+.rr-toc {
+  padding-top: 8px;
+}
+.rr-toc-item {
+  align-items: flex-start;
+  padding: 5px 8px;
+  font: 400 13px/1.4 var(--rr-font);
+}
 .rr-toc-item__title {
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-wrap: pretty;
+}
+.rr-toc-item .rr-count-chip,
+.rr-toc-item .rr-round-badge {
+  margin-top: 1px;
 }
 .rr-toc-item.is-active {
-  box-shadow: inset 2px 0 0 var(--rr-accent);
+  box-shadow: inset 2px 0 0 var(--rr-ink);
+  font-weight: 500;
 }
 .rr-toc-item--sub {
-  padding-left: 22px;
+  width: calc(100% - 14px);
+  margin-left: 14px;
+  padding: 4px 8px;
   min-height: 24px;
-  font-size: var(--rr-text-sm);
+  border-left: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-radius-sm);
+  font-size: 12.5px;
   color: var(--rr-muted);
 }
 .rr-toc-item--pin {
@@ -264,19 +285,6 @@
 .rr-toc-item--pin .rr-link-btn {
   color: var(--rr-ink-2);
   justify-content: flex-start;
-}
-.rr-switch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 12px 8px 0;
-  padding: 8px;
-  border-radius: var(--rr-radius);
-  background: var(--rr-panel-2);
-  border: 1px solid var(--rr-line);
-  font-size: var(--rr-text-sm);
-  color: var(--rr-ink-2);
-  cursor: pointer;
 }
 .rr-thread-item {
   display: flex;
@@ -363,7 +371,7 @@
 }
 .rr-file {
   border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-lg);
+  border-radius: var(--rr-radius);
   background: var(--rr-panel);
   overflow: clip;
 }
@@ -458,7 +466,7 @@
 .rr-inline-thread__count {
   min-width: 20px;
   height: 20px;
-  border-radius: 10px 10px 10px 3px;
+  border-radius: var(--rr-radius-sm);
   background: var(--rr-comment);
   color: #fff;
   font-weight: 600;
@@ -542,7 +550,7 @@
   height: 28px;
   padding: 0 8px 0 4px;
   border: 1px solid var(--rr-line);
-  border-radius: 14px 8px 8px 14px;
+  border-radius: var(--rr-radius-sm);
   background: var(--rr-panel);
   color: var(--rr-ink-2);
   font: var(--rr-text-sm) / 1 var(--rr-font);
@@ -570,7 +578,7 @@
 .rr-rail-chip__count {
   min-width: 20px;
   height: 20px;
-  border-radius: 10px;
+  border-radius: var(--rr-radius-sm);
   display: grid;
   place-items: center;
   background: var(--rr-comment);
@@ -614,7 +622,7 @@
   top: -20px;
   left: 0;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--rr-radius-sm);
   background: var(--rr-comment);
   color: #fff;
   font: 500 10.5px/1.3 var(--rr-mono);
@@ -644,7 +652,7 @@
 }
 .rr-doc [data-rr-hot] {
   background: var(--rr-highlight);
-  border-radius: 4px;
+  border-radius: var(--rr-radius-sm);
 }
 
 /* thread panel */
@@ -680,7 +688,7 @@
     width: 38px;
     padding: 0 4px;
     justify-content: center;
-    border-radius: 14px;
+    border-radius: var(--rr-radius-sm);
   }
   .rr-rail-chip::before {
     left: -10px;

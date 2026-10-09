@@ -36,7 +36,7 @@ class RRRef extends HTMLElement {
     this.tabIndex = 0;
     this.classList.add('rr-chip');
     if (r) this.dataset.kind = r.type;
-    if (!this.textContent?.trim() && r) withApp((app) => (this.textContent = refLabel(r, app.docTitle)));
+    if (!this.textContent?.trim() && r) withApp((app) => (this.textContent = app.label(ref)));
     if (r) this.prepend(h('span', { class: 'rr-chip__icon', 'aria-hidden': 'true' }, refIcon(r)));
     this.addEventListener('click', (e) => {
       e.preventDefault();
@@ -69,7 +69,7 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
   switch (r.type) {
     case 'doc': {
       const el = app.doc && findDocElement(app.doc, r.id, r.path);
-      if (!el) return h('div', { class: 'rr-empty' }, `§ ${r.id} not found`);
+      if (!el) return h('div', { class: 'rr-empty' }, 'This part of the review no longer exists');
       const clone = el.cloneNode(true) as HTMLElement;
       clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
       clone.removeAttribute('id');
@@ -129,7 +129,7 @@ class RREmbed extends HTMLElement {
     this.replaceChildren(head, body);
     this.classList.add('rr-embed');
     withApp(async (app) => {
-      if (!caption && r) head.querySelector('.rr-embed__title')!.textContent = refLabel(r, app.docTitle);
+      if (!caption && r) head.querySelector('.rr-embed__title')!.textContent = app.label(ref);
       body.replaceChildren(await renderPreview(app, ref));
     });
   }

@@ -33,7 +33,7 @@ function injectCSS() {
   if (document.querySelector('style[data-readingroom]') || document.querySelector('link[data-readingroom]')) return;
   const s = document.createElement('style');
   s.dataset.readingroom = '';
-  s.textContent = cssText;
+  s.textContent = cssText.replaceAll('__RR_FONTS__', new URL('./fonts', import.meta.url).href);
   document.head.prepend(s);
 }
 
@@ -229,7 +229,6 @@ function registerCommands(app: ReviewApp) {
     { id: 'files.tests', title: 'Toggle test files', group: 'Files', run: () => app.setPref('hideTests', !app.prefs.hideTests) },
     { id: 'doc.next', title: 'Next section', group: 'Narrative', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
     { id: 'doc.prev', title: 'Previous section', group: 'Narrative', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },
-    { id: 'doc.baseline', title: 'Toggle baseline context', group: 'Narrative', keys: ['b'], run: () => app.setPref('showBaseline', !app.prefs.showBaseline) },
     { id: 'pick', title: 'Pick an element to comment on', group: 'Comments', keys: ['x'], run: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) },
     { id: 'comment.selection', title: 'Comment on selection', group: 'Comments', keys: ['c'], when: () => !!app.selection, run: () => {
       const s = app.selection!;

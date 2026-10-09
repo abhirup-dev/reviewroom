@@ -39,7 +39,7 @@ const layoutKey = (app: ReviewApp) => `readingroom:layout:${app.meta.id}`;
 
 export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   const api = createDockview(host, {
-    theme: { name: 'readingroom', className: 'dockview-theme-rr', gap: 6, dndOverlayMounting: 'absolute', dndPanelOverlay: 'group', dndTabIndicator: 'line' },
+    theme: { name: 'readingroom', className: 'dockview-theme-rr', gap: 0, dndOverlayMounting: 'absolute', dndPanelOverlay: 'group', dndTabIndicator: 'line' },
     singleTabMode: 'default',
     createComponent: (opts: CreateComponentOptions): IContentRenderer => {
       const kind = opts.name;

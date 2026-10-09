@@ -110,12 +110,10 @@ class NarrativePanel implements PanelInstance {
     this.ro.observe(this.current);
     this.offs.push(
       app.bus.on('state', () => this.decorate()),
-      app.bus.on('prefs', (p) => this.current.toggleAttribute('data-rr-hide-baseline', !p.showBaseline)),
       app.bus.on('reveal-doc', (t) => this.reveal(t.id, t.path, t.threadId)),
       app.bus.on('round-view', (n) => this.showRound(n)),
       app.bus.on('picker', ((on: boolean) => this.setPicking(on)) as any),
     );
-    this.current.toggleAttribute('data-rr-hide-baseline', !app.prefs.showBaseline);
     this.setupSpy();
     queueMicrotask(() => this.decorate());
     this.current.querySelectorAll('img').forEach((img) => img.addEventListener('load', () => this.layoutRail(), { once: true }));

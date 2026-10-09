@@ -57,7 +57,7 @@ If `readingroom` is not on PATH, run it from its repo: `node <readingroom>/cli/r
   markdown popup that can be docked.
 - Rearrange everything: dock, float, stack and split panels; presets for reading, wide code, code
   focus and narrative focus; light and dark themes; ⌘K palette with `#` symbol and `/` code search.
-- Toggle "baseline" blocks, sign off checklist items, pin sections, mark files viewed.
+- Sign off checklist items, pin sections, mark files viewed.
 
 Because of this, structure the narrative as **short, commentable sections** with stable ids, and make
 every diagram node and widget part clickable into the code. Layout and tooltips are the reviewer's;

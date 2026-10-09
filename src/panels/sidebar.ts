@@ -215,21 +215,12 @@ class TocPanel implements PanelInstance {
         items.push(h('button', { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id, onclick: () => app.bus.emit('reveal-doc', { id: sub.id }) }, h('span', { class: 'rr-toc-item__title' }, app.docTitle(sub.id) ?? sub.id)));
       });
     });
-    if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'Add <section id="…"><h2>…</h2> blocks to the review to build contents.'));
-    const hasBaseline = !!doc.querySelector('[data-baseline], rr-node[state="baseline"]');
+    if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));
     const pins = app.state.pins;
     this.body.replaceChildren(
       ...([
-      h('div', { class: 'rr-group-label' }, 'Contents'),
+      pins.length ? h('div', { class: 'rr-group-label' }, 'Sections') : null,
       ...items,
-      hasBaseline
-        ? h(
-            'label',
-            { class: 'rr-switch', title: 'Show or hide the blocks that describe what already existed before this PR', 'data-keys': 'b' },
-            h('input', { type: 'checkbox', checked: app.prefs.showBaseline, onchange: (e: Event) => app.setPref('showBaseline', (e.target as HTMLInputElement).checked) }),
-            h('span', null, 'Show baseline context'),
-          )
-        : null,
       pins.length ? h('div', { class: 'rr-group-label' }, 'Pinned', h('span', null, String(pins.length))) : null,
       ...pins.map((ref) => {
         const r = parseRef(ref);

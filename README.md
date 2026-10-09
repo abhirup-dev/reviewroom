@@ -59,7 +59,6 @@ Everything is kept in `.readingroom/<branch>/` (auto-added to `.git/info/exclude
 | `n` `p` or `]` `[` | Next / previous section (narrative) |
 | `j` `k`, `J` `K` / `] f` `[ f` | Next / previous change, file (code) |
 | `s` `w` `i` `+` `-` `v` | Split/unified, wrap, ignore whitespace, focus new/old, mark viewed (code) |
-| `b` | Toggle baseline context |
 | `c` | Comment on current selection |
 | `x` / hold `Alt` | Pick an element to comment on |
 | `Alt 1–4` | Layouts: reading, wide code, code focus, narrative focus |
