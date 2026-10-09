@@ -244,7 +244,7 @@ class RRCheck extends HTMLElement {
       btn.addEventListener('click', () => {
         const cur = app.state.checks?.[id] ?? authored;
         const next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
-        app.update((s) => (s.checks = { ...(s.checks ?? {}), [id]: next }));
+        app.apply({ op: 'setCheck', id, value: next });
       });
     });
   }

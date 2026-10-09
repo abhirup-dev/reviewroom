@@ -7,7 +7,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { feedbackMarkdown } from './feedback.mjs';
 import { makeProvider } from './git.mjs';
-import { statePath, readState, writeState } from './state.mjs';
+import { readState, writeState, answers } from './state.mjs';
+import { applyOp, OpError } from './ops.mjs';
 
 export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const DIST = path.join(PKG, 'dist');
@@ -26,29 +27,19 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
 export function startServer({ repo, dir, cfg, onFinish }) {
   const prov = makeProvider(repo, cfg);
   const clients = new Set();
-  let lastState = fs.existsSync(statePath(dir)) ? fs.readFileSync(statePath(dir), 'utf8') : '';
   const reviewFile = path.join(dir, 'review.html');
   const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
   const send = (ev, data) => {
     for (const c of clients) c.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   };
-  let t1, t2;
+  // The server holds state.lock while it runs and is the only writer of state.json (CLI writes
+  // come in through /api/ops), so only review.html and its assets are watched.
+  let t;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f) => {
-    if (f === 'state.json') {
-      clearTimeout(t1);
-      t1 = setTimeout(() => {
-        const raw = fs.existsSync(statePath(dir)) ? fs.readFileSync(statePath(dir), 'utf8') : '';
-        if (raw && raw !== lastState) {
-          lastState = raw;
-          try {
-            send('state', JSON.parse(raw));
-          } catch {}
-        }
-      }, 80);
-    } else if (f === 'review.html' || (f && /\.(css|js|svg|png)$/.test(f))) {
-      clearTimeout(t2);
-      t2 = setTimeout(() => send('review', { hash: hash() }), 150);
+    if (f === 'review.html' || (f && /\.(css|js|svg|png)$/.test(f))) {
+      clearTimeout(t);
+      t = setTimeout(() => send('review', { hash: hash() }), 150);
     }
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
@@ -59,6 +50,28 @@ export function startServer({ repo, dir, cfg, onFinish }) {
     res.end(JSON.stringify(body));
   };
   const body = (req) => new Promise((r) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => r(b)); });
+  const readJson = async (req) => {
+    try {
+      return JSON.parse((await body(req)) || '{}');
+    } catch {
+      throw new OpError('bad_op', 'request body is not JSON');
+    }
+  };
+  // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.
+  const commit = (ops) => {
+    let s = readState(dir);
+    ops.forEach((op, i) => {
+      try {
+        s = applyOp(s, op);
+      } catch (e) {
+        if (e instanceof OpError) e.index = i;
+        throw e;
+      }
+    });
+    writeState(dir, s);
+    send('state', s);
+    return s;
+  };
   const serveFile = (res, file) => {
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: 'not found' });
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': file.startsWith(DIST) && !file.endsWith('readingroom.js') ? 'max-age=3600' : 'no-store' });
@@ -108,16 +121,15 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       if (url.pathname === '/api/search') return json(res, 200, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
       if (url.pathname === '/api/tree') return json(res, 200, prov.tree(q.rev || prov.head));
       if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, readState(dir));
-      if (url.pathname === '/api/state' && req.method === 'PUT') {
-        const raw = await body(req);
-        const s = JSON.parse(raw);
-        lastState = JSON.stringify(s, null, 2);
-        writeState(dir, s);
-        return json(res, 200, { ok: true });
+      if (url.pathname === '/api/ops' && req.method === 'POST') {
+        const b = await readJson(req);
+        const ops = Array.isArray(b.ops) ? b.ops : [b];
+        if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
+        return json(res, 200, { rev: commit(ops).rev });
       }
       if (url.pathname === '/api/events') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-        res.write(`event: hello\ndata: ${JSON.stringify({ hash: hash(), round: readState(dir).round })}\n\n`);
+        res.write(`event: hello\ndata: ${JSON.stringify({ hash: hash() })}\n\n`);
         clients.add(res);
         const ping = setInterval(() => res.write(': ping\n\n'), 20000);
         req.on('close', () => (clients.delete(res), clearInterval(ping)));
@@ -125,21 +137,15 @@ export function startServer({ repo, dir, cfg, onFinish }) {
         return;
       }
       if (url.pathname === '/api/finish' && req.method === 'POST') {
-        const { kind, note } = JSON.parse((await body(req)) || '{}');
-        const s = readState(dir);
-        const n = s.round;
-        const md = feedbackMarkdown(s, { kind, note, codeExcerpt: (a) => excerpt(prov, a) });
+        const { kind, note, round } = await readJson(req);
+        const prev = readState(dir);
+        const n = prev.round;
+        const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
+        const md = feedbackMarkdown(prev, { kind, note, codeExcerpt: (a) => excerpt(prov, a) });
         const rdir = path.join(dir, 'rounds', String(n));
         fs.mkdirSync(rdir, { recursive: true });
         if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
         fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
-        const r = s.rounds.find((x) => x.n === n);
-        if (r) Object.assign(r, { status: kind === 'approve' ? 'approved' : 'sent', sentAt: new Date().toISOString(), note });
-        if (kind === 'feedback') {
-          s.round = n + 1;
-          s.rounds.push({ n: n + 1, status: 'open', startedAt: new Date().toISOString() });
-        }
-        lastState = JSON.stringify(s, null, 2);
         writeState(dir, s);
         send('state', s);
         json(res, 200, { ok: true, round: s.round });
@@ -150,13 +156,14 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       if (m) return serveFile(res, path.join(dir, 'rounds', m[1], 'review.html'));
       // anything else: static files next to review.html (images, extra css/js the agent wrote)
       const f = path.resolve(dir, '.' + decodeURIComponent(url.pathname));
-      if (!f.startsWith(dir + path.sep) || path.basename(f) === 'state.json') return json(res, 403, {});
+      if (!f.startsWith(dir + path.sep) || /^\.?state\.(json|lock)/.test(path.basename(f))) return json(res, 403, {});
       return serveFile(res, f);
     } catch (e) {
-      json(res, e.status || 500, { error: String(e.message || e) });
+      if (!(e instanceof OpError)) console.error(`readingroom: ${req.method} ${url.pathname}: ${e.message || e}`);
+      json(res, e.status || 500, { error: String(e.message || e), code: e.code, index: e.index });
     }
   });
-  return { server, prov };
+  return { server, prov, commit };
 }
 
 export function listen(server, port) {
@@ -189,17 +196,9 @@ export function liveServer(dir) {
   }
 }
 // server.json can outlive its server and the pid be reused: only signal a pid that our server reports.
-async function isOurServer(rec) {
-  try {
-    const r = await fetch(new URL('/favicon.ico', rec.url), { signal: AbortSignal.timeout(1500) });
-    return r.headers.get('x-readingroom-pid') === String(rec.pid);
-  } catch {
-    return false;
-  }
-}
 export async function stopServer(dir) {
   const rec = liveServer(dir);
-  if (!rec || rec.pid === process.pid || !(await isOurServer(rec))) return null;
+  if (!rec || rec.pid === process.pid || !(await answers(rec.pid, rec.port, 1500))) return null;
   try {
     process.kill(rec.pid, 'SIGTERM');
   } catch {}

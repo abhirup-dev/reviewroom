@@ -1,7 +1,8 @@
 // Code providers: where diffs, file contents and symbol search come from.
 // Order of preference: local CLI server (git on your clone) -> GitHub -> static fixture.
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, …).
-import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange } from '../core/types';
+import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op } from '../core/types';
+import { applyOp } from '../../cli/lib/ops.mjs';
 
 export interface CodeProvider {
   readonly name: string;
@@ -19,11 +20,14 @@ export interface CodeProvider {
 export interface StateBackend {
   readonly kind: 'server' | 'browser';
   load(): Promise<ReviewState | null>;
-  save(state: ReviewState): Promise<void>;
-  /** Live updates (agent replied, review.html changed). */
-  subscribe?(on: { state(s: ReviewState): void; review(): void }): void;
-  /** End the current round: send feedback to the agent, or approve. */
-  finish?(kind: 'feedback' | 'approve', note?: string): Promise<{ ok: boolean; message?: string }>;
+  /** Store an op the app has already applied locally (`next` is the state after it). */
+  apply(op: Op, next: ReviewState): void;
+  /** Resolves once every applied op is stored; false if some are still unsaved. */
+  flush?(): Promise<boolean>;
+  /** Live updates (agent replied, review.html changed) and save problems. */
+  subscribe?(on: { state(s: ReviewState): void; review(): void; error(text: string): void }): void;
+  /** End round `round`: send feedback to the agent, or approve. */
+  finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
 }
@@ -71,16 +75,93 @@ export class LocalProvider implements CodeProvider {
   }
 }
 
+// The server is the only writer of state.json. The browser applies ops optimistically and sends them
+// in order; what it shows is the last state the server broadcast plus the ops not yet in it.
 export class ServerState implements StateBackend {
   readonly kind = 'server';
-  constructor(private api = '/api') {}
-  async load() {
+  private base!: ReviewState;
+  /** Applied locally, not yet in `base`. ackRev: stored by the server at that rev. */
+  private queue: { op: Op; ackRev?: number }[] = [];
+  private running: Promise<void> | null = null;
+  private retry: ReturnType<typeof setTimeout> | undefined;
+  private warned = false;
+  private on?: { state(s: ReviewState): void; review(): void; error(text: string): void };
+  constructor(private api = '/api') {
+    addEventListener('beforeunload', (e) => this.queue.some((q) => !q.ackRev) && e.preventDefault());
+  }
+  private fetchState(): Promise<ReviewState> {
     return fetch(`${this.api}/state`).then(json);
   }
-  async save(s: ReviewState) {
-    await fetch(`${this.api}/state`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(s) });
+  async load() {
+    return (this.base = await this.fetchState());
   }
-  subscribe(on: { state(s: ReviewState): void; review(): void }) {
+  apply(op: Op) {
+    this.queue.push({ op });
+    this.pump();
+  }
+  private view() {
+    // ops are idempotent, so one that already reached `base` re-applies as a no-op
+    return this.queue.reduce((s, q) => {
+      try {
+        return applyOp(s, q.op);
+      } catch {
+        return s; // can't apply any more; the server rejects it and pump() drops it
+      }
+    }, this.base);
+  }
+  private receive(s: ReviewState) {
+    if ((s.rev ?? 0) < (this.base.rev ?? 0)) return; // older than what we already have
+    this.base = s;
+    this.settle();
+    this.on?.state(this.view());
+  }
+  private settle() {
+    this.queue = this.queue.filter((q) => !(q.ackRev && q.ackRev <= (this.base.rev ?? 0)));
+  }
+  private pump() {
+    return (this.running ??= this.drain());
+  }
+  private async drain() {
+    await null; // let pump() store the promise before anything below can clear it
+    try {
+      for (;;) {
+        const batch = this.queue.filter((q) => !q.ackRev);
+        if (!batch.length) return;
+        let r: Response;
+        try {
+          r = await fetch(`${this.api}/ops`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops: batch.map((q) => q.op) }) });
+        } catch {
+          return this.stalled();
+        }
+        const b = await r.json().catch(() => ({}));
+        if (r.ok) {
+          batch.forEach((q) => (q.ackRev = b.rev));
+          this.warned = false;
+          this.settle();
+        } else if (r.status < 500 && typeof b.index === 'number') {
+          // that op can never apply (e.g. its thread is gone): drop it so the rest still save
+          this.queue = this.queue.filter((q) => q !== batch[b.index]);
+          this.on?.error('Not saved: ' + b.error);
+          this.on?.state(this.view());
+        } else return this.stalled(b.error);
+      }
+    } finally {
+      this.running = null;
+    }
+  }
+  private stalled(why?: string) {
+    if (!this.warned) this.on?.error(`Not saved yet${why ? ` (${why})` : ': the readingroom server is not answering'}. Retrying.`);
+    this.warned = true;
+    clearTimeout(this.retry);
+    this.retry = setTimeout(() => this.pump(), 3000);
+  }
+  async flush() {
+    while (this.running) await this.running;
+    await this.pump();
+    return !this.queue.some((q) => !q.ackRev);
+  }
+  subscribe(on: { state(s: ReviewState): void; review(): void; error(text: string): void }) {
+    this.on = on;
     let hash: string | null = null;
     const connect = () => {
       const es = new EventSource(`${this.api}/events`);
@@ -88,10 +169,11 @@ export class ServerState implements StateBackend {
         const h = JSON.parse((e as MessageEvent).data).hash;
         // reconnected to a new `readingroom review` run: pick up whatever the agent changed meanwhile
         if (hash !== null && h !== hash) return on.review();
-        if (hash !== null) on.state(await this.load());
+        if (hash !== null) this.receive(await this.fetchState());
         hash = h;
+        this.pump();
       });
-      es.addEventListener('state', (e) => on.state(JSON.parse((e as MessageEvent).data)));
+      es.addEventListener('state', (e) => this.receive(JSON.parse((e as MessageEvent).data)));
       es.addEventListener('review', () => on.review());
       es.onerror = () => {
         es.close();
@@ -100,8 +182,11 @@ export class ServerState implements StateBackend {
     };
     connect();
   }
-  async finish(kind: 'feedback' | 'approve', note?: string) {
-    return fetch(`${this.api}/finish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, note }) }).then(json);
+  async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number) {
+    if (!(await this.flush())) return { ok: false, message: 'some changes are not saved yet' };
+    const r = await fetch(`${this.api}/finish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, note, round }) });
+    const b = await r.json().catch(() => ({}));
+    return r.ok ? { ok: true } : { ok: false, message: b.error || `${r.status} ${r.statusText}` };
   }
   async snapshot(n: number) {
     const r = await fetch(`${this.api}/rounds/${n}/review.html`);
@@ -190,9 +275,10 @@ export class BrowserState implements StateBackend {
     }
     return this.seed ?? null;
   }
-  async save(s: ReviewState) {
+  // the only writer: store the whole document
+  apply(_op: Op, next: ReviewState) {
     try {
-      localStorage.setItem(LS_KEY(this.id), JSON.stringify(s));
+      localStorage.setItem(LS_KEY(this.id), JSON.stringify(next));
     } catch {
       /* ignore */
     }

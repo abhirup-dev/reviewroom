@@ -4,3 +4,6 @@ node_modules/
 *.log
 dist/
 examples/*/server.json
+examples/*/state.lock
+examples/*/.state.json.*.tmp
+examples/*/state.json.corrupt-*

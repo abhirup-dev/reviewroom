@@ -154,7 +154,9 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       }
       app.bus.emit('state', s);
     },
-    review: () => {
+    error: (text) => app.toast(text, 'error'),
+    review: async () => {
+      await app.backend.flush?.(); // don't drop unsent changes with the page
       sessionStorage.setItem('readingroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
       location.reload();
     },

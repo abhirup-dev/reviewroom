@@ -92,10 +92,14 @@ export interface Round {
   startedAt: string;
   sentAt?: string;
   note?: string;
+  /** When `readingroom review` printed this round's feedback; null = finished but not yet delivered. */
+  deliveredAt?: string | null;
 }
 
 export interface ReviewState {
   version: 1;
+  /** Bumped by every applied op; missing = 0. */
+  rev?: number;
   round: number;
   rounds: Round[];
   threads: Thread[];
@@ -105,6 +109,19 @@ export interface ReviewState {
   /** <rr-check> sign-offs keyed by check id. */
   checks?: Record<string, 'todo' | 'pass' | 'fail'>;
 }
+
+/** Every change to ReviewState (applied by applyOp in cli/lib/ops.mjs). `at` defaults to now. */
+export type Op =
+  | { op: 'createThread'; id: string; anchor: Anchor; msgId: string; body: string; author: Author; at?: string }
+  | { op: 'addMessage'; threadId: string; id: string; body: string; author: Author; at?: string }
+  | { op: 'editMessage'; threadId: string; msgId: string; body: string }
+  | { op: 'deleteMessage'; threadId: string; msgId: string }
+  | { op: 'setThreadStatus'; threadId: string; status: Thread['status'] }
+  | { op: 'setViewed'; path: string; viewed: boolean }
+  | { op: 'setPin'; ref: string; pinned: boolean }
+  | { op: 'setCheck'; id: string; value: 'todo' | 'pass' | 'fail' }
+  | { op: 'finishRound'; kind: 'feedback' | 'approve'; note?: string; round?: number; at?: string }
+  | { op: 'markDelivered'; round: number; at?: string };
 
 export const emptyState = (): ReviewState => ({
   version: 1,

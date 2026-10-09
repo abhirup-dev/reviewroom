@@ -8,9 +8,10 @@ All commands accept `--repo <path>` (defaults to the git repo of the cwd) and `-
 | `readingroom pr <number \| PR url \| branch> [--detach] [--wait] [--base <ref>] [--title "…"] [--port N] [--no-open]` | Fetch the PR head (`refs/pull/<n>/head`, metadata from `gh` when logged in), scaffold `review.html` if missing, start the server. `--detach` backgrounds it and prints the URL; `--wait` blocks like `review`. |
 | `readingroom status [--json]` | Round, threads, threads awaiting your reply; `--json` adds base/head shas, review path and server URL. |
 | `readingroom serve` | Run the server in the foreground (never exits). |
-| `readingroom review` | Run the server, open the browser if no tab connects, **block** until the reviewer sends feedback or approves, print the feedback, exit. Takes over a detached server on the same port. |
+| `readingroom review` | Run the server, open the browser if no tab connects, **block** until the reviewer sends feedback or approves, print the feedback, exit. Takes over a detached server on the same port. If the reviewer finished a round while you were not waiting, prints that feedback right away and exits (a running server keeps running). |
 | `readingroom threads [--all] [--json]` | List open (or all) threads with their messages. |
 | `readingroom reply <thread-id> "<markdown>" [--resolve]` | Answer a thread as the agent (`-` or `--file f.md` for long bodies). |
+| `readingroom reply --json <file \| ->` | Answer several threads at once: `[{"thread": "t_ab12", "body": "…", "resolve": true}]`. All or nothing. |
 | `readingroom comment <rr-ref \| general> "<markdown>"` | Start a thread yourself, e.g. to point the reviewer at something. |
 | `readingroom resolve <thread-id>` | Mark resolved. |
 | `readingroom stop` | Stop a detached server. |
@@ -54,5 +55,10 @@ checklist summary and an overall note may follow.
 `<repo>/.readingroom/<name>/` (added to `.git/info/exclude` automatically):
 `review.html` (yours), `config.json` (base/head/title), `state.json` (threads, rounds, viewed files,
 sign-offs; schema in `schema/state.schema.json`), `rounds/<n>/`, `server.json` / `server.log` while
-a server runs. Prefer the CLI to editing `state.json` by hand; if you must, keep it valid against
-the schema.
+a server runs, and `state.lock` (held by the running server, or briefly by a CLI write).
+
+While a server runs it is the only writer of `state.json`: `reply`, `comment` and `resolve` send
+their change to it, so the reviewer's open tab and your replies never overwrite each other. With no
+server they write the file directly under the lock. Don't edit `state.json` by hand while a server
+runs (it won't notice); otherwise keep it valid against the schema. A `state.json` that is not valid
+JSON is moved to `state.json.corrupt-<time>` and the command fails rather than starting over.

@@ -6,7 +6,8 @@ import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
 import { uid } from '../core/dom';
 import { describeElement, findDocElement } from '../core/describe';
-import type { Anchor, ChangedFile, Commit, DiffRange, Message, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
+import type { Anchor, ChangedFile, Commit, DiffRange, Message, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
+import { applyOp } from '../../cli/lib/ops.mjs';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 
@@ -88,7 +89,6 @@ export class ReviewApp {
   escapers: (() => boolean)[] = [];
   activeFile = '';
   private cache = new Map<string, Promise<string | null>>();
-  private saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(public root: HTMLElement) {
     this.prefs = loadLocal('readingroom:prefs', defaultPrefs);
@@ -257,62 +257,44 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ threads
-  update(mut: (s: ReviewState) => void) {
-    mut(this.state);
+  /** The one way to change review state: apply locally, show it, hand it to the backend to store. */
+  apply(op: Op): boolean {
+    try {
+      this.state = applyOp(this.state, op);
+    } catch (e) {
+      this.toast('Could not change that: ' + (e as Error).message, 'error');
+      return false;
+    }
     this.bus.emit('state', this.state);
-    clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.backend.save(this.state).catch((e) => this.toast('Could not save: ' + e.message, 'error')), 150);
+    this.backend.apply(op, this.state);
+    return true;
   }
   thread(id: string) {
     return this.state.threads.find((t) => t.id === id || t.id.startsWith(id));
   }
-  createThread(anchor: Anchor, body: string, author: Message['author'] = 'you'): Thread {
-    const t: Thread = {
-      id: uid('t_'),
-      anchor,
-      status: 'open',
-      createdRound: this.state.round,
-      messages: [{ id: uid('m_'), author, round: this.state.round, body, at: new Date().toISOString() }],
-    };
-    this.update((s) => s.threads.push(t));
-    return t;
+  createThread(anchor: Anchor, body: string, author: Message['author'] = 'you'): Thread | undefined {
+    const id = uid('t_');
+    this.apply({ op: 'createThread', id, anchor, msgId: uid('m_'), body, author, at: new Date().toISOString() });
+    return this.thread(id);
   }
-  reply(id: string, body: string, author: Message['author'] = 'you') {
-    this.update((s) => {
-      const t = s.threads.find((x) => x.id === id);
-      t?.messages.push({ id: uid('m_'), author, round: s.round, body, at: new Date().toISOString() });
-    });
+  reply(threadId: string, body: string, author: Message['author'] = 'you') {
+    this.apply({ op: 'addMessage', threadId, id: uid('m_'), body, author, at: new Date().toISOString() });
   }
   editMessage(threadId: string, msgId: string, body: string) {
-    this.update((s) => {
-      const m = s.threads.find((x) => x.id === threadId)?.messages.find((m) => m.id === msgId);
-      if (m) m.body = body;
-    });
+    this.apply({ op: 'editMessage', threadId, msgId, body });
   }
+  /** Deleting the last message deletes the thread (the UI confirms that first). */
   deleteMessage(threadId: string, msgId: string) {
-    this.update((s) => {
-      const t = s.threads.find((x) => x.id === threadId);
-      if (!t) return;
-      t.messages = t.messages.filter((m) => m.id !== msgId);
-      if (!t.messages.length) s.threads = s.threads.filter((x) => x !== t);
-    });
+    this.apply({ op: 'deleteMessage', threadId, msgId });
   }
-  setStatus(id: string, status: Thread['status']) {
-    this.update((s) => {
-      const t = s.threads.find((x) => x.id === id);
-      if (t) t.status = status;
-    });
+  setStatus(threadId: string, status: Thread['status']) {
+    this.apply({ op: 'setThreadStatus', threadId, status });
   }
   togglePin(ref: string) {
-    this.update((s) => {
-      s.pins = s.pins.includes(ref) ? s.pins.filter((p) => p !== ref) : [...s.pins, ref];
-    });
+    this.apply({ op: 'setPin', ref, pinned: !this.state.pins.includes(ref) });
   }
-  setViewed(path: string, v: boolean) {
-    this.update((s) => {
-      if (v) s.viewed[path] = s.round;
-      else delete s.viewed[path];
-    });
+  setViewed(path: string, viewed: boolean) {
+    this.apply({ op: 'setViewed', path, viewed });
   }
   /** Threads with reviewer messages added in the current round (what "Send feedback" will deliver). */
   pendingFeedback() {
