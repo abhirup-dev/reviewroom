@@ -657,3 +657,45 @@ rr-embed {
     animation: none;
   }
 }
+
+/* rich composer: contenteditable with atomic link chips */
+div.rr-composer__input {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  outline: none;
+}
+div.rr-composer__input:focus {
+  border-color: var(--rr-accent);
+  box-shadow: 0 0 0 3px var(--rr-accent-soft);
+}
+div.rr-composer__input:empty::before {
+  content: attr(data-placeholder);
+  color: var(--rr-faint);
+  pointer-events: none;
+}
+.rr-chip--token {
+  height: 21px;
+  margin: 0 1px;
+  vertical-align: 1px;
+  font-size: 12px;
+  user-select: all;
+  cursor: default;
+}
+.rr-chip--token.is-embed {
+  background: var(--rr-comment-soft);
+  color: var(--rr-comment);
+  border-color: color-mix(in srgb, var(--rr-comment) 30%, transparent);
+}
+.rr-chip__kind {
+  font: 600 9.5px/1 var(--rr-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.rr-chip .rr-icon,
+rr-ref .rr-icon {
+  opacity: 0.85;
+}

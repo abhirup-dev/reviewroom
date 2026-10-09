@@ -44,7 +44,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
     createComponent: (opts: CreateComponentOptions): IContentRenderer => {
       const kind = opts.name;
       const def = registry.get(kind);
-      const el = h('div', { class: 'rr-panel-host' });
+      const el = h('div', { class: 'rr-panel-host', 'data-rr-kind': kind });
       let inst: PanelInstance | undefined;
       return {
         element: el,

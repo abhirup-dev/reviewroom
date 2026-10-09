@@ -17,18 +17,8 @@ const BLOCKS =
 
 const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
 
-export function findDocElement(doc: HTMLElement, id: string, path?: string): Element | null {
-  let base: Element | null = id ? doc.querySelector(`#${CSS.escape(id)}`) : doc;
-  if (!base) return null;
-  if (path) {
-    try {
-      base = base.querySelector(`:scope>${path}`) ?? base;
-    } catch {
-      /* bad path: fall back to the id */
-    }
-  }
-  return base;
-}
+export { findDocElement } from '../core/describe';
+import { findDocElement, describeElement } from '../core/describe';
 
 export function anchorFor(doc: HTMLElement, el: Element): { target: string; path?: string } {
   if (el.id) return { target: el.id };
@@ -114,7 +104,7 @@ class NarrativePanel implements PanelInstance {
     this.handle.addEventListener('pointerleave', () => this.scheduleHide());
     this.wrap.addEventListener('click', (e) => this.onClick(e), true);
     this.wrap.addEventListener('mouseup', (e) => setTimeout(() => this.onMouseUp(e), 0));
-    this.scroller.addEventListener('scroll', debounce(() => this.hideHandle(), 30), { passive: true });
+    this.scroller.addEventListener('scroll', () => this.hoverBlock && this.hideHandle(), { passive: true });
 
     this.ro = new ResizeObserver(debounce(() => this.layoutRail(), 60));
     this.ro.observe(this.current);
@@ -210,7 +200,7 @@ class NarrativePanel implements PanelInstance {
     const r = el.getBoundingClientRect();
     Object.assign(this.outline.style, { top: r.top - wr.top - 3 + 'px', left: r.left - wr.left - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 6 + 'px' });
     this.outline.hidden = false;
-    this.outline.dataset.label = this.picking ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') : '';
+    this.outline.dataset.label = this.picking ? describeElement(el) : '';
     // sit flush against the block's left edge (outline included) so there is no dead gap to cross
     this.handle.hidden = false;
     const hw = this.handle.offsetWidth || 34;
@@ -251,13 +241,14 @@ class NarrativePanel implements PanelInstance {
     const a = anchorFor(this.current, el);
     const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
     copyText(ref);
-    this.app.toast('Link copied — paste it into any comment: ' + ref);
+    this.app.toast(`Link to ${this.app.label(ref)} copied — paste it into any comment`);
   }
   private pinBlock(el = this.hoverBlock) {
     if (!el) return;
     const a = anchorFor(this.current, el);
-    this.app.togglePin(formatRef({ type: 'doc', id: a.target, path: a.path }));
-    this.app.toast('Pinned to contents');
+    const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
+    this.app.togglePin(ref);
+    this.app.toast(`${this.app.label(ref)} pinned to Contents`);
   }
 
   private onClick(e: MouseEvent) {

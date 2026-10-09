@@ -3,6 +3,7 @@
 import { h, icon, relTime, copyText } from '../core/dom';
 import { renderMarkdown } from '../core/markdown';
 import { formatRef, parseRef, refIcon } from '../core/refs';
+import { keyLabel } from '../core/commands';
 import type { Anchor, Thread } from '../core/types';
 import { definePanel } from '../shell/layout';
 import type { ReviewApp } from '../shell/app';
@@ -20,74 +21,157 @@ export interface ThreadViewOpts {
 
 // ------------------------------------------------------------------ composer
 export function composer(app: ReviewApp, opts: { placeholder: string; submitLabel: string; initial?: string; autofocus?: boolean; onSubmit(body: string): void; onCancel?(): void }) {
-  const ta = h('textarea', { class: 'rr-composer__input', placeholder: opts.placeholder, rows: '3', 'aria-label': opts.placeholder }) as HTMLTextAreaElement;
-  ta.value = opts.initial ?? '';
+  // A plain contenteditable where links are atomic chips. People see “request_builder.go:51–53”,
+  // never `[…](rr:code/…)`; the markdown with rr: links exists only in what gets saved for the agent.
+  const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
   const preview = h('div', { class: 'rr-composer__preview rr-prose', hidden: true });
+  let saved: Range | null = null;
+  const remember = () => {
+    const sel = document.getSelection();
+    if (sel?.rangeCount && ed.contains(sel.anchorNode)) saved = sel.getRangeAt(0).cloneRange();
+  };
+  const restore = () => {
+    ed.focus();
+    const sel = document.getSelection()!;
+    sel.removeAllRanges();
+    if (saved && ed.contains(saved.startContainer)) sel.addRange(saved);
+    else {
+      const r = document.createRange();
+      r.selectNodeContents(ed);
+      r.collapse(false);
+      sel.addRange(r);
+    }
+  };
+  const chip = (ref: string, label: string, embed = false) => {
+    const r = parseRef(ref);
+    return h('span', { class: 'rr-chip rr-chip--token' + (embed ? ' is-embed' : ''), contenteditable: 'false', 'data-ref': ref, 'data-label': label, 'data-embed': embed ? '1' : undefined, title: embed ? 'Shows a live preview of this in the comment' : 'Link: opens this when clicked' }, r ? refIcon(r) : null, embed ? h('span', { class: 'rr-chip__kind' }, 'preview') : null, label);
+  };
+  const serialize = (): string => {
+    let out = '';
+    const walk = (n: Node, top: boolean) => {
+      if (n.nodeType === 3) out += (n as Text).data.replace(/ /g, ' ');
+      else if (n instanceof HTMLElement) {
+        if (n.dataset.ref) {
+          const lab = (n.dataset.label || '').replace(/[[\]]/g, '');
+          out += n.dataset.embed ? `\n![${lab}](${n.dataset.ref})\n` : `[${lab}](${n.dataset.ref})`;
+          return;
+        }
+        if (n.tagName === 'BR') return void (out += '\n');
+        const block = !top && /^(DIV|P)$/.test(n.tagName);
+        if (block && out && !out.endsWith('\n')) out += '\n';
+        n.childNodes.forEach((c) => walk(c, false));
+      }
+    };
+    ed.childNodes.forEach((c) => walk(c, false));
+    return out.replace(/\n{3,}/g, '\n\n').trim();
+  };
+  const load = (md: string) => {
+    ed.replaceChildren();
+    const re = /(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g;
+    let last = 0;
+    const text = (t: string) => t.split('\n').forEach((line, i) => (i && ed.append(h('br')), line && ed.append(line)));
+    for (const m of md.matchAll(re)) {
+      text(md.slice(last, m.index));
+      ed.append(chip(m[3], m[2] || app.label(m[3]), !!m[1]));
+      last = m.index! + m[0].length;
+    }
+    text(md.slice(last));
+  };
+  const insertNodes = (...nodes: Node[]) => {
+    restore();
+    const sel = document.getSelection()!;
+    const r = sel.getRangeAt(0);
+    r.deleteContents();
+    const frag = document.createDocumentFragment();
+    nodes.forEach((n) => frag.append(n));
+    const lastNode = frag.lastChild!;
+    r.insertNode(frag);
+    r.setStartAfter(lastNode);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    remember();
+  };
+  const insertRef = (ref: string, embed = false) => insertNodes(...(embed ? [h('br')] : []), chip(ref, app.label(ref), embed), document.createTextNode(' '));
+  const insertText = (t: string) => {
+    restore();
+    document.execCommand('insertText', false, t);
+    remember();
+  };
+  if (opts.initial) load(opts.initial);
+
   let mode: 'write' | 'preview' = 'write';
-  const tabW = h('button', { class: 'rr-tab is-on', onclick: () => setMode('write') }, 'Write');
-  const tabP = h('button', { class: 'rr-tab', onclick: () => setMode('preview') }, 'Preview');
+  const tabW = h('button', { class: 'rr-tab is-on', type: 'button', onclick: () => setMode('write') }, 'Write');
+  const tabP = h('button', { class: 'rr-tab', type: 'button', title: 'See the comment as it will appear', onclick: () => setMode('preview') }, 'Preview');
   const setMode = (m: typeof mode) => {
     mode = m;
     tabW.classList.toggle('is-on', m === 'write');
     tabP.classList.toggle('is-on', m === 'preview');
-    ta.hidden = m === 'preview';
+    ed.hidden = m === 'preview';
     preview.hidden = m === 'write';
-    if (m === 'preview') preview.innerHTML = renderMarkdown(ta.value || '_Nothing to preview_');
-    else ta.focus();
+    if (m === 'preview') preview.innerHTML = renderMarkdown(serialize() || '_Nothing to preview_');
+    else restore();
   };
   const wrapSel = (before: string, after = before, placeholder = '') => {
-    const { selectionStart: s, selectionEnd: e, value } = ta;
-    const sel = value.slice(s, e) || placeholder;
-    ta.setRangeText(before + sel + after, s, e, 'end');
-    if (!value.slice(s, e)) ta.setSelectionRange(s + before.length, s + before.length + sel.length);
-    ta.focus();
-    autosize();
-  };
-  const insert = (text: string) => {
-    ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
-    ta.focus();
-    autosize();
+    restore();
+    const sel = document.getSelection()!.toString() || placeholder;
+    document.execCommand('insertText', false, before + sel + after);
+    remember();
   };
   const linkPicker = async (embed = false) => {
+    remember();
     const ref = await (app as any).pickRef?.();
-    if (ref) insert(embed ? `\n![](${ref})\n` : `[${app.label(ref)}](${ref})`);
+    if (ref) insertRef(ref, embed);
+    else restore();
   };
-  const sel = app.selection;
-  const tb = (label: string | Node, title: string, fn: () => void) => h('button', { class: 'rr-tool', title, 'aria-label': title, onclick: fn, type: 'button' }, label);
-  const autosize = () => {
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(320, ta.scrollHeight + 2) + 'px';
-  };
-  ta.addEventListener('input', autosize);
   const submit = () => {
-    const body = ta.value.trim();
-    if (!body) return ta.focus();
+    const body = serialize();
+    if (!body) return ed.focus();
     opts.onSubmit(body);
-    ta.value = '';
-    autosize();
+    ed.replaceChildren();
+    saved = null;
     setMode('write');
   };
-  ta.addEventListener('keydown', (e) => {
+  ed.addEventListener('keyup', remember);
+  ed.addEventListener('mouseup', remember);
+  ed.addEventListener('blur', remember);
+  ed.addEventListener('input', () => {
+    if (!ed.textContent && !ed.querySelector('[data-ref]')) ed.replaceChildren(); // keep :empty placeholder working
+    remember();
+    // “[[” opens the link picker
+    const sel = document.getSelection();
+    const node = sel?.anchorNode;
+    if (node?.nodeType === 3 && (node as Text).data.slice(0, sel!.anchorOffset).endsWith('[[')) {
+      const t = node as Text;
+      t.deleteData(sel!.anchorOffset - 2, 2);
+      linkPicker();
+    }
+  });
+  ed.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
       submit();
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       opts.onCancel?.();
-    } else if (e.key === '[' && ta.value.slice(ta.selectionStart - 1, ta.selectionStart) === '[') {
+    } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      ta.setRangeText('', ta.selectionStart - 1, ta.selectionStart, 'end');
-      linkPicker();
+      document.execCommand('insertLineBreak');
     }
   });
-  // Paste: a bare rr: link becomes a labelled chip link.
-  ta.addEventListener('paste', (e) => {
-    const t = e.clipboardData?.getData('text/plain')?.trim();
-    if (t && /^rr:\S+$/.test(t) && parseRef(t)) {
-      e.preventDefault();
-      insert(`[${app.label(t)}](${t})`);
-    }
+  ed.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const t = e.clipboardData?.getData('text/plain') ?? '';
+    if (/^rr:\S+$/.test(t.trim()) && parseRef(t.trim())) insertRef(t.trim());
+    else insertText(t);
   });
+  ed.addEventListener('click', (e) => {
+    const c = (e.target as Element).closest('[data-ref]') as HTMLElement | null;
+    if (c && (e.metaKey || e.ctrlKey)) app.open(c.dataset.ref!);
+  });
+
+  const sel = app.selection;
+  const tb = (label: string | Node, title: string, fn: () => void) => h('button', { class: 'rr-tool', title, 'aria-label': title, type: 'button', onmousedown: (e: Event) => e.preventDefault(), onclick: fn }, label);
   const el = h(
     'div',
     { class: 'rr-composer' },
@@ -99,30 +183,27 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
       h('span', { class: 'rr-toolbar__spacer' }),
       tb(h('strong', null, 'B'), 'Bold', () => wrapSel('**', '**', 'bold')),
       tb(h('em', null, 'I'), 'Italic', () => wrapSel('_', '_', 'italic')),
-      tb('`', 'Inline code', () => wrapSel('`', '`', 'code')),
-      tb('```', 'Code block', () => wrapSel('\n```\n', '\n```\n', 'code')),
-      tb('•', 'List', () => wrapSel('\n- ', '', 'item')),
-      tb(icon('link', 14), 'Link to a section, file, line, symbol or thread  ( [[ )', () => linkPicker()),
-      tb(icon('expand', 14), 'Embed a preview of a section, code range or thread', () => linkPicker(true)),
-      sel ? tb(icon('target', 14), 'Link the current selection', () => {
-        const ref = sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : app.anchorRef(sel.anchor)!;
-        insert(`[${app.label(ref)}](${ref})`);
-      }) : null,
+      tb(icon('code', 14), 'Inline code', () => wrapSel('`', '`', 'code')),
+      tb('•', 'Bulleted list', () => insertText('\n- ')),
+      tb(icon('link', 14), 'Link to a section, file, line, symbol or thread (or type [[)', () => linkPicker()),
+      tb(icon('expand', 14), 'Embed a live preview of a section, code range or thread', () => linkPicker(true)),
+      sel
+        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : app.anchorRef({ ...sel.anchor, quote: undefined } as any)!))
+        : null,
     ),
-    ta,
+    ed,
     preview,
     h(
       'div',
       { class: 'rr-composer__foot' },
-      h('span', { class: 'rr-muted' }, 'Markdown · [[ to link · ⌘↵ to send'),
+      h('span', { class: 'rr-muted' }, 'Markdown works · [[ links anything · ', h('kbd', null, keyLabel('mod+enter')), ' sends'),
       h('span', { class: 'rr-toolbar__spacer' }),
       opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', onclick: () => opts.onCancel!() }, 'Cancel') : null,
       h('button', { class: 'rr-btn rr-btn--primary', type: 'button', onclick: submit }, opts.submitLabel),
     ),
   );
-  if (opts.autofocus) requestAnimationFrame(() => ta.focus());
-  requestAnimationFrame(autosize);
-  return { el, focus: () => ta.focus() };
+  if (opts.autofocus) requestAnimationFrame(() => restore());
+  return { el, focus: () => restore() };
 }
 
 // ------------------------------------------------------------------ anchor context
@@ -149,7 +230,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       { class: 'rr-thread__head' },
       h(
         'button',
-        { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + ref : 'General comment', disabled: !ref, onclick: () => ref && app.open(ref) },
+        { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: () => ref && app.open(ref) },
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         app.anchorLabel(anchor),
       ),
@@ -158,7 +239,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       t
         ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open') }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
         : null,
-      t ? h('button', { class: 'rr-icon-btn', title: 'Copy link to thread', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Thread link copied')) }, icon('link', 14)) : null,
+      t ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this thread (paste it into any comment)', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Link to this thread copied')) }, icon('link', 14)) : null,
       t && !o.docked && o.onDock ? h('button', { class: 'rr-icon-btn', title: 'Dock as a panel', 'aria-label': 'Dock as a panel', onclick: () => o.onDock!(t.id) }, icon('dock', 14)) : null,
       t && o.docked && o.onUndock ? h('button', { class: 'rr-icon-btn', title: 'Open as popup', 'aria-label': 'Open as popup', onclick: () => o.onUndock!(t.id) }, icon('maximize', 14)) : null,
       o.onClose ? h('button', { class: 'rr-icon-btn', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => o.onClose!() }, icon('close', 14)) : null,

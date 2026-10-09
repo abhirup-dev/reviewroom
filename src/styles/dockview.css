@@ -30,12 +30,12 @@
   --dv-floating-titlebar-background-color: var(--rr-panel-2);
   --dv-floating-titlebar-border-bottom: 1px solid var(--rr-line);
 
-  --dv-group-view-background-color: var(--rr-panel);
-  --dv-tabs-and-actions-container-background-color: var(--rr-panel);
-  --dv-activegroup-visiblepanel-tab-background-color: var(--rr-panel);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--rr-panel);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--rr-panel);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--rr-panel);
+  --dv-group-view-background-color: var(--rr-surface-doc);
+  --dv-tabs-and-actions-container-background-color: var(--rr-surface-bar);
+  --dv-activegroup-visiblepanel-tab-background-color: transparent;
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-visiblepanel-tab-background-color: transparent;
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
   --dv-tab-divider-color: transparent;
   --dv-activegroup-visiblepanel-tab-color: var(--rr-ink);
   --dv-activegroup-hiddenpanel-tab-color: var(--rr-muted);
@@ -142,4 +142,23 @@
 .dockview-theme-rr .dv-resize-container {
   box-shadow: var(--rr-shadow-lg);
   border: 1px solid var(--rr-line-strong);
+}
+
+/* layering: tab bars sit one step off their panel; the focused group's bar lifts */
+.dockview-theme-rr .dv-groupview.dv-active-group > .dv-tabs-and-actions-container {
+  background: var(--rr-surface-bar-active);
+}
+.dockview-theme-rr .dv-groupview:has(.rr-panel-host[data-rr-kind='code']) {
+  background: var(--rr-surface-code);
+}
+.dockview-theme-rr .dv-groupview:has(.rr-panel-host[data-rr-kind='files']),
+.dockview-theme-rr .dv-groupview:has(.rr-panel-host[data-rr-kind='toc']),
+.dockview-theme-rr .dv-groupview:has(.rr-panel-host[data-rr-kind='threads']) {
+  background: var(--rr-surface-nav);
+}
+.dockview-theme-rr .dv-groupview.dv-active-group {
+  border-color: color-mix(in srgb, var(--rr-accent) 35%, var(--rr-line-strong));
+}
+:root[data-rr-theme='dark'] .dockview-theme-rr .dv-groupview {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.35);
 }

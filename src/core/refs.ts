@@ -1,3 +1,4 @@
+import { icon } from './dom';
 // Durable links. Every addressable thing in a review has an `rr:` ref that
 // survives reloads and rounds and can be pasted into comments, markdown, HTML
 // (<a href="rr:…">) or passed to rr.open().
@@ -106,8 +107,8 @@ export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | unde
   }
 }
 
-export function refIcon(r: Ref): string {
-  return { doc: '§', code: '⟨⟩', file: '▤', sym: 'ƒ', thread: '💬', round: '◷' }[r.type];
+export function refIcon(r: Ref): SVGSVGElement {
+  return icon(({ doc: 'doc', code: 'code', file: 'files', sym: 'symbol', thread: 'thread', round: 'round' } as const)[r.type], 12);
 }
 
 /** Build a CSS path from `ancestor` down to `el` (used for elements without ids). */
