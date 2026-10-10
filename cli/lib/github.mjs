@@ -186,7 +186,9 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
       return snap;
     })());
 
-  async function act(a) {
+  // a failed action may still have changed something (a half-made review): refetch either way
+  const act = (a) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
+  async function perform(a) {
     if (!target) throw new GitHubError('this review is not about a GitHub pull request', 400);
     if (!snap?.ok) await refresh();
     if (!snap?.ok) throw new GitHubError(snap?.error || 'GitHub is not reachable');
@@ -203,10 +205,16 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
         const an = a.anchor;
         if (an?.kind !== 'code' || !Number.isInteger(an.start) || !Number.isInteger(an.end)) throw new GitHubError('GitHub comments need a code line range', 400);
         const text = body();
+        const started = !snap.pending;
         const review = snap.pending?.id ?? (await run('startReview', { pr: snap.pr, commit: localHead })).addPullRequestReview.pullRequestReview.id;
         const side = an.rev === 'base' ? 'LEFT' : 'RIGHT';
         const multi = an.start < an.end;
-        await run('thread', { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: text });
+        const r = await run('thread', { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: text });
+        // GitHub answers a line outside the diff with no thread and no error
+        if (!r.addPullRequestReviewThread?.thread) {
+          if (started) await run('discard', { review }).catch(() => {});
+          throw new GitHubError(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one`, 422);
+        }
         break;
       }
       case 'reply':
@@ -244,7 +252,6 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
       default:
         throw new GitHubError(`unknown action ${JSON.stringify(a.action)}`, 400);
     }
-    return refresh();
   }
 
   return { target, cached: () => snap, snapshot: () => snap ?? refresh(), refresh, act };
