@@ -1,4 +1,4 @@
-# Review craft: what makes a readingroom review worth reading
+# Review craft: what makes a reviewroom review worth reading
 
 These are the reviewer's stated preferences, distilled from designing the tool with them. Treat them
 as the brief. The tool gives you a lot of freedom; this is how to spend it.

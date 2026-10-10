@@ -68,7 +68,7 @@ export function ensureExcluded(repo) {
   const ex = path.join(repo, '.git', 'info', 'exclude');
   try {
     const cur = fs.existsSync(ex) ? fs.readFileSync(ex, 'utf8') : '';
-    if (!cur.split('\n').includes('.readingroom/')) fs.appendFileSync(ex, (cur.endsWith('\n') || !cur ? '' : '\n') + '.readingroom/\n');
+    if (!cur.split('\n').includes('.reviewroom/')) fs.appendFileSync(ex, (cur.endsWith('\n') || !cur ? '' : '\n') + '.reviewroom/\n');
   } catch {}
 }
 
@@ -129,7 +129,7 @@ export function makeProvider(repo, cfg) {
         if (f) f.status = st[0] === 'A' ? 'added' : st[0] === 'D' ? 'deleted' : st[0] === 'R' ? 'renamed' : 'modified';
       }
       if (isWT(h)) {
-        const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter((p) => p && !p.startsWith('.readingroom/'));
+        const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter((p) => p && !p.startsWith('.reviewroom/'));
         for (const p of untracked) {
           // nested repos are listed as `dir/`
           if (p.endsWith('/') || !fs.statSync(path.join(repo, p)).isFile()) continue;
@@ -139,7 +139,7 @@ export function makeProvider(repo, cfg) {
           files.push({ path: p, additions: binary ? 0 : buf.toString('utf8').split('\n').length, deletions: 0, binary, status: 'added' });
         }
       }
-      return files.filter((f) => !f.path.startsWith('.readingroom/'));
+      return files.filter((f) => !f.path.startsWith('.reviewroom/'));
     },
     read(rev, p) {
       if (isWT(rev)) {
@@ -160,7 +160,7 @@ export function makeProvider(repo, cfg) {
       const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // -z: `[<rev>:]<path>\0<line>\0<text>`, so paths containing `:<n>:` parse correctly
       const grep = (opts, pattern, kind) =>
-        (git(['grep', '-n', '-z', '-I', ...opts, '-e', pattern, ...r, '--', '.', ':!.readingroom'], repo, { soft: true }) || '')
+        (git(['grep', '-n', '-z', '-I', ...opts, '-e', pattern, ...r, '--', '.', ':!.reviewroom'], repo, { soft: true }) || '')
           .split('\n')
           .filter(Boolean)
           .map((l) => {

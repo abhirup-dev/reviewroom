@@ -15,6 +15,6 @@ for (let i = 0; i < argv.length; i++) {
   } else pos.push(a);
 }
 export const die = (msg, code = 1) => {
-  console.error('readingroom: ' + msg);
+  console.error('reviewroom: ' + msg);
   process.exit(code);
 };

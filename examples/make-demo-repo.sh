@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates a small Go/proto/SQL repo with a 2-commit feature branch to try readingroom on.
+# Creates a small Go/proto/SQL repo with a 2-commit feature branch to try reviewroom on.
 #   bash examples/make-demo-repo.sh /tmp/demoapp-demo
 set -euo pipefail
 DIR="${1:-/tmp/demoapp-demo}"

@@ -1,4 +1,4 @@
-// readingroom — entry point.
+// reviewroom — entry point.
 //
 // A review page is any HTML file that loads this module and contains:
 //
@@ -8,7 +8,7 @@
 //   </rr-app>
 //
 // Everything else — docking layout, diffs, files, contents, threads, rounds,
-// palette, theming — is provided. See skills/readingroom/references/authoring.md.
+// palette, theming — is provided. See skills/reviewroom/references/authoring.md.
 import cssText from 'virtual:rr-css';
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
@@ -30,9 +30,9 @@ export { ReviewApp, definePanel, parseRef, formatRef, renderMarkdown, renderPrev
 export type { CodeProvider, StateBackend, PanelDef, Fixture, ReviewMeta, ReviewState };
 
 function injectCSS() {
-  if (document.querySelector('style[data-readingroom]') || document.querySelector('link[data-readingroom]')) return;
+  if (document.querySelector('style[data-reviewroom]') || document.querySelector('link[data-reviewroom]')) return;
   const s = document.createElement('style');
-  s.dataset.readingroom = '';
+  s.dataset.reviewroom = '';
   s.textContent = cssText.replaceAll('__RR_FONTS__', new URL('./fonts', import.meta.url).href);
   document.head.prepend(s);
 }
@@ -43,7 +43,7 @@ function readJSON<T>(sel: string, root: ParentNode = document): T | null {
   try {
     return JSON.parse(el.textContent);
   } catch (e) {
-    console.error('[readingroom] bad JSON in', sel, e);
+    console.error('[reviewroom] bad JSON in', sel, e);
     return null;
   }
 }
@@ -54,7 +54,7 @@ async function pickProvider(root: HTMLElement, meta: Partial<ReviewMeta>, fx: Fi
   if (want === 'local' || want === 'auto') {
     const local = await LocalProvider.detect(api);
     if (local) return { provider: local, backend: 'server' };
-    if (want === 'local') console.warn('[readingroom] local server not reachable, falling back');
+    if (want === 'local') console.warn('[reviewroom] local server not reachable, falling back');
   }
   if (want === 'static' || (want === 'auto' && fx)) {
     if (!fx) throw new Error('provider="static" needs <script type="application/json" id="rr-fixture">');
@@ -64,13 +64,13 @@ async function pickProvider(root: HTMLElement, meta: Partial<ReviewMeta>, fx: Fi
   if (repo && meta.base && meta.head) {
     let token: string | undefined;
     try {
-      token = localStorage.getItem('readingroom:github-token') || undefined;
+      token = localStorage.getItem('reviewroom:github-token') || undefined;
     } catch {
       /* ignore */
     }
     return { provider: new GitHubProvider(repo, meta.base, meta.head, token), backend: 'browser' };
   }
-  throw new Error('No code source: run `readingroom serve`, or set repo/base/head for GitHub, or embed #rr-fixture.');
+  throw new Error('No code source: run `reviewroom serve`, or set repo/base/head for GitHub, or embed #rr-fixture.');
 }
 
 /** Agent-supplied colours: { "theme": { "light": { "surface-doc": "#fffdf8" }, "dark": { "bg": "#000" } } } in #rr-meta. */
@@ -82,13 +82,13 @@ function applyThemeOverrides(t: ThemeOverrides) {
       .map(([k, v]) => `${k.startsWith('--') ? k : '--rr-' + k}:${v};`)
       .join('');
   const s = document.createElement('style');
-  s.dataset.readingroomTheme = '';
+  s.dataset.reviewroomTheme = '';
   s.textContent = `:root{${decl(t.light)}}:root[data-rr-theme='dark']{${decl(t.dark)}}`;
   document.head.append(s);
 }
 
 export async function boot(root: HTMLElement | null = document.querySelector('rr-app')): Promise<ReviewApp> {
-  if (!root) throw new Error('readingroom: no <rr-app> element');
+  if (!root) throw new Error('reviewroom: no <rr-app> element');
   injectCSS();
   defineElements();
   const app = new ReviewApp(root);
@@ -156,13 +156,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     error: (text) => app.toast(text, 'error'),
     review: async () => {
       await app.backend.flush?.(); // don't drop unsent changes with the page
-      sessionStorage.setItem('readingroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
+      sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
       location.reload();
     },
   });
-  const y = sessionStorage.getItem('readingroom:scroll');
+  const y = sessionStorage.getItem('reviewroom:scroll');
   if (y) {
-    sessionStorage.removeItem('readingroom:scroll');
+    sessionStorage.removeItem('reviewroom:scroll');
     requestAnimationFrame(() => document.querySelector('.rr-narrative-scroll')?.scrollTo({ top: +y }));
   }
   app.bus.emit('state', app.state);
@@ -193,7 +193,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     tip,
   };
   (window as any).rr = api;
-  window.dispatchEvent(new CustomEvent('readingroom:ready', { detail: api }));
+  window.dispatchEvent(new CustomEvent('reviewroom:ready', { detail: api }));
   return app;
 }
 
@@ -266,7 +266,7 @@ function stepSection(app: ReviewApp, dir: 1 | -1) {
 if (typeof document !== 'undefined') {
   const go = () => {
     const root = document.querySelector('rr-app');
-    if (root && !root.hasAttribute('manual')) boot(root as HTMLElement).catch((e) => console.error('[readingroom]', e));
+    if (root && !root.hasAttribute('manual')) boot(root as HTMLElement).catch((e) => console.error('[reviewroom]', e));
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
   else go();

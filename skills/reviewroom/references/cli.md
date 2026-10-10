@@ -1,21 +1,21 @@
 # CLI and the round loop
 
 All commands accept `--repo <path>` (defaults to the git repo of the cwd) and `--dir <review dir>`
-(defaults to `<repo>/.readingroom/<branch>`; `pr` uses `.readingroom/pr-<n>`).
+(defaults to `<repo>/.reviewroom/<branch>`; `pr` uses `.reviewroom/pr-<n>`).
 
 | Command | What it does |
 |---|---|
-| `readingroom pr <number \| PR url \| branch> [--detach] [--wait] [--base <ref>] [--title "…"] [--port N] [--no-open]` | Fetch the PR head (`refs/pull/<n>/head`, metadata from `gh` when logged in), scaffold `review.html` if missing, start the server. `--detach` backgrounds it and prints the URL; `--wait` blocks like `review`. |
-| `readingroom status [--json]` | Round, threads, threads awaiting your reply; `--json` adds base/head shas, review path and server URL. |
-| `readingroom serve` | Run the server in the foreground (never exits). |
-| `readingroom review` | Run the server, open the browser if no tab connects, **block** until the reviewer sends feedback or approves, print the feedback, exit. Takes over a detached server on the same port. If the reviewer finished a round while you were not waiting, prints that feedback right away and exits (a running server keeps running). |
-| `readingroom threads [--all] [--json]` | List open (or all) threads with their messages. |
-| `readingroom reply <thread-id> "<markdown>" [--resolve]` | Answer a thread as the agent (`-` or `--file f.md` for long bodies). |
-| `readingroom reply --json <file \| ->` | Answer several threads at once: `[{"thread": "t_ab12", "body": "…", "resolve": true}]`. All or nothing. |
-| `readingroom comment <rr-ref \| general> "<markdown>"` | Start a thread yourself, e.g. to point the reviewer at something. |
-| `readingroom resolve <thread-id>` | Mark resolved. |
-| `readingroom stop` | Stop a detached server. |
-| `readingroom init [--base] [--head] [--title]` | Scaffold without fetching (local branches, `--head worktree` for uncommitted changes). |
+| `reviewroom pr <number \| PR url \| branch> [--detach] [--wait] [--base <ref>] [--title "…"] [--port N] [--no-open]` | Fetch the PR head (`refs/pull/<n>/head`, metadata from `gh` when logged in), scaffold `review.html` if missing, start the server. `--detach` backgrounds it and prints the URL; `--wait` blocks like `review`. |
+| `reviewroom status [--json]` | Round, threads, threads awaiting your reply; `--json` adds base/head shas, review path and server URL. |
+| `reviewroom serve` | Run the server in the foreground (never exits). |
+| `reviewroom review` | Run the server, open the browser if no tab connects, **block** until the reviewer sends feedback or approves, print the feedback, exit. Takes over a detached server on the same port. If the reviewer finished a round while you were not waiting, prints that feedback right away and exits (a running server keeps running). |
+| `reviewroom threads [--all] [--json]` | List open (or all) threads with their messages. |
+| `reviewroom reply <thread-id> "<markdown>" [--resolve]` | Answer a thread as the agent (`-` or `--file f.md` for long bodies). |
+| `reviewroom reply --json <file \| ->` | Answer several threads at once: `[{"thread": "t_ab12", "body": "…", "resolve": true}]`. All or nothing. |
+| `reviewroom comment <rr-ref \| general> "<markdown>"` | Start a thread yourself, e.g. to point the reviewer at something. |
+| `reviewroom resolve <thread-id>` | Mark resolved. |
+| `reviewroom stop` | Stop a detached server. |
+| `reviewroom init [--base] [--head] [--title]` | Scaffold without fetching (local branches, `--head worktree` for uncommitted changes). |
 
 Thread ids can be abbreviated to a unique prefix.
 
@@ -52,7 +52,7 @@ checklist summary and an overall note may follow.
 
 ## Where state lives
 
-`<repo>/.readingroom/<name>/` (added to `.git/info/exclude` automatically):
+`<repo>/.reviewroom/<name>/` (added to `.git/info/exclude` automatically):
 `review.html` (yours), `config.json` (base/head/title), `state.json` (threads, rounds, viewed files,
 sign-offs; schema in `schema/state.schema.json`), `rounds/<n>/`, `server.json` / `server.log` while
 a server runs, and `state.lock` (held by the running server, or briefly by a CLI write).

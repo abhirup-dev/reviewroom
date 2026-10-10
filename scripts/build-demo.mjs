@@ -85,7 +85,7 @@ let app = pick(/(<rr-app[\s\S]*<\/rr-app>)/).replace('<rr-app>', '<rr-app provid
 const json = (id, data) => `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
 app = app.replace('</rr-app>', `${json('rr-fixture', fixture)}\n${json('rr-state', JSON.parse(state))}\n</rr-app>`);
 const body = `<style>${style}</style>\n${app}\n<script type="module">${js}</script>`;
-const html = fragment ? `<title>Readingroom</title>\n${body}` : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Readingroom demo</title></head><body>${body}</body></html>`;
+const html = fragment ? `<title>Reviewroom</title>\n${body}` : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reviewroom demo</title></head><body>${body}</body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
 console.log(`${out}: ${(html.length / 1024 / 1024).toFixed(2)} MB (js ${(js.length / 1024 / 1024).toFixed(2)} MB)`);

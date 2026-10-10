@@ -16,7 +16,7 @@ async function deliverPending(dir) {
     const f = path.join(dir, 'rounds', String(r.n), 'feedback.md');
     await print((fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : `(round ${r.n} was ${r.status} but ${f} is missing)`) + '\n');
     await commitOps(dir, [{ op: 'markDelivered', round: r.n }]);
-    console.error(`readingroom: round ${r.n} was ${r.status === 'approved' ? 'approved' : 'sent'} while you were not waiting → ${f}`);
+    console.error(`reviewroom: round ${r.n} was ${r.status === 'approved' ? 'approved' : 'sent'} while you were not waiting → ${f}`);
   }
   return rounds.length > 0;
 }
@@ -30,16 +30,16 @@ export async function cmdServe(repo, blocking, dir) {
   const prev = await stopServer(dir);
   if (prev && !flags.port) flags.port = String(prev.port);
   fs.mkdirSync(dir, { recursive: true });
-  if (dir.startsWith(path.join(repo, '.readingroom'))) ensureExcluded(repo);
+  if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
   if (!fs.existsSync(path.join(dir, 'config.json')) || flags.base || flags.head || flags.title) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
-  if (!fs.existsSync(path.join(DIST, 'readingroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
+  if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
   let finish;
   const done = new Promise((r) => (finish = r));
   const { server, commit } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
   const port = await listen(server, +(flags.port || 4848));
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
-  if (holder) die(`another readingroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
+  if (holder) die(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt: new Date().toISOString() }));
   const cleanup = () => {
     releaseLock(dir);
@@ -50,7 +50,7 @@ export async function cmdServe(repo, blocking, dir) {
   process.on('exit', cleanup);
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   const s = readState(dir);
-  console.error(`readingroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
+  console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
   if (!flags['no-open']) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
     let seen = false;
@@ -64,9 +64,9 @@ export async function cmdServe(repo, blocking, dir) {
     try {
       commit([{ op: 'markDelivered', round: res.round }]);
     } catch (e) {
-      console.error(`readingroom: could not record delivery: ${e.message}`);
+      console.error(`reviewroom: could not record delivery: ${e.message}`);
     }
-    console.error(`\nreadingroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} → ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
+    console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} → ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
     server.closeAllConnections?.();
     server.close();
     process.exit(0);

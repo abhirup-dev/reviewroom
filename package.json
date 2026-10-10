@@ -1,15 +1,15 @@
 {
-  "name": "readingroom",
+  "name": "reviewroom",
   "version": "0.1.0",
   "description": "Agent-driven code review workbench: freeform narrative + live diffs (@pierre/diffs) + dockable panels + round-based threads.",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "readingroom": "./cli/readingroom.mjs"
+    "reviewroom": "./cli/reviewroom.mjs"
   },
   "exports": {
-    ".": "./dist/readingroom.js",
-    "./style.css": "./dist/readingroom.css",
+    ".": "./dist/reviewroom.js",
+    "./style.css": "./dist/reviewroom.css",
     "./schema/state.json": "./schema/state.schema.json",
     "./package.json": "./package.json"
   },

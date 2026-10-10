@@ -29,17 +29,17 @@ export const panelDefs = () => [...registry.values()];
 
 export type PresetName = 'reading' | 'wide-code' | 'code-focus' | 'narrative-focus';
 export const presets: { id: PresetName; title: string; hint: string }[] = [
-  { id: 'reading', title: 'Reading room', hint: 'Narrative centre, code on the right' },
+  { id: 'reading', title: 'Reading', hint: 'Narrative centre, code on the right' },
   { id: 'wide-code', title: 'Wide code', hint: 'Code below the narrative, full width' },
   { id: 'code-focus', title: 'Code focus', hint: 'Code centre, narrative as a side column' },
   { id: 'narrative-focus', title: 'Narrative focus', hint: 'Just the narrative; code opens on demand' },
 ];
 
-const layoutKey = (app: ReviewApp) => `readingroom:layout:${app.meta.id}`;
+const layoutKey = (app: ReviewApp) => `reviewroom:layout:${app.meta.id}`;
 
 export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   const api = createDockview(host, {
-    theme: { name: 'readingroom', className: 'dockview-theme-rr', gap: 0, dndOverlayMounting: 'absolute', dndPanelOverlay: 'group', dndTabIndicator: 'line' },
+    theme: { name: 'reviewroom', className: 'dockview-theme-rr', gap: 0, dndOverlayMounting: 'absolute', dndPanelOverlay: 'group', dndTabIndicator: 'line' },
     singleTabMode: 'default',
     createComponent: (opts: CreateComponentOptions): IContentRenderer => {
       const kind = opts.name;
@@ -111,7 +111,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
       api.fromJSON(JSON.parse(saved));
       restored = api.panels.length > 0;
     } catch (e) {
-      console.warn('[readingroom] stale layout, using preset', e);
+      console.warn('[reviewroom] stale layout, using preset', e);
       api.clear();
     }
   }

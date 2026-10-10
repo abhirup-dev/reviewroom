@@ -41,15 +41,15 @@ export function feedbackMarkdown(state, opts) {
   if (opts.kind === 'approve') {
     lines.push(`# Review round ${round}: APPROVED`, '');
     if (opts.note) lines.push(opts.note, '');
-    if (open.length) lines.push(`(${open.length} thread(s) still open — list them with \`readingroom threads${at}\`)`);
+    if (open.length) lines.push(`(${open.length} thread(s) still open — list them with \`reviewroom threads${at}\`)`);
     return lines.join('\n');
   }
   lines.push(`# Review feedback — round ${round}`, '');
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
-    `${touched.length} thread(s) need your attention. For each one: answer with \`readingroom reply <thread-id> "<markdown>"${at}\``,
+    `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
     `(add --resolve if the comment is fully addressed), change code and/or the narrative (review.html) as needed,`,
-    `mark new or changed sections with data-round="${round + 1}", then run \`readingroom review${at}\` again to start round ${round + 1}.`,
+    `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom review${at}\` again to start round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
     `![](rr:…) on its own line embeds a live preview in the thread.`,
     '',

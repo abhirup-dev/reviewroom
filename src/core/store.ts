@@ -15,7 +15,7 @@ export class Emitter<Events extends Record<string, unknown>> {
       try {
         fn(payload);
       } catch (e) {
-        console.error('[readingroom]', type, e);
+        console.error('[reviewroom]', type, e);
       }
     });
   }

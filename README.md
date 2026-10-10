@@ -1,7 +1,7 @@
-# readingroom
+# reviewroom
 
 An agent-driven code review workbench. The agent writes a **freeform HTML narrative** of a change;
-readingroom puts it next to a **live diff of your local clone** and gives you everything around it:
+reviewroom puts it next to a **live diff of your local clone** and gives you everything around it:
 docking panels, contents, a file tree, symbol search, anchored comment threads, and Crit-style
 **review rounds** with the agent.
 
@@ -19,23 +19,23 @@ docking panels, contents, a file tree, symbol search, anchored comment threads, 
 ## Quick start
 
 ```bash
-cd readingroom && mise install && mise run setup      # once: deps, build, `readingroom` on PATH
-readingroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the browser
+cd reviewroom && mise install && mise run setup      # once: deps, build, `reviewroom` on PATH
+reviewroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the browser
 ```
 
 `mise run demo` opens a review of a bundled demo repo. Agents use the skill in
-[`skills/readingroom/`](skills/readingroom/SKILL.md) (copy it to `~/.claude/skills/` or point your
-agent at it). Contributing to readingroom itself: [AGENTS.md](AGENTS.md).
+[`skills/reviewroom/`](skills/reviewroom/SKILL.md) (copy it to `~/.claude/skills/` or point your
+agent at it). Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
 
 ## The review loop
 
-1. The agent writes `review.html` and runs `readingroom review` (blocks).
+1. The agent writes `review.html` and runs `reviewroom review` (blocks).
 2. You read, jump into code, comment on anything, and press **Send feedback** (or **Approve**).
 3. The command exits printing structured feedback; the agent replies per thread
-   (`readingroom reply <id> "…"`), adds `data-round="2"` sections for bigger answers, changes code,
-   and runs `readingroom review` again. Your open tab reconnects and shows round 2.
+   (`reviewroom reply <id> "…"`), adds `data-round="2"` sections for bigger answers, changes code,
+   and runs `reviewroom review` again. Your open tab reconnects and shows round 2.
 
-Everything is kept in `.readingroom/<branch>/` (auto-added to `.git/info/exclude`):
+Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`):
 `review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
 `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
 
@@ -70,7 +70,7 @@ Everything is kept in `.readingroom/<branch>/` (auto-added to `.git/info/exclude
 1. **Local clone** (default, via the CLI server): `git diff`, `git show`, `git grep` — no rate limits,
    symbol search across the whole repo, works offline, `--head worktree` for uncommitted changes.
 2. **GitHub** fallback (`<rr-app repo="owner/name">` + base/head in `#rr-meta`): 2 API calls per
-   review; file contents come from raw.githubusercontent.com. Token: `localStorage['readingroom:github-token']`.
+   review; file contents come from raw.githubusercontent.com. Token: `localStorage['reviewroom:github-token']`.
 3. **Static fixture** (`<script type="application/json" id="rr-fixture">`): self-contained demos.
 
 Write your own by implementing `CodeProvider` (`src/providers/index.ts`).
@@ -87,14 +87,14 @@ src/
   overlays/           thread popup/panel + composer, palette, selection toolbar, hover previews, toasts
   elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
   styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
-cli/readingroom.mjs   zero-dependency server + round commands
+cli/reviewroom.mjs   zero-dependency server + round commands
 templates/            review.html scaffold
 schema/               JSON schema for state.json
-skills/readingroom/   the skill agents use (SKILL.md + references/)
+skills/reviewroom/   the skill agents use (SKILL.md + references/)
 ```
 
-Exports: `import { boot, definePanel, ReviewApp, LocalProvider, … } from 'readingroom'`;
-`readingroom/style.css` if you want the stylesheet as a file (it is injected automatically otherwise).
+Exports: `import { boot, definePanel, ReviewApp, LocalProvider, … } from 'reviewroom'`;
+`reviewroom/style.css` if you want the stylesheet as a file (it is injected automatically otherwise).
 Restyle by overriding `--rr-*` variables; add panels with `definePanel()`; add commands with
 `rr.commands.register()`.
 

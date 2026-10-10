@@ -92,7 +92,7 @@ export interface Round {
   startedAt: string;
   sentAt?: string;
   note?: string;
-  /** When `readingroom review` printed this round's feedback; null = finished but not yet delivered. */
+  /** When `reviewroom review` printed this round's feedback; null = finished but not yet delivered. */
   deliveredAt?: string | null;
 }
 
