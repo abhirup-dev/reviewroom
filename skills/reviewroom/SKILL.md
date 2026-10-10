@@ -25,8 +25,7 @@ This fetches the PR (uses `gh` for title/base/author when it is logged in), scaf
 The page live-reloads whenever you save `review.html`. `reviewroom status --json --dir <dir>`
 gives you base/head shas, the review path, the URL and open threads at any time.
 
-If `reviewroom` is not on PATH, run it from its repo: `node <reviewroom>/cli/reviewroom.mjs …`
-(or `mise run setup` there once).
+If `reviewroom` is not on PATH, use `npx -y reviewroom …`.
 
 ## Workflow
 

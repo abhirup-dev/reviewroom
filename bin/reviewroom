@@ -1,0 +1,6 @@
+#!/bin/sh
+# Plugin entry point (Claude Code puts bin/ on PATH). A checkout with a build runs
+# in place; an installed plugin has no dist/, so it runs the npm release of the same version.
+root="$(cd "$(dirname "$0")/.." && pwd)"
+[ -f "$root/dist/reviewroom.js" ] && exec node "$root/cli/reviewroom.mjs" "$@"
+exec npx -y "reviewroom@$(node -p "require('$root/package.json').version")" "$@"
