@@ -48,7 +48,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:file/pkg/y.go@head#L10` | A file **outside** the diff, full view (any rev: `@base`, `@<sha>`) |
 | `rr:sym/RecentEvents` | A symbol; resolved by searching the repo (definition first) |
 | `rr:doc/request-path` | A section/element id in the narrative |
-| `rr:thread/t_ab12cd` | A comment thread |
+| `rr:thread/t_ab12cd` | A comment thread (`gh_<n>`: a GitHub thread on the PR) |
 
 Line numbers are the **new** file's numbers unless you add `@base`. Check them with
 `git show HEAD:path | sed -n '45,54p'` before you write them.

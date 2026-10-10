@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import { flags, pos, die } from '../lib/args.mjs';
 import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.mjs';
-import { anchorText, anchorRef } from '../lib/feedback.mjs';
+import { anchorText, anchorRef, githubContext } from '../lib/feedback.mjs';
+import { cachedThreads } from '../lib/github.mjs';
 
 function threadArg() {
   const id = pos.shift();
@@ -10,6 +11,7 @@ function threadArg() {
   return id;
 }
 function findThread(s, id) {
+  if (id.startsWith('gh_')) die(`${id} is a GitHub thread: only the reviewer posts there. Link it with rr:thread/${id} in review.html or your reply instead.`);
   const t = s.threads.find((x) => x.id === id) || s.threads.filter((x) => x.id.startsWith(id) || x.id === 't_' + id)[0];
   if (!t) die(`no thread ${id}`);
   return t;
@@ -26,8 +28,9 @@ export function cmdThreads(repo) {
   const dir = dirForEdit(repo);
   const s = readState(dir);
   const list = s.threads.filter((t) => flags.all || t.status === 'open');
+  const github = cachedThreads(dir).filter((t) => flags.all || t.status === 'open');
   if (flags.json) {
-    console.log(JSON.stringify({ round: s.round, threads: list }, null, 2));
+    console.log(JSON.stringify({ round: s.round, threads: list, github }, null, 2));
     return;
   }
   console.log(`round ${s.round} · ${list.length} ${flags.all ? '' : 'open '}thread(s)`);
@@ -37,6 +40,7 @@ export function cmdThreads(repo) {
     for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
     if (last?.author === 'you') console.log('  → awaiting agent reply');
   }
+  if (github.length) console.log('\n' + githubContext(github).join('\n'));
 }
 
 // Agent replies as ops: `reply <thread> "<md>"`, or `reply --json <file|->` with [{thread, body, resolve?}].

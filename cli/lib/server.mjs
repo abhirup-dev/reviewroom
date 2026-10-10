@@ -9,6 +9,7 @@ import { feedbackMarkdown } from './feedback.mjs';
 import { makeProvider } from './git.mjs';
 import { readState, writeState, answers } from './state.mjs';
 import { applyOp, OpError } from './ops.mjs';
+import { makeGitHub } from './github.mjs';
 
 export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const DIST = path.join(PKG, 'dist');
@@ -27,6 +28,7 @@ const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'tex
 export function startServer({ repo, dir, cfg, onFinish }) {
   const prov = makeProvider(repo, cfg);
   const clients = new Set();
+  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, 'review.html');
   const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
   const send = (ev, data) => {
@@ -127,6 +129,10 @@ export function startServer({ repo, dir, cfg, onFinish }) {
         if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
         return json(res, 200, { rev: commit(ops).rev });
       }
+      if (url.pathname === '/api/github') {
+        if (req.method === 'GET') return json(res, 200, await (q.refresh ? github.refresh() : github.snapshot()));
+        if (req.method === 'POST') return json(res, 200, await github.act(await readJson(req)));
+      }
       if (url.pathname === '/api/events') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
         res.write(`event: hello\ndata: ${JSON.stringify({ hash: hash() })}\n\n`);
@@ -141,7 +147,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
         const prev = readState(dir);
         const n = prev.round;
         const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-        const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a) });
+        const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads });
         const rdir = path.join(dir, 'rounds', String(n));
         fs.mkdirSync(rdir, { recursive: true });
         if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
@@ -163,7 +169,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       json(res, e.status || 500, { error: String(e.message || e), code: e.code, index: e.index });
     }
   });
-  return { server, prov, commit };
+  return { server, prov, commit, github };
 }
 
 export function listen(server, port) {

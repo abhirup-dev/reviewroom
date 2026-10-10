@@ -1,5 +1,5 @@
 // Top bar: identity, rounds, search, picker, layout, theme, send feedback.
-import { h, icon, copyText } from '../core/dom';
+import { h, icon, copyText, relTime } from '../core/dom';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
@@ -87,6 +87,94 @@ export function sendDialog(app: ReviewApp) {
   note.focus();
 }
 
+// ---------------------------------------------------------------- submit GitHub review
+export function submitReviewDialog(app: ReviewApp) {
+  const drafts = app.github?.pending?.drafts ?? 0;
+  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' }) as HTMLTextAreaElement;
+  const scrim = h('div', { class: 'rr-scrim' });
+  const esc = () => (close(), true);
+  const close = () => {
+    scrim.remove();
+    app.escapers = app.escapers.filter((f) => f !== esc);
+  };
+  app.escapers.push(esc);
+  const go = async (action: Record<string, unknown>, done: string) => {
+    const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
+    if (buttons.some((b) => b.disabled)) return;
+    buttons.forEach((b) => (b.disabled = true));
+    if (await app.githubAct(action)) {
+      close();
+      app.toast(done);
+    } else buttons.forEach((b) => (b.disabled = false));
+  };
+  const submit = (event: string, done: string) => go({ action: 'submit', event, body: note.value }, done);
+  const box = h(
+    'div',
+    { class: 'rr-modal rr-modal--narrow', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Submit review on GitHub' },
+    h('header', { class: 'rr-thread__head' }, h('strong', null, 'Submit your review on GitHub'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
+    h(
+      'div',
+      { class: 'rr-send__body' },
+      h('p', { class: 'rr-muted' }, drafts ? `${plural(drafts, 'draft comment')} will be posted with it, visible to everyone on the PR.` : 'No draft comments: this posts just the summary and your verdict.'),
+      note,
+      drafts ? h('button', { class: 'rr-link-btn', title: 'Delete every draft comment in this review', onclick: () => go({ action: 'discard' }, 'Drafts discarded') }, 'Discard all drafts') : null,
+    ),
+    h(
+      'footer',
+      { class: 'rr-composer__foot' },
+      h('button', { class: 'rr-btn rr-btn--ghost', title: 'Ask for changes before this can merge', onclick: () => submit('request_changes', 'Review submitted: changes requested') }, 'Request changes'),
+      h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => submit('approve', 'Review submitted: approved') }, icon('check', 12), 'Approve'),
+      h('span', { class: 'rr-toolbar__spacer' }),
+      h('button', { class: 'rr-btn rr-btn--primary', title: 'Post your comments without approving or blocking', onclick: () => submit('comment', 'Review submitted') }, icon('send', 12), 'Comment'),
+    ),
+  );
+  scrim.append(box);
+  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
+  scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
+  document.body.append(scrim);
+  note.focus();
+}
+
+/** GitHub status + the Agent/Team switch: shown only for reviews of a GitHub PR. */
+function githubControls(app: ReviewApp) {
+  const g = app.github;
+  if (!g || (!g.ok && !g.threads?.length && /not a GitHub/.test(g.error ?? ''))) return [];
+  const warn = !!g.error || !!g.stale;
+  const btn = h(
+    'button',
+    { class: 'rr-hbtn' + (warn ? ' is-warn' : ''), 'aria-haspopup': 'menu', title: g.error ? 'GitHub: ' + g.error : g.stale ? 'The PR has new commits on GitHub' : `GitHub threads, as @${g.viewer}` },
+    icon('thread', 14),
+    h('span', null, g.error ? 'GitHub offline' : g.stale ? 'PR updated' : 'GitHub'),
+    icon('chevronDown', 12),
+  );
+  btn.onclick = () =>
+    popMenu(btn, (close) => [
+      menuLabel(g.ok ? `Signed in as @${g.viewer} · fetched ${relTime(g.at ?? '')}` : 'GitHub'),
+      g.error ? h('div', { class: 'rr-menu__note' }, g.error) : null,
+      g.stale ? h('div', { class: 'rr-menu__note' }, `The PR has commits you aren't reviewing yet. Run \`reviewroom pr ${app.meta.number ?? '<n>'}\` again to update; comments still land on the right lines meanwhile.`) : null,
+      menuItem('Refresh comments', () => (close(), app.refreshGitHub().then(() => app.toast('GitHub comments refreshed')))),
+      g.url ? menuItem('Open the PR on GitHub', () => (close(), window.open(g.url, '_blank', 'noopener')), { icon: 'popout' }) : null,
+    ]);
+  if (!g.ok) return [btn];
+  const seg = h(
+    'div',
+    { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Where new comments go' },
+    ...(['agent', 'team'] as const).map((m) =>
+      h(
+        'button',
+        {
+          class: app.prefs.reviewMode === m ? 'is-on' : '',
+          'aria-pressed': String(app.prefs.reviewMode === m),
+          title: m === 'agent' ? 'Agent review: your comments go to the agent, round by round' : 'Team review: code and PR comments go to your GitHub review, for colleagues (narrative comments still go to the agent)',
+          onclick: () => app.setPref('reviewMode', m),
+        },
+        m === 'agent' ? 'Agent' : 'Team',
+      ),
+    ),
+  );
+  return [btn, seg];
+}
+
 // ---------------------------------------------------------------- header
 export function buildHeader(app: ReviewApp): HTMLElement {
   const m = app.meta;
@@ -147,11 +235,20 @@ export function buildHeader(app: ReviewApp): HTMLElement {
         'div',
         { class: 'rr-header__actions' },
         h('button', { class: 'rr-search-btn', onclick: () => (app as any).openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
-        roundBtn,
+        ...githubControls(app),
+        app.teamMode ? null : roundBtn,
         h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
         layoutBtn,
         h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme}. Click to switch`, 'aria-label': 'Toggle theme', onclick: () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system') }, icon(themeIcon, 16)),
-        h(
+        app.teamMode
+          ? h(
+              'button',
+              { class: 'rr-btn rr-btn--primary rr-send-btn', title: 'Post your draft comments to GitHub as one review: comment, approve or request changes', onclick: () => submitReviewDialog(app) },
+              icon('send', 14),
+              h('span', null, 'Submit review'),
+              app.github?.pending?.drafts ? h('span', { class: 'rr-badge' }, String(app.github.pending.drafts)) : null,
+            )
+          : h(
           'button',
           { class: 'rr-btn rr-btn--primary rr-send-btn', title: app.backend.finish ? 'Finish this round: the agent gets your new comments and starts the next round' : 'Copy this round’s comments as markdown to paste to your agent', 'data-keys': 'mod+shift+enter', onclick: () => sendDialog(app), disabled: round?.status !== 'open' && !!round },
           icon('send', 14),

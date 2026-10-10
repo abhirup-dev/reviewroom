@@ -42,11 +42,14 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
     },
     h('span', { class: 'rr-inline-thread__count' }, String(t.messages.length)),
     h('span', { class: 'rr-inline-thread__text' }, plainExcerpt(first?.body ?? '', 110)),
-    last && last !== first ? h('span', { class: 'rr-inline-thread__last' }, (last.author === 'agent' ? 'agent: ' : 'you: ') + plainExcerpt(last.body, 60)) : null,
+    last && last !== first ? h('span', { class: 'rr-inline-thread__last' }, (last.author === 'github' ? last.gh?.login : last.author) + ': ' + plainExcerpt(last.body, 60)) : null,
     t.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok' }, 'resolved') : null,
   );
   return h('div', { class: 'rr-inline-thread-wrap' }, card);
 }
+
+// GitHub threads whose code moved on (outdated) or that are about the whole file have no line here
+const onLine = (t: Thread) => !t.gh?.outdated && !t.gh?.file;
 
 class CodePanel implements PanelInstance {
   element: HTMLElement;
@@ -211,7 +214,7 @@ class CodePanel implements PanelInstance {
 
   private fileHeader(f: ChangedFile) {
     const app = this.app;
-    const threads = app.state.threads.filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open').length;
+    const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open').length;
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
@@ -281,8 +284,9 @@ class CodePanel implements PanelInstance {
 
   private annotations(path: string): DiffLineAnnotation<Meta>[] {
     if (!this.app.prefs.inlineThreads) return [];
-    return this.app.state.threads
-      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path)
+    return this.app
+      .threads()
+      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && onLine(t))
       .map((t) => {
         const a = t.anchor as Extract<Thread['anchor'], { kind: 'code' }>;
         return { side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } } as DiffLineAnnotation<Meta>;
@@ -355,8 +359,9 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ full file view
   private fileAnnotations(path: string, side: 'base' | 'head') {
-    return this.app.state.threads
-      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === side)
+    return this.app
+      .threads()
+      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === side && onLine(t))
       .map((t) => ({ lineNumber: (t.anchor as any).end, metadata: { threadId: t.id } }));
   }
 

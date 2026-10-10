@@ -16,7 +16,7 @@ import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState } from './core/types';
 import { ReviewApp } from './shell/app';
 import { mountDock, applyPreset, definePanel, ensurePanel, presets, type PanelDef } from './shell/layout';
-import { buildHeader, sendDialog } from './shell/chrome';
+import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
@@ -154,6 +154,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       app.bus.emit('state', s);
     },
     error: (text) => app.toast(text, 'error'),
+    github: (s) => app.setGitHub(s),
     review: async () => {
       await app.backend.flush?.(); // don't drop unsent changes with the page
       sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
@@ -167,6 +168,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   }
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
+  if (app.backend.github) {
+    app.backend.github().then((s) => app.setGitHub(s), () => {});
+    // colleagues comment while you read: refetch when you come back to the tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && app.github?.ok && Date.now() - Date.parse(app.github.at ?? '') > 30_000) app.refreshGitHub().catch(() => {});
+    });
+  }
 
   // Public API for agent-authored scripts inside the review.
   const api = {
@@ -236,7 +244,8 @@ function registerCommands(app: ReviewApp) {
       app.compose(s.kind === 'code' ? { kind: 'code', path: s.path, rev: s.side, start: s.start, end: s.end } : s.anchor, s.kind === 'doc' ? s.label : undefined);
     } },
     { id: 'comment.general', title: 'New general comment', group: 'Comments', run: () => app.compose({ kind: 'general' }) },
-    { id: 'round.send', title: 'Finish round & send feedback', group: 'Rounds', keys: ['mod+shift+enter'], run: () => sendDialog(app) },
+    { id: 'round.send', title: 'Finish round & send feedback (Team review: submit your GitHub review)', group: 'Rounds', keys: ['mod+shift+enter'], run: () => (app.teamMode ? submitReviewDialog(app) : sendDialog(app)) },
+    { id: 'github.refresh', title: 'Refresh GitHub comments', group: 'GitHub', run: () => app.refreshGitHub() },
     { id: 'round.current', title: 'Back to current round', group: 'Rounds', run: () => app.bus.emit('round-view', 0) },
     { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
       // innermost first: menus, then overlays (newest first), then the selection, then pick mode

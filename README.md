@@ -45,6 +45,16 @@ Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`
 `review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
 `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
 
+## GitHub threads and team reviews
+
+For a PR reviewed with `reviewroom pr <n>` (and `gh` logged in), the PR's own comment threads show
+up in the diff and in **Threads › GitHub**, with avatars, drafts, outdated markers and links to
+github.com. Reply, edit, delete and resolve there as on GitHub. The header's **Agent / Team** switch
+picks where your new code and general comments go: to the agent (round by round), or into your
+pending GitHub review, posted with **Submit review** (comment, approve or request changes).
+Narrative comments always go to the agent. The agent sees GitHub threads read-only and can link
+them (`rr:thread/gh_<n>`).
+
 ## Commenting
 
 - **Select text** in the narrative → Comment / Copy link / Pin.

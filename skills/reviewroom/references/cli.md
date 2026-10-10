@@ -50,11 +50,21 @@ Anchors tell you exactly what the comment is about: a code range (with side), a 
 (section id, optional CSS path to a block, optional quoted text), a symbol, or general. A sign-off
 checklist summary and an overall note may follow.
 
+## GitHub threads (colleagues)
+
+For a GitHub PR the reviewer also sees the PR's own comment threads, and in *Team* mode posts their
+code comments to GitHub as a review. Those threads have ids `gh_<n>` (`gh_conversation` is the PR's
+conversation tab). They are **not** feedback for you: the feedback and `reviewroom threads` list the
+open ones under "Open on GitHub" as context, `threads --json` returns them as `github`. You cannot
+reply to them (`reply gh_…` fails); when one matters to your answer, link it with
+`rr:thread/gh_<n>` or embed it with `![](rr:thread/gh_<n>)` in `review.html` or a reply.
+
 ## Where state lives
 
 `<repo>/.reviewroom/<name>/` (added to `.git/info/exclude` automatically):
 `review.html` (yours), `config.json` (base/head/title), `state.json` (threads, rounds, viewed files,
-sign-offs; schema in `schema/state.schema.json`), `rounds/<n>/`, `server.json` / `server.log` while
+sign-offs; schema in `schema/state.schema.json`), `rounds/<n>/`, `github.json` (the PR's GitHub
+threads as last fetched by the server; GitHub is the source of truth), `server.json` / `server.log` while
 a server runs, and `state.lock` (held by the running server, or briefly by a CLI write).
 
 While a server runs it is the only writer of `state.json`: `reply`, `comment` and `resolve` send
