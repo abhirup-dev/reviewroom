@@ -367,7 +367,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     }
     const toGitHub = t ? !!t.gh : app.commentsToGitHub(anchor);
     const [placeholder, submitLabel] = t?.gh
-      ? t.gh.conversation ? ['Comment on the PR on GitHub…', 'Comment on GitHub'] : ['Reply on GitHub…', 'Reply on GitHub']
+      ? t.gh.conversation ? ['Comment on the PR on GitHub…', 'Comment on GitHub']
+        : t.messages.some((m) => m.gh?.pending) ? ['Reply (a draft too, until you submit the review)…', 'Add to review'] : ['Reply on GitHub…', 'Reply on GitHub']
       : t ? ['Reply…', 'Reply']
       : !toGitHub ? ['Comment or ask the agent…', 'Comment']
       : anchor.kind === 'code' ? ['Comment for your GitHub review (posted when you submit it)…', 'Add to review'] : ['Comment on the PR on GitHub…', 'Comment on GitHub'];
