@@ -1,0 +1,12 @@
+{
+  "name": "reviewroom",
+  "owner": { "name": "Abhirup Das" },
+  "description": "Agent-guided code review for Claude Code.",
+  "plugins": [
+    {
+      "name": "reviewroom",
+      "source": "./",
+      "description": "Agent-guided code review: a linked narrative of a PR next to its live diff, with comment threads and feedback rounds."
+    }
+  ]
+}

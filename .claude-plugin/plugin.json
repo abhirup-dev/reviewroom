@@ -1,0 +1,8 @@
+{
+  "name": "reviewroom",
+  "version": "0.1.0",
+  "description": "Agent-guided code review: the agent writes a linked narrative of a PR next to its live diff; you comment and send feedback round by round.",
+  "author": { "name": "Abhirup Das" },
+  "license": "MIT",
+  "keywords": ["code-review", "pull-request", "diff"]
+}

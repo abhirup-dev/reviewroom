@@ -18,14 +18,20 @@ docking panels, contents, a file tree, symbol search, anchored comment threads, 
 
 ## Quick start
 
+In Claude Code (installs the skill and puts `reviewroom` on the agent's PATH):
+
+```
+/plugin install reviewroom --marketplace <owner>/reviewroom
+```
+
+Then ask for a review: *"review PR 4821 in reviewroom"*. Without Claude Code, `npm i -g reviewroom`
+and point your agent at [`skills/reviewroom/`](skills/reviewroom/SKILL.md):
+
 ```bash
-cd reviewroom && mise install && mise run setup      # once: deps, build, `reviewroom` on PATH
 reviewroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the browser
 ```
 
-`mise run demo` opens a review of a bundled demo repo. Agents use the skill in
-[`skills/reviewroom/`](skills/reviewroom/SKILL.md) (copy it to `~/.claude/skills/` or point your
-agent at it). Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
+Contributing to reviewroom itself (`mise run setup`, `mise run demo`): [AGENTS.md](AGENTS.md).
 
 ## The review loop
 
