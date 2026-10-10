@@ -21,7 +21,7 @@ docking panels, contents, a file tree, symbol search, anchored comment threads, 
 In Claude Code (installs the skill and puts `reviewroom` on the agent's PATH):
 
 ```
-/plugin install reviewroom --marketplace <owner>/reviewroom
+/plugin install reviewroom --marketplace abhirup-dev/reviewroom
 ```
 
 Then ask for a review: *"review PR 4821 in reviewroom"*. Without Claude Code, `npm i -g reviewroom`
