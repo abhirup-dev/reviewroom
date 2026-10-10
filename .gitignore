@@ -1,5 +1,5 @@
 node_modules/
-.readingroom/
+.reviewroom/
 .demo/
 *.log
 dist/

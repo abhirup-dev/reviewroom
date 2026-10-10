@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Attach recent HABIT events to RankerRequest</title>
-<script type="module" src="/_rr/readingroom.js"></script>
+<script type="module" src="/_rr/reviewroom.js"></script>
 <style>
   /* Author styles: the agent can style its own widgets however it likes. */
   .budget { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--rr-line); border-radius: 10px; background: var(--rr-panel-2); margin-bottom: 16px; }
@@ -49,7 +49,7 @@
       </div>
       <script>
         // Agent-authored interactive widget. Uses window.rr to jump into the diff.
-        window.addEventListener('readingroom:ready', ({ detail: rr }) => {
+        window.addEventListener('reviewroom:ready', ({ detail: rr }) => {
           const scale = (ms) => (ms / 50) * 100;
           const paint = () => {
             const par = document.getElementById('bt-par').checked;

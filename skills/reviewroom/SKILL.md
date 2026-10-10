@@ -1,11 +1,11 @@
 ---
-name: readingroom
-description: Run agent-guided code reviews in readingroom, a local review workbench where you write a linked, interactive narrative of a PR next to its live diff and answer the reviewer's comment threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in readingroom", asks for a guided/walkthrough review of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in readingroom, or asks you to reply to review threads, even if they don't name the tool.
+name: reviewroom
+description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive narrative of a PR next to its live diff and answer the reviewer's comment threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided/walkthrough review of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
 ---
 
-# readingroom
+# reviewroom
 
-readingroom is a review workbench that runs locally in the browser. You (the agent) write the
+reviewroom is a review workbench that runs locally in the browser. You (the agent) write the
 **narrative**: an HTML page explaining a change, where every claim links to the real code. The tool
 puts that next to the **live diff of the local clone** and gives the reviewer everything around it:
 docking panels, file tree, contents, symbol search, comments anchored to any sentence, block, element
@@ -17,15 +17,15 @@ writing only if it makes that jump effortless and never asks them to trust you w
 ## Quick start
 
 ```bash
-readingroom pr 4821 --repo ~/Codes/<project> --detach      # number, PR URL, or branch name
+reviewroom pr 4821 --repo ~/Codes/<project> --detach      # number, PR URL, or branch name
 ```
 
 This fetches the PR (uses `gh` for title/base/author when it is logged in), scaffolds
-`<repo>/.readingroom/pr-4821/review.html`, starts the server in the background and prints its URL.
-The page live-reloads whenever you save `review.html`. `readingroom status --json --dir <dir>`
+`<repo>/.reviewroom/pr-4821/review.html`, starts the server in the background and prints its URL.
+The page live-reloads whenever you save `review.html`. `reviewroom status --json --dir <dir>`
 gives you base/head shas, the review path, the URL and open threads at any time.
 
-If `readingroom` is not on PATH, run it from its repo: `node <readingroom>/cli/readingroom.mjs …`
+If `reviewroom` is not on PATH, run it from its repo: `node <reviewroom>/cli/reviewroom.mjs …`
 (or `mise run setup` there once).
 
 ## Workflow
@@ -38,17 +38,17 @@ If `readingroom` is not on PATH, run it from its repo: `node <readingroom>/cli/r
    (`rr:` links, `<rr-flow>`, `<rr-code>`, `<rr-callout>`, `<rr-checklist>`, `window.rr`, theming).
    Verify every line number you cite against the head revision; a wrong link is worse than none.
 3. **Hand over.** Tell the user the URL. When they want to review with you in the loop, run
-   `readingroom review --dir <dir>` as a **background** command with a long timeout (it can wait for
+   `reviewroom review --dir <dir>` as a **background** command with a long timeout (it can wait for
    hours): it takes over the server (same port, so the open tab reconnects) and blocks until they press
    *Send feedback* or *Approve*, then prints the feedback as markdown and exits. If they already sent
    feedback while you weren't waiting, it prints that at once. Always pass `--dir`; the feedback
    repeats the exact commands to run.
 4. **Answer the round.** For each thread in the feedback, see `references/cli.md`:
-   reply with `readingroom reply <thread-id> "<markdown>"`; put substantial answers (tables,
+   reply with `reviewroom reply <thread-id> "<markdown>"`; put substantial answers (tables,
    diagrams, queries, sketches) into a **new section** with `data-round="<next round>"` and link or
    embed it from the reply instead of repeating it; `--resolve` only when fully addressed; change code
-   if asked. Then run `readingroom review` again for the next round.
-5. **Finish.** `readingroom stop --dir <dir>` when the review is over (approval also ends the loop).
+   if asked. Then run `reviewroom review` again for the next round.
+5. **Finish.** `reviewroom stop --dir <dir>` when the review is over (approval also ends the loop).
 
 ## What the reviewer can do (so you can design for it)
 

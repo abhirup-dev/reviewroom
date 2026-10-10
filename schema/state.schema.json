@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "readingroom/state.schema.json",
-  "title": "readingroom review state (.readingroom/<branch>/state.json)",
+  "$id": "reviewroom/state.schema.json",
+  "title": "reviewroom review state (.reviewroom/<branch>/state.json)",
   "type": "object",
   "required": ["version", "round", "rounds", "threads"],
   "properties": {
@@ -22,7 +22,7 @@
           "deliveredAt": {
             "type": ["string", "null"],
             "format": "date-time",
-            "description": "When `readingroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."
+            "description": "When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."
           }
         }
       }

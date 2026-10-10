@@ -4,12 +4,12 @@ Read this when writing or editing `review.html`. For the CLI and the round loop 
 for what makes a review worth reading see `review-craft.md`.
 
 You are writing the **narrative** half of a code review. The other half — the live diff, file
-tree, contents, threads, rounds, palette, theming, docking — is provided by readingroom. Your job
+tree, contents, threads, rounds, palette, theming, docking — is provided by reviewroom. Your job
 is to explain the change so a fast reviewer understands it, and to link every claim to the code.
 
 ## The file
 
-`readingroom pr <n>` scaffolds `<repo>/.readingroom/pr-<n>/review.html`. It is an ordinary HTML file:
+`reviewroom pr <n>` scaffolds `<repo>/.reviewroom/pr-<n>/review.html`. It is an ordinary HTML file:
 
 ```html
 <rr-app>
@@ -84,7 +84,7 @@ Interactive widgets can drive the reviewer straight into the code:
 
 ```html
 <script>
-  window.addEventListener('readingroom:ready', ({ detail: rr }) => {
+  window.addEventListener('reviewroom:ready', ({ detail: rr }) => {
     document.querySelector('#bar').onclick = () => rr.open('rr:code/pkg/x.go#L46-49');
   });
 </script>

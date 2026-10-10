@@ -1,22 +1,22 @@
 #!/usr/bin/env node
-// readingroom CLI — local server + review rounds.  Zero dependencies.
+// reviewroom CLI — local server + review rounds.  Zero dependencies.
 //
-//   readingroom pr <number|url|branch> [--repo path] [--detach] [--wait]
-//                      one step: fetch the PR (gh if available), scaffold .readingroom/pr-<n>/,
+//   reviewroom pr <number|url|branch> [--repo path] [--detach] [--wait]
+//                      one step: fetch the PR (gh if available), scaffold .reviewroom/pr-<n>/,
 //                      start the server. --detach backgrounds it; --wait blocks for the round.
-//   readingroom stop   [dir]            stop a detached server
-//   readingroom init   [dir] [--base main] [--head HEAD] [--title "…"]   scaffold a review
-//   readingroom review [dir] [...]   serve, open the browser, block until the reviewer sends
+//   reviewroom stop   [dir]            stop a detached server
+//   reviewroom init   [dir] [--base main] [--head HEAD] [--title "…"]   scaffold a review
+//   reviewroom review [dir] [...]   serve, open the browser, block until the reviewer sends
 //                                    feedback or approves; print the feedback for the agent
-//   readingroom serve  [dir] [...]   same server, never exits (for a long-running session)
-//   readingroom threads [dir] [--all] [--json]       list threads (what the agent must answer)
-//   readingroom reply <thread> "<markdown>" [--resolve] [dir]   answer a thread as the agent ("-" = stdin)
-//   readingroom reply --json <file|->   bulk answers: [{"thread": id, "body": md, "resolve": bool}]
-//   readingroom comment <rr-ref> "<markdown>" [dir]  start a thread as the agent
-//   readingroom resolve <thread> [dir]
-//   readingroom status [dir]
+//   reviewroom serve  [dir] [...]   same server, never exits (for a long-running session)
+//   reviewroom threads [dir] [--all] [--json]       list threads (what the agent must answer)
+//   reviewroom reply <thread> "<markdown>" [--resolve] [dir]   answer a thread as the agent ("-" = stdin)
+//   reviewroom reply --json <file|->   bulk answers: [{"thread": id, "body": md, "resolve": bool}]
+//   reviewroom comment <rr-ref> "<markdown>" [dir]  start a thread as the agent
+//   reviewroom resolve <thread> [dir]
+//   reviewroom status [dir]
 //
-// The review dir defaults to <repo>/.readingroom/<branch>/ and holds:
+// The review dir defaults to <repo>/.reviewroom/<branch>/ and holds:
 //   review.html            the narrative (written by the agent, any HTML)
 //   state.json             threads, rounds, viewed files, sign-offs
 //   config.json            repo/base/head/title

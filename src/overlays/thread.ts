@@ -323,7 +323,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       placeholder: t ? 'Reply…' : 'Comment or ask the agent…',
       submitLabel: t ? 'Reply' : 'Comment',
       autofocus: true,
-      draftKey: `readingroom:draft:${app.meta.id}:${t ? t.id : JSON.stringify(anchor)}`,
+      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : JSON.stringify(anchor)}`,
       onSubmit: (body) => {
         if (t) app.reply(t.id, body);
         else {

@@ -93,13 +93,13 @@ export class ReviewApp {
   private cache = new Map<string, Promise<string | null>>();
 
   constructor(public root: HTMLElement) {
-    this.prefs = loadLocal('readingroom:prefs', defaultPrefs);
+    this.prefs = loadLocal('reviewroom:prefs', defaultPrefs);
   }
 
   // ------------------------------------------------------------ prefs/theme
   setPref<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     this.prefs = { ...this.prefs, [k]: v };
-    saveLocal('readingroom:prefs', this.prefs);
+    saveLocal('reviewroom:prefs', this.prefs);
     this.bus.emit('prefs', this.prefs);
     if (k === 'theme') this.applyTheme();
   }

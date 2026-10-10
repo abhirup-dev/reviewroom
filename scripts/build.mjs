@@ -1,4 +1,4 @@
-// Client build with Bun: dist/readingroom.js (+ lazy chunks, mostly syntax grammars), dist/readingroom.css,
+// Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
 // dist/fonts/. `bun scripts/build.mjs --watch` rebuilds on change. build-demo.mjs reuses clientBuild().
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, watch } from 'node:fs';
 
@@ -56,14 +56,14 @@ async function build() {
   rmSync(at('dist'), { recursive: true, force: true });
   mkdirSync(at('dist/fonts'), { recursive: true });
   for (const [, pkg, file] of fonts) copyFileSync(fontFile(pkg, file), at(`dist/fonts/${file}`));
-  writeFileSync(at('dist/readingroom.css'), clientCss((_, file) => `./fonts/${file}`));
+  writeFileSync(at('dist/reviewroom.css'), clientCss((_, file) => `./fonts/${file}`));
   // __RR_FONTS__ is resolved at runtime against the script's own URL (injectCSS in src/index.ts)
   const res = await clientBuild({
     css: clientCss((_, file) => `__RR_FONTS__/${file}`),
     outdir: at('dist'),
     splitting: true,
     sourcemap: 'linked',
-    naming: { entry: 'readingroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
+    naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
   if (!res.success) {
     for (const log of res.logs) console.error(log);

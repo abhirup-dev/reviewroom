@@ -43,7 +43,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
     }
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
-  watcher.on('error', (e) => console.error(`readingroom: file watch stopped: ${e.message}`));
+  watcher.on('error', (e) => console.error(`reviewroom: file watch stopped: ${e.message}`));
 
   const json = (res, code, body) => {
     res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -74,7 +74,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
   };
   const serveFile = (res, file) => {
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: 'not found' });
-    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': file.startsWith(DIST) && !file.endsWith('readingroom.js') ? 'max-age=3600' : 'no-store' });
+    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': file.startsWith(DIST) && !file.endsWith('reviewroom.js') ? 'max-age=3600' : 'no-store' });
     fs.createReadStream(file).pipe(res);
   };
 
@@ -92,14 +92,14 @@ export function startServer({ repo, dir, cfg, onFinish }) {
   };
 
   const server = http.createServer(async (req, res) => {
-    res.setHeader('x-readingroom-pid', String(process.pid));
+    res.setHeader('x-reviewroom-pid', String(process.pid));
     const url = new URL(req.url, 'http://x');
     if (!allowed(req, url)) return json(res, 403, { error: 'forbidden' });
     const q = Object.fromEntries(url.searchParams);
     try {
       if (url.pathname === '/' || url.pathname === '/index.html') {
         let html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
-        if (!html.includes('/_rr/readingroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/readingroom.js"></script>\n</head>');
+        if (!html.includes('/_rr/reviewroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/reviewroom.js"></script>\n</head>');
         res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-store' });
         return res.end(html);
       }
@@ -159,7 +159,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       if (!f.startsWith(dir + path.sep) || /^\.?state\.(json|lock)/.test(path.basename(f))) return json(res, 403, {});
       return serveFile(res, f);
     } catch (e) {
-      if (!(e instanceof OpError)) console.error(`readingroom: ${req.method} ${url.pathname}: ${e.message || e}`);
+      if (!(e instanceof OpError)) console.error(`reviewroom: ${req.method} ${url.pathname}: ${e.message || e}`);
       json(res, e.status || 500, { error: String(e.message || e), code: e.code, index: e.index });
     }
   });

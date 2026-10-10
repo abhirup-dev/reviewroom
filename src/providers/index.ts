@@ -16,7 +16,7 @@ export interface CodeProvider {
   tree?(rev: Rev): Promise<string[]>;
 }
 
-/** Where threads/rounds live. The CLI server writes .readingroom/state.json; the browser fallback uses localStorage. */
+/** Where threads/rounds live. The CLI server writes .reviewroom/state.json; the browser fallback uses localStorage. */
 export interface StateBackend {
   readonly kind: 'server' | 'browser';
   load(): Promise<ReviewState | null>;
@@ -150,7 +150,7 @@ export class ServerState implements StateBackend {
     }
   }
   private stalled(why?: string) {
-    if (!this.warned) this.on?.error(`Not saved yet${why ? ` (${why})` : ': the readingroom server is not answering'}. Retrying.`);
+    if (!this.warned) this.on?.error(`Not saved yet${why ? ` (${why})` : ': the reviewroom server is not answering'}. Retrying.`);
     this.warned = true;
     clearTimeout(this.retry);
     this.retry = setTimeout(() => this.pump(), 3000);
@@ -167,7 +167,7 @@ export class ServerState implements StateBackend {
       const es = new EventSource(`${this.api}/events`);
       es.addEventListener('hello', async (e) => {
         const h = JSON.parse((e as MessageEvent).data).hash;
-        // reconnected to a new `readingroom review` run: pick up whatever the agent changed meanwhile
+        // reconnected to a new `reviewroom review` run: pick up whatever the agent changed meanwhile
         if (hash !== null && h !== hash) return on.review();
         if (hash !== null) this.receive(await this.fetchState());
         hash = h;
@@ -261,7 +261,7 @@ export class StaticProvider implements CodeProvider {
   }
 }
 
-const LS_KEY = (id: string) => `readingroom:state:${id}`;
+const LS_KEY = (id: string) => `reviewroom:state:${id}`;
 
 export class BrowserState implements StateBackend {
   readonly kind = 'browser';

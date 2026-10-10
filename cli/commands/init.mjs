@@ -11,7 +11,7 @@ export function cmdInit(repo) {
   fs.mkdirSync(dir, { recursive: true });
   const cfg = loadConfig(dir, repo);
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
-  if (!scaffold(repo, dir, cfg)) console.error(`readingroom: ${path.join(dir, 'review.html')} exists (use --force to overwrite)`);
+  if (!scaffold(repo, dir, cfg)) console.error(`reviewroom: ${path.join(dir, 'review.html')} exists (use --force to overwrite)`);
   ensureExcluded(repo);
   console.log(dir);
 }

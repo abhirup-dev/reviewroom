@@ -1,4 +1,4 @@
-// End-to-end smoke test: demo repo → `readingroom pr` (detached) → API + bundle respond → state ops,
+// End-to-end smoke test: demo repo → `reviewroom pr` (detached) → API + bundle respond → state ops,
 // rounds and the agent hand-off → stop → file-only writes (lock, corrupt state).
 // Run with `mise run smoke` (or `bun scripts/smoke.mjs`). Exits non-zero on any failure.
 import { execFileSync, spawn } from 'node:child_process';
@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const cli = path.join(root, 'cli', 'readingroom.mjs');
+const cli = path.join(root, 'cli', 'reviewroom.mjs');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-smoke-'));
 const repo = path.join(tmp, 'repo');
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
@@ -51,7 +51,7 @@ try {
   check(files.length === 5, `diff has ${files.length} files`);
   const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json();
   check(sym.some((h) => h.kind === 'definition'), 'symbol search finds the definition');
-  const js = await fetch(url + '_rr/readingroom.js');
+  const js = await fetch(url + '_rr/reviewroom.js');
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
   check(page.includes('<rr-review>'), 'review page is scaffolded');
@@ -68,14 +68,14 @@ try {
   check((await raw(url + 'api/ops', { origin: 'https://evil.example', 'content-type': 'application/json' }, 'POST')) === 403, 'write from a foreign origin is refused');
   check((await raw(url + 'api/meta', { host: `evil.example:${new URL(url).port}` })) === 403, 'foreign Host header is refused');
   check((await raw(url + 'api/meta')) === 200, 'same-machine API request is allowed');
-  const leak = path.join(repo, '.readingroom', 'feat-habit-events-leak');
+  const leak = path.join(repo, '.reviewroom', 'feat-habit-events-leak');
   fs.mkdirSync(leak, { recursive: true });
   fs.writeFileSync(path.join(leak, 'secret.txt'), 'secret');
   const trav = await fetch(url + '..%2ffeat-habit-events-leak%2fsecret.txt');
   check(trav.status === 403, `static route stays inside the review dir (${trav.status})`);
 
   // ---- state ops through the running server
-  const dir = path.join(repo, '.readingroom', 'feat-habit-events');
+  const dir = path.join(repo, '.reviewroom', 'feat-habit-events');
   const state = () => JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'));
   const d = ['--repo', repo, '--dir', dir];
   check(JSON.parse(fs.readFileSync(path.join(dir, 'state.lock'), 'utf8')).port === +port, 'server holds state.lock');
@@ -107,13 +107,13 @@ try {
   const late = await cliAsync(['review', '--no-open', ...d]);
   check(late.code === 0 && late.stdout.includes('t_one') && late.stdout.includes('and?'), 'review prints feedback sent while no agent was waiting');
   check(typeof state().rounds[0].deliveredAt === 'string' && (await fetch(url + 'api/meta')).ok, 'delivery recorded; the running server kept running');
-  check(/--dir '[^']*\/\.readingroom\/feat-habit-events'/.test(late.stdout), 'feedback names the review dir in the commands it asks for'); // git may report the repo via /private/var on macOS
+  check(/--dir '[^']*\/\.reviewroom\/feat-habit-events'/.test(late.stdout), 'feedback names the review dir in the commands it asks for'); // git may report the repo via /private/var on macOS
 
   // ---- bare commands from another branch find the repo's only review; several reviews → ask for --dir
   run('git', ['-C', repo, 'checkout', '-q', 'main']);
   check(run(node, [cli, 'threads', '--all', '--repo', repo]).includes('t_one'), 'bare `threads` on another branch finds the only review');
-  fs.mkdirSync(path.join(repo, '.readingroom', 'other'));
-  fs.writeFileSync(path.join(repo, '.readingroom', 'other', 'review.html'), '<rr-review></rr-review>');
+  fs.mkdirSync(path.join(repo, '.reviewroom', 'other'));
+  fs.writeFileSync(path.join(repo, '.reviewroom', 'other', 'review.html'), '<rr-review></rr-review>');
   const ambiguous = await cliAsync(['threads', '--repo', repo]);
   check(ambiguous.code !== 0 && ambiguous.stderr.includes('--dir'), 'bare `threads` with several reviews asks for --dir');
   run('git', ['-C', repo, 'checkout', '-q', 'feat/habit-events']);
@@ -150,7 +150,7 @@ try {
   process.exitCode = 1;
 } finally {
   try {
-    run(node, [cli, 'stop', '--repo', repo, '--dir', path.join(repo, '.readingroom', 'feat-habit-events')]);
+    run(node, [cli, 'stop', '--repo', repo, '--dir', path.join(repo, '.reviewroom', 'feat-habit-events')]);
   } catch {}
   fs.rmSync(tmp, { recursive: true, force: true });
 }

@@ -1,4 +1,4 @@
-/* dockview theme mapped onto readingroom tokens: docked panels tile edge to edge, split by hairlines
+/* dockview theme mapped onto reviewroom tokens: docked panels tile edge to edge, split by hairlines
    (square outer corners); only floating windows are rounded and lifted. */
 .dockview-theme-rr {
   --dv-paneview-active-outline-color: var(--rr-accent);

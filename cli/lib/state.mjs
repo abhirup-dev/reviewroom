@@ -6,19 +6,19 @@ import { flags, pos, die } from './args.mjs';
 import { git, defaultBase } from './git.mjs';
 import { applyOp, OpError } from './ops.mjs';
 
-/** The review dir: --dir, a dir argument, else <repo>/.readingroom/<branch>. For an existing review
+/** The review dir: --dir, a dir argument, else <repo>/.reviewroom/<branch>. For an existing review
  *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
 export function resolveDir(repo, { existing = false } = {}) {
   if (flags.dir) return path.resolve(flags.dir);
   const p = pos.find((x) => fs.existsSync(x) && fs.statSync(x).isDirectory());
   if (p) return path.resolve(p);
-  const root = path.join(repo, '.readingroom');
+  const root = path.join(repo, '.reviewroom');
   const branch = (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim().replace(/[^\w.-]+/g, '-');
   const own = path.join(root, branch);
   if (!existing || fs.existsSync(own)) return own;
   const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
-  die(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`readingroom pr <n>\` first, or pass --dir`);
+  die(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
 export function loadConfig(dir, repo) {
@@ -83,11 +83,11 @@ const alive = (pid) => {
     return e.code === 'EPERM';
   }
 };
-/** Does a readingroom server with this pid answer on this port? null = no answer in time (busy: git calls are synchronous). */
+/** Does a reviewroom server with this pid answer on this port? null = no answer in time (busy: git calls are synchronous). */
 export async function answers(pid, port, timeout = 800) {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/favicon.ico`, { signal: AbortSignal.timeout(timeout) });
-    return r.headers.get('x-readingroom-pid') === String(pid);
+    return r.headers.get('x-reviewroom-pid') === String(pid);
   } catch (e) {
     return e.name === 'TimeoutError' ? null : false;
   }
