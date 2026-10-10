@@ -7,3 +7,10 @@ examples/*/server.json
 examples/*/state.lock
 examples/*/.state.json.*.tmp
 examples/*/state.json.corrupt-*
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
