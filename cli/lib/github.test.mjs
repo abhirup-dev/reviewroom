@@ -1,0 +1,51 @@
+import { expect, test } from 'bun:test';
+import { normalize, prTarget, toGitHubMarkdown } from './github.mjs';
+
+const author = (login) => ({ login, avatarUrl: `https://avatars.example/${login}` });
+const comment = (databaseId, login, body, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
+const thread = (over, comments) => ({ id: 'T' + comments[0].databaseId, isResolved: false, path: 'a.go', line: 12, startLine: 10, diffSide: 'RIGHT', startDiffSide: 'RIGHT', originalLine: 9, originalStartLine: 8, subjectType: 'LINE', viewerCanResolve: true, viewerCanUnresolve: false, viewerCanReply: true, comments: { nodes: comments }, ...over });
+const pr = {
+  id: 'PR1',
+  url: 'https://github.com/o/r/pull/7',
+  headRefOid: 'b'.repeat(40),
+  reviewThreads: {
+    nodes: [
+      thread({}, [comment(1, 'ann', 'why?'), comment(2, 'me', 'because')]),
+      thread({ line: null, startLine: null, diffSide: 'LEFT', isResolved: true }, [comment(3, 'ann', 'old')]),
+      thread({ line: null, startLine: null, subjectType: 'FILE' }, [comment(4, 'ann', 'whole file')]),
+      thread({}, [comment(5, 'me', 'draft', { state: 'PENDING' })]),
+    ],
+  },
+  comments: { nodes: [comment(6, 'bob', 'LGTM overall')] },
+  reviews: { nodes: [{ id: 'R1', databaseId: 7, body: '', state: 'APPROVED', createdAt: '2026-10-08T00:00:00Z', url: 'u', viewerCanUpdate: false, author: author('bob') }, { id: 'R2', databaseId: 8, body: '', state: 'COMMENTED', createdAt: '2026-10-08T00:00:00Z', url: 'u', author: author('ann') }, { id: 'R3', databaseId: 9, body: '', state: 'PENDING', createdAt: '2026-10-09T00:00:00Z', url: 'u', author: author('me') }] },
+};
+
+test('GitHub threads map onto reviewroom threads and anchors', () => {
+  const s = normalize(pr, 'me', 'a'.repeat(40));
+  expect(s.stale).toBe(true);
+  expect(s.pending).toEqual({ id: 'R3', drafts: 1 });
+  const [live, outdated, file, draft, convo] = s.threads;
+  expect(live.id).toBe('gh_1');
+  expect(live.anchor).toEqual({ kind: 'code', path: 'a.go', rev: 'head', start: 10, end: 12 });
+  expect(live.messages.map((m) => [m.gh.login, m.gh.mine, m.gh.canEdit])).toEqual([['ann', false, false], ['me', true, true]]);
+  // no current line: placed where it was written, flagged so the diff doesn't show it on a wrong line
+  expect(outdated.anchor).toEqual({ kind: 'code', path: 'a.go', rev: 'base', start: 8, end: 9 });
+  expect([outdated.status, outdated.gh.outdated]).toEqual(['resolved', true]);
+  expect([file.gh.file, file.gh.outdated]).toEqual([true, false]);
+  expect(draft.messages[0].gh.pending).toBe(true);
+  // conversation: comments + reviews with a verdict or text, never the pending review
+  expect(convo.id).toBe('gh_conversation');
+  expect(convo.messages.map((m) => m.body)).toEqual(['LGTM overall', '**Approved**']);
+});
+
+test('rr: links become GitHub links or plain text', () => {
+  const t = { host: 'github.com', owner: 'o', name: 'r' };
+  const out = toGitHubMarkdown('see [x](rr:code/a.go#L3-5), [old](rr:code/a.go@base#L2) and [intro](rr:doc/intro)', t, { base: 'B', head: 'H' });
+  expect(out).toBe('see [x](https://github.com/o/r/blob/H/a.go#L3-L5), [old](https://github.com/o/r/blob/B/a.go#L2) and intro');
+});
+
+test('the PR comes from config url, else repo + number', () => {
+  expect(prTarget({ url: 'https://ghe.corp/o/r/pull/12' })).toEqual({ host: 'ghe.corp', owner: 'o', name: 'r', number: 12 });
+  expect(prTarget({ repo: 'o/r', number: 3 })).toEqual({ host: 'github.com', owner: 'o', name: 'r', number: 3 });
+  expect(prTarget({ repo: 'o/r' })).toBe(null);
+});

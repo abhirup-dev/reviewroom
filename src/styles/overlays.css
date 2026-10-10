@@ -127,6 +127,18 @@
   background: var(--rr-accent-soft);
   color: var(--rr-accent);
 }
+.rr-avatar--gh {
+  object-fit: cover;
+}
+.rr-msg__meta a.rr-muted {
+  text-decoration: none;
+}
+.rr-msg__meta a.rr-muted:hover {
+  text-decoration: underline;
+}
+.rr-thread.is-readonly .rr-composer {
+  display: none;
+}
 .rr-msg__main {
   min-width: 0;
 }
@@ -533,6 +545,12 @@ rr-embed {
 }
 .rr-menu__hint {
   color: var(--rr-faint);
+  font-size: var(--rr-text-xs);
+}
+.rr-menu__note {
+  padding: 2px 10px 6px;
+  max-width: 260px;
+  color: var(--rr-muted);
   font-size: var(--rr-text-xs);
 }
 .rr-menu__label-row {

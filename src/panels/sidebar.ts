@@ -67,7 +67,7 @@ class FilesPanel implements PanelInstance {
 
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
-    const threads = app.state.threads.filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path).length;
+    const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path).length;
     const viewed = app.state.viewed[f.path] !== undefined;
     return h(
       'button',
@@ -252,7 +252,7 @@ class ThreadsPanel implements PanelInstance {
     this.head = h('div', { class: 'rr-side-head' });
     this.body = h('div', { class: 'rr-scroll rr-thread-list' });
     this.element = h('div', { class: 'rr-side' }, this.head, this.body);
-    this.offs.push(app.bus.on('state', () => this.render()));
+    this.offs.push(app.bus.on('state', () => this.render()), app.bus.on('prefs', () => this.render()));
     this.render();
   }
 
@@ -264,13 +264,21 @@ class ThreadsPanel implements PanelInstance {
     return h(
       'button',
       { class: 'rr-thread-item' + (t.status === 'resolved' ? ' is-resolved' : ''), title: 'Open thread', onclick: () => app.bus.emit('open-thread', { id: t.id }) },
-      h('div', { class: 'rr-thread-item__anchor' }, h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'), h('span', null, app.anchorLabel(t.anchor)), h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound)),
+      h(
+        'div',
+        { class: 'rr-thread-item__anchor' },
+        h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
+        h('span', null, t.title ?? app.anchorLabel(t.anchor)),
+        t.gh ? h('span', { class: 'rr-round-badge', title: 'Started on GitHub by ' + t.messages[0]?.gh?.login }, '@' + t.messages[0]?.gh?.login) : h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound),
+      ),
       h('div', { class: 'rr-thread-item__text' }, plainExcerpt(t.messages[0]?.body ?? '', 120)),
       h(
         'div',
         { class: 'rr-thread-item__meta' },
         h('span', null, `${t.messages.length} message${t.messages.length > 1 ? 's' : ''}`),
         last?.author === 'agent' ? h('span', { class: 'rr-agent-tag' }, 'agent replied') : null,
+        t.messages.some((m) => m.gh?.pending) ? h('span', { class: 'rr-pill rr-pill--draft', title: 'In your GitHub review, not posted until you submit it' }, 'draft') : null,
+        t.gh?.outdated ? h('span', { class: 'rr-pill', title: 'The code this was written on has changed since' }, 'outdated') : null,
         t.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok' }, 'resolved') : null,
       ),
     );
@@ -278,7 +286,7 @@ class ThreadsPanel implements PanelInstance {
 
   private render() {
     const app = this.app;
-    const all = app.state.threads;
+    const all = app.threads();
     const pending = app.pendingFeedback().length;
     const count = (f: typeof this.filter) => all.filter((t) => this.match(t, f)).length;
     this.head.replaceChildren(
@@ -287,13 +295,16 @@ class ThreadsPanel implements PanelInstance {
         { class: 'rr-seg rr-seg--small rr-seg--fill' },
         ...(['open', 'resolved', 'all'] as const).map((f) => h('button', { title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], class: this.filter === f ? 'is-on' : '', onclick: () => ((this.filter = f), this.render()) }, `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`)),
       ),
-      h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: 'A comment about the whole PR, not tied to a line or section', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'General comment'),
+      app.teamMode
+        ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: 'Post a comment in the PR conversation on GitHub', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'PR comment')
+        : h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: 'A comment about the whole PR, not tied to a line or section', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'General comment'),
     );
     const list = all.filter((t) => this.match(t, this.filter));
     const groups: [string, Thread[]][] = [
-      ['Narrative', list.filter((t) => t.anchor.kind === 'doc')],
-      ['Code', list.filter((t) => t.anchor.kind === 'code' || t.anchor.kind === 'symbol')],
-      ['General', list.filter((t) => t.anchor.kind === 'general')],
+      ['Narrative', list.filter((t) => !t.gh && t.anchor.kind === 'doc')],
+      ['Code', list.filter((t) => !t.gh && (t.anchor.kind === 'code' || t.anchor.kind === 'symbol'))],
+      ['General', list.filter((t) => !t.gh && t.anchor.kind === 'general')],
+      ['GitHub', list.filter((t) => t.gh)],
     ];
     const out: HTMLElement[] = [];
     for (const [label, ts] of groups) {

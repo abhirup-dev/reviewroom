@@ -70,10 +70,12 @@ export type Author = 'you' | 'agent';
 
 export interface Message {
   id: string;
-  author: Author;
+  /** 'github': a comment on the PR on GitHub (see GitHubThread); never stored in state.json. */
+  author: Author | 'github';
   round: number;
   body: string; // markdown; may contain rr: links and embeds
   at: string; // ISO
+  gh?: GitHubComment;
 }
 
 export interface Thread {
@@ -84,6 +86,37 @@ export interface Thread {
   messages: Message[];
   /** Optional short label; defaults to the first line of the first message. */
   title?: string;
+  /** Set on threads that live on GitHub (ids `gh_…`); they come from /api/github, not state.json. */
+  gh?: { node: string; url: string; outdated?: boolean; file?: boolean; conversation?: boolean; canResolve?: boolean; canUnresolve?: boolean; canReply: boolean };
+}
+
+/** GitHub fields of a message with author 'github'. kind decides how it is edited/deleted. */
+export interface GitHubComment {
+  kind: 'review' | 'issue' | 'review-body';
+  node: string;
+  login: string;
+  avatar?: string;
+  url: string;
+  /** In the viewer's not-yet-submitted review. */
+  pending?: boolean;
+  mine: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+/** GET /api/github: the PR's human comment threads (cli/lib/github.mjs). */
+export interface GitHubSnapshot {
+  ok: boolean;
+  error?: string;
+  at?: string;
+  viewer?: string;
+  url?: string;
+  /** PR head on GitHub vs the commit being reviewed; stale = GitHub has moved on. */
+  headSha?: string;
+  localHead?: string | null;
+  stale?: boolean;
+  pending?: { id: string; drafts: number } | null;
+  threads: Thread[];
 }
 
 export interface Round {

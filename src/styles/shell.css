@@ -289,6 +289,17 @@ kbd {
   background: var(--rr-ok-soft);
   border-color: transparent;
 }
+.rr-pill--draft {
+  color: var(--rr-warn);
+  background: var(--rr-warn-soft);
+  border-color: transparent;
+}
+.rr-pill--gh {
+  color: var(--rr-ink-2);
+}
+.rr-hbtn.is-warn {
+  color: var(--rr-warn);
+}
 .rr-pill--accent {
   color: var(--rr-accent);
   background: var(--rr-accent-soft);

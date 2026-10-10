@@ -1,7 +1,7 @@
 // Code providers: where diffs, file contents and symbol search come from.
 // Order of preference: local CLI server (git on your clone) -> GitHub -> static fixture.
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, …).
-import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op } from '../core/types';
+import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { applyOp } from '../../cli/lib/ops.mjs';
 
 export interface CodeProvider {
@@ -24,12 +24,22 @@ export interface StateBackend {
   apply(op: Op, next: ReviewState): void;
   /** Resolves once every applied op is stored; false if some are still unsaved. */
   flush?(): Promise<boolean>;
-  /** Live updates (agent replied, review.html changed) and save problems. */
-  subscribe?(on: { state(s: ReviewState): void; review(): void; error(text: string): void }): void;
+  /** Live updates (agent replied, review.html changed, GitHub threads refetched) and save problems. */
+  subscribe?(on: BackendEvents): void;
   /** End round `round`: send feedback to the agent, or approve. */
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
+  /** The PR's GitHub threads (cached by the server unless refresh). */
+  github?(refresh?: boolean): Promise<GitHubSnapshot>;
+  /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.mjs); resolves to the refetched threads. */
+  githubAct?(action: Record<string, unknown>): Promise<GitHubSnapshot>;
+}
+export interface BackendEvents {
+  state(s: ReviewState): void;
+  review(): void;
+  error(text: string): void;
+  github?(s: GitHubSnapshot): void;
 }
 
 const json = async (r: Response) => {
@@ -85,7 +95,7 @@ export class ServerState implements StateBackend {
   private running: Promise<void> | null = null;
   private retry: ReturnType<typeof setTimeout> | undefined;
   private warned = false;
-  private on?: { state(s: ReviewState): void; review(): void; error(text: string): void };
+  private on?: BackendEvents;
   constructor(private api = '/api') {
     addEventListener('beforeunload', (e) => this.queue.some((q) => !q.ackRev) && e.preventDefault());
   }
@@ -160,7 +170,7 @@ export class ServerState implements StateBackend {
     await this.pump();
     return !this.queue.some((q) => !q.ackRev);
   }
-  subscribe(on: { state(s: ReviewState): void; review(): void; error(text: string): void }) {
+  subscribe(on: BackendEvents) {
     this.on = on;
     let hash: string | null = null;
     const connect = () => {
@@ -175,6 +185,7 @@ export class ServerState implements StateBackend {
       });
       es.addEventListener('state', (e) => this.receive(JSON.parse((e as MessageEvent).data)));
       es.addEventListener('review', () => on.review());
+      es.addEventListener('github', (e) => on.github?.(JSON.parse((e as MessageEvent).data)));
       es.onerror = () => {
         es.close();
         setTimeout(connect, 2000);
@@ -191,6 +202,15 @@ export class ServerState implements StateBackend {
   async snapshot(n: number) {
     const r = await fetch(`${this.api}/rounds/${n}/review.html`);
     return r.ok ? r.text() : null;
+  }
+  github(refresh = false) {
+    return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
+  }
+  async githubAct(action: Record<string, unknown>) {
+    const r = await fetch(`${this.api}/github`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(b.error || `${r.status} ${r.statusText}`);
+    return b;
   }
 }
 

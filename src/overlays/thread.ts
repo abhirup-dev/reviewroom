@@ -21,7 +21,7 @@ export interface ThreadViewOpts {
 }
 
 // ------------------------------------------------------------------ composer
-export function composer(app: ReviewApp, opts: { placeholder: string; submitLabel: string; initial?: string; autofocus?: boolean; draftKey?: string; onSubmit(body: string): void; onCancel?(): void }) {
+export function composer(app: ReviewApp, opts: { placeholder: string; submitLabel: string; initial?: string; autofocus?: boolean; draftKey?: string; onSubmit(body: string): unknown; onCancel?(): void }) {
   // A plain contenteditable where links are atomic chips. People see “request_builder.go:51–53”,
   // never `[…](rr:code/…)`; the markdown with rr: links exists only in what gets saved for the agent.
   const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
@@ -137,10 +137,15 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     if (ref) insertRef(ref, embed);
     else restore();
   };
-  const submit = () => {
+  let busy = false;
+  const submit = async () => {
     const body = serialize();
     if (!body) return ed.focus();
-    opts.onSubmit(body);
+    if (busy) return;
+    busy = true;
+    // false (GitHub refused it, say): keep the text so nothing typed is lost
+    const ok = await Promise.resolve(opts.onSubmit(body)).finally(() => (busy = false));
+    if (ok === false) return;
     ed.replaceChildren();
     keepDraft('');
     saved = null;
@@ -250,8 +255,11 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         ref ? app.label(ref) : app.anchorLabel(anchor),
       ),
       t?.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok', title: 'Still listed under Threads › Resolved' }, 'resolved') : null,
+      t?.gh ? h('span', { class: 'rr-pill rr-pill--gh', title: 'This thread is on GitHub: replies post there, for everyone on the PR' }, 'GitHub') : null,
+      t?.gh?.outdated ? h('span', { class: 'rr-pill', title: 'The code this was written on has changed since; the line shown is where it was' }, 'outdated') : null,
       h('span', { class: 'rr-toolbar__spacer' }),
-      t
+      t?.gh ? h('a', { class: 'rr-icon-btn', href: t.gh.url, target: '_blank', rel: 'noopener', title: 'Open on GitHub', 'aria-label': 'Open on GitHub' }, icon('popout', 14)) : null,
+      t && (!t.gh || (t.status === 'open' ? t.gh.canResolve : t.gh.canUnresolve))
         ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open') }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
         : null,
       t ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this thread (paste it into any comment)', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Link to this thread copied')) }, icon('link', 14)) : null,
@@ -265,13 +273,14 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     const list = h('div', { class: 'rr-thread__msgs' });
     let round = 0;
     for (const m of t.messages) {
-      if (m.round !== round) {
+      if (m.round && m.round !== round) {
         round = m.round;
         list.append(h('div', { class: 'rr-round-sep' }, h('span', null, `Round ${round}`)));
       }
       const body = h('div', { class: 'rr-msg__body rr-prose', html: renderMarkdown(m.body) });
-      const actions =
-        m.author === 'you' && m.round === app.state.round
+      const actions = m.gh
+        ? githubActions(m, body)
+        : m.author === 'you' && m.round === app.state.round
           ? h(
               'div',
               { class: 'rr-msg__actions' },
@@ -303,12 +312,49 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         h(
           'article',
           { class: `rr-msg rr-msg--${m.author}` },
-          h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.author === 'agent' ? 'AI' : 'Y'),
-          h('div', { class: 'rr-msg__main' }, h('div', { class: 'rr-msg__meta' }, h('strong', null, m.author === 'agent' ? 'Agent' : 'You'), h('span', { class: 'rr-muted' }, relTime(m.at)), actions), body),
+          m.gh?.avatar
+            ? h('img', { class: 'rr-avatar rr-avatar--gh', src: m.gh.avatar + (m.gh.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' })
+            : h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.gh ? m.gh.login[0].toUpperCase() : m.author === 'agent' ? 'AI' : 'Y'),
+          h(
+            'div',
+            { class: 'rr-msg__main' },
+            h(
+              'div',
+              { class: 'rr-msg__meta' },
+              h('strong', null, m.gh ? m.gh.login : m.author === 'agent' ? 'Agent' : 'You'),
+              m.gh ? h('a', { class: 'rr-muted', href: m.gh.url, target: '_blank', rel: 'noopener', title: 'Open this comment on GitHub' }, relTime(m.at)) : h('span', { class: 'rr-muted' }, relTime(m.at)),
+              m.gh?.pending ? h('span', { class: 'rr-pill rr-pill--draft', title: 'In your GitHub review: only you can see it until you submit the review' }, 'draft') : null,
+              actions,
+            ),
+            body,
+          ),
         ),
       );
     }
     return list;
+  };
+
+  // Your GitHub comments: edit in place; delete always asks, since a posted comment can't come back
+  const githubActions = (m: Thread['messages'][number], body: HTMLElement) => {
+    const t = app.thread(o.id!)!;
+    const gh = m.gh!;
+    if (!gh.canEdit && !gh.canDelete) return null;
+    const bar = h('div', { class: 'rr-msg__actions' });
+    const ask = () => {
+      bar.style.opacity = '1';
+      bar.replaceChildren(
+        h('span', { class: 'rr-muted' }, gh.pending ? 'Delete this draft?' : 'Delete on GitHub for everyone?'),
+        h('button', { class: 'rr-link-btn', onclick: () => app.deleteMessage(t.id, m.id) }, 'delete'),
+        h('button', { class: 'rr-link-btn', onclick: () => render() }, 'keep'),
+      );
+    };
+    bar.append(
+      gh.canEdit
+        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.replaceWith(composer(app, { placeholder: 'Edit comment', submitLabel: 'Save', initial: m.body, autofocus: true, onSubmit: (b) => app.editMessage(t.id, m.id, b), onCancel: () => render() }).el) }, 'edit')
+        : '',
+      gh.canDelete ? h('button', { class: 'rr-link-btn', title: 'Delete this comment', onclick: ask }, 'delete') : '',
+    );
+    return bar;
   };
 
   const ctxHost = h('div', { class: 'rr-thread__ctx' });
@@ -319,19 +365,29 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       root.replaceChildren(header(undefined, anchor), h('div', { class: 'rr-empty' }, 'This thread was deleted.'));
       return;
     }
+    const toGitHub = t ? !!t.gh : app.commentsToGitHub(anchor);
+    const [placeholder, submitLabel] = t?.gh
+      ? t.gh.conversation ? ['Comment on the PR on GitHub…', 'Comment on GitHub'] : ['Reply on GitHub…', 'Reply on GitHub']
+      : t ? ['Reply…', 'Reply']
+      : !toGitHub ? ['Comment or ask the agent…', 'Comment']
+      : anchor.kind === 'code' ? ['Comment for your GitHub review (posted when you submit it)…', 'Add to review'] : ['Comment on the PR on GitHub…', 'Comment on GitHub'];
+    if (t?.gh && !t.gh.canReply) root.classList.add('is-readonly');
     const c = composer(app, {
-      placeholder: t ? 'Reply…' : 'Comment or ask the agent…',
-      submitLabel: t ? 'Reply' : 'Comment',
+      placeholder,
+      submitLabel,
       autofocus: true,
-      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : JSON.stringify(anchor)}`,
-      onSubmit: (body) => {
-        if (t) app.reply(t.id, body);
-        else {
-          const nt = app.createThread(anchor, body);
-          if (!nt) return;
-          o.id = nt.id;
-          render();
+      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : (toGitHub ? 'gh:' : '') + JSON.stringify(anchor)}`,
+      onSubmit: async (body) => {
+        if (t) return app.reply(t.id, body);
+        const nt = app.createThread(anchor, body);
+        if (nt instanceof Promise) {
+          const ok = await nt;
+          if (ok) (app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub'), o.onClose?.());
+          return ok;
         }
+        if (!nt) return false;
+        o.id = nt.id;
+        render();
       },
       onCancel: o.onClose,
     });

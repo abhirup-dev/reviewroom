@@ -71,7 +71,7 @@ export function mountPalette(app: ReviewApp) {
         const ref = formatRef({ type: 'doc', id: s.id });
         add({ kind: 'section', label: s.title, detail: 'Section', ref, run: () => app.bus.emit('reveal-doc', { id: s.id }) }, s.title + ' ' + s.id);
       }
-      for (const t of app.state.threads) {
+      for (const t of app.threads()) {
         const ref = formatRef({ type: 'thread', id: t.id });
         add({ kind: 'thread', label: plainExcerpt(t.messages[0]?.body ?? '', 70), detail: app.anchorLabel(t.anchor), ref, run: () => app.bus.emit('open-thread', { id: t.id }) }, t.messages.map((m) => m.body).join(' '));
       }

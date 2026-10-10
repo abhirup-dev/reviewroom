@@ -6,7 +6,7 @@ import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
 import { uid } from '../core/dom';
 import { describeElement, findDocElement } from '../core/describe';
-import type { Anchor, ChangedFile, Commit, DiffRange, Message, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
+import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
 import { applyOp } from '../../cli/lib/ops.mjs';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
@@ -23,6 +23,8 @@ export interface Prefs {
   inlineThreads: boolean;
   lineDiff: 'word-alt' | 'char' | 'none';
   popoutPlacement: 'right' | 'below' | 'float';
+  /** Where new code and general comments go when the review is a GitHub PR: the agent, or your GitHub review. */
+  reviewMode: 'agent' | 'team';
 }
 
 export const defaultPrefs: Prefs = {
@@ -37,6 +39,7 @@ export const defaultPrefs: Prefs = {
   inlineThreads: true,
   lineDiff: 'word-alt',
   popoutPlacement: 'right',
+  reviewMode: 'agent',
 };
 
 export type CodeTarget = { path: string; side: 'base' | 'head'; start?: number; end?: number; rev?: string; view?: 'diff' | 'file'; panel?: string };
@@ -77,6 +80,8 @@ export class ReviewApp {
   provider!: CodeProvider;
   backend!: StateBackend;
   state: ReviewState = emptyState();
+  /** The PR's GitHub threads, when the review is a GitHub PR and the server can reach it. */
+  github: GitHubSnapshot | null = null;
   prefs: Prefs;
   files: ChangedFile[] = [];
   commits: Commit[] = [];
@@ -271,25 +276,65 @@ export class ReviewApp {
     this.backend.apply(op, this.state);
     return true;
   }
-  thread(id: string) {
-    return this.state.threads.find((t) => t.id === id || t.id.startsWith(id));
+  /** Every thread: the review's own (state.json) and the PR's GitHub threads. */
+  threads(): Thread[] {
+    return this.github?.threads.length ? [...this.state.threads, ...this.github.threads] : this.state.threads;
   }
-  createThread(anchor: Anchor, body: string, author: Message['author'] = 'you'): Thread | undefined {
+  thread(id: string) {
+    return this.threads().find((t) => t.id === id) ?? this.state.threads.find((t) => t.id.startsWith(id));
+  }
+  /** Team mode: new code and general comments go to GitHub instead of the agent. */
+  get teamMode() {
+    return this.prefs.reviewMode === 'team' && !!this.github?.ok;
+  }
+  /** Where a new comment on this anchor goes. Narrative comments always go to the agent. */
+  commentsToGitHub(anchor: Anchor) {
+    return this.teamMode && (anchor.kind === 'code' || anchor.kind === 'general');
+  }
+  setGitHub(s: GitHubSnapshot) {
+    const failed = s.error && s.error !== this.github?.error;
+    this.github = s;
+    if (failed && s.ok !== false) this.toast('GitHub: ' + s.error, 'error');
+    this.bus.emit('state', this.state);
+  }
+  async refreshGitHub() {
+    if (this.backend.github) this.setGitHub(await this.backend.github(true));
+  }
+  /** One GitHub action (see cli/lib/github.mjs); false (with a toast) if GitHub refused it. */
+  async githubAct(action: Record<string, unknown>): Promise<boolean> {
+    try {
+      this.setGitHub(await this.backend.githubAct!(action));
+      return true;
+    } catch (e) {
+      this.toast('GitHub: ' + (e as Error).message, 'error');
+      return false;
+    }
+  }
+
+  /** Local threads change at once; GitHub ones resolve once GitHub has taken the comment (undefined thread). */
+  createThread(anchor: Anchor, body: string, author: Author = 'you'): Thread | undefined | Promise<boolean> {
+    if (author === 'you' && this.commentsToGitHub(anchor))
+      return anchor.kind === 'code' ? this.githubAct({ action: 'comment', anchor, body }) : this.githubAct({ action: 'conversation', body });
     const id = uid('t_');
     this.apply({ op: 'createThread', id, anchor, msgId: uid('m_'), body, author, at: new Date().toISOString() });
     return this.thread(id);
   }
-  reply(threadId: string, body: string, author: Message['author'] = 'you') {
+  reply(threadId: string, body: string, author: Author = 'you') {
+    const t = this.thread(threadId);
+    if (t?.gh) return this.githubAct(t.gh.conversation ? { action: 'conversation', body } : { action: 'reply', thread: t.id, body });
     this.apply({ op: 'addMessage', threadId, id: uid('m_'), body, author, at: new Date().toISOString() });
   }
   editMessage(threadId: string, msgId: string, body: string) {
+    if (threadId.startsWith('gh_')) return this.githubAct({ action: 'edit', message: msgId, body });
     this.apply({ op: 'editMessage', threadId, msgId, body });
   }
   /** Deleting the last message deletes the thread (the UI confirms that first). */
   deleteMessage(threadId: string, msgId: string) {
+    if (threadId.startsWith('gh_')) return this.githubAct({ action: 'delete', message: msgId });
     this.apply({ op: 'deleteMessage', threadId, msgId });
   }
   setStatus(threadId: string, status: Thread['status']) {
+    if (threadId.startsWith('gh_')) return this.githubAct({ action: 'resolve', thread: threadId, resolved: status === 'resolved' });
     this.apply({ op: 'setThreadStatus', threadId, status });
   }
   togglePin(ref: string) {

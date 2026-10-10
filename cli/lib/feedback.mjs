@@ -14,6 +14,19 @@ export const anchorText = (a) => {
   }
 };
 
+/** Open GitHub threads as markdown: what colleagues said on the PR. The agent can link them (rr:thread/<id>), not post to them. */
+export function githubContext(threads = []) {
+  const open = threads.filter((t) => t.status === 'open' && t.messages.length);
+  if (!open.length) return [];
+  const lines = ['## Open on GitHub (colleagues; context only, not feedback for you to reply to)', '', 'You cannot post to these. Link one from review.html or a reply with rr:thread/<id> when it bears on your answer.', ''];
+  for (const t of open) {
+    const [first, ...rest] = t.messages;
+    const where = t.gh?.conversation ? 'PR conversation' : `${anchorText(t.anchor)}${t.gh?.outdated ? ', outdated' : ''}`;
+    lines.push(`- ${t.id} (${where}) @${first.gh?.login}: ${first.body.replace(/<!--[\s\S]*?-->/g, '').trim().split('\n')[0].slice(0, 160)}${rest.length ? ` — ${rest.length} repl${rest.length > 1 ? 'ies' : 'y'}, last by @${rest[rest.length - 1].gh?.login}` : ''}`);
+  }
+  return [...lines, ''];
+}
+
 export const anchorRef = (a) => {
   switch (a.kind) {
     case 'doc':
@@ -29,8 +42,9 @@ export const anchorRef = (a) => {
 
 /**
  * @param {import('../../src/core/types').ReviewState} state
- * @param {{ note?: string, kind: 'feedback'|'approve', dir?: string, codeExcerpt?: (a:any)=>string|null }} opts
+ * @param {{ note?: string, kind: 'feedback'|'approve', dir?: string, codeExcerpt?: (a:any)=>string|null, github?: any[] }} opts
  *   dir: the review dir; when known, the commands to run name it (agents run from anywhere)
+ *   github: the PR's GitHub threads, listed as context (colleagues' comments, not this reviewer's feedback)
  */
 export function feedbackMarkdown(state, opts) {
   const round = state.round;
@@ -64,6 +78,7 @@ export function feedbackMarkdown(state, opts) {
       lines.push(`**${m.author}** (round ${m.round})${isNew ? ' — NEW' : ''}:`, '', m.body.replace(/^/gm, '> '), '');
     }
   }
+  lines.push(...githubContext(opts.github));
   const viewed = Object.keys(state.viewed || {}).length;
   const checks = Object.entries(state.checks || {});
   if (checks.length) lines.push('## Sign-off checklist', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' — NEEDS WORK' : ''}`), '');
