@@ -9,7 +9,7 @@
 //   <rr-flow><rr-node ref="…" state="new">habit.RecentEvents</rr-node>…</rr-flow>   left→right flow, clickable nodes
 //   <rr-callout kind="risk" title="Latency">…</rr-callout>       info | note | risk | question | ok
 //   <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  reviewer sign-off, persisted
-import { File as PierreFile } from '@pierre/diffs';
+import { File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
 import { highlightLines } from '../core/highlight';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
@@ -49,21 +49,73 @@ class RRRef extends HTMLElement {
 }
 
 // ------------------------------------------------------------------ snippets
-async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, highlight = true): Promise<HTMLElement> {
+const MAX_SNIPPET_LINES = 60;
+
+async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, opts: { endAt?: number } = {}): Promise<HTMLElement> {
   const rev = app.revOf(r.rev);
   const text = await app.read(r.path, rev);
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
   const lines = text.split('\n');
-  const s = Math.max(1, (r.start ?? 1) - (r.start ? context : 0));
-  const e = Math.min(lines.length, r.end ? r.end + context : Math.min(lines.length, s + 24));
-  const coloured = await highlightLines(r.path, lines.slice(s - 1, e).join('\n'));
+  let spans: [number, number][];
+  let marked = (i: number) => !!r.start && i >= r.start && i <= (r.end ?? r.start);
+  const hunks = !r.start && r.type === 'code' && r.rev === 'head' ? await changedSpans(app, r.path, text) : null;
+  if (hunks?.spans.length) [spans, marked] = [hunks.spans, (i) => hunks.added.has(i)];
+  else if (r.start) spans = [[Math.max(1, r.start - context), Math.min(lines.length, (opts.endAt ?? r.end ?? r.start) + context)]];
+  else spans = [[1, Math.min(lines.length, 25)]];
   const pre = h('pre', { class: 'rr-snippet' });
-  for (let i = s; i <= e; i++) {
-    const on = highlight && r.start && i >= r.start && i <= (r.end ?? r.start);
-    const code = coloured?.[i - s]?.childNodes.length ? coloured[i - s] : lines[i - 1] || ' ';
-    pre.append(h('span', { class: 'rr-snippet__line' + (on ? ' is-target' : '') }, h('span', { class: 'rr-snippet__ln' }, String(i)), h('span', { class: 'rr-snippet__code' }, code)));
+  let shown = 0;
+  for (const [k, [s, e0]] of spans.entries()) {
+    if (shown >= MAX_SNIPPET_LINES) {
+      pre.append(h('span', { class: 'rr-snippet__line rr-snippet__gap' }, h('span', { class: 'rr-snippet__ln' }), h('span', { class: 'rr-snippet__code' }, `${spans.length - k} more changed sections`)));
+      break;
+    }
+    const e = Math.min(e0, s + MAX_SNIPPET_LINES - shown - 1);
+    if (k) pre.append(h('span', { class: 'rr-snippet__line rr-snippet__gap' }, h('span', { class: 'rr-snippet__ln' }, '⋯'), h('span', { class: 'rr-snippet__code' }, ' ')));
+    const coloured = await highlightLines(r.path, lines.slice(s - 1, e).join('\n'));
+    for (let i = s; i <= e; i++) {
+      const code = coloured?.[i - s]?.childNodes.length ? coloured[i - s] : lines[i - 1] || ' ';
+      pre.append(h('span', { class: 'rr-snippet__line' + (marked(i) ? ' is-target' : '') }, h('span', { class: 'rr-snippet__ln' }, String(i)), h('span', { class: 'rr-snippet__code' }, code)));
+    }
+    shown += e - s + 1;
   }
   return pre;
+}
+
+/** The diff's hunks for a changed file, as new-side line spans plus the added lines. */
+async function changedSpans(app: ReviewApp, path: string, head: string): Promise<{ spans: [number, number][]; added: Set<number> } | null> {
+  const f = app.files.find((x) => x.path === path);
+  if (!f || (f.status !== 'modified' && f.status !== 'renamed')) return null;
+  const base = await app.read(f.prevPath ?? path, app.revFor('base'));
+  if (base === null) return null;
+  const d = parseDiffFromFile({ name: f.prevPath ?? path, contents: base }, { name: path, contents: head });
+  const added = new Set<number>();
+  for (const hk of d.hunks) for (const c of hk.hunkContent) if (c.type === 'change') for (let i = 0; i < c.additions; i++) added.add(c.additionLineIndex + 1 + i);
+  const spans = d.hunks.filter((hk) => hk.additionCount > 0).map((hk): [number, number] => [hk.additionStart, hk.additionStart + hk.additionCount - 1]);
+  return { spans, added };
+}
+
+// shortcut: bracket/indent heuristic, not a parser (braces in strings can end it early); swap for a provider symbol range if that lands.
+/** Last line of the declaration starting at `start`: to its closing bracket, or through its indented body. */
+function declEnd(lines: string[], start: number, max = 40): number {
+  const last = Math.min(lines.length, start + max - 1);
+  const indent = (s: string) => s.length - s.trimStart().length;
+  let depth = 0;
+  let opened = false;
+  for (let i = start; i <= last; i++) {
+    for (const c of lines[i - 1]) {
+      if (c === '{' || c === '(' || c === '[') (depth++, (opened = true));
+      else if (c === '}' || c === ')' || c === ']') depth--;
+    }
+    if (i === start && depth <= 0) break; // one-liner or indent-scoped (Python, YAML): fall through
+    if (opened && depth <= 0) return i;
+  }
+  let end = start;
+  for (let i = start + 1; i <= last; i++) {
+    if (!lines[i - 1].trim()) continue;
+    if (indent(lines[i - 1]) <= indent(lines[start - 1])) break;
+    end = i;
+  }
+  return end;
 }
 
 export async function renderPreview(app: ReviewApp, ref: string, opts: { compact?: boolean } = {}): Promise<HTMLElement> {
@@ -97,7 +149,9 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
       const hits = await app.search(r.name, true);
       const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
       if (!d) return h('div', { class: 'rr-empty' }, `No definition of ${r.name}`);
-      return h('div', null, h('div', { class: 'rr-embed__sub' }, `${d.path}:${d.line}`), await snippet(app, { type: 'file', path: d.path, rev: d.rev, start: d.line, end: d.line }, 3));
+      const text = await app.read(d.path, d.rev);
+      const endAt = text === null ? d.line : declEnd(text.split('\n'), d.line);
+      return h('div', null, h('div', { class: 'rr-embed__sub' }, `${d.path}:${d.line}`), await snippet(app, { type: 'file', path: d.path, rev: d.rev, start: d.line, end: d.line }, 1, { endAt }));
     }
     case 'thread': {
       const t = app.thread(r.id);
