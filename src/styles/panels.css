@@ -1,6 +1,7 @@
 /* Panels: generic scroll areas, side panels, code panel, narrative. */
 /* Each panel kind sits on its own surface; components inside just use --rr-panel/--rr-panel-2. */
 .rr-panel-host[data-rr-kind='narrative'],
+.rr-panel-host[data-rr-kind='description'],
 .rr-panel-host[data-rr-kind='thread'] {
   --rr-panel: var(--rr-surface-doc);
   --rr-panel-2: var(--rr-surface-doc-2);
@@ -11,7 +12,8 @@
 }
 .rr-panel-host[data-rr-kind='files'],
 .rr-panel-host[data-rr-kind='toc'],
-.rr-panel-host[data-rr-kind='threads'] {
+.rr-panel-host[data-rr-kind='threads'],
+.rr-panel-host[data-rr-kind='ci'] {
   --rr-panel: var(--rr-surface-nav);
   --rr-panel-2: var(--rr-surface-nav-2);
 }
@@ -802,4 +804,26 @@ a.rr-ci-check:hover span {
     animation: none;
     border-right-color: var(--rr-warn);
   }
+}
+
+/* ---------------------------------------------------------------- PR description */
+.rr-description {
+  padding: 14px 20px 20px;
+}
+.rr-description__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: var(--rr-text-sm);
+}
+.rr-description__head .rr-avatar {
+  width: 22px;
+  height: 22px;
+}
+.rr-description__open {
+  margin-left: auto;
+}
+.rr-description .rr-prose img {
+  max-width: 100%;
 }

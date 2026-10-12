@@ -15,7 +15,7 @@ import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState } from './core/types';
 import { ReviewApp } from './shell/app';
-import { mountDock, applyPreset, definePanel, ensurePanel, offerCiTab, presets, type PanelDef } from './shell/layout';
+import { mountDock, applyPreset, definePanel, ensurePanel, offerGitHubPanels, presets, type PanelDef } from './shell/layout';
 import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
@@ -169,9 +169,10 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
   if (app.backend.github) {
-    app.backend.github().then((s) => app.setGitHub(s), () => {});
-    app.bus.on('state', () => offerCiTab(app));
     const age = () => Date.now() - Date.parse(app.github?.at ?? '');
+    // the server answers from its cache at once; refetch when that cache is old
+    app.backend.github().then((s) => (app.setGitHub(s), s.ok && age() > 30_000 && app.refreshGitHub()), () => {}).catch(() => {});
+    app.bus.on('state', () => offerGitHubPanels(app));
     // colleagues comment while you read: refetch when you come back to the tab
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && app.github?.ok && age() > 30_000) app.refreshGitHub().catch(() => {});

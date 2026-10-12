@@ -117,6 +117,8 @@ export interface GitHubSnapshot {
   stale?: boolean;
   pending?: { id: string; drafts: number } | null;
   threads: Thread[];
+  /** What the PR's author wrote on it (markdown). */
+  description?: { body: string; login: string; avatar?: string; at: string };
   /** The PR's commits and their CI checks, newest first. */
   ci?: CiCommit[];
 }
