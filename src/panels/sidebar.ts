@@ -1,8 +1,9 @@
 // Files, Contents (TOC + pins) and Threads panels.
 import { h, icon, relTime, threadBadge, threadCounts } from '../core/dom';
-import { parseRef, refIcon } from '../core/refs';
+import { cssPathWithin, parseRef, refIcon } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { openCentered } from '../shell/focus';
 import type { ChangedFile, CiCommit, CiState, Thread } from '../core/types';
 import { definePanel, type PanelInstance } from '../shell/layout';
 import { fileType, isTestFile, reviewOrder, type ReviewApp } from '../shell/app';
@@ -77,8 +78,9 @@ class FilesPanel implements PanelInstance {
         role: 'treeitem',
         'data-path': f.path,
         style: `--depth:${depth}`,
-        title: f.path,
+        title: f.path + ' (double-click to open it big)',
         onclick: () => app.bus.emit('reveal-code', { path: f.path, side: f.status === 'deleted' ? 'base' : 'head' }),
+        ondblclick: () => openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
       },
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h('span', { class: 'rr-file-row__name' }, label),
@@ -208,21 +210,33 @@ class TocPanel implements PanelInstance {
       items.push(
         h(
           'button',
-          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}”`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }) },
+          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }), ondblclick: () => openCentered(app, { type: 'doc', id: s.id }) },
           h('span', { class: 'rr-toc-item__title' }, title),
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
           ...threadCounts(n, 'in this section'),
         ),
       );
       s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
-        items.push(h('button', { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id, onclick: () => app.bus.emit('reveal-doc', { id: sub.id }) }, h('span', { class: 'rr-toc-item__title' }, app.docTitle(sub.id) ?? sub.id)));
+        items.push(h('button', { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id, onclick: () => app.bus.emit('reveal-doc', { id: sub.id }), ondblclick: () => openCentered(app, { type: 'doc', id: sub.id }) }, h('span', { class: 'rr-toc-item__title' }, app.docTitle(sub.id) ?? sub.id)));
       });
     });
     if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));
+    // the PR description's own headings (its ids are stripped, so they are addressed by path)
+    const heads = [...app.descDoc.querySelectorAll('h1, h2, h3, h4')].map((el) => {
+      const at = { id: PR_DESCRIPTION, path: cssPathWithin(app.descDoc, el) };
+      const title = el.textContent?.trim() || 'Heading';
+      return h(
+        'button',
+        { class: 'rr-toc-item' + (/^H[34]$/.test(el.tagName) ? ' rr-toc-item--sub' : ''), title: `Jump to “${title}” in the PR description (double-click to open it big)`, onclick: () => app.bus.emit('reveal-doc', at), ondblclick: () => openCentered(app, { type: 'doc', ...at }) },
+        h('span', { class: 'rr-toc-item__title' }, title),
+      );
+    });
     const pins = app.state.pins;
     this.body.replaceChildren(
       ...([
-      pins.length ? h('div', { class: 'rr-group-label' }, 'Sections') : null,
+      heads.length ? h('div', { class: 'rr-group-label' }, 'Description') : null,
+      ...heads,
+      heads.length || pins.length ? h('div', { class: 'rr-group-label' }, 'Review') : null,
       ...items,
       pins.length ? h('div', { class: 'rr-group-label' }, 'Pinned', h('span', null, String(pins.length))) : null,
       ...pins.map((ref) => {
@@ -230,7 +244,7 @@ class TocPanel implements PanelInstance {
         return h(
           'div',
           { class: 'rr-toc-item rr-toc-item--pin' },
-          h('button', { class: 'rr-toc-item__title rr-link-btn', onclick: () => app.open(ref) }, h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : ''), app.label(ref)),
+          h('button', { class: 'rr-toc-item__title rr-link-btn', title: 'Open (double-click to open it big)', onclick: () => app.open(ref), ondblclick: () => openCentered(app, ref) }, h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : ''), app.label(ref)),
           h('button', { class: 'rr-icon-btn', 'aria-label': 'Unpin', title: 'Unpin', onclick: () => app.togglePin(ref) }, icon('close', 12)),
         );
       }),

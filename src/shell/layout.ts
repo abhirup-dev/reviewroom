@@ -243,6 +243,15 @@ export function floatBox(app: ReviewApp, w = 0.5, hgt = 0.62) {
   return { position: { top: Math.max(24, Math.round((H - height) / 3)), left: Math.max(24, W - width - 40) }, width, height };
 }
 
+/** A large window centred on the dock. */
+export function centerBox(app: ReviewApp) {
+  const W = app.dock.width || window.innerWidth;
+  const H = app.dock.height || window.innerHeight;
+  const width = Math.round(W * 0.8);
+  const height = Math.round(H * 0.86);
+  return { position: { top: Math.round((H - height) / 2), left: Math.round((W - width) / 2) }, width, height };
+}
+
 export function floatGroup(app: ReviewApp, group: DockviewGroupPanel) {
   const p = group.activePanel;
   if (p) app.dock.addFloatingGroup(group.panels.length > 1 ? p : group, floatBox(app));
