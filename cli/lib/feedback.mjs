@@ -1,9 +1,14 @@
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
 // agent can act on. Plain JS so both Node and the bundle can import it.
 
+/** Doc anchors with this target are on the PR's own description (GitHub's text, not review.html). */
+export const PR_DESCRIPTION = 'rr-pr-description';
+
 export const anchorText = (a) => {
   switch (a.kind) {
     case 'doc':
+      if (a.target === PR_DESCRIPTION)
+        return `PR description (the author's text on GitHub; you cannot edit it, answer in the thread)${a.path ? ' > ' + a.path : ''}${a.quote ? ` — quote: "${a.quote.exact}"` : ''}`;
       return `narrative ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` — quote: "${a.quote.exact}"` : ''}`;
     case 'code':
       return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'})`;

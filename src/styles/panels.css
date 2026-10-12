@@ -807,10 +807,11 @@ a.rr-ci-check:hover span {
 }
 
 /* ---------------------------------------------------------------- PR description */
-.rr-description {
-  padding: 14px 20px 20px;
+.rr-description .rr-doc-wrap {
+  padding: 16px 0 40px;
 }
 .rr-description__head {
+  grid-column: 2;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -824,6 +825,6 @@ a.rr-ci-check:hover span {
 .rr-description__open {
   margin-left: auto;
 }
-.rr-description .rr-prose img {
+.rr-description .rr-doc img {
   max-width: 100%;
 }
