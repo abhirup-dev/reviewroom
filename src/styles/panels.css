@@ -805,6 +805,7 @@ a.rr-ci-check:hover span {
   flex: none;
   width: 20px;
   height: 20px;
+  margin: 4px 6px 0 0; /* room for the count pill */
   color: var(--rr-comment);
 }
 .rr-tbadge.is-gh {
@@ -812,14 +813,15 @@ a.rr-ci-check:hover span {
 }
 .rr-tbadge__n {
   position: absolute;
-  top: -5px;
-  right: -7px;
+  /* off the icon's corner, so it doesn't hide the mark */
+  top: -7px;
+  right: -9px;
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
   border-radius: 7px;
   background: var(--rr-comment);
-  color: #fff;
+  color: var(--rr-comment-ink);
   font: 700 9px/14px var(--rr-font);
   text-align: center;
   box-shadow: 0 0 0 1.5px var(--rr-panel);
