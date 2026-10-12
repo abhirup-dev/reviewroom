@@ -5,7 +5,8 @@ import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import type { ChangedFile, Thread } from '../core/types';
-import { definePanel, floatBox, type PanelInstance } from '../shell/layout';
+import { centerBox, definePanel, floatBox, type PanelInstance } from '../shell/layout';
+import { openCentered } from '../shell/focus';
 import { popMenu, menuItem, menuLabel } from '../shell/chrome';
 import type { CodeTarget, ReviewApp } from '../shell/app';
 
@@ -104,7 +105,7 @@ class CodePanel implements PanelInstance {
     });
     this.rebuild();
     if (this.pin && (params.view === 'base' || params.view === 'head')) queueMicrotask(() => this.openFile(this.pin!, params.view as 'base' | 'head'));
-    else if (params.path && !this.pin) queueMicrotask(() => this.reveal(params as unknown as CodeTarget));
+    else if (params.path) queueMicrotask(() => this.reveal({ ...(params as unknown as CodeTarget), panel: this.panelId }));
   }
 
   // ------------------------------------------------------------ toolbar
@@ -225,7 +226,11 @@ class CodePanel implements PanelInstance {
     });
     return h(
       'header',
-      { class: 'rr-file__head' },
+      {
+        class: 'rr-file__head',
+        // double-click the bar (not its buttons) to open this file big
+        ondblclick: (e: MouseEvent) => !(e.target as Element).closest('button, input, a') && !this.pin && openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
+      },
       h('button', { class: 'rr-icon-btn rr-file__chev', 'aria-label': 'Collapse file', title: 'Collapse or expand this file', onclick: () => this.toggleCollapse(f.path) }, icon('chevronDown', 14)),
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added in this PR', modified: 'Modified', deleted: 'Deleted in this PR', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h(
@@ -594,16 +599,17 @@ function copy(text: string) {
 
 let counter = 1;
 export type PopoutView = 'diff' | 'base' | 'head';
-export type Placement = 'right' | 'below' | 'float';
+export type Placement = 'right' | 'below' | 'float' | 'center';
 
-/** Open one file in its own code panel: as a diff, or the whole file before/after the change. */
-export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: Placement = 'right', near?: string) {
+/** Open one file in its own code panel: as a diff (optionally at some lines), or the whole file before/after the change. */
+export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: Placement = 'right', near?: string, at?: CodeTarget) {
   const id = `code:${++counter}`;
   const name = path.split('/').pop()!;
   const ref = (near && app.dock.getPanel(near)) || app.dock.getPanel('code') || app.dock.activePanel;
-  const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { pin: path, view } };
-  if (placement === 'float') app.dock.addPanel({ ...base, floating: floatBox(app) } as any);
+  const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } };
+  if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) } as any);
   else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined } as any);
+  return id;
 }
 
 function popoutButton(app: ReviewApp, f: ChangedFile, panelId: string) {

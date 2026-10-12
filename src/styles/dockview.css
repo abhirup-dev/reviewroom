@@ -136,3 +136,15 @@
 .dockview-theme-rr .dv-groupview:has(.rr-panel-host[data-rr-kind='threads']) {
   background: var(--rr-surface-nav);
 }
+
+/* resize handles: grab them anywhere within a few px of the line (the drawn line stays 4px) */
+.dv-split-view-container > .dv-sash-container > .dv-sash::before {
+  content: '';
+  position: absolute;
+}
+.dv-split-view-container.dv-horizontal > .dv-sash-container > .dv-sash::before {
+  inset: 0 -4px;
+}
+.dv-split-view-container.dv-vertical > .dv-sash-container > .dv-sash::before {
+  inset: -4px 0;
+}

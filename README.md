@@ -88,6 +88,7 @@ last commit on the PR that passed; while checks run it refreshes every 30 second
 | `Alt 1–4` | Layouts: reading, wide code, code focus, narrative focus |
 | `⌘⇧↵` | Finish round & send feedback |
 | hover anything | Tooltip explaining it, with its shortcut |
+| double-click a file, diff header, section or pin | Open it big in a centred window (`Esc` puts it back) |
 
 ## Code sources
 
