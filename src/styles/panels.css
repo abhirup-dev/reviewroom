@@ -536,15 +536,14 @@
   gap: 7px;
   height: 28px;
   padding: 0 8px 0 4px;
-  border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-sm);
-  background: var(--rr-panel);
+  /* just the marker (and its excerpt where there's room), no box */
+  border: 0;
+  background: none;
   color: var(--rr-ink-2);
   font: var(--rr-text-sm) / 1 var(--rr-font);
   text-align: left;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: var(--rr-shadow-sm);
   transition: transform 0.12s, border-color 0.12s;
 }
 .rr-rail-chip::before {
@@ -556,7 +555,6 @@
   border-top: 1px dashed var(--rr-line-strong);
 }
 .rr-rail-chip:hover {
-  border-color: var(--rr-comment);
   transform: translateX(-2px);
 }
 .rr-rail-chip.is-resolved {
