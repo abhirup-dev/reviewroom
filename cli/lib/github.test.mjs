@@ -6,6 +6,9 @@ const comment = (databaseId, login, body, extra = {}) => ({ id: `C${databaseId}`
 const thread = (over, comments) => ({ id: 'T' + comments[0].databaseId, isResolved: false, path: 'a.go', line: 12, startLine: 10, diffSide: 'RIGHT', startDiffSide: 'RIGHT', originalLine: 9, originalStartLine: 8, subjectType: 'LINE', viewerCanResolve: true, viewerCanUnresolve: false, viewerCanReply: true, comments: { nodes: comments }, ...over });
 const pr = {
   id: 'PR1',
+  body: 'Adds the thing.',
+  createdAt: '2026-10-01T00:00:00Z',
+  author: author('ann'),
   url: 'https://github.com/o/r/pull/7',
   headRefOid: 'b'.repeat(40),
   reviewThreads: {
@@ -24,6 +27,7 @@ test('GitHub threads map onto reviewroom threads and anchors', () => {
   const s = normalize(pr, 'me', 'a'.repeat(40));
   expect(s.stale).toBe(true);
   expect(s.pending).toEqual({ id: 'R3', drafts: 1 });
+  expect(s.description).toEqual({ body: 'Adds the thing.', login: 'ann', avatar: 'https://avatars.example/ann', at: '2026-10-01T00:00:00Z' });
   const [live, outdated, file, draft, convo] = s.threads;
   expect(live.id).toBe('gh_1');
   expect(live.anchor).toEqual({ kind: 'code', path: 'a.go', rev: 'head', start: 10, end: 12 });

@@ -140,7 +140,7 @@ function add(api: DockviewApi, id: string, ref?: { panel?: string; group?: strin
 export function applyPreset(app: ReviewApp, name: PresetName) {
   const api = app.dock;
   api.clear();
-  const extra = panelDefs().filter((d) => !d.onDemand && !['narrative', 'code', 'files', 'toc', 'threads', 'ci'].includes(d.id));
+  const extra = panelDefs().filter((d) => !d.onDemand && !['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'].includes(d.id));
   const W = api.width || window.innerWidth;
   const size = (id: string, s: { width?: number; height?: number }) => api.getPanel(id)?.group.api.setSize(s);
   switch (name) {
@@ -186,6 +186,7 @@ export function applyPreset(app: ReviewApp, name: PresetName) {
       break;
   }
   if (app.github?.ci?.length) addCiTab(app);
+  if (app.github?.description) addDescription(app);
   for (const d of extra) add(api, d.id, { panel: 'narrative', dir: 'within' });
   api.getPanel('narrative')?.api.setActive();
 }
@@ -197,12 +198,24 @@ function addCiTab(app: ReviewApp) {
   front?.api.setActive();
 }
 
-/** A PR with CI gets the CI tab once per review; closed after that, it stays closed (layout menu reopens it). */
-export function offerCiTab(app: ReviewApp) {
-  const key = layoutKey(app) + ':ci';
-  if (!app.github?.ci?.length || app.dock.getPanel('ci') || loadRaw(key)) return;
-  saveLocal(key, 1);
-  addCiTab(app);
+/** The PR description, above the agent's review (taking the top 40%). */
+function addDescription(app: ReviewApp) {
+  if (!app.dock.getPanel('narrative')) return;
+  add(app.dock, 'description', { panel: 'narrative', dir: 'above' });
+  app.dock.getPanel('description')?.group.api.setSize({ height: Math.round((app.dock.height || window.innerHeight) * 0.4) });
+}
+
+/** GitHub panels arrive with the first GitHub snapshot, once per review: closed after that, they stay closed (layout menu reopens them). */
+export function offerGitHubPanels(app: ReviewApp) {
+  const g = app.github;
+  const offer = (id: string, has: unknown, place: (app: ReviewApp) => void) => {
+    const key = `${layoutKey(app)}:${id}`;
+    if (!has || app.dock.getPanel(id) || loadRaw(key)) return;
+    saveLocal(key, 1);
+    place(app);
+  };
+  offer('ci', g?.ci?.length, addCiTab);
+  offer('description', g?.description, addDescription);
 }
 
 /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */

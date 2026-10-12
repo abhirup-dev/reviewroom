@@ -56,7 +56,7 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: 
   viewer { login }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      id url headRefOid
+      id url headRefOid body createdAt ${AUTHOR}
       reviewThreads(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -127,7 +127,7 @@ export function normalize(pr, viewer, localHead) {
     threads.push({ id: 'gh_conversation', title: 'PR conversation', anchor: { kind: 'general' }, status: 'open', createdRound: 0, messages: conversation, gh: { node: pr.id, url: pr.url, conversation: true, canReply: true } });
   const pending = pr.reviews.nodes.find((r) => r.state === 'PENDING');
   const drafts = threads.flatMap((t) => t.messages).filter((m) => m.gh.pending).length;
-  return { ok: true, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, threads, ci: ciOf(pr.commits?.nodes ?? []) };
+  return { ok: true, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, description: { body: pr.body ?? '', login: pr.author?.login ?? 'ghost', avatar: pr.author?.avatarUrl, at: pr.createdAt }, threads, ci: ciOf(pr.commits?.nodes ?? []) };
 }
 
 const CHECK = { SUCCESS: 'success', NEUTRAL: 'success', SKIPPED: 'success', PENDING: 'pending', EXPECTED: 'pending' };

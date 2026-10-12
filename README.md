@@ -55,6 +55,7 @@ pending GitHub review, posted with **Submit review** (comment, approve or reques
 Narrative comments always go to the agent. The agent sees GitHub threads read-only and can link
 them (`rr:thread/gh_<n>`).
 
+The PR's own **Description** sits above the agent's review.
 The **CI** tab (next to Threads) shows the latest commit's checks, from GitHub Actions or any CI that
 reports a commit status (Jenkins, TeamCity, …). When it failed or is still running, it also shows the
 last commit on the PR that passed; while checks run it refreshes every 30 seconds.
