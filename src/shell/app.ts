@@ -300,6 +300,13 @@ export class ReviewApp {
   async refreshGitHub() {
     if (this.backend.github) this.setGitHub(await this.backend.github(true));
   }
+  /** The thread holding the comment a github.com link on this PR points at (`#discussion_r<n>`, `files#r<n>`, `#issuecomment-<n>`). */
+  githubThreadFor(href: string): string | undefined {
+    const pr = this.github?.url;
+    if (!pr || !href.toLowerCase().startsWith(pr.toLowerCase())) return;
+    const m = href.slice(pr.length).match(/^(?:\/[^#]*)?#(?:discussion_r|r|issuecomment-|pullrequestreview-)(\d+)$/);
+    return m ? this.github!.threads.find((t) => t.messages.some((x) => x.id === 'gh_' + m[1]))?.id : undefined;
+  }
   /** One GitHub action (see cli/lib/github.mjs); false (with a toast) if GitHub refused it. */
   async githubAct(action: Record<string, unknown>): Promise<boolean> {
     try {

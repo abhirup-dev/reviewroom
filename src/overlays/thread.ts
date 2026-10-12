@@ -252,7 +252,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: () => ref && app.open(ref) },
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         // the quote itself is shown below; the chip says where it is
-        ref ? app.label(ref) : app.anchorLabel(anchor),
+        ref ? app.label(ref) : (t?.title ?? app.anchorLabel(anchor)),
       ),
       t?.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok', title: 'Still listed under Threads › Resolved' }, 'resolved') : null,
       t?.gh ? h('span', { class: 'rr-pill rr-pill--gh', title: 'This thread is on GitHub: replies post there, for everyone on the PR' }, 'GitHub') : null,
@@ -278,6 +278,12 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         list.append(h('div', { class: 'rr-round-sep' }, h('span', null, `Round ${round}`)));
       }
       const body = h('div', { class: 'rr-msg__body rr-prose', html: renderMarkdown(m.body) });
+      // a link to another comment on this PR opens its thread here instead of on github.com
+      body.addEventListener('click', (e) => {
+        const a = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
+        const id = a && !e.metaKey && !e.ctrlKey && app.githubThreadFor(a.href);
+        if (id) e.preventDefault(), app.bus.emit('open-thread', { id });
+      });
       const actions = m.gh
         ? githubActions(m, body)
         : m.author === 'you' && m.round === app.state.round
@@ -368,7 +374,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     const toGitHub = t ? !!t.gh : app.commentsToGitHub(anchor);
     const [placeholder, submitLabel] = t?.gh
       ? t.gh.conversation ? ['Comment on the PR on GitHub…', 'Comment on GitHub']
-        : t.messages.some((m) => m.gh?.pending) ? ['Reply (a draft too, until you submit the review)…', 'Add to review'] : ['Reply on GitHub…', 'Reply on GitHub']
+        // GitHub files any reply into the viewer's pending review while one is open
+        : t.messages.some((m) => m.gh?.pending) || app.github?.pending ? ['Reply (a draft too, until you submit the review)…', 'Add to review'] : ['Reply on GitHub…', 'Reply on GitHub']
       : t ? ['Reply…', 'Reply']
       : !toGitHub ? ['Comment or ask the agent…', 'Comment']
       : anchor.kind === 'code' ? ['Comment for your GitHub review (posted when you submit it)…', 'Add to review'] : ['Comment on the PR on GitHub…', 'Comment on GitHub'];
@@ -447,7 +454,7 @@ export function mountThreadPopup(app: ReviewApp) {
       const other = app.dock.panels.find((p) => p.id.startsWith('thread:'));
       const near = other ?? app.dock.getPanel('narrative') ?? app.dock.activePanel;
       const t = app.thread(id)!;
-      app.dock.addPanel({ id: pid, component: 'thread', title: app.anchorLabel(t.anchor), params: { id }, position: near ? { referencePanel: near.id, direction: other ? 'within' : 'right' } : undefined } as any);
+      app.dock.addPanel({ id: pid, component: 'thread', title: t.title ?? app.anchorLabel(t.anchor), params: { id }, position: near ? { referencePanel: near.id, direction: other ? 'within' : 'right' } : undefined } as any);
       if (!other) app.dock.getPanel(pid)?.group.api.setSize({ width: 420 });
     }
     app.showPanel(pid);
