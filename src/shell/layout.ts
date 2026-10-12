@@ -140,7 +140,7 @@ function add(api: DockviewApi, id: string, ref?: { panel?: string; group?: strin
 export function applyPreset(app: ReviewApp, name: PresetName) {
   const api = app.dock;
   api.clear();
-  const extra = panelDefs().filter((d) => !d.onDemand && !['narrative', 'code', 'files', 'toc', 'threads'].includes(d.id));
+  const extra = panelDefs().filter((d) => !d.onDemand && !['narrative', 'code', 'files', 'toc', 'threads', 'ci'].includes(d.id));
   const W = api.width || window.innerWidth;
   const size = (id: string, s: { width?: number; height?: number }) => api.getPanel(id)?.group.api.setSize(s);
   switch (name) {
@@ -185,8 +185,24 @@ export function applyPreset(app: ReviewApp, name: PresetName) {
       api.getPanel('narrative')?.api.setActive();
       break;
   }
+  if (app.github?.ci?.length) addCiTab(app);
   for (const d of extra) add(api, d.id, { panel: 'narrative', dir: 'within' });
   api.getPanel('narrative')?.api.setActive();
+}
+
+/** The CI tab, behind Threads (keeping whichever tab was in front). */
+function addCiTab(app: ReviewApp) {
+  const front = app.dock.getPanel('threads')?.group.activePanel;
+  add(app.dock, 'ci', { panel: app.dock.getPanel('threads') ? 'threads' : 'narrative', dir: 'within' });
+  front?.api.setActive();
+}
+
+/** A PR with CI gets the CI tab once per review; closed after that, it stays closed (layout menu reopens it). */
+export function offerCiTab(app: ReviewApp) {
+  const key = layoutKey(app) + ':ci';
+  if (!app.github?.ci?.length || app.dock.getPanel('ci') || loadRaw(key)) return;
+  saveLocal(key, 1);
+  addCiTab(app);
 }
 
 /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
