@@ -28,6 +28,11 @@ export function definePanel(def: PanelDef) {
 export const panelDefs = () => [...registry.values()];
 
 export type PresetName = 'reading' | 'wide-code' | 'code-focus' | 'narrative-focus';
+/** Back to the review's starting layout (its layout="" attribute, else Reading). */
+export function resetLayout(app: ReviewApp) {
+  applyPreset(app, (app.root.getAttribute('layout') as PresetName) || 'reading');
+}
+
 export const presets: { id: PresetName; title: string; hint: string }[] = [
   { id: 'reading', title: 'Reading', hint: 'Narrative centre, code on the right' },
   { id: 'wide-code', title: 'Wide code', hint: 'Code below the narrative, full width' },
@@ -185,8 +190,12 @@ export function applyPreset(app: ReviewApp, name: PresetName) {
       api.getPanel('narrative')?.api.setActive();
       break;
   }
-  if (app.github?.ci?.length) addCiTab(app);
-  if (app.github?.description) addDescription(app);
+  // a preset is the whole layout: the PR's panels join it now, or when GitHub answers
+  for (const id of ['ci', 'description'])
+    try {
+      localStorage.removeItem(`${layoutKey(app)}:${id}`);
+    } catch {}
+  offerGitHubPanels(app);
   for (const d of extra) add(api, d.id, { panel: 'narrative', dir: 'within' });
   api.getPanel('narrative')?.api.setActive();
 }
@@ -222,6 +231,9 @@ export function offerGitHubPanels(app: ReviewApp) {
 export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, unknown>) {
   const api = app.dock;
   let p = api.getPanel(id);
+  // the PR's own panels go back where the presets put them
+  if (!p && id === 'description' && api.getPanel('narrative')) addDescription(app), (p = api.getPanel(id));
+  if (!p && id === 'ci' && api.getPanel('threads')) addCiTab(app), (p = api.getPanel(id));
   if (!p) {
     const kind = id.split(':')[0];
     const near = kind === 'code' ? (api.getPanel('narrative') ? { panel: 'narrative', dir: 'right' as const } : undefined) : api.getPanel('toc') ? { panel: 'toc', dir: 'within' as const } : api.getPanel('narrative') ? { panel: 'narrative', dir: 'left' as const } : undefined;

@@ -15,7 +15,7 @@ import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState } from './core/types';
 import { ReviewApp } from './shell/app';
-import { mountDock, applyPreset, definePanel, ensurePanel, offerGitHubPanels, presets, type PanelDef } from './shell/layout';
+import { mountDock, applyPreset, definePanel, ensurePanel, offerGitHubPanels, presets, resetLayout, type PanelDef } from './shell/layout';
 import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
@@ -235,6 +235,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
+    { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
     ...presets.map((p, i) => ({ id: 'layout.' + p.id, title: `Layout: ${p.title}`, group: 'Layout', hint: p.hint, keys: [`alt+${i + 1}`], run: () => applyPreset(app, p.id) })),
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },
     { id: 'theme.system', title: 'Theme: follow system', group: 'View', run: () => app.setPref('theme', 'system') },
