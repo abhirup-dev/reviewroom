@@ -317,7 +317,8 @@
   color: var(--rr-muted);
   min-width: 0;
 }
-.rr-thread-item__anchor > span:nth-child(2) {
+/* 1: thread marker, 2: what it is on, 3: where */
+.rr-thread-item__anchor > span:nth-child(3) {
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -465,22 +466,6 @@
 .rr-inline-thread.is-resolved {
   opacity: 0.6;
 }
-.rr-inline-thread__count {
-  min-width: 20px;
-  height: 20px;
-  border-radius: var(--rr-radius-sm);
-  background: var(--rr-comment);
-  color: #fff;
-  font-weight: 600;
-  font-size: 11px;
-  display: grid;
-  place-items: center;
-  flex: none;
-}
-.rr-inline-thread.has-agent .rr-inline-thread__count {
-  background: var(--rr-accent);
-  color: var(--rr-accent-ink);
-}
 .rr-inline-thread__text {
   flex: 1;
   min-width: 0;
@@ -576,21 +561,6 @@
 }
 .rr-rail-chip.is-resolved {
   opacity: 0.55;
-}
-.rr-rail-chip__count {
-  min-width: 20px;
-  height: 20px;
-  border-radius: var(--rr-radius-sm);
-  display: grid;
-  place-items: center;
-  background: var(--rr-comment);
-  color: #fff;
-  font-weight: 600;
-  font-size: 11px;
-}
-.rr-rail-chip.has-agent .rr-rail-chip__count {
-  background: var(--rr-accent);
-  color: var(--rr-accent-ink);
 }
 .rr-rail-chip__text {
   flex: 1;
@@ -827,4 +797,47 @@ a.rr-ci-check:hover span {
 }
 .rr-description .rr-doc img {
   max-width: 100%;
+}
+
+/* ---------------------------------------------------------------- thread marker: GitHub mark or Clawd + count pill */
+.rr-tbadge {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--rr-comment);
+}
+.rr-tbadge.is-gh {
+  color: var(--rr-ink);
+}
+.rr-tbadge__n {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--rr-comment);
+  color: #fff;
+  font: 700 9px/14px var(--rr-font);
+  text-align: center;
+  box-shadow: 0 0 0 1.5px var(--rr-panel);
+}
+.rr-tbadge.is-resolved {
+  color: var(--rr-faint);
+}
+.rr-tbadge.is-resolved .rr-tbadge__n {
+  background: var(--rr-faint);
+}
+/* the agent answered this round */
+.rr-tbadge.has-agent .rr-tbadge__n {
+  background: var(--rr-accent);
+  color: var(--rr-accent-ink);
+}
+.rr-count-chip.is-gh {
+  background: var(--rr-hover);
+  color: var(--rr-ink-2);
 }

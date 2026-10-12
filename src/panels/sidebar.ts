@@ -1,5 +1,5 @@
 // Files, Contents (TOC + pins) and Threads panels.
-import { h, icon, relTime } from '../core/dom';
+import { h, icon, relTime, threadBadge, threadCounts } from '../core/dom';
 import { parseRef, refIcon } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
@@ -68,7 +68,7 @@ class FilesPanel implements PanelInstance {
 
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
-    const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path).length;
+    const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path);
     const viewed = app.state.viewed[f.path] !== undefined;
     return h(
       'button',
@@ -82,7 +82,7 @@ class FilesPanel implements PanelInstance {
       },
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h('span', { class: 'rr-file-row__name' }, label),
-      threads ? h('span', { class: 'rr-count-chip', title: `${threads} open thread${threads > 1 ? 's' : ''}` }, icon('thread', 11), String(threads)) : null,
+      ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
       viewed ? h('span', { class: 'rr-viewed-mark', title: 'Viewed' }, icon('check', 12)) : null,
     );
@@ -199,7 +199,7 @@ class TocPanel implements PanelInstance {
         const a = t.anchor;
         const target = a.target ? doc.querySelector(`#${CSS.escape(a.target)}`) : null;
         return target ? el === target || el.contains(target) : false;
-      }).length;
+      });
     sections.forEach((s) => {
       if (s.parentElement?.closest('section[id]')) return; // nested handled below
       const title = app.docTitle(s.id) ?? s.id;
@@ -211,7 +211,7 @@ class TocPanel implements PanelInstance {
           { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}”`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }) },
           h('span', { class: 'rr-toc-item__title' }, title),
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
-          n ? h('span', { class: 'rr-count-chip', title: `${n} open thread${n > 1 ? 's' : ''} in this section` }, icon('thread', 11), String(n)) : null,
+          ...threadCounts(n, 'in this section'),
         ),
       );
       s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
@@ -268,6 +268,7 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-thread-item__anchor' },
+        threadBadge(t, app.unreadAgent(t)),
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         h('span', null, t.title ?? app.anchorLabel(t.anchor)),
         t.gh ? h('span', { class: 'rr-round-badge', title: 'Started on GitHub by ' + t.messages[0]?.gh?.login }, '@' + t.messages[0]?.gh?.login) : h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound),

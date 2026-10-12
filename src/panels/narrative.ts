@@ -6,7 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
-import { h, icon, copyText, debounce, relTime } from '../core/dom';
+import { h, icon, copyText, debounce, relTime, threadBadge } from '../core/dom';
 import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
 import { cssPathWithin, formatRef, parseRef } from '../core/refs';
 import { linkedSymbol } from '../core/symbols';
@@ -411,7 +411,7 @@ class NarrativePanel implements PanelInstance {
         onpointerenter: () => this.hot(t, true),
         onpointerleave: () => this.hot(t, false),
       },
-      h('span', { class: 'rr-rail-chip__count' }, String(t.messages.length)),
+      threadBadge(t, this.app.unreadAgent(t)),
       h('span', { class: 'rr-rail-chip__text' }, plainExcerpt(t.messages[0]?.body ?? '', 46)),
       last?.author === 'agent' ? h('span', { class: 'rr-dot', title: 'Agent replied' }) : null,
     );

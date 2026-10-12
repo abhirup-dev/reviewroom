@@ -55,6 +55,8 @@ pending GitHub review, posted with **Submit review** (comment, approve or reques
 Narrative comments always go to the agent. The agent sees GitHub threads read-only and can link
 them (`rr:thread/gh_<n>`).
 
+Thread markers tell the two apart: GitHub's mark for threads on the PR, Clawd for threads with the
+agent, each with its message count; they turn grey once resolved.
 The PR's own **Description** sits above the agent's review: read-only (edit it on GitHub), but you can
 comment on it like the narrative, and those threads go to the agent.
 The **CI** tab (next to Threads) shows the latest commit's checks, from GitHub Actions or any CI that
@@ -121,3 +123,4 @@ Restyle by overriding `--rr-*` variables; add panels with `definePanel()`; add c
 `rr.commands.register()`.
 
 Built on [@pierre/diffs](https://diffs.com) (diff rendering) and [dockview](https://dockview.dev) (docking).
+Thread markers: Clawd icons by [Icons8](https://icons8.com), GitHub's mark from [Octicons](https://primer.style/octicons).
