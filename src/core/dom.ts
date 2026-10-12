@@ -1,5 +1,6 @@
 // Tiny DOM helpers. No framework on purpose: author content is plain HTML and
 // every shell part is a plain element you can restyle or replace.
+import { CLAWD, CLAWD_RESOLVED } from './clawd';
 
 type Child = Node | string | number | null | undefined | false | Child[];
 type Attrs = Record<string, unknown> & { class?: string; style?: string | Partial<CSSStyleDeclaration> };
@@ -76,10 +77,37 @@ export const icons = {
   bolt: P('M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z'),
   target: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'),
   symbol: P('M5.5 2.5C4 2.5 4 4 4 5.5S3.5 8 2.5 8c1 0 1.5 1 1.5 2.5s0 3 1.5 3M10.5 2.5c1.5 0 1.5 1.5 1.5 3s.5 2.5 1.5 2.5c-1 0-1.5 1-1.5 2.5s0 3-1.5 3'),
+  // GitHub's mark (octicons, MIT): a thread on the PR
+  github:
+    '<path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>',
   maximize: P('M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'),
 };
 
 export const icon = (name: keyof typeof icons, size = 16) => svg(icons[name], size);
+
+const clawd = (resolved: boolean, size: number) => h('img', { class: 'rr-clawd', src: resolved ? CLAWD_RESOLVED : CLAWD, width: size, height: size, alt: '' });
+
+/** A thread's marker: GitHub's mark (on the PR) or Clawd (with the agent), its message count in a corner pill; greyed out once resolved. */
+export function threadBadge(t: { gh?: unknown; status: string; messages: unknown[] }, agentReplied = false) {
+  const resolved = t.status === 'resolved';
+  return h(
+    'span',
+    { class: 'rr-tbadge ' + (t.gh ? 'is-gh' : 'is-agent') + (resolved ? ' is-resolved' : agentReplied ? ' has-agent' : '') },
+    t.gh ? icon('github', 15) : clawd(resolved, 17),
+    h('span', { class: 'rr-tbadge__n' }, String(t.messages.length)),
+  );
+}
+
+/** Open-thread counts for a file or section, one chip per kind (on GitHub / with the agent). */
+export function threadCounts(ts: { gh?: unknown }[], where: string) {
+  const gh = ts.filter((t) => t.gh).length;
+  const agent = ts.length - gh;
+  const s = (n: number) => (n > 1 ? 's' : '');
+  return [
+    gh ? h('span', { class: 'rr-count-chip is-gh', title: `${gh} open GitHub thread${s(gh)} ${where}` }, icon('github', 11), String(gh)) : null,
+    agent ? h('span', { class: 'rr-count-chip', title: `${agent} open thread${s(agent)} with the agent ${where}` }, clawd(false, 12), String(agent)) : null,
+  ];
+}
 
 export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number): T {
   let t: ReturnType<typeof setTimeout> | undefined;

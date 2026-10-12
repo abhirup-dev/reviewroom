@@ -1,7 +1,7 @@
 // Code panel: the whole diff as a stack of files (lazy-rendered with @pierre/diffs),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"…).
 import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOptions, type SelectedLineRange } from '@pierre/diffs';
-import { h, icon } from '../core/dom';
+import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import type { ChangedFile, Thread } from '../core/types';
@@ -40,7 +40,7 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
         app.bus.emit('open-thread', { id: t.id });
       },
     },
-    h('span', { class: 'rr-inline-thread__count' }, String(t.messages.length)),
+    threadBadge(t, app.unreadAgent(t)),
     h('span', { class: 'rr-inline-thread__text' }, plainExcerpt(first?.body ?? '', 110)),
     last && last !== first ? h('span', { class: 'rr-inline-thread__last' }, (last.author === 'github' ? last.gh?.login : last.author) + ': ' + plainExcerpt(last.body, 60)) : null,
     t.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok' }, 'resolved') : null,
@@ -214,7 +214,7 @@ class CodePanel implements PanelInstance {
 
   private fileHeader(f: ChangedFile) {
     const app = this.app;
-    const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open').length;
+    const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
@@ -236,7 +236,7 @@ class CodePanel implements PanelInstance {
         h('strong', null, name),
       ),
       h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
-      threads ? h('span', { class: 'rr-count-chip', title: `${threads} open comment thread${threads > 1 ? 's' : ''} in this file` }, icon('thread', 12), String(threads)) : null,
+      ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
       this.pin ? null : popoutButton(app, f, this.panelId),
