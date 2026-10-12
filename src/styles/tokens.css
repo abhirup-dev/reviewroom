@@ -54,6 +54,7 @@
   --rr-accent-soft: #e8eefc;
   --rr-comment: #b4570f;
   --rr-comment-soft: #fdf0e1;
+  --rr-comment-ink: #ffffff; /* text on --rr-comment */
   --rr-highlight: rgba(244, 172, 69, 0.28);
   --rr-highlight-hot: rgba(244, 152, 32, 0.5);
   --rr-flash: rgba(37, 87, 214, 0.12);
@@ -101,6 +102,7 @@
   --rr-accent-soft: #1b2638;
   --rr-comment: #f0a35e;
   --rr-comment-soft: #33261a;
+  --rr-comment-ink: #1c1206;
   --rr-highlight: rgba(240, 163, 94, 0.22);
   --rr-highlight-hot: rgba(240, 163, 94, 0.42);
   --rr-flash: rgba(122, 162, 247, 0.16);

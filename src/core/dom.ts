@@ -93,7 +93,7 @@ export function threadBadge(t: { gh?: unknown; status: string; messages: unknown
   return h(
     'span',
     { class: 'rr-tbadge ' + (t.gh ? 'is-gh' : 'is-agent') + (resolved ? ' is-resolved' : agentReplied ? ' has-agent' : '') },
-    t.gh ? icon('github', 15) : clawd(resolved, 17),
+    t.gh ? icon('github', 16) : clawd(resolved, 18),
     h('span', { class: 'rr-tbadge__n' }, String(t.messages.length)),
   );
 }
