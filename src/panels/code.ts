@@ -289,8 +289,20 @@ class CodePanel implements PanelInstance {
       .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && onLine(t))
       .map((t) => {
         const a = t.anchor as Extract<Thread['anchor'], { kind: 'code' }>;
-        return { side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } } as DiffLineAnnotation<Meta>;
+        const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
+        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } } as DiffLineAnnotation<Meta>);
       });
+  }
+
+  /** Split view: the new line drawn across from an old line, so threads on either side share one row's card instead of two half-width ones. */
+  private pairedNewLine(path: string, oldLine: number): number | undefined {
+    const d = this.blocks.get(path)?.inst?.fileDiff;
+    if (!d || this.app.prefs.diffStyle !== 'split') return;
+    for (const hunk of d.hunks)
+      for (const c of hunk.hunkContent) {
+        const i = oldLine - 1 - c.deletionLineIndex;
+        if (c.type === 'change' && i >= 0 && i < c.deletions) return i < c.additions ? c.additionLineIndex + i + 1 : undefined;
+      }
   }
 
   private renderBlock(path: string): Promise<void> {
@@ -318,6 +330,11 @@ class CodePanel implements PanelInstance {
         containerWrapper: b.body,
       } as any);
       b.inst = inst;
+      // old-side threads can only be paired with their new line once the diff exists
+      if (this.app.prefs.diffStyle === 'split' && this.app.threads().some((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === 'base')) {
+        inst.setLineAnnotations(this.annotations(path));
+        inst.rerender();
+      }
     })();
     return b.rendering;
   }

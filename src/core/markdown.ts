@@ -39,6 +39,7 @@ export function renderMarkdown(src: string): string {
 
 export function plainExcerpt(src: string, n = 90): string {
   const s = src
+    .replace(/<!--[\s\S]*?(-->|$)/g, '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/```[\s\S]*?```/g, '[code]')

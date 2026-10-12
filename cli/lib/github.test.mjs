@@ -39,9 +39,9 @@ test('GitHub threads map onto reviewroom threads and anchors', () => {
 });
 
 test('rr: links become GitHub links or plain text', () => {
-  const t = { host: 'github.com', owner: 'o', name: 'r' };
-  const out = toGitHubMarkdown('see [x](rr:code/a.go#L3-5), [old](rr:code/a.go@base#L2) and [intro](rr:doc/intro)', t, { base: 'B', head: 'H' });
-  expect(out).toBe('see [x](https://github.com/o/r/blob/H/a.go#L3-L5), [old](https://github.com/o/r/blob/B/a.go#L2) and intro');
+  const t = { host: 'github.com', owner: 'o', name: 'r', number: 7 };
+  const out = toGitHubMarkdown('see [x](rr:code/a.go#L3-5), [old](rr:code/a.go@base#L2), [intro](rr:doc/intro), [that](rr:thread/gh_42) and [mine](rr:thread/t3)', t, { base: 'B', head: 'H' });
+  expect(out).toBe('see [x](https://github.com/o/r/blob/H/a.go#L3-L5), [old](https://github.com/o/r/blob/B/a.go#L2), intro, [that](https://github.com/o/r/pull/7#discussion_r42) and mine');
 });
 
 test('the PR comes from config url, else repo + number', () => {

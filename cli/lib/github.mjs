@@ -127,7 +127,11 @@ export function normalize(pr, viewer, localHead) {
 
 /** rr: links mean nothing on github.com: code links become blob links at the reviewed commit, the rest plain text. */
 export function toGitHubMarkdown(body, t, shas) {
+  const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
   return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label, ref) => {
+    // a link to a GitHub thread keeps pointing at it there
+    const gh = ref.match(/^rr:thread\/gh_(\d+|conversation)$/);
+    if (gh) return `[${label || 'thread'}](${gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
     const a = parseAnchor(ref);
     if (a.kind !== 'code') return label;
     const sha = a.rev === 'base' ? shas.base : shas.head;
