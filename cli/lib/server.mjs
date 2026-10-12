@@ -176,7 +176,8 @@ export function listen(server, port) {
   return new Promise((resolve, reject) => {
     const tryPort = (p, left) => {
       server.once('error', (e) => (e.code === 'EADDRINUSE' && left > 0 ? tryPort(p + 1, left - 1) : reject(e)));
-      server.listen(p, '127.0.0.1', () => resolve(p));
+      // the callback of a failed attempt stays registered and fires on the next success: report the real port
+      server.listen(p, '127.0.0.1', () => resolve(server.address().port));
     };
     tryPort(port, 20);
   });
