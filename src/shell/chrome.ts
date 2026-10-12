@@ -4,7 +4,7 @@ import { h, icon, copyText, relTime } from '../core/dom';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../../cli/lib/feedback.mjs';
-import { applyPreset, ensurePanel, panelDefs, presets } from './layout';
+import { applyPreset, ensurePanel, panelDefs, presets, resetLayout } from './layout';
 import type { ReviewApp } from './app';
 
 // ---------------------------------------------------------------- tiny menu
@@ -204,6 +204,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
     const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layout presets and which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
     layoutBtn.onclick = () =>
       popMenu(layoutBtn, (close) => [
+        menuItem('Reset layout', () => (close(), resetLayout(app)), { icon: 'round', hint: 'every panel back in place' }),
         menuLabel('Layout presets'),
         ...presets.map((p, i) => menuItem(p.title, () => (close(), applyPreset(app, p.id)), { hint: keyLabel(`alt+${i + 1}`) })),
         menuLabel('Panels'),
