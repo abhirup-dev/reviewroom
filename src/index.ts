@@ -171,7 +171,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   if (app.backend.github) {
     const age = () => Date.now() - Date.parse(app.github?.at ?? '');
     // the server answers from its cache at once; refetch when that cache is old
-    app.backend.github().then((s) => (app.setGitHub(s), s.ok && age() > 30_000 && app.refreshGitHub()), () => {}).catch(() => {});
+    app.backend.github().then(
+      (s) => {
+        app.setGitHub(s);
+        if (s.ok && age() > 30_000) app.refreshGitHub().catch(() => {});
+      },
+      () => {},
+    );
     app.bus.on('state', () => offerGitHubPanels(app));
     // colleagues comment while you read: refetch when you come back to the tab
     document.addEventListener('visibilitychange', () => {

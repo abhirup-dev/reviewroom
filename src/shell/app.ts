@@ -4,7 +4,9 @@ import type { DockviewApi } from 'dockview-core';
 import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
-import { uid } from '../core/dom';
+import { h, uid } from '../core/dom';
+import { renderMarkdown } from '../core/markdown';
+import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
 import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
 import { applyOp } from '../../cli/lib/ops.mjs';
@@ -89,6 +91,9 @@ export class ReviewApp {
   dock!: DockviewApi;
   /** The narrative root element once mounted (inside the narrative panel). */
   doc: HTMLElement | null = null;
+  /** The PR's description from GitHub: read-only, but commentable like the narrative (anchors target PR_DESCRIPTION). */
+  descDoc: HTMLElement = h('div', { id: PR_DESCRIPTION, class: 'rr-prose rr-doc' }, h('p', { class: 'rr-muted' }, 'Loading…'));
+  private descKey?: string;
   /** Round being viewed in the narrative (current round unless browsing history). */
   viewRound = 0;
   selection: Selection = null;
@@ -225,7 +230,8 @@ export class ReviewApp {
 
   /** Human name for a narrative element (section title, or “Table in Proto & storage”). */
   describeDoc(id: string, path?: string): string {
-    const el = this.doc && findDocElement(this.doc, id, path);
+    const el = this.docElement(id, path);
+    if (id === PR_DESCRIPTION) return path && el ? describeElement(el) + ' in the PR description' : 'PR description';
     return el ? describeElement(el) : id ? id.replace(/[-_]+/g, ' ') : 'Review';
   }
   docTitle = (id: string): string | undefined => {
@@ -294,8 +300,25 @@ export class ReviewApp {
   setGitHub(s: GitHubSnapshot) {
     const failed = s.error && s.error !== this.github?.error;
     this.github = s;
+    this.renderDescription();
     if (failed && s.ok !== false) this.toast('GitHub: ' + s.error, 'error');
     this.bus.emit('state', this.state);
+  }
+  private renderDescription() {
+    const d = this.github?.description;
+    // only on change: rebuilding drops the reader's open <details> and moves highlights
+    const key = d ? d.body + d.at : String(this.github?.ok);
+    if (key === this.descKey) return;
+    this.descKey = key;
+    this.descDoc.innerHTML = d ? renderMarkdown(d.body.trim() || '_No description._') : '<p class="rr-muted">The description shows for GitHub pull requests.</p>';
+    // ids from the author's HTML would collide with the narrative's anchors
+    this.descDoc.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    this.descDoc.querySelectorAll('a[href]:not([href^="rr:"])').forEach((a) => Object.assign(a, { target: '_blank', rel: 'noopener' }));
+  }
+  /** The element a doc anchor points at, in the narrative or the PR description. */
+  docElement(id: string, path?: string): Element | null {
+    if (id === PR_DESCRIPTION) return findDocElement(this.descDoc, '', path);
+    return this.doc && findDocElement(this.doc, id, path);
   }
   async refreshGitHub() {
     if (this.backend.github) this.setGitHub(await this.backend.github(true));

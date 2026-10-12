@@ -1,7 +1,8 @@
 // Files, Contents (TOC + pins) and Threads panels.
 import { h, icon, relTime } from '../core/dom';
 import { parseRef, refIcon } from '../core/refs';
-import { plainExcerpt, renderMarkdown } from '../core/markdown';
+import { plainExcerpt } from '../core/markdown';
+import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
 import type { ChangedFile, CiCommit, CiState, Thread } from '../core/types';
 import { definePanel, type PanelInstance } from '../shell/layout';
 import { fileType, isTestFile, reviewOrder, type ReviewApp } from '../shell/app';
@@ -301,7 +302,8 @@ class ThreadsPanel implements PanelInstance {
     );
     const list = all.filter((t) => this.match(t, this.filter));
     const groups: [string, Thread[]][] = [
-      ['Narrative', list.filter((t) => !t.gh && t.anchor.kind === 'doc')],
+      ['PR description', list.filter((t) => t.anchor.kind === 'doc' && t.anchor.target === PR_DESCRIPTION)],
+      ['Narrative', list.filter((t) => !t.gh && t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)],
       ['Code', list.filter((t) => !t.gh && (t.anchor.kind === 'code' || t.anchor.kind === 'symbol'))],
       ['General', list.filter((t) => !t.gh && t.anchor.kind === 'general')],
       ['GitHub', list.filter((t) => t.gh)],
@@ -376,52 +378,7 @@ class CiPanel implements PanelInstance {
   }
 }
 
-// ======================================================================= PR description
-/** What the PR's author wrote on GitHub, above the agent's review. */
-class DescriptionPanel implements PanelInstance {
-  element: HTMLElement;
-  private off: () => void;
-  private shown?: string;
-  constructor(private app: ReviewApp) {
-    this.element = h('div', { class: 'rr-scroll rr-description' });
-    // a link to a comment on this PR opens its thread here; any other link opens a new tab
-    this.element.addEventListener('click', (e) => {
-      const a = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
-      const id = a && !e.metaKey && !e.ctrlKey && app.githubThreadFor(a.href);
-      if (id) e.preventDefault(), app.bus.emit('open-thread', { id });
-    });
-    this.off = app.bus.on('state', () => this.render());
-    this.render();
-  }
-  private render() {
-    const g = this.app.github;
-    const d = g?.description;
-    // state events are frequent: rebuild only when the description changed (keeps scroll and open <details>)
-    const key = d ? d.body + d.at : String(g?.ok);
-    if (key === this.shown) return;
-    this.shown = key;
-    if (!d) return this.element.replaceChildren(h('div', { class: 'rr-empty' }, !g ? 'Loading…' : 'The description shows for GitHub pull requests'));
-    const body = h('div', { class: 'rr-prose', html: renderMarkdown(d.body.trim() || '_No description._') });
-    body.querySelectorAll('a[href]').forEach((a) => Object.assign(a, { target: '_blank', rel: 'noopener' }));
-    this.element.replaceChildren(
-      h(
-        'div',
-        { class: 'rr-description__head' },
-        d.avatar ? h('img', { class: 'rr-avatar rr-avatar--gh', src: d.avatar + (d.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' }) : null,
-        h('strong', null, d.login),
-        h('span', { class: 'rr-muted' }, relTime(d.at)),
-        g?.url ? h('a', { class: 'rr-link-btn rr-description__open', href: g.url, target: '_blank', rel: 'noopener', title: 'Open this PR on GitHub' }, 'Open on GitHub') : null,
-      ),
-      body,
-    );
-  }
-  dispose() {
-    this.off();
-  }
-}
-
 definePanel({ id: 'files', title: 'Files', icon: 'files', create: (app) => new FilesPanel(app) });
 definePanel({ id: 'toc', title: 'Contents', icon: 'toc', create: (app) => new TocPanel(app) });
 definePanel({ id: 'threads', title: 'Threads', icon: 'thread', create: (app) => new ThreadsPanel(app) });
-definePanel({ id: 'description', title: 'Description', icon: 'doc', create: (app) => new DescriptionPanel(app) });
 definePanel({ id: 'ci', title: 'CI', icon: 'ci', create: (app) => new CiPanel(app) });

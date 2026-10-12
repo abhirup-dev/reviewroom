@@ -5,7 +5,9 @@
 //  - hold Alt (or toggle "Pick") to target ANY element, devtools-style
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
-import { h, icon, copyText, debounce } from '../core/dom';
+// The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
+import { h, icon, copyText, debounce, relTime } from '../core/dom';
+import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
 import { cssPathWithin, formatRef, parseRef } from '../core/refs';
 import { linkedSymbol } from '../core/symbols';
 import { plainExcerpt } from '../core/markdown';
@@ -17,6 +19,8 @@ const BLOCKS =
   'h1,h2,h3,h4,h5,h6,p,li,pre,table,figure,blockquote,img,svg,canvas,video,details,dl,[data-rr-block],rr-code,rr-embed,rr-callout,rr-flow,rr-checklist,.rr-block';
 
 const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
+// one highlight registry for the page: each panel contributes its own ranges
+const highlightRanges = new Map<string, Range[]>();
 
 export { findDocElement } from '../core/describe';
 import { findDocElement, describeElement } from '../core/describe';
@@ -83,9 +87,17 @@ class NarrativePanel implements PanelInstance {
   private ro: ResizeObserver;
   private current: HTMLElement;
   private historic: HTMLElement | null = null;
+  /** Anchor target meaning this panel's root: '' (narrative) or PR_DESCRIPTION. */
+  private rootId: string;
+  private head: HTMLElement;
 
-  constructor(private app: ReviewApp) {
-    this.current = app.doc!;
+  constructor(
+    private app: ReviewApp,
+    private isDesc = false,
+  ) {
+    this.current = isDesc ? app.descDoc : app.doc!;
+    this.rootId = isDesc ? PR_DESCRIPTION : '';
+    this.head = h('div', { class: 'rr-description__head', hidden: !isDesc });
     this.rail = h('div', { class: 'rr-rail', 'aria-label': 'Comment threads' });
     this.outline = h('div', { class: 'rr-block-outline', hidden: true });
     this.handle = h(
@@ -96,8 +108,8 @@ class NarrativePanel implements PanelInstance {
       h('button', { class: 'rr-icon-btn', title: 'Pin to Contents for quick access', 'aria-label': 'Pin this block', onclick: () => this.pinBlock() }, icon('pin', 14)),
     );
     this.banner = h('div', { class: 'rr-banner', hidden: true });
-    this.wrap = h('div', { class: 'rr-doc-wrap' }, this.current, this.rail, this.outline, this.handle);
-    this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll', 'data-rr-scope': 'narrative', tabindex: '-1' }, this.banner, this.wrap);
+    this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail, this.outline, this.handle);
+    this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     this.element = h('div', { class: 'rr-narrative' }, this.scroller);
 
     this.wrap.addEventListener('pointermove', (e) => this.onMove(e));
@@ -110,19 +122,36 @@ class NarrativePanel implements PanelInstance {
     this.ro = new ResizeObserver(debounce(() => this.layoutRail(), 60));
     this.ro.observe(this.current);
     this.offs.push(
-      app.bus.on('state', () => this.decorate()),
-      app.bus.on('reveal-doc', (t) => this.reveal(t.id, t.path, t.threadId)),
-      app.bus.on('round-view', (n) => this.showRound(n)),
+      app.bus.on('state', () => (this.renderHead(), this.decorate())),
+      app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
       app.bus.on('picker', ((on: boolean) => this.setPicking(on)) as any),
     );
-    this.setupSpy();
-    queueMicrotask(() => this.decorate());
-    void this.markSymbols(this.current);
+    if (!isDesc) {
+      this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)));
+      this.setupSpy();
+      void this.markSymbols(this.current);
+    }
+    queueMicrotask(() => (this.renderHead(), this.decorate()));
     this.current.querySelectorAll('img').forEach((img) => img.addEventListener('load', () => this.layoutRail(), { once: true }));
   }
 
   private get doc() {
     return this.historic ?? this.current;
+  }
+
+  /** Description only: who wrote it, when, and a way to it on GitHub. */
+  private renderHead() {
+    const g = this.app.github;
+    const d = g?.description;
+    if (!this.isDesc || !d) return;
+    this.head.replaceChildren(
+      ...[
+        d.avatar ? h('img', { class: 'rr-avatar rr-avatar--gh', src: d.avatar + (d.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' }) : null,
+        h('strong', null, d.login),
+        h('span', { class: 'rr-muted' }, relTime(d.at)),
+        g.url ? h('a', { class: 'rr-link-btn rr-description__open', href: g.url, target: '_blank', rel: 'noopener', title: 'Open this PR on GitHub (the description is edited there)' }, 'Open on GitHub') : null,
+      ].filter((x): x is HTMLElement => !!x),
+    );
   }
 
   /** Links whose text names the symbol declared at their target get data-rr-symbol=<kind> (styled in content.css). */
@@ -166,9 +195,9 @@ class NarrativePanel implements PanelInstance {
 
   private reveal(id: string, path?: string, threadId?: string) {
     if (this.historic) this.showRound(0);
-    this.app.showPanel('narrative');
-    const el = findDocElement(this.doc, id, path);
-    if (!el) return this.app.toast(`“${id}” is not in the narrative`, 'error');
+    this.app.showPanel(this.isDesc ? 'description' : 'narrative');
+    const el = this.app.docElement(id, path);
+    if (!el) return this.app.toast(this.isDesc ? 'That part of the PR description is gone' : `“${id}” is not in the narrative`, 'error');
     if (el instanceof HTMLDetailsElement) el.open = true;
     el.closest('details')?.setAttribute('open', '');
     const top = el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
@@ -244,8 +273,12 @@ class NarrativePanel implements PanelInstance {
     this.handle.hidden = true;
   }
 
+  private anchorOf(el: Element) {
+    const a = anchorFor(this.current, el);
+    return { ...a, target: a.target || this.rootId };
+  }
   private blockAnchor(el: Element): Anchor {
-    return { kind: 'doc', ...anchorFor(this.current, el) };
+    return { kind: 'doc', ...this.anchorOf(el) };
   }
   private commentOnBlock(el = this.hoverBlock) {
     if (!el || this.historic) return;
@@ -254,14 +287,14 @@ class NarrativePanel implements PanelInstance {
   }
   private linkBlock(el = this.hoverBlock) {
     if (!el) return;
-    const a = anchorFor(this.current, el);
+    const a = this.anchorOf(el);
     const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
     copyText(ref);
     this.app.toast(`Link to ${this.app.label(ref)} copied — paste it into any comment`);
   }
   private pinBlock(el = this.hoverBlock) {
     if (!el) return;
-    const a = anchorFor(this.current, el);
+    const a = this.anchorOf(el);
     const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
     this.app.togglePin(ref);
     this.app.toast(`${this.app.label(ref)} pinned to Contents`);
@@ -269,6 +302,9 @@ class NarrativePanel implements PanelInstance {
 
   private onClick(e: MouseEvent) {
     const t = e.target as Element;
+    // description: a link to a comment on this PR opens its thread here
+    const gh = this.isDesc && !e.metaKey && !e.ctrlKey && this.app.githubThreadFor((t.closest('a[href]') as HTMLAnchorElement | null)?.href ?? '');
+    if (gh) return e.preventDefault(), this.app.bus.emit('open-thread', { id: gh });
     const link = t.closest('a[href^="rr:"], rr-ref');
     if (link) {
       e.preventDefault();
@@ -302,14 +338,14 @@ class NarrativePanel implements PanelInstance {
       prefix: idx > 0 ? ownerText.slice(Math.max(0, idx - 32), idx) : undefined,
       suffix: idx >= 0 ? ownerText.slice(idx + range.toString().length, idx + range.toString().length + 32) : undefined,
     };
-    const a = owner === this.current ? { target: '' } : { target: (owner as Element).id };
+    const a = { target: owner === this.current ? this.rootId : (owner as Element).id };
     this.app.selection = { kind: 'doc', anchor: { kind: 'doc', ...a, quote }, x: e.clientX, y: e.clientY, label: exact };
     this.app.bus.emit('selection', this.app.selection);
   }
 
   // ------------------------------------------------------------ threads: highlights + rail
   private docThreads(): Thread[] {
-    return this.app.state.threads.filter((t) => t.anchor.kind === 'doc');
+    return this.app.state.threads.filter((t) => t.anchor.kind === 'doc' && (t.anchor.target === PR_DESCRIPTION) === this.isDesc);
   }
 
   private decorate() {
@@ -318,7 +354,7 @@ class NarrativePanel implements PanelInstance {
     for (const t of this.docThreads()) {
       if (t.status === 'resolved') continue;
       const a = t.anchor as Extract<Anchor, { kind: 'doc' }>;
-      const el = findDocElement(this.current, a.target, a.path);
+      const el = this.app.docElement(a.target, a.path);
       if (!el) continue;
       if (a.quote && supportsHighlights) {
         const r = rangeForQuote(el, a.quote);
@@ -326,7 +362,10 @@ class NarrativePanel implements PanelInstance {
         else el.setAttribute('data-rr-anchored', '');
       } else el.setAttribute('data-rr-anchored', '');
     }
-    if (supportsHighlights) (CSS as any).highlights.set('rr-thread', new (window as any).Highlight(...ranges));
+    if (supportsHighlights) {
+      highlightRanges.set(this.rootId, ranges);
+      (CSS as any).highlights.set('rr-thread', new (window as any).Highlight(...[...highlightRanges.values()].flat()));
+    }
     this.layoutRail();
   }
 
@@ -336,7 +375,7 @@ class NarrativePanel implements PanelInstance {
     const items: { t: Thread; y: number }[] = [];
     for (const t of this.docThreads()) {
       const a = t.anchor as Extract<Anchor, { kind: 'doc' }>;
-      const el = findDocElement(this.current, a.target, a.path);
+      const el = this.app.docElement(a.target, a.path);
       if (!el || this.historic) continue;
       let top = el.getBoundingClientRect().top;
       if (a.quote) {
@@ -381,7 +420,7 @@ class NarrativePanel implements PanelInstance {
 
   private hot(t: Thread, on: boolean) {
     const a = t.anchor as Extract<Anchor, { kind: 'doc' }>;
-    const el = findDocElement(this.current, a.target, a.path);
+    const el = this.app.docElement(a.target, a.path);
     if (!el) return;
     if (a.quote && supportsHighlights) {
       const r = rangeForQuote(el, a.quote);
@@ -436,9 +475,11 @@ class NarrativePanel implements PanelInstance {
   dispose() {
     this.offs.forEach((f) => f());
     this.ro.disconnect();
+    highlightRanges.delete(this.rootId);
     // keep the author's DOM alive so the panel can be reopened
     this.current.remove();
   }
 }
 
 definePanel({ id: 'narrative', title: 'Review', icon: 'doc', create: (app) => new NarrativePanel(app) });
+definePanel({ id: 'description', title: 'Description', icon: 'doc', create: (app) => new NarrativePanel(app, true) });

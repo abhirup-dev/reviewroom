@@ -15,7 +15,6 @@ import { highlightLines } from '../core/highlight';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
 import { plainExcerpt, renderMarkdown } from '../core/markdown';
 import type { ReviewApp } from '../shell/app';
-import { findDocElement } from '../panels/narrative';
 import { PIERRE_CSS } from '../panels/code';
 
 let APP: ReviewApp | null = null;
@@ -123,7 +122,7 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
   if (!r) return h('div', { class: 'rr-empty' }, 'This link is broken');
   switch (r.type) {
     case 'doc': {
-      const el = app.doc && findDocElement(app.doc, r.id, r.path);
+      const el = app.docElement(r.id, r.path);
       if (!el) return h('div', { class: 'rr-empty' }, 'This part of the review no longer exists');
       const clone = el.cloneNode(true) as HTMLElement;
       clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));

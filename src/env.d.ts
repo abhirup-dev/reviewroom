@@ -3,6 +3,7 @@ declare module 'virtual:rr-css' {
   export default css;
 }
 declare module '*/feedback.mjs' {
+  export const PR_DESCRIPTION: string;
   export function feedbackMarkdown(state: import('./core/types').ReviewState, opts: { kind: 'feedback' | 'approve'; note?: string; codeExcerpt?: (a: any) => string | null }): string;
 }
 declare module '*/ops.mjs' {
