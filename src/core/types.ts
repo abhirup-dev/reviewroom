@@ -117,6 +117,19 @@ export interface GitHubSnapshot {
   stale?: boolean;
   pending?: { id: string; drafts: number } | null;
   threads: Thread[];
+  /** The PR's commits and their CI checks, newest first. */
+  ci?: CiCommit[];
+}
+
+export type CiState = 'success' | 'failure' | 'pending' | 'none';
+export interface CiCommit {
+  sha: string;
+  short: string;
+  title: string;
+  at: string;
+  url: string;
+  state: CiState;
+  checks: { name: string; state: CiState; url: string | null }[];
 }
 
 export interface Round {

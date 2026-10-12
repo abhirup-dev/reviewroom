@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { normalize, prTarget, toGitHubMarkdown } from './github.mjs';
+import { ciOf, normalize, prTarget, toGitHubMarkdown } from './github.mjs';
 
 const author = (login) => ({ login, avatarUrl: `https://avatars.example/${login}` });
 const comment = (databaseId, login, body, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
@@ -48,4 +48,13 @@ test('the PR comes from config url, else repo + number', () => {
   expect(prTarget({ url: 'https://ghe.corp/o/r/pull/12' })).toEqual({ host: 'ghe.corp', owner: 'o', name: 'r', number: 12 });
   expect(prTarget({ repo: 'o/r', number: 3 })).toEqual({ host: 'github.com', owner: 'o', name: 'r', number: 3 });
   expect(prTarget({ repo: 'o/r' })).toBe(null);
+});
+
+test('CI: each commit is running, failed, passed or unchecked, newest first', () => {
+  const run = (name, status, conclusion) => ({ __typename: 'CheckRun', name, status, conclusion, detailsUrl: 'd', checkSuite: { workflowRun: { workflow: { name: 'CI' } } } });
+  const st = (context, state) => ({ __typename: 'StatusContext', context, state, targetUrl: null });
+  const commit = (oid, ...nodes) => ({ commit: { oid, abbreviatedOid: oid, messageHeadline: oid, committedDate: '', url: '', statusCheckRollup: nodes.length ? { contexts: { nodes } } : null } });
+  const ci = ciOf([commit('a', run('lint', 'COMPLETED', 'SUCCESS'), st('jenkins', 'SUCCESS')), commit('b', run('lint', 'COMPLETED', 'FAILURE'), run('skip', 'COMPLETED', 'SKIPPED')), commit('c', run('lint', 'COMPLETED', 'FAILURE'), st('jenkins', 'PENDING')), commit('d')]);
+  expect(ci.map((c) => [c.sha, c.state])).toEqual([['d', 'none'], ['c', 'pending'], ['b', 'failure'], ['a', 'success']]);
+  expect(ci[3].checks).toEqual([{ name: 'CI / lint', state: 'success', url: 'd' }, { name: 'jenkins', state: 'success', url: null }]);
 });

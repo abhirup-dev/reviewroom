@@ -67,6 +67,11 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: 
       }
       comments(first: 100) { nodes { ${COMMENT} } }
       reviews(last: 100) { nodes { id databaseId body state createdAt url viewerCanUpdate ${AUTHOR} } }
+      commits(last: 30) { nodes { commit { oid abbreviatedOid messageHeadline committedDate url statusCheckRollup { contexts(first: 100) { nodes {
+        __typename
+        ... on CheckRun { name status conclusion detailsUrl checkSuite { workflowRun { workflow { name } } } }
+        ... on StatusContext { context state targetUrl }
+      } } } } } }
     }
   }
 }`;
@@ -122,7 +127,25 @@ export function normalize(pr, viewer, localHead) {
     threads.push({ id: 'gh_conversation', title: 'PR conversation', anchor: { kind: 'general' }, status: 'open', createdRound: 0, messages: conversation, gh: { node: pr.id, url: pr.url, conversation: true, canReply: true } });
   const pending = pr.reviews.nodes.find((r) => r.state === 'PENDING');
   const drafts = threads.flatMap((t) => t.messages).filter((m) => m.gh.pending).length;
-  return { ok: true, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, threads };
+  return { ok: true, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, threads, ci: ciOf(pr.commits?.nodes ?? []) };
+}
+
+const CHECK = { SUCCESS: 'success', NEUTRAL: 'success', SKIPPED: 'success', PENDING: 'pending', EXPECTED: 'pending' };
+
+/** The PR's commits with their checks, newest first: GitHub Actions and any CI that reports a commit status (Jenkins, TeamCity, …). */
+export function ciOf(commits) {
+  return commits
+    .map(({ commit: c }) => {
+      const checks = (c.statusCheckRollup?.contexts.nodes ?? []).map((x) =>
+        x.__typename === 'CheckRun'
+          ? { name: [x.checkSuite?.workflowRun?.workflow.name, x.name].filter(Boolean).join(' / '), state: x.status !== 'COMPLETED' ? 'pending' : (CHECK[x.conclusion] ?? 'failure'), url: x.detailsUrl }
+          : { name: x.context, state: CHECK[x.state] ?? 'failure', url: x.targetUrl },
+      );
+      // running wins over failed: the commit isn't done yet
+      const state = !checks.length ? 'none' : checks.some((x) => x.state === 'pending') ? 'pending' : checks.some((x) => x.state === 'failure') ? 'failure' : 'success';
+      return { sha: c.oid, short: c.abbreviatedOid, title: c.messageHeadline, at: c.committedDate, url: c.url, state, checks };
+    })
+    .reverse();
 }
 
 /** rr: links mean nothing on github.com: code links become blob links at the reviewed commit, the rest plain text. */
