@@ -1,82 +1,94 @@
 # Authoring reference: the review page
 
-Read this when writing or editing `review.html`. For the CLI and the round loop see `cli.md`;
-for what makes a review worth reading see `review-craft.md`.
-
-You are writing the **narrative** half of a code review. The other half — the live diff, file
-tree, contents, threads, rounds, palette, theming, docking — is provided by reviewroom. Your job
-is to explain the change so a fast reviewer understands it, and to link every claim to the code.
+The building blocks of `review.html`. For what to write and in what order see `review-craft.md`.
 
 ## The file
 
-`reviewroom pr <n>` scaffolds `<repo>/.reviewroom/pr-<n>/review.html`. It is an ordinary HTML file:
+`reviewroom pr` scaffolds `review.html` in the review directory. It is ordinary HTML:
 
 ```html
 <rr-app>
-  <script type="application/json" id="rr-meta">{ "number": 4821 }</script>
+  <script type="application/json" id="rr-meta">{}</script>
   <rr-review>
     … anything you want …
   </rr-review>
 </rr-app>
 ```
 
-There are **no restrictions** inside `<rr-review>`: write any HTML, inline `<style>`, SVG, `<canvas>`,
-`<script>`, tables, charts. Put extra assets (images, js, css) next to `review.html` and reference
-them relatively. **Never paste code from the diff into the narrative** — link to it or use
-`<rr-code ref=…>`, which renders the live lines from the repo. The review stays small and never
-goes stale.
+Inside `<rr-review>` you may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put
+extra assets (images, js, css) next to `review.html` and reference them relatively.
 
-## Conventions the tooling understands (all optional)
+## Structure the tooling understands
 
 | You write | You get |
 |---|---|
 | `<section id="request-path"><h2>Request path</h2>…</section>` | Contents entry, scroll-spy, `rr:doc/request-path` links, section-level comments |
-| `<section … data-round="2">` | "new in R2" marker after a feedback round (use the round you are writing for) |
+| `<section … data-round="2">` | "new in R2" marker (use the round you are writing for) |
 | `data-baseline` on any block | "what already exists" context, set apart visually from the change |
-| `id` or `data-rr-block` on any element | Stable, linkable, commentable block (reviewers can comment on anything anyway) |
+| `id` or `data-rr-block` on any element | A stable, linkable block (the reviewer can comment on anything anyway) |
 | `<p class="rr-lede">` | Larger summary paragraph |
 
 ## Links: `rr:` refs
 
 Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref>`, `<rr-embed ref>`,
-`rr.open()`, and in thread replies.
+`<rr-code ref>`, `<rr-node ref>`, `rr.open()` and in thread replies.
 
 | Ref | Points at |
 |---|---|
 | `rr:code/pkg/x.go#L45-54` | Lines 45–54 of the new file in the diff (`@base` for the old side) |
 | `rr:code/pkg/x.go` | The file in the diff; its preview shows the changed hunks |
 | `rr:file/pkg/y.go@head#L10` | A file **outside** the diff, full view (any rev: `@base`, `@<sha>`) |
-| `rr:sym/RecentEvents` | A symbol; resolved by searching the repo (definition first); its preview shows the whole declaration |
-| `rr:doc/request-path` | A section/element id in the narrative |
+| `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
+| `rr:doc/request-path` | A section or element id in the narrative |
+| `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
 | `rr:thread/t_ab12cd` | A comment thread (`gh_<n>`: a GitHub thread on the PR) |
+| `rr:round/2` | The narrative as it was at the end of round 2 |
 
-Line numbers are the **new** file's numbers unless you add `@base`. Check them with
-`git show HEAD:path | sed -n '45,54p'` before you write them.
+Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
+`reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
-**Name symbols exactly.** When a link's text is the identifier declared at its target
-(`<a href="rr:code/pkg/x.go#L45-54">BuildRequest</a>`, range starting at the declaration or its doc
-comment), the link renders as code with a kind badge (function, method, struct, interface, type…).
-Use plain prose for links that point at behaviour rather than a declaration ("the retry loop").
+Hovering any link shows a live preview of its target; clicking it opens the target in the code or
+narrative panel. Give every link a human label; never show the raw `rr:` string.
 
-## Helper elements
+## Symbols
+
+Prefer `rr:sym/<name>` for a function or type: it follows the code as it moves, and `check` never
+reports it as moved.
+
+When a link's text is exactly the identifier declared at its target (`<a href="rr:sym/BuildRequest">BuildRequest</a>`,
+or a `rr:code` range that starts at the declaration or its doc comment), the link renders as code
+with a kind badge (function, method, struct, interface, type…). Use plain prose for links that point
+at behaviour rather than a declaration ("the retry loop").
+
+## Code previews
+
+Never paste diff code into the page; it goes stale and duplicates the code panel. Instead:
 
 ```html
 <rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54">Builder.Build</rr-ref>   <!-- chip; hover = preview -->
-<rr-embed ref="rr:doc/parallel-sketch"></rr-embed>                                     <!-- mini preview card -->
-<rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9" title="table"></rr-code>  <!-- live, highlighted -->
-<rr-code lang="go" title="suggested change">…new code that is NOT in the diff…</rr-code>
+<rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9" title="table"></rr-code> <!-- live lines, highlighted -->
+<rr-embed ref="rr:doc/parallel-sketch"></rr-embed>                                    <!-- preview card of any ref -->
+<rr-code lang="go" title="suggested change">…code that is NOT in the diff…</rr-code>   <!-- your own code only -->
+```
+
+In thread replies, `![](rr:code/…#L10-20)` or `![](rr:doc/<id>)` on its own line embeds the same
+live preview.
+
+## Diagrams and other helpers
+
+```html
 <rr-flow>                                                                              <!-- left→right flow -->
   <rr-node state="baseline">FeedRequest</rr-node>
   <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L20-28">habit.RecentEvents</rr-node>
-  <rr-node state="changed">RankerRequest</rr-node>                                     <!-- states: new changed removed baseline -->
+  <rr-node state="changed">RankerRequest</rr-node>                                     <!-- new changed removed baseline -->
 </rr-flow>
 <rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
-<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- reviewer sign-off, persisted -->
-<rr-markdown>## You can also write markdown blocks</rr-markdown>
+<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- reviewer sign-off -->
+<rr-markdown>## Markdown blocks work too</rr-markdown>
 ```
 
-Use `<rr-flow>` for the one diagram every review should have: the delta against the baseline.
-Use `state="baseline"` for what exists, `new`/`changed` for the PR.
+`<rr-flow>` is for the one diagram every review should have: the delta against the baseline. Give
+every node a `ref` so it is clickable.
 
 ## Scripting: `window.rr`
 
@@ -101,52 +113,15 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.commands.register({ id, title, keys, run })` | Add palette commands / shortcuts |
 | `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
 | `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus')` | Switch layout |
-| `rr.theme()` | `'light'` or `'dark'` — read `--rr-*` CSS variables to match colours |
+| `rr.theme()` | `'light'` or `'dark'` |
 
-Use the CSS variables (`--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-panel`, `--rr-accent`, `--rr-add`,
-`--rr-del`, `--rr-comment`…) in your own styles so widgets follow light/dark.
+## Typography and colour
 
-**Typography is set by the tool; don't load fonts.** Three bundled faces, as tokens:
+The tool sets both; don't load fonts or hard-code colours. Headings, lists, tables, code and callouts
+inside `<rr-review>` are already styled: write plain semantic HTML. In your own widgets use the tokens:
 
-| Token | Face | For |
-|---|---|---|
-| `--rr-font-read` | Source Serif 4 | prose: the narrative (the default inside `<rr-review>`) |
-| `--rr-font` | Inter | interface-like bits in widgets: labels, legends, table headers |
-| `--rr-mono` | JetBrains Mono | code, identifiers, file names, numbers in tables |
+- Fonts: `--rr-font-read` (prose), `--rr-font` (labels, legends, table headers), `--rr-mono` (code, identifiers, numbers).
+- Sizes: `--rr-text-prose`, `--rr-text`, `--rr-text-sm`, `--rr-text-xs`.
+- Colours: `--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-surface-doc-2` (figure background), `--rr-accent` (links only), `--rr-add`, `--rr-del`, `--rr-comment`.
 
-Size tokens: `--rr-text-prose` (body), `--rr-text`, `--rr-text-sm`, `--rr-text-xs`. Headings, lists,
-tables, code and callouts inside `<rr-review>` are already styled; write plain semantic HTML.
-
-## Theming (optional)
-
-Every colour is a `--rr-*` CSS variable, and each panel sits on its own surface so the reading
-pane, the code, the navigation and pop-ups are visibly separate layers:
-
-| Token | Used for |
-|---|---|
-| `bg` | header bar |
-| `surface-doc` / `surface-doc-2` | the narrative (paper) / figures and flows inside it |
-| `surface-code` / `surface-well` | code / the area behind file cards |
-| `surface-nav` / `surface-nav-2` | Contents, Files, Threads / inputs inside them |
-| `surface-bar` / `surface-bar-active` | panel tab bars / the focused panel's bar |
-| `surface-overlay` | menus, dialogs, palette, previews |
-| `accent`, `comment`, `add`, `del`, `ink`, `muted`, `line` | links (accent is only for links), threads, diff colours, text, rules |
-| `sym-fn`, `sym-type`, `sym-value` | kind badges on symbol links |
-| `radius-sm`, `radius`, `radius-lg` | near-square by default (2px / 2px / 4px) |
-
-Override any of them per review in `#rr-meta` (light and dark separately; the `--rr-` prefix is optional):
-
-```json
-{ "theme": { "light": { "surface-doc": "#fffdf7", "accent": "#0b6bcb" },
-             "dark":  { "surface-doc": "#1c1a17", "bg": "#000" } } }
-```
-
-Keep text readable on whatever you choose (4.5:1 for body text).
-
-## Writing well
-
-(Expanded in `review-craft.md`.) 
-Lead with one paragraph and one `<rr-flow>`. Then sections in the order a reviewer would trace the
-change (entry point → new code → storage → failure modes → tests → risks). Every factual claim
-about the code gets a link. Prefer short sections the reviewer can comment on individually. Say
-what is *not* tested. End with an `<rr-checklist>` of the risks that need a human sign-off.
+They switch with light and dark mode, so widgets built on them follow the theme.

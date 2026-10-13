@@ -3,72 +3,135 @@ name: reviewroom
 description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive narrative of a PR next to its live diff and answer the reviewer's comment threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided/walkthrough review of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
 ---
 
-# reviewroom
+# Review with reviewroom
 
-reviewroom is a review workbench that runs locally in the browser. You (the agent) write the
-**narrative**: an HTML page explaining a change, where every claim links to the real code. The tool
-puts that next to the **live diff of the local clone** and gives the reviewer everything around it:
-docking panels, file tree, contents, symbol search, comments anchored to any sentence, block, element
-or code line, and **rounds** of feedback between reviewer and agent.
+reviewroom is a local, browser-based code review workbench. You write the **narrative**: an HTML
+page that explains a change, where every claim links to the real code. reviewroom shows it next to
+the live diff of the local clone. The reviewer comments on any sentence, block or code line and
+sends the comments back to you as a **round** of feedback; you answer, and the next round begins.
+Every thread, reply, sign-off and round is kept from one round to the next.
 
-The reviewer reads fast and jumps constantly between explanation and code. Your narrative is worth
-writing only if it makes that jump effortless and never asks them to trust you without a link.
+The CLI's help is the command reference: `reviewroom --help`, and `reviewroom <command> --help`
+for flags and notes. Read it before your first command. If `reviewroom` is not on PATH, use
+`npx -y reviewroom …`.
 
-## Quick start
+## Choose the command
+
+| The user wants | Run |
+| --- | --- |
+| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <n \| url \| branch> --repo <path> --wait` → Step 1 |
+| A review of uncommitted changes | `reviewroom pr --head worktree --repo <path> --wait` → Step 1 |
+| You to answer feedback they already sent | `reviewroom review --dir <dir>`: prints unread feedback at once → Step 6 |
+| To see where a review stands | `reviewroom status --json --dir <dir>` (`--threads` for the threads) |
+| To end the review | `reviewroom stop --dir <dir>` |
+
+## Step 1: Start the review in the background
+
+**CRITICAL: you MUST run this step. Do NOT skip it.**
+
+Run it **in the background** (`run_in_background: true`):
 
 ```bash
-reviewroom pr 4821 --repo ~/Codes/<project> --detach      # number, PR URL, or branch name
+reviewroom pr <n | url | branch> --repo <path> --wait
 ```
 
-This fetches the PR (uses `gh` for title/base/author when it is logged in), scaffolds
-`<repo>/.reviewroom/pr-4821/review.html`, starts the server in the background and prints its URL.
-The page live-reloads whenever you save `review.html`. `reviewroom status --json --dir <dir>`
-gives you base/head shas, the review path, the URL and open threads at any time.
+It creates the review, serves it, opens the browser, and then blocks until the reviewer clicks
+*Send feedback* or *Approve*. That can take hours. In Claude Code, a background command is stopped
+after 30 minutes unless you also pass a longer `timeout` (up to `7200000` ms). If it is stopped by a
+time limit, run `reviewroom review --dir <dir>` in the background: nothing is lost (re-running
+`pr` would fetch the PR again and could move the head mid-round).
 
-If `reviewroom` is not on PATH, use `npx -y reviewroom …`.
+The page goes offline when the command exits and comes back with the next one; the reviewer's open
+tab reconnects by itself. That is expected.
 
-## Workflow
+## Step 2: Relay the URL
 
-1. **Understand the change.** Use git on the printed base/head (`git diff <base>...<head> --stat`,
-   then the files). Find the entry point, the new pieces, storage/proto/config changes, failure paths
-   and what the tests cover. Read the PR description if `gh` is available.
-2. **Write `review.html`.** Freeform HTML inside `<rr-review>`; follow `references/review-craft.md`
-   for what to say and in what order, and `references/authoring.md` for the building blocks
-   (`rr:` links, `<rr-flow>`, `<rr-code>`, `<rr-callout>`, `<rr-checklist>`, `window.rr`, theming).
-   Verify every line number you cite against the head revision; a wrong link is worse than none.
-   Prefer `rr:sym/<name>` for a function or type: it follows the code as it moves. Then run
-   `reviewroom check --fix --dir <dir>` (see "Stale links" in `references/cli.md`).
-3. **Hand over.** Tell the user the URL. When they want to review with you in the loop, run
-   `reviewroom review --dir <dir>` as a **background** command with a long timeout (it can wait for
-   hours): it takes over the server (same port, so the open tab reconnects) and blocks until they press
-   *Send feedback* or *Approve*, then prints the feedback as markdown and exits. If they already sent
-   feedback while you weren't waiting, it prints that at once. Always pass `--dir`; the feedback
-   repeats the exact commands to run.
-4. **Answer the round.** For each thread in the feedback, see `references/cli.md`:
-   reply with `reviewroom reply <thread-id> "<markdown>"`; put substantial answers (tables,
-   diagrams, queries, sketches) into a **new section** with `data-round="<next round>"` and link or
-   embed it from the reply instead of repeating it; `--resolve` only when fully addressed; change code
-   if asked. If you changed code, run `reviewroom check --fix --dir <dir>` and fix what it still
-   reports. Then run `reviewroom review` again for the next round.
-5. **Finish.** `reviewroom stop --dir <dir>` when the review is over (approval also ends the loop).
+The command's first lines name the review directory (`.reviewroom/pr-<n>` for a PR) and the URL.
+`reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
+verbatim:
 
-## What the reviewer can do (so you can design for it)
+> **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the narrative now; it updates live."**
 
-- Jump from any `rr:` link to the exact lines; see split/unified diffs, whitespace-insensitive diffs,
-  only-new or only-old code, the whole file before/after, any single commit.
-- Comment on a text selection, a whole block (paragraph, table, diagram, widget) or any element, a
-  code line range, or the PR in general. Threads show as highlights + margin chips and open in a
-  markdown popup that can be docked.
-- Rearrange everything: dock, float, stack and split panels; presets for reading, wide code, code
-  focus and narrative focus; light and dark themes; ⌘K palette with `#` symbol and `/` code search.
-- Sign off checklist items, pin sections, mark files viewed.
+## Step 3: Understand the change
 
-Because of this, structure the narrative as **short, commentable sections** with stable ids, and make
-every diagram node and widget part clickable into the code. Layout and tooltips are the reviewer's;
-you shape the review through content, links and (optionally) theme tokens.
+Read `git diff <base>...<head> --stat`, then the files. Find the entry point, the new pieces,
+storage / proto / config changes, failure paths and what the tests cover. Read the PR description
+when `gh` is available.
 
-## References
+## Step 4: Write the narrative
 
-- `references/review-craft.md`: what a worthwhile review looks like for this reviewer; read before writing.
-- `references/authoring.md`: HTML conventions, `rr:` link grammar, helper elements, `window.rr`, theming.
-- `references/cli.md`: every command, the round loop, the feedback format, where state lives.
+Before writing, read:
+1. `references/review-craft.md`: what to say and in what order.
+2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
+
+Edit `review.html` in the review directory; the open page reloads on every save. Then run
+`reviewroom check --fix --dir <dir>` and fix whatever it still reports.
+
+Tell the user: **"The narrative is ready. Leave comments, then click Send feedback (or Approve)."**
+
+## Step 5: Wait for the reviewer
+
+**Do NOT proceed until the background command exits.** Do NOT ask the user to type anything. Do NOT
+read threads early. The command exiting is how you know the reviewer has finished the round.
+
+## Step 6: Read the feedback
+
+The command prints the round's feedback as markdown: one block per thread with new comments, each
+with its anchor, then any sign-off checklist summary and overall note. Its opening lines give the
+exact commands to answer and to start the next round.
+
+If its heading says `APPROVED`, tell the user and stop. Leave open threads alone unless they ask.
+
+<important if="a thread's anchor points at code or narrative that has changed since">
+The anchor is where the comment was made. A code anchor carries the excerpt the reviewer saw; a
+narrative anchor carries the quoted text. Find the current position by that excerpt or quote, not
+by line number.
+</important>
+
+## Step 7: Answer each thread
+
+For each thread in the feedback:
+
+1. Understand what it asks. Change code or the narrative if asked.
+2. Short answers go in the reply. Substantial ones go in a new section of `review.html`, and the
+   reply links to it (see "Answering threads" in `references/review-craft.md`).
+3. Mark every section you add or substantially change with `data-round="<next round>"`.
+4. Reply with `reviewroom reply <thread-id> --file <reply.md> --dir <dir>`.
+5. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the user
+   explicitly asks.
+
+If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports.
+
+<important if="you are replying to several threads at once">
+Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):
+`reviewroom reply --json <replies.json> --dir <dir>`, with `[{"thread": "t_ab12", "body": "…"}]`.
+</important>
+
+<important if="the feedback lists threads under 'Open on GitHub'">
+Those are colleagues' threads on the PR, shown for context. They are not feedback for you and you
+cannot reply to them. When one matters to your answer, link it with `rr:thread/gh_<n>`.
+</important>
+
+## Step 8: Start the next round
+
+**CRITICAL: you MUST run this step. Do NOT skip it.**
+
+Run the command the feedback names, **in the background** as in Step 1:
+
+```bash
+reviewroom review --dir <dir>
+```
+
+Tell the user: **"Replies are in. Review them in the browser and click Send feedback or Approve
+when ready."** Then return to Step 5.
+
+## Do not
+
+- Do not run `reviewroom pr --wait` or `reviewroom review` in the foreground; they block until the
+  reviewer acts. Never run `reviewroom pr` without `--wait` or `--detach`: it serves forever.
+- Do not stop or kill the background command to "finish" a round; wait for it to exit.
+- Do not pass `--resolve` unless the user explicitly asks.
+- Do not edit anything in the review directory except `review.html` and assets you add next to it.
+- Do not paste diff code into the narrative or replies; link or embed it.
+- Do not cite a line number you have not checked against the head revision.
+- Do not guess flags; run `reviewroom <command> --help`.
