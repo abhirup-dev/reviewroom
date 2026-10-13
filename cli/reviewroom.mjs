@@ -40,7 +40,7 @@ const run = (fn) => async (...args) => {
 
 cli
   .command('pr [target]', 'Create the review (fetching a PR if given one) and serve it')
-  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.')
+  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): .reviewroom/pr-<n> for a PR, .reviewroom/<branch> otherwise.')
   .option('--base <ref>', 'Base to diff against (default: the PR base, else the default branch)')
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
