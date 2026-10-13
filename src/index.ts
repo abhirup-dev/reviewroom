@@ -70,7 +70,7 @@ async function pickProvider(root: HTMLElement, meta: Partial<ReviewMeta>, fx: Fi
     }
     return { provider: new GitHubProvider(repo, meta.base, meta.head, token), backend: 'browser' };
   }
-  throw new Error('No code source: run `reviewroom serve`, or set repo/base/head for GitHub, or embed #rr-fixture.');
+  throw new Error('No code source: run `reviewroom pr` or `reviewroom review`, or set repo/base/head for GitHub, or embed #rr-fixture.');
 }
 
 /** Agent-supplied colours: { "theme": { "light": { "surface-doc": "#fffdf8" }, "dark": { "bg": "#000" } } } in #rr-meta. */

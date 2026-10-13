@@ -60,7 +60,7 @@ export function feedbackMarkdown(state, opts) {
   if (opts.kind === 'approve') {
     lines.push(`# Review round ${round}: APPROVED`, '');
     if (opts.note) lines.push(opts.note, '');
-    if (open.length) lines.push(`(${open.length} thread(s) still open — list them with \`reviewroom threads${at}\`)`);
+    if (open.length) lines.push(`(${open.length} thread(s) still open — list them with \`reviewroom status --threads${at}\`)`);
     return lines.join('\n');
   }
   lines.push(`# Review feedback — round ${round}`, '');

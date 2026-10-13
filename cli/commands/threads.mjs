@@ -1,4 +1,4 @@
-// threads / reply / comment / resolve: the agent's side of the conversation, written as ops
+// status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { flags, pos, die } from '../lib/args.mjs';
 import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.mjs';
@@ -65,6 +65,11 @@ export async function cmdReply(repo) {
       die(`--json: ${e.message}`);
     }
     if (!Array.isArray(items) || !items.length) die('--json expects a non-empty array of {thread, body, resolve?}');
+  } else if (flags.resolve && pos.length === 1 && !flags.file) {
+    // `reply <thread> --resolve` without a body: resolve only
+    const t = findThread(readState(dir), threadArg());
+    await commitOps(dir, [{ op: 'setThreadStatus', threadId: t.id, status: 'resolved' }]);
+    return console.log(`resolved ${t.id}`);
   } else items = [{ thread: threadArg(), body: readBody(), resolve: flags.resolve }];
   const ops = replyOps(readState(dir), items);
   await commitOps(dir, ops);
@@ -78,11 +83,4 @@ export async function cmdComment(repo) {
   const id = uid('t_');
   await commitOps(dir, [{ op: 'createThread', id, anchor: parseAnchor(ref), msgId: uid('m_'), body: readBody(), author: 'agent' }]);
   console.log(id);
-}
-
-export async function cmdResolve(repo) {
-  const dir = dirForEdit(repo);
-  const t = findThread(readState(dir), threadArg());
-  await commitOps(dir, [{ op: 'setThreadStatus', threadId: t.id, status: 'resolved' }]);
-  console.log('resolved');
 }

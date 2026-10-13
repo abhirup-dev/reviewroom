@@ -1,6 +1,6 @@
 // Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
-// dist/fonts/. `bun scripts/build.mjs --watch` rebuilds on change. build-demo.mjs reuses clientBuild().
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, watch } from 'node:fs';
+// dist/fonts/, and the CLI with its dependencies bundled in: dist/cli/reviewroom.mjs. `bun scripts/build.mjs --watch` rebuilds on change. build-demo.mjs reuses clientBuild().
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 
 const root = new URL('..', import.meta.url).pathname;
 const at = (p) => root + p;
@@ -65,10 +65,14 @@ async function build() {
     sourcemap: 'linked',
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
-  if (!res.success) {
-    for (const log of res.logs) console.error(log);
+  // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
+  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.mjs')], target: 'node', format: 'esm', outdir: at('dist/cli'), naming: '[name].mjs' });
+  for (const r of [res, cli]) {
+    if (r.success) continue;
+    for (const log of r.logs) console.error(log);
     throw new Error('build failed');
   }
+  chmodSync(at('dist/cli/reviewroom.mjs'), 0o755);
   console.log(`built dist/ in ${Math.round(performance.now() - t)}ms`);
 }
 
@@ -76,10 +80,12 @@ if (import.meta.main) {
   await build();
   if (process.argv.includes('--watch')) {
     let timer;
-    watch(at('src'), { recursive: true }, () => {
+    const rebuild = () => {
       clearTimeout(timer);
       timer = setTimeout(() => build().catch((e) => console.error(e.message)), 80);
-    });
-    console.log('watching src/ …');
+    };
+    watch(at('src'), { recursive: true }, rebuild);
+    watch(at('cli'), { recursive: true }, rebuild);
+    console.log('watching src/ and cli/ …');
   }
 }

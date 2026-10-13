@@ -56,7 +56,7 @@ export async function cmdServe(repo, blocking, dir) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
     let seen = false;
     server.once('rr-client', () => (seen = true));
-    setTimeout(() => !seen && openBrowser(url), +(flags['open-delay'] || 2500));
+    setTimeout(() => !seen && openBrowser(url), 2500);
   }
   if (!blocking) return;
   const res = await done;
