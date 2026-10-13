@@ -41,6 +41,8 @@
     "cac": "^7.1.0",
     "dockview-core": "^8.4.1",
     "dompurify": "^3.4.16",
+    "emoji-picker-element": "1.29.1",
+    "emoji-picker-element-data": "1.8.0",
     "marked": "^18.1.0",
     "typescript": "^7.0.2"
   },

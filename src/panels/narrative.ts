@@ -201,7 +201,7 @@ class NarrativePanel implements PanelInstance {
     if (el instanceof HTMLDetailsElement) el.open = true;
     el.closest('details')?.setAttribute('open', '');
     const top = el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
-    this.scroller.scrollTo({ top: Math.max(0, top - 56), behavior: 'smooth' });
+    this.scroller.scrollTo({ top: Math.max(0, top - 56) }); // instant: the flash below shows where you landed
     (el as HTMLElement).animate?.([{ backgroundColor: 'var(--rr-flash)' }, { backgroundColor: 'transparent' }], { duration: 1600, easing: 'ease-out' });
     if (threadId) this.focusChip(threadId);
   }

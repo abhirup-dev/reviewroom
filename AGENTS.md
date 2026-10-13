@@ -45,6 +45,7 @@ scripts/              build (Bun), smoke test, static demo builder
 - **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it.
 - **`~/.reviewroom/sessions/<pid>.json`** (`REVIEWROOM_HOME` overrides `~/.reviewroom`): written by every running
   server and removed on exit; other local tools (agent-annotation-hub) list running reviews from it.
+  `~/.reviewroom/layout.json` holds the reviewer's default panel layout (Layout menu → Save layout as default).
 - **CLI commands and flags** documented in `reviewroom --help` (`cli/reviewroom.mjs`): the help is the reference, keep it complete.
 - **`window.rr` and the custom elements** documented in `skills/reviewroom/references/authoring.md`.
 

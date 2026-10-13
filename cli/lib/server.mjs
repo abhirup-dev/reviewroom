@@ -159,6 +159,18 @@ export function startServer({ repo, dir, cfg, onFinish }) {
         if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
         return json(res, 200, { rev: commit(ops).rev });
       }
+      if (url.pathname === '/api/layout') {
+        const f = layoutFile();
+        if (req.method === 'GET') return json(res, 200, fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null);
+        if (req.method === 'DELETE') return fs.rmSync(f, { force: true }), json(res, 200, { ok: true });
+        if (req.method === 'PUT') {
+          const b = await readJson(req);
+          if (!b || typeof b !== 'object' || !b.grid || !b.panels) throw new OpError('bad_op', 'not a dockview layout');
+          fs.mkdirSync(path.dirname(f), { recursive: true });
+          fs.writeFileSync(f, JSON.stringify(b));
+          return json(res, 200, { ok: true });
+        }
+      }
       if (url.pathname === '/api/github') {
         if (req.method === 'GET') return json(res, 200, await (q.refresh ? github.refresh() : github.snapshot()));
         if (req.method === 'POST') return json(res, 200, await github.act(await readJson(req)));
@@ -234,7 +246,10 @@ export function liveServer(dir) {
 }
 // Per-user registry of running servers, one <pid>.json each, so other local tools (an annotation hub)
 // can list reviews without knowing which repos have them. Best effort: a failure never stops a review.
-export const registryDir = () => path.join(process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.reviewroom'), 'sessions');
+const homeDir = () => process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.reviewroom');
+export const registryDir = () => path.join(homeDir(), 'sessions');
+/** The reviewer's own default panel layout (dockview JSON), shared by every review on this machine. */
+export const layoutFile = () => path.join(homeDir(), 'layout.json');
 export function register(rec) {
   try {
     fs.mkdirSync(registryDir(), { recursive: true });

@@ -15,7 +15,7 @@ import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState } from './core/types';
 import { ReviewApp } from './shell/app';
-import { mountDock, applyPreset, definePanel, ensurePanel, offerGitHubPanels, presets, resetLayout, type PanelDef } from './shell/layout';
+import { mountDock, applyPreset, canUndoLayout, definePanel, saveDefaultLayout, ensurePanel, offerGitHubPanels, presets, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
@@ -120,6 +120,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     if (!document.title) document.title = meta.title;
     app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined);
     app.state = { ...emptyState(), ...((await app.backend.load()) ?? {}) };
+    app.defaultLayout = (await app.backend.defaultLayout?.().catch(() => null)) ?? null;
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
     await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
@@ -235,6 +236,8 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
+    { id: 'layout.saveDefault', title: 'Save layout as default', group: 'Layout', hint: 'Reviews without a layout of their own open like this', when: () => !!app.backend.saveDefaultLayout, run: () => saveDefaultLayout(app) },
+    { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
     ...presets.map((p, i) => ({ id: 'layout.' + p.id, title: `Layout: ${p.title}`, group: 'Layout', hint: p.hint, keys: [`alt+${i + 1}`], run: () => applyPreset(app, p.id) })),
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },

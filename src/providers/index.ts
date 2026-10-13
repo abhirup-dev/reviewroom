@@ -3,6 +3,7 @@
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, …).
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { applyOp } from '../../cli/lib/ops.mjs';
+import { loadRaw } from '../core/store';
 
 export interface CodeProvider {
   readonly name: string;
@@ -30,6 +31,9 @@ export interface StateBackend {
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
+  /** The reviewer's default panel layout (dockview JSON) for reviews without one of their own; null clears it. */
+  defaultLayout?(): Promise<object | null>;
+  saveDefaultLayout?(layout: object | null): Promise<boolean>;
   /** The PR's GitHub threads (cached by the server unless refresh). */
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.mjs); resolves to the refetched threads. */
@@ -203,6 +207,14 @@ export class ServerState implements StateBackend {
     const r = await fetch(`${this.api}/rounds/${n}/review.html`);
     return r.ok ? r.text() : null;
   }
+  // kept by the server for every review on this machine (ports change, so localStorage wouldn't follow)
+  defaultLayout() {
+    return fetch(`${this.api}/layout`).then(json);
+  }
+  async saveDefaultLayout(layout: object | null) {
+    const r = await fetch(`${this.api}/layout`, layout ? { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout) } : { method: 'DELETE' });
+    return r.ok;
+  }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }
@@ -303,4 +315,17 @@ export class BrowserState implements StateBackend {
       /* ignore */
     }
   }
+  async defaultLayout() {
+    return JSON.parse(loadRaw(DEFAULT_LAYOUT_KEY) ?? 'null');
+  }
+  async saveDefaultLayout(layout: object | null) {
+    try {
+      if (layout) localStorage.setItem(DEFAULT_LAYOUT_KEY, JSON.stringify(layout));
+      else localStorage.removeItem(DEFAULT_LAYOUT_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
+const DEFAULT_LAYOUT_KEY = 'reviewroom:default-layout';

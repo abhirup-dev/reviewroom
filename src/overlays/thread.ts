@@ -9,6 +9,10 @@ import type { Anchor, Thread } from '../core/types';
 import { definePanel } from '../shell/layout';
 import type { ReviewApp } from '../shell/app';
 import { renderPreview } from '../elements';
+import { popMenu } from '../shell/chrome';
+
+// shipped next to the bundle by scripts/build.mjs; a page without it (the static demo) shows the picker's own error
+const EMOJI_DATA = new URL('./emoji.json', import.meta.url).href;
 
 export interface ThreadViewOpts {
   id?: string;
@@ -137,6 +141,18 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     if (ref) insertRef(ref, embed);
     else restore();
   };
+  const emojiPicker = async () => {
+    remember();
+    const btn = el.querySelector('[aria-label="Emoji"]') as HTMLElement;
+    const { Picker } = await import('emoji-picker-element');
+    const picker = new Picker({ dataSource: EMOJI_DATA });
+    picker.classList.add(app.resolvedTheme(), 'rr-emoji-picker');
+    const close = popMenu(btn, () => [picker as unknown as HTMLElement]);
+    picker.addEventListener('emoji-click', (e) => {
+      close();
+      if (e.detail.unicode) insertText(e.detail.unicode);
+    });
+  };
   let busy = false;
   const submit = async () => {
     const body = serialize();
@@ -204,6 +220,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
       tb(h('em', null, 'I'), 'Italic', () => wrapSel('_', '_', 'italic')),
       tb(icon('code', 14), 'Inline code', () => wrapSel('`', '`', 'code')),
       tb('•', 'Bulleted list', () => insertText('\n- ')),
+      tb(icon('smile', 14), 'Emoji', () => emojiPicker()),
       tb(icon('link', 14), 'Link to a section, file, line, symbol or thread (or type [[)', () => linkPicker()),
       tb(icon('expand', 14), 'Embed a live preview of a section, code range or thread', () => linkPicker(true)),
       sel
@@ -260,13 +277,22 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       h('span', { class: 'rr-toolbar__spacer' }),
       t?.gh ? h('a', { class: 'rr-icon-btn', href: t.gh.url, target: '_blank', rel: 'noopener', title: 'Open on GitHub', 'aria-label': 'Open on GitHub' }, icon('popout', 14)) : null,
       t && (!t.gh || (t.status === 'open' ? t.gh.canResolve : t.gh.canUnresolve))
-        ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open') }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
+        ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => resolve(t) }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
         : null,
       t ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this thread (paste it into any comment)', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Link to this thread copied')) }, icon('link', 14)) : null,
       t && !o.docked && o.onDock ? h('button', { class: 'rr-icon-btn', title: 'Dock as a panel', 'aria-label': 'Dock as a panel', onclick: () => o.onDock!(t.id) }, icon('dock', 14)) : null,
       t && o.docked && o.onUndock ? h('button', { class: 'rr-icon-btn', title: 'Open as popup', 'aria-label': 'Open as popup', onclick: () => o.onUndock!(t.id) }, icon('maximize', 14)) : null,
       o.onClose ? h('button', { class: 'rr-icon-btn', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => o.onClose!() }, icon('close', 14)) : null,
     );
+  };
+
+  const resolve = async (t: Thread) => {
+    const resolving = t.status === 'open';
+    // a GitHub resolve that failed returns false: keep the popup up
+    if ((await app.setStatus(t.id, resolving ? 'resolved' : 'open')) === false || !resolving || o.docked || !o.onClose) return;
+    const scrim = root.closest('.rr-scrim');
+    scrim?.classList.add('is-leaving');
+    setTimeout(() => scrim?.classList.contains('is-leaving') && o.onClose!(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500);
   };
 
   const messages = (t: Thread) => {
@@ -434,6 +460,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 export function mountThreadPopup(app: ReviewApp) {
   let current: { el: HTMLElement; dispose(): void } | null = null;
   let lastFocus: Element | null = null;
+  let composing = false;
   const scrim = h('div', { class: 'rr-scrim', hidden: true });
   const box = h('div', { class: 'rr-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Comment thread' });
   scrim.append(box);
@@ -442,7 +469,10 @@ export function mountThreadPopup(app: ReviewApp) {
     current?.dispose();
     current = null;
     scrim.hidden = true;
+    scrim.classList.remove('is-leaving');
     (lastFocus as HTMLElement | null)?.focus?.();
+    // the lines a new comment was for stop being highlighted once it's sent or dropped
+    if (composing) (app.selection = null), app.bus.emit('selection', null);
   };
   scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
   scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
@@ -462,7 +492,9 @@ export function mountThreadPopup(app: ReviewApp) {
   const open = (o: ThreadViewOpts) => {
     if (o.id && app.dock.getPanel('thread:' + o.id)) return app.showPanel('thread:' + o.id);
     current?.dispose();
+    scrim.classList.remove('is-leaving'); // opened again while fading out
     lastFocus = document.activeElement;
+    composing = !o.id;
     current = threadView(app, { ...o, onClose: close, onDock: dock });
     box.replaceChildren(current.el);
     scrim.hidden = false;
