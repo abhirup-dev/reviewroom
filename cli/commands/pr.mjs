@@ -2,17 +2,17 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { flags, pos, die } from '../lib/args.mjs';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.mjs';
 import { scaffold } from '../lib/scaffold.mjs';
+import { resolveDir, loadConfig } from '../lib/state.mjs';
 import { liveServer, stopServer } from '../lib/server.mjs';
 import { cmdServe } from './serve.mjs';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
 const shortPath = (p) => (path.relative(process.cwd(), p).startsWith('..') ? p : path.relative(process.cwd(), p) || '.');
-// --detach respawns the bin entry, not this module
-const ENTRY = fileURLToPath(new URL('../reviewroom.mjs', import.meta.url));
+// --detach respawns the running entry (the source or the bundle)
+const ENTRY = process.argv[1];
 
 function gh(repo, args) {
   try {
@@ -24,9 +24,9 @@ function gh(repo, args) {
 
 export async function cmdPr(repo) {
   if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
-  const arg = pos.shift() || die('usage: reviewroom pr <number | PR url | branch>');
+  const arg = pos.shift();
   const remote = typeof flags.remote === 'string' ? flags.remote : 'origin';
-  const m = String(arg).match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
+  const m = arg && String(arg).match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
   const cfg = {};
   let dir;
   if (m) {
@@ -48,6 +48,10 @@ export async function cmdPr(repo) {
     const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo)) || die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
     Object.assign(cfg, { base, head: ref, number: +n, title: typeof flags.title === 'string' ? flags.title : info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
     dir = path.join(repo, '.reviewroom', `pr-${n}`);
+  } else if (!arg) {
+    // no target: the current branch (or --base/--head), nothing fetched
+    dir = resolveDir(repo);
+    Object.assign(cfg, loadConfig(dir, repo));
   } else {
     const branch = String(arg);
     let head = branch;
@@ -73,7 +77,7 @@ export async function cmdPr(repo) {
   for (const k of ['base', 'head', 'title']) delete flags[k];
 
   if (flags.detach) {
-    const args = [ENTRY, 'serve', '--repo', repo, '--dir', dir];
+    const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
     if (flags.port) args.push('--port', String(flags.port));
     if (flags['no-open']) args.push('--no-open');
     await stopServer(dir);

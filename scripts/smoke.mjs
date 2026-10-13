@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const cli = path.join(root, 'cli', 'reviewroom.mjs');
+const cli = path.join(root, 'dist', 'cli', 'reviewroom.mjs');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-smoke-'));
 const repo = path.join(tmp, 'repo');
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
@@ -111,10 +111,10 @@ try {
 
   // ---- bare commands from another branch find the repo's only review; several reviews → ask for --dir
   run('git', ['-C', repo, 'checkout', '-q', 'main']);
-  check(run(node, [cli, 'threads', '--all', '--repo', repo]).includes('t_one'), 'bare `threads` on another branch finds the only review');
+  check(run(node, [cli, 'status', '--threads', '--all', '--repo', repo]).includes('t_one'), 'bare `threads` on another branch finds the only review');
   fs.mkdirSync(path.join(repo, '.reviewroom', 'other'));
   fs.writeFileSync(path.join(repo, '.reviewroom', 'other', 'review.html'), '<rr-review></rr-review>');
-  const ambiguous = await cliAsync(['threads', '--repo', repo]);
+  const ambiguous = await cliAsync(['status', '--threads', '--repo', repo]);
   check(ambiguous.code !== 0 && ambiguous.stderr.includes('--dir'), 'bare `threads` with several reviews asks for --dir');
   run('git', ['-C', repo, 'checkout', '-q', 'feat/habit-events']);
 
@@ -158,7 +158,7 @@ try {
 
   // the server fingerprints a link added after a commit against the new head, not the one it started on
   const port3 = String(+port + 2);
-  const srv = spawn(node, [cli, 'serve', '--no-open', '--port', port3, ...d], { stdio: 'ignore' });
+  const srv = spawn(node, [cli, 'review', '--forever', '--no-open', '--port', port3, ...d], { stdio: 'ignore' });
   for (let i = 0; i < 50 && !(await fetch(`http://127.0.0.1:${port3}/api/meta`).then((r) => r.ok, () => false)); i++) await sleep(100);
   fs.writeFileSync(src, 'added 3\n' + fs.readFileSync(src, 'utf8'));
   run('git', ['-C', repo, 'commit', '-qam', 'shift again']);
@@ -168,6 +168,18 @@ try {
   srv.kill();
   await sleep(200);
   check(k3.code === 0 && !k3.stdout.includes('moved'), 'a running server fingerprints new links at the current head');
+
+  // ---- CLI surface: strict flags, resolve without a body, pr without a target
+  const typo = await cliAsync(['status', '--jsn', ...d]);
+  check(typo.code === 2 && typo.stderr.includes('--jsn'), 'an unknown flag is an error (exit 2)');
+  const rs = await cliAsync(['reply', 't_one', '--resolve', ...d]);
+  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
+  const local = path.join(tmp, 'local-review');
+  const lp = spawn(node, [cli, 'pr', '--base', 'main', '--head', 'feat/habit-events', '--no-open', '--port', String(+port + 3), '--repo', repo, '--dir', local], { stdio: 'ignore' });
+  for (let i = 0; i < 50 && !fs.existsSync(path.join(local, 'server.json')); i++) await sleep(100);
+  check(fs.existsSync(path.join(local, 'review.html')) && JSON.parse(fs.readFileSync(path.join(local, 'config.json'), 'utf8')).head === 'feat/habit-events', 'pr without a target scaffolds from --base/--head and serves');
+  lp.kill();
+  await sleep(200);
 
   // ---- a corrupt state.json is kept aside, never replaced by an empty review
   fs.writeFileSync(path.join(dir, 'state.json'), '{"threads": [ broken');

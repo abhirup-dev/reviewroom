@@ -2,16 +2,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { flags, pos, die } from './args.mjs';
+import { flags, die } from './args.mjs';
 import { git, defaultBase } from './git.mjs';
 import { applyOp, OpError } from './ops.mjs';
 
-/** The review dir: --dir, a dir argument, else <repo>/.reviewroom/<branch>. For an existing review
+/** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
  *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
 export function resolveDir(repo, { existing = false } = {}) {
   if (flags.dir) return path.resolve(flags.dir);
-  const p = pos.find((x) => fs.existsSync(x) && fs.statSync(x).isDirectory());
-  if (p) return path.resolve(p);
   const root = path.join(repo, '.reviewroom');
   const branch = (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim().replace(/[^\w.-]+/g, '-');
   const own = path.join(root, branch);
@@ -24,7 +22,7 @@ export function resolveDir(repo, { existing = false } = {}) {
 export function loadConfig(dir, repo) {
   const file = path.join(dir, 'config.json');
   const cfg = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-  for (const k of ['base', 'head', 'title', 'repo-name', 'number', 'author', 'url']) if (typeof flags[k] === 'string') cfg[k === 'repo-name' ? 'repo' : k] = flags[k];
+  for (const k of ['base', 'head', 'title']) if (typeof flags[k] === 'string') cfg[k] = flags[k];
   cfg.base ||= defaultBase(repo);
   cfg.head ||= 'HEAD';
   return cfg;

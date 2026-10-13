@@ -9,7 +9,7 @@ A local, agent-driven code review workbench. An agent writes a freeform HTML nar
 reviewroom serves it next to a live diff of the local git clone, with dockable panels, anchored
 comment threads and feedback rounds between reviewer and agent. Two halves:
 
-- **CLI + server** (`cli/`): plain Node, zero dependencies. Reads git, serves the page and its API,
+- **CLI + server** (`cli/`): reads git, serves the page and its API,
   stores threads/rounds on disk, runs the round loop.
 - **Client** (`src/` → `dist/`): framework-free TypeScript bundled with Bun (`scripts/build.mjs`). Boots from a
   `<rr-app>` element in the review page.
@@ -43,7 +43,7 @@ scripts/              build (Bun), smoke test, static demo builder
 - **`rr:` links** (`src/core/refs.ts`) are the public addressing scheme used in HTML, threads, the
   CLI and agent replies. Keep old forms parsing.
 - **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it.
-- **CLI commands and flags** documented in `skills/reviewroom/references/cli.md`.
+- **CLI commands and flags** documented in `reviewroom --help` (`cli/reviewroom.mjs`): the help is the reference, keep it complete.
 - **`window.rr` and the custom elements** documented in `skills/reviewroom/references/authoring.md`.
 
 ## Conventions
@@ -55,7 +55,6 @@ scripts/              build (Bun), smoke test, static demo builder
   `data-keys` for a shortcut hint).
 - Never show implementation detail to the reviewer: no raw `rr:` strings, ids or CSS paths in
   visible text. Use `app.label()` / `describeElement()` for human names.
-- Keep the CLI dependency-free so it runs anywhere Node does.
 
 ## Working on it
 
