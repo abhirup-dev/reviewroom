@@ -11,6 +11,8 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const cli = path.join(root, 'dist', 'cli', 'reviewroom.mjs');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-smoke-'));
 const repo = path.join(tmp, 'repo');
+process.env.REVIEWROOM_HOME = path.join(tmp, 'home'); // children inherit it: keep the session registry out of ~
+const sessions = () => { try { return fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'sessions', f), 'utf8'))); } catch { return []; } };
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 const node = process.execPath;
 const port = String(4900 + Math.floor(Math.random() * 90));
@@ -55,6 +57,7 @@ try {
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
   check(page.includes('<rr-review>'), 'review page is scaffolded');
+  check(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-habit-events')), 'a running server is listed in the per-user session registry');
 
   // security regressions
   const marker = path.join(tmp, 'pwned');
@@ -120,6 +123,7 @@ try {
 
   const out = run(node, [cli, 'stop', ...d]);
   check(out.startsWith('stopped') && !fs.existsSync(path.join(dir, 'state.lock')), 'stop finds and stops the server and releases the lock');
+  check(sessions().length === 0, 'a stopped server leaves the session registry');
 
   // ---- the blocking round loop: review waits, reviewer comments, agent replies, reviewer sends
   const port2 = String(+port + 1);

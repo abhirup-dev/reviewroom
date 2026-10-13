@@ -2,6 +2,7 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -223,6 +224,20 @@ export function liveServer(dir) {
   } catch {
     return null;
   }
+}
+// Per-user registry of running servers, one <pid>.json each, so other local tools (an annotation hub)
+// can list reviews without knowing which repos have them. Best effort: a failure never stops a review.
+export const registryDir = () => path.join(process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.reviewroom'), 'sessions');
+export function register(rec) {
+  try {
+    fs.mkdirSync(registryDir(), { recursive: true });
+    fs.writeFileSync(path.join(registryDir(), `${rec.pid}.json`), JSON.stringify(rec, null, 2));
+  } catch {}
+}
+export function unregister(pid) {
+  try {
+    fs.unlinkSync(path.join(registryDir(), `${pid}.json`));
+  } catch {}
 }
 // server.json can outlive its server and the pid be reused: only signal a pid that our server reports.
 export async function stopServer(dir) {
