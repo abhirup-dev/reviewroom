@@ -4,7 +4,7 @@ import { flags, die } from '../lib/args.mjs';
 import { ensureExcluded } from '../lib/git.mjs';
 import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.mjs';
 import { undelivered } from '../lib/ops.mjs';
-import { DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer } from '../lib/server.mjs';
+import { DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.mjs';
 
 const print = (text) => new Promise((r) => process.stdout.write(text, r));
 
@@ -40,9 +40,12 @@ export async function cmdServe(repo, blocking, dir) {
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
   if (holder) die(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
-  fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt: new Date().toISOString() }));
+  const startedAt = new Date().toISOString();
+  fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));
+  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt });
   const cleanup = () => {
     releaseLock(dir);
+    unregister(process.pid);
     try {
       if (JSON.parse(fs.readFileSync(serverFile(dir), 'utf8')).pid === process.pid) fs.unlinkSync(serverFile(dir));
     } catch {}
