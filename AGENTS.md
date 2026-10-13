@@ -18,7 +18,7 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 
 ```
 cli/reviewroom.mjs   entry: usage text + dispatch to commands/
-cli/commands/         one module per command group (pr, serve/review, init, threads/reply/comment/resolve, status/stop)
+cli/commands/         one module per command group: pr, serve (review), threads (status --threads, reply, comment), status (status, stop), check
 cli/lib/              git.mjs (validated git layer), server.mjs (HTTP API, origin guards, SSE), state.mjs,
                       scaffold.mjs, args.mjs; feedback.mjs is shared with the client
 src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
