@@ -140,6 +140,35 @@ try {
   const bodies = state().threads.map((t) => t.messages[0].body);
   check(c1.code === 0 && c2.code === 0 && bodies.includes('one') && bodies.includes('two') && !fs.existsSync(path.join(dir, 'state.lock')), 'concurrent CLI writes both land (stale lock taken over, then released)');
 
+  // ---- stale links: fingerprint, head moves 2 lines, check reports, --fix heals
+  const file = files.find((f) => f.status !== 'deleted').path;
+  const ref = `rr:code/${file}#L3-4`;
+  const reviewFile = path.join(dir, 'review.html');
+  fs.writeFileSync(reviewFile, `<rr-review><section id="s"><a href="${ref}">x</a> <a href="rr:sym/RecentEvents">y</a> <a href="rr:doc/nope">z</a></section></rr-review>`);
+  const k0 = await cliAsync(['check', ...d]);
+  check(k0.code === 1 && k0.stdout.includes('rr:doc/nope') && typeof state().links[ref] === 'string', 'check fingerprints a new link and reports a broken section link');
+  fs.writeFileSync(reviewFile, fs.readFileSync(reviewFile, 'utf8').replace(' <a href="rr:doc/nope">z</a>', ''));
+  const src = path.join(repo, file);
+  fs.writeFileSync(src, 'added 1\nadded 2\n' + fs.readFileSync(src, 'utf8'));
+  run('git', ['-C', repo, 'commit', '-qam', 'shift']);
+  const k1 = await cliAsync(['check', ...d]);
+  check(k1.code === 1 && k1.stdout.includes('moved') && k1.stdout.includes('#L5-6'), 'check reports a link whose code moved');
+  const k2 = await cliAsync(['check', '--fix', ...d]);
+  check(k2.code === 0 && fs.readFileSync(reviewFile, 'utf8').includes(`rr:code/${file}#L5-6"`) && Object.keys(state().links).join() === `rr:code/${file}#L5-6,rr:sym/RecentEvents`, 'check --fix rewrites the moved link and re-fingerprints it');
+
+  // the server fingerprints a link added after a commit against the new head, not the one it started on
+  const port3 = String(+port + 2);
+  const srv = spawn(node, [cli, 'serve', '--no-open', '--port', port3, ...d], { stdio: 'ignore' });
+  for (let i = 0; i < 50 && !(await fetch(`http://127.0.0.1:${port3}/api/meta`).then((r) => r.ok, () => false)); i++) await sleep(100);
+  fs.writeFileSync(src, 'added 3\n' + fs.readFileSync(src, 'utf8'));
+  run('git', ['-C', repo, 'commit', '-qam', 'shift again']);
+  fs.writeFileSync(reviewFile, `<rr-review><a href="rr:code/${file}#L6-7">x</a></rr-review>`);
+  await sleep(500);
+  const k3 = await cliAsync(['check', ...d]);
+  srv.kill();
+  await sleep(200);
+  check(k3.code === 0 && !k3.stdout.includes('moved'), 'a running server fingerprints new links at the current head');
+
   // ---- a corrupt state.json is kept aside, never replaced by an empty review
   fs.writeFileSync(path.join(dir, 'state.json'), '{"threads": [ broken');
   const bad = await cliAsync(['reply', 't_one', 'x', ...d]);

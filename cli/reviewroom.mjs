@@ -15,6 +15,7 @@
 //   reviewroom comment <rr-ref> "<markdown>" [dir]  start a thread as the agent
 //   reviewroom resolve <thread> [dir]
 //   reviewroom status [dir]
+//   reviewroom check [dir] [--fix] [--accept] [--json]   stale rr: links in review.html (exit 1 if any)
 //
 // The review dir defaults to <repo>/.reviewroom/<branch>/ and holds:
 //   review.html            the narrative (written by the agent, any HTML)
@@ -31,6 +32,7 @@ import { cmdServe } from './commands/serve.mjs';
 import { cmdInit } from './commands/init.mjs';
 import { cmdThreads, cmdReply, cmdComment, cmdResolve } from './commands/threads.mjs';
 import { cmdStatus, cmdStop } from './commands/status.mjs';
+import { cmdCheck } from './commands/check.mjs';
 import { OpError } from './lib/ops.mjs';
 import { StateError } from './lib/state.mjs';
 
@@ -68,8 +70,11 @@ switch (cmd) {
   case 'status':
     cmdStatus(repo);
     break;
+  case 'check':
+    await cmdCheck(repo);
+    break;
   default:
-    console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 21).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+    console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 22).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
 }
 } catch (e) {
   if (!(e instanceof OpError || e instanceof StateError)) throw e;

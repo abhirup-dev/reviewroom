@@ -3,7 +3,7 @@ const argv = process.argv.slice(2);
 export const cmd = argv[0] && !argv[0].startsWith('-') ? argv.shift() : 'help';
 export const flags = {};
 export const pos = [];
-const BOOL = new Set(['detach', 'wait', 'no-open', 'force', 'all', 'json', 'resolve']);
+const BOOL = new Set(['detach', 'wait', 'no-open', 'force', 'all', 'json', 'resolve', 'fix', 'accept']);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a.startsWith('--')) {

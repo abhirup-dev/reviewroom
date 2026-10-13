@@ -10,6 +10,7 @@ import { makeProvider } from './git.mjs';
 import { readState, writeState, answers } from './state.mjs';
 import { applyOp, OpError } from './ops.mjs';
 import { makeGitHub } from './github.mjs';
+import { checkLinks, problems, report } from './links.mjs';
 
 export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const DIST = path.join(PKG, 'dist');
@@ -36,12 +37,16 @@ export function startServer({ repo, dir, cfg, onFinish }) {
   };
   // The server holds state.lock while it runs and is the only writer of state.json (CLI writes
   // come in through /api/ops), so only review.html and its assets are watched.
-  let t;
+  let t, edited;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f) => {
     if (f === 'review.html' || (f && /\.(css|js|svg|png)$/.test(f))) {
+      edited ||= f === 'review.html';
       clearTimeout(t);
-      t = setTimeout(() => send('review', { hash: hash() }), 150);
+      t = setTimeout(() => {
+        send('review', { hash: hash() });
+        if (edited) (edited = false), checkNarrative();
+      }, 150);
     }
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
@@ -57,6 +62,23 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       return JSON.parse((await body(req)) || '{}');
     } catch {
       throw new OpError('bad_op', 'request body is not JSON');
+    }
+  };
+  // Stale-link check: fingerprint new links, tell the agent (stderr) when the report changes.
+  let lastReport = '';
+  const checkNarrative = () => {
+    try {
+      if (!fs.existsSync(reviewFile)) return;
+      const known = readState(dir).links ?? {};
+      // the current head, not the one this server started on: `check` must fingerprint the same code
+      const { results, links } = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known);
+      if (JSON.stringify(links) !== JSON.stringify(known)) commit([{ op: 'setLinks', links }]);
+      const bad = problems(results);
+      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
+      if (text && text !== lastReport) console.error(text);
+      lastReport = text;
+    } catch (e) {
+      console.error(`reviewroom: link check failed: ${e.message}`);
     }
   };
   // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.
@@ -169,7 +191,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       json(res, e.status || 500, { error: String(e.message || e), code: e.code, index: e.index });
     }
   });
-  return { server, prov, commit, github };
+  return { server, prov, commit, github, checkNarrative };
 }
 
 export function listen(server, port) {

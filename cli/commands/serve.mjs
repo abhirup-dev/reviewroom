@@ -35,7 +35,7 @@ export async function cmdServe(repo, blocking, dir) {
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
   let finish;
   const done = new Promise((r) => (finish = r));
-  const { server, commit } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
+  const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
   const port = await listen(server, +(flags.port || 4848));
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
@@ -51,6 +51,7 @@ export async function cmdServe(repo, blocking, dir) {
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   const s = readState(dir);
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
+  checkNarrative(); // after the lock: it may write state.json
   if (!flags['no-open']) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
     let seen = false;
