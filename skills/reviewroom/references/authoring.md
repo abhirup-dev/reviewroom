@@ -48,7 +48,8 @@ Line numbers are the **head** revision's unless you add `@base`. The head is a s
 `reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
 Hovering any link shows a live preview of its target; clicking it opens the target in the code or
-narrative panel. Give every link a human label; never show the raw `rr:` string.
+narrative panel. Give every link a human label; never show the raw `rr:` string. Link a thing
+where it first comes up, not on every mention: within the next few paragraphs, plain text is fine.
 
 ## Symbols
 
@@ -73,6 +74,21 @@ Never paste diff code into the page; it goes stale and duplicates the code panel
 
 In thread replies, `![](rr:code/…#L10-20)` or `![](rr:doc/<id>)` on its own line embeds the same
 live preview.
+
+## Comments and earlier rounds
+
+Never paraphrase or quote a comment; point at it. The same forms work for reviewer threads from any
+round (`rr:thread/t_…`) and GitHub comments on the PR (`rr:thread/gh_<n>`, `gh_conversation`):
+
+```html
+<a href="rr:thread/t_seq01">your question on sequencing</a>          <!-- inline mention: link, hover = preview -->
+<rr-embed ref="rr:thread/gh_812"></rr-embed>                         <!-- the comment itself matters: card -->
+<a href="rr:round/1">the round 1 version of this section</a>         <!-- what the narrative said before -->
+```
+
+In a reply: `[your question on sequencing](rr:thread/t_seq01)` inline, or `![](rr:thread/gh_812)` on
+its own line for the card. Link when the comment is context; embed when the reader needs its words
+next to your answer. A link covers the whole thread, not a single message.
 
 ## Diagrams and other helpers
 

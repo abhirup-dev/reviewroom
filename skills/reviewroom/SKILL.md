@@ -95,9 +95,13 @@ For each thread in the feedback:
 1. Understand what it asks. Change code or the narrative if asked.
 2. Short answers go in the reply. Substantial ones go in a new section of `review.html`, and the
    reply links to it (see "Answering threads" in `references/review-craft.md`).
-3. Mark every section you add or substantially change with `data-round="<next round>"`.
-4. Reply with `reviewroom reply <thread-id> --file <reply.md> --dir <dir>`.
-5. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the user
+3. Mark every section you add or substantially change with `data-round="<next round>"`, and link
+   the thread that prompted it at the section's top.
+4. When the answer builds on an earlier thread, a GitHub comment or what the narrative said in an
+   earlier round, link it (`rr:thread/<id>`, `rr:thread/gh_<n>`, `rr:round/<n>`) instead of
+   restating it.
+5. Reply with `reviewroom reply <thread-id> --file <reply.md> --dir <dir>`.
+6. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the user
    explicitly asks.
 
 If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports.
@@ -109,7 +113,7 @@ Write the answers to a JSON file with the Write tool, then send them in one call
 
 <important if="the feedback lists threads under 'Open on GitHub'">
 Those are colleagues' threads on the PR, shown for context. They are not feedback for you and you
-cannot reply to them. When one matters to your answer, link it with `rr:thread/gh_<n>`.
+cannot reply to them. When one matters to your answer, link or embed it with `rr:thread/gh_<n>`.
 </important>
 
 ## Step 8: Start the next round
@@ -132,6 +136,10 @@ when ready."** Then return to Step 5.
 - Do not stop or kill the background command to "finish" a round; wait for it to exit.
 - Do not pass `--resolve` unless the user explicitly asks.
 - Do not edit anything in the review directory except `review.html` and assets you add next to it.
+- Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
+  any round, GitHub comment, earlier round) in plain text, and do not paraphrase or quote a comment:
+  link or embed it. Link a thing where it first comes up; when the same thing appears again within
+  the next few paragraphs (roughly 10 to 15 lines), plain mention is fine. Don't repeat links.
 - Do not paste diff code into the narrative or replies; link or embed it.
 - Do not cite a line number you have not checked against the head revision.
 - Do not guess flags; run `reviewroom <command> --help`.
