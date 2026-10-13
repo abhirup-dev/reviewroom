@@ -87,6 +87,7 @@
     },
     "viewed": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "path -> round it was marked viewed" },
     "pins": { "type": "array", "items": { "type": "string" } },
-    "checks": { "type": "object", "additionalProperties": { "enum": ["todo", "pass", "fail"] } }
+    "checks": { "type": "object", "additionalProperties": { "enum": ["todo", "pass", "fail"] } },
+    "links": { "type": "object", "additionalProperties": { "type": "string" }, "description": "narrative rr: link -> fingerprint when first seen: hash of the lines for a line range, \"definition\" for a symbol (stale-link check)" }
   }
 }

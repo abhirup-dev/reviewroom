@@ -82,6 +82,10 @@ export function applyOp(state, op) {
     case 'setCheck':
       s.checks = { ...(s.checks ?? {}), [str(op.id, 'id')]: oneOf(op.value, ['todo', 'pass', 'fail'], 'value') };
       break;
+    case 'setLinks':
+      if (!op.links || typeof op.links !== 'object' || Object.values(op.links).some((v) => typeof v !== 'string')) throw new OpError('bad_op', 'links must map rr: links to hashes');
+      s.links = op.links;
+      break;
     case 'finishRound': {
       oneOf(op.kind, ['feedback', 'approve'], 'kind');
       const r = s.rounds.find((x) => x.n === s.round);

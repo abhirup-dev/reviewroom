@@ -14,6 +14,7 @@ All commands accept `--repo <path>` (defaults to the git repo of the cwd) and `-
 | `reviewroom reply --json <file \| ->` | Answer several threads at once: `[{"thread": "t_ab12", "body": "…", "resolve": true}]`. All or nothing. |
 | `reviewroom comment <rr-ref \| general> "<markdown>"` | Start a thread yourself, e.g. to point the reviewer at something. |
 | `reviewroom resolve <thread-id>` | Mark resolved. |
+| `reviewroom check [--fix] [--accept] [--json]` | Check the `rr:` links in `review.html` against the code (see *Stale links*). Exits 1 while any need attention. |
 | `reviewroom stop` | Stop a detached server. |
 | `reviewroom init [--base] [--head] [--title]` | Scaffold without fetching (local branches, `--head worktree` for uncommitted changes). |
 
@@ -50,6 +51,23 @@ Anchors tell you exactly what the comment is about: a code range (with side), a 
 (section id, optional CSS path to a block, optional quoted text), a symbol, or general. A sign-off
 checklist summary and an overall note may follow.
 
+## Stale links
+
+Line numbers go stale as the PR moves on. The first time a link with a line range is seen (by
+`check` or a server starting or noticing a `review.html` save), a hash of the lines it points at
+is stored in `state.json`; a symbol link is remembered as having a definition. Later checks report:
+
+| Status | Meaning | What to do |
+|---|---|---|
+| `moved` | The same lines are now up to 5 lines away | `check --fix` rewrites the link |
+| `changed` | The code at those lines changed or moved further; or a symbol lost its definition | Re-read the code, fix the link **and the prose around it** |
+| `broken` | The file, symbol or section (`rr:doc/<id>`) is gone | Fix or remove the link |
+
+A rewritten link is a new link and is fingerprinted from the code it now points at. When a
+`changed` link still points at the right lines (the prose still holds), `check --accept` stores
+every link as it is now. The server checks when it starts and whenever `review.html` changes, and
+prints problems to stderr. Links inside HTML comments are ignored.
+
 ## GitHub threads (colleagues)
 
 For a GitHub PR the reviewer also sees the PR's own comment threads, and in *Team* mode posts their
@@ -63,7 +81,7 @@ reply to them (`reply gh_…` fails); when one matters to your answer, link it w
 
 `<repo>/.reviewroom/<name>/` (added to `.git/info/exclude` automatically):
 `review.html` (yours), `config.json` (base/head/title), `state.json` (threads, rounds, viewed files,
-sign-offs; schema in `schema/state.schema.json`), `rounds/<n>/`, `github.json` (the PR's GitHub
+sign-offs, link fingerprints; schema in `schema/state.schema.json`), `rounds/<n>/`, `github.json` (the PR's GitHub
 threads as last fetched by the server; GitHub is the source of truth), `server.json` / `server.log` while
 a server runs, and `state.lock` (held by the running server, or briefly by a CLI write).
 

@@ -156,6 +156,8 @@ export interface ReviewState {
   pins: string[]; // rr: refs pinned by the reviewer
   /** <rr-check> sign-offs keyed by check id. */
   checks?: Record<string, 'todo' | 'pass' | 'fail'>;
+  /** Narrative rr: links -> fingerprint when first seen: hash of the lines for a line range, 'definition' for a symbol (stale-link check). */
+  links?: Record<string, string>;
 }
 
 /** Every change to ReviewState (applied by applyOp in cli/lib/ops.mjs). `at` defaults to now. */
@@ -168,6 +170,7 @@ export type Op =
   | { op: 'setViewed'; path: string; viewed: boolean }
   | { op: 'setPin'; ref: string; pinned: boolean }
   | { op: 'setCheck'; id: string; value: 'todo' | 'pass' | 'fail' }
+  | { op: 'setLinks'; links: Record<string, string> }
   | { op: 'finishRound'; kind: 'feedback' | 'approve'; note?: string; round?: number; at?: string }
   | { op: 'markDelivered'; round: number; at?: string };
 

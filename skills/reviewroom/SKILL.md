@@ -36,6 +36,8 @@ If `reviewroom` is not on PATH, use `npx -y reviewroom …`.
    for what to say and in what order, and `references/authoring.md` for the building blocks
    (`rr:` links, `<rr-flow>`, `<rr-code>`, `<rr-callout>`, `<rr-checklist>`, `window.rr`, theming).
    Verify every line number you cite against the head revision; a wrong link is worse than none.
+   Prefer `rr:sym/<name>` for a function or type: it follows the code as it moves. Then run
+   `reviewroom check --fix --dir <dir>` (see "Stale links" in `references/cli.md`).
 3. **Hand over.** Tell the user the URL. When they want to review with you in the loop, run
    `reviewroom review --dir <dir>` as a **background** command with a long timeout (it can wait for
    hours): it takes over the server (same port, so the open tab reconnects) and blocks until they press
@@ -46,7 +48,8 @@ If `reviewroom` is not on PATH, use `npx -y reviewroom …`.
    reply with `reviewroom reply <thread-id> "<markdown>"`; put substantial answers (tables,
    diagrams, queries, sketches) into a **new section** with `data-round="<next round>"` and link or
    embed it from the reply instead of repeating it; `--resolve` only when fully addressed; change code
-   if asked. Then run `reviewroom review` again for the next round.
+   if asked. If you changed code, run `reviewroom check --fix --dir <dir>` and fix what it still
+   reports. Then run `reviewroom review` again for the next round.
 5. **Finish.** `reviewroom stop --dir <dir>` when the review is over (approval also ends the loop).
 
 ## What the reviewer can do (so you can design for it)
