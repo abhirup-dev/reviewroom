@@ -58,6 +58,8 @@ try {
   const page = await (await fetch(url)).text();
   check(page.includes('<rr-review>'), 'review page is scaffolded');
   check(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-habit-events')), 'a running server is listed in the per-user session registry');
+  const sum = await (await fetch(url + 'api/summary')).json();
+  check(sum.round === 1 && sum.threads === 0 && typeof sum.browserClients === 'number', 'summary gives round and counts without thread text');
 
   // security regressions
   const marker = path.join(tmp, 'pwned');
