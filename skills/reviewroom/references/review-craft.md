@@ -54,3 +54,6 @@ Never repeat the same content across narrative, reply and thread:
   become a new section marked `data-round="<next round>"`; the reply links to it or embeds it.
 - Refer to code with links or embeds rather than quoting it.
 - When the answer is already in the narrative, link that section instead of re-explaining it.
+- A section written because of a thread links that thread at its top; the reply links the section.
+- When the answer builds on an earlier thread, a GitHub comment or what the narrative said in an
+  earlier round, link it rather than restating it.
