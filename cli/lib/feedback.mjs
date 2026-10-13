@@ -67,7 +67,7 @@ export function feedbackMarkdown(state, opts) {
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
     `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
-    `(add --resolve if the comment is fully addressed), change code and/or the narrative (review.html) as needed,`,
+    `(leave resolving to the reviewer), change code and/or the narrative (review.html) as needed,`,
     `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom review${at}\` again to start round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
     `![](rr:…) on its own line embeds a live preview in the thread.`,
