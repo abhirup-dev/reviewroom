@@ -1,5 +1,5 @@
 // Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
-// dist/fonts/, and the CLI with its dependencies bundled in: dist/cli/reviewroom.mjs. `bun scripts/build.mjs --watch` rebuilds on change. build-demo.mjs reuses clientBuild().
+// dist/fonts/, dist/emoji.json, and the CLI with its dependencies bundled in: dist/cli/reviewroom.mjs. `bun scripts/build.mjs --watch` rebuilds on change. build-demo.mjs reuses clientBuild().
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -56,6 +56,8 @@ async function build() {
   rmSync(at('dist'), { recursive: true, force: true });
   mkdirSync(at('dist/fonts'), { recursive: true });
   for (const [, pkg, file] of fonts) copyFileSync(fontFile(pkg, file), at(`dist/fonts/${file}`));
+  // the composer's emoji picker reads its data from here (its default is a CDN); GitHub's shortcodes for search
+  copyFileSync(at('node_modules/emoji-picker-element-data/en/github/data.json'), at('dist/emoji.json'));
   writeFileSync(at('dist/reviewroom.css'), clientCss((_, file) => `./fonts/${file}`));
   // __RR_FONTS__ is resolved at runtime against the script's own URL (injectCSS in src/index.ts)
   const res = await clientBuild({

@@ -158,7 +158,17 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
       return h(
         'div',
         { class: 'rr-embed__thread' },
-        ...t.messages.slice(-2).map((m) => h('div', { class: 'rr-embed__msg' }, h('strong', null, m.author === 'agent' ? 'agent' : 'you'), ' ', plainExcerpt(m.body, 160))),
+        // GitHub comments are a colleague's (or yours): their login and avatar, not "you"
+        ...t.messages.slice(-2).map((m) =>
+          h(
+            'div',
+            { class: 'rr-embed__msg' },
+            m.gh?.avatar ? h('img', { class: 'rr-embed__avatar', src: m.gh.avatar + (m.gh.avatar.includes('?') ? '&' : '?') + 's=32', alt: '', loading: 'lazy' }) : null,
+            h('strong', null, m.gh ? m.gh.login : m.author === 'agent' ? 'agent' : 'you'),
+            ' ',
+            plainExcerpt(m.body, 160),
+          ),
+        ),
       );
     }
     case 'round':
@@ -167,7 +177,11 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
 }
 
 class RREmbed extends HTMLElement {
+  private off?: () => void;
+  private follow?: (app: ReviewApp) => void;
   connectedCallback() {
+    // a thread card follows its thread: GitHub threads arrive after the page does, and replies keep coming
+    withApp((app) => this.follow?.(app));
     if (this.dataset.ready) return;
     this.dataset.ready = '1';
     this.dataset.src = '';
@@ -184,10 +198,16 @@ class RREmbed extends HTMLElement {
     );
     this.replaceChildren(head, body);
     this.classList.add('rr-embed');
-    withApp(async (app) => {
+    const paint = async (app: ReviewApp) => {
       if (!caption && r) head.querySelector('.rr-embed__title')!.textContent = app.label(ref);
       body.replaceChildren(await renderPreview(app, ref));
-    });
+    };
+    if (r?.type === 'thread') this.follow = (app) => (this.off?.(), (this.off = app.bus.on('state', () => paint(app))));
+    withApp((app) => (paint(app), this.follow?.(app)));
+  }
+  disconnectedCallback() {
+    this.off?.();
+    this.off = undefined;
   }
 }
 

@@ -12,6 +12,12 @@
 .rr-scrim[hidden] {
   display: none;
 }
+/* resolved from the popup: it fades away on its own */
+.rr-scrim.is-leaving {
+  opacity: 0;
+  transition: opacity 0.35s ease-in 0.15s;
+  pointer-events: none;
+}
 .rr-scrim--top {
   z-index: 1080;
   place-items: start center;
@@ -358,6 +364,13 @@ rr-embed {
   flex-direction: column;
   gap: 4px;
   font-size: 12.5px;
+}
+.rr-embed__avatar {
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: -3px;
 }
 .rr-snippet {
   /* every line is as wide as the longest one, so target shading spans the full scroll width */
@@ -733,6 +746,9 @@ rr-embed {
   .rr-palette {
     animation: none;
   }
+  .rr-scrim.is-leaving {
+    transition: none;
+  }
 }
 
 /* rich composer: contenteditable with atomic link chips */
@@ -775,4 +791,18 @@ div.rr-composer__input:empty::before {
 .rr-chip .rr-icon,
 rr-ref .rr-icon {
   opacity: 0.85;
+}
+
+/* composer emoji picker (emoji-picker-element), in our colours */
+.rr-emoji-picker {
+  --background: var(--rr-panel);
+  --border-color: transparent;
+  --input-border-color: var(--rr-line);
+  --input-font-color: var(--rr-ink);
+  --input-placeholder-color: var(--rr-faint);
+  --category-font-color: var(--rr-muted);
+  --indicator-color: var(--rr-accent);
+  --outline-color: var(--rr-accent);
+  --button-hover-background: var(--rr-hover);
+  --button-active-background: var(--rr-hover);
 }

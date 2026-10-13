@@ -4,7 +4,7 @@ import { h, icon, copyText, relTime } from '../core/dom';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../../cli/lib/feedback.mjs';
-import { applyPreset, ensurePanel, panelDefs, presets, resetLayout } from './layout';
+import { applyPreset, canUndoLayout, ensurePanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 
 // ---------------------------------------------------------------- tiny menu
@@ -21,7 +21,10 @@ export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTML
   document.body.append(menu);
   const r = anchor.getBoundingClientRect();
   const m = menu.getBoundingClientRect();
-  Object.assign(menu.style, { top: r.bottom + 6 + 'px', left: Math.max(8, Math.min(window.innerWidth - m.width - 8, r.right - m.width)) + 'px' });
+  // below if it fits, else above (menus near the bottom of a dialog), else as low as stays on screen
+  const below = r.bottom + 6, above = r.top - 6 - m.height;
+  const top = below + m.height <= window.innerHeight - 8 ? below : above >= 8 ? above : Math.max(8, window.innerHeight - 8 - m.height);
+  Object.assign(menu.style, { top: top + 'px', left: Math.max(8, Math.min(window.innerWidth - m.width - 8, r.right - m.width)) + 'px' });
   anchor.setAttribute('aria-expanded', 'true');
   setTimeout(() => document.addEventListener('mousedown', outside, true));
   menu.addEventListener('keydown', (e) => e.key === 'Escape' && close());
@@ -158,17 +161,21 @@ function githubControls(app: ReviewApp) {
   if (!g.ok) return [btn];
   const seg = h(
     'div',
-    { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Where new comments go' },
-    ...(['agent', 'team'] as const).map((m) =>
+    { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Review mode: where new comments go and which threads are listed' },
+    ...(['agent', 'team', 'all'] as const).map((m) =>
       h(
         'button',
         {
           class: app.prefs.reviewMode === m ? 'is-on' : '',
           'aria-pressed': String(app.prefs.reviewMode === m),
-          title: m === 'agent' ? 'Agent review: your comments go to the agent, round by round' : 'Team review: code and PR comments go to your GitHub review, for colleagues (narrative comments still go to the agent)',
+          title: {
+            agent: 'Agent review: your comments go to the agent, round by round; Threads lists the agent threads',
+            team: "Team review: code and PR comments go to your GitHub review, for colleagues (narrative comments still go to the agent); Threads lists GitHub's threads",
+            all: 'All: Threads lists agent and GitHub threads together; your comments go to the agent',
+          }[m],
           onclick: () => app.setPref('reviewMode', m),
         },
-        m === 'agent' ? 'Agent' : 'Team',
+        { agent: 'Agent', team: 'Team', all: 'All' }[m],
       ),
     ),
   );
@@ -204,7 +211,10 @@ export function buildHeader(app: ReviewApp): HTMLElement {
     const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layout presets and which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
     layoutBtn.onclick = () =>
       popMenu(layoutBtn, (close) => [
-        menuItem('Reset layout', () => (close(), resetLayout(app)), { icon: 'round', hint: 'every panel back in place' }),
+        canUndoLayout() ? menuItem('Undo layout change', () => (close(), undoLayout(app)), { icon: 'undo', hint: 'back to how it was' }) : null,
+        menuItem('Reset layout', () => (close(), resetLayout(app)), { icon: 'round', hint: app.defaultLayout ? 'back to your default' : 'every panel back in place' }),
+        app.backend.saveDefaultLayout ? menuItem('Save layout as default', () => (close(), saveDefaultLayout(app)), { icon: 'pin', hint: 'new reviews open like this' }) : null,
+        app.defaultLayout ? menuItem('Forget default layout', () => (close(), saveDefaultLayout(app, true)), { icon: 'close', hint: 'back to the presets' }) : null,
         menuLabel('Layout presets'),
         ...presets.map((p, i) => menuItem(p.title, () => (close(), applyPreset(app, p.id)), { hint: keyLabel(`alt+${i + 1}`) })),
         menuLabel('Panels'),

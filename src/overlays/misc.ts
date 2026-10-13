@@ -193,7 +193,23 @@ export function mountSelectionToolbar(app: ReviewApp) {
     const y = s.y - r.height - 14 < 8 ? s.y + 18 : s.y - r.height - 14;
     Object.assign(bar.style, { left: x + 'px', top: y + 'px' });
   });
-  document.addEventListener('mousedown', (e) => !bar.contains(e.target as Node) && hide(), true);
+  // a click anywhere else lets go of the selection, as Esc does; clicks on line numbers or the gutter + make
+  // (or extend) a new one, and clicks inside popups and menus belong to them
+  const keeps = (n: EventTarget) =>
+    n instanceof Element && (n.matches('.rr-scrim, .rr-menu') || ['data-column-number', 'data-selected-line', 'data-utility-button', 'data-gutter-utility-slot'].some((a) => n.hasAttribute(a)));
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      const path = e.composedPath();
+      if (path.includes(bar)) return;
+      hide();
+      if (path.some(keeps)) return;
+      // not removeAllRanges(): that would break starting a text selection in the narrative
+      app.selection = null;
+      app.bus.emit('selection', null);
+    },
+    true,
+  );
   app.escapers.push(() => (bar.hidden ? false : (hide(), true)));
   document.addEventListener('scroll', hide, true);
 }

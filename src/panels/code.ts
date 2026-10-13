@@ -4,6 +4,7 @@ import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOpt
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
+import { oldToNewLine } from '../core/hunks';
 import type { ChangedFile, Thread } from '../core/types';
 import { centerBox, definePanel, floatBox, type PanelInstance } from '../shell/layout';
 import { openCentered } from '../shell/focus';
@@ -420,8 +421,9 @@ class CodePanel implements PanelInstance {
     inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side) as any, containerWrapper: body });
     this.fileView.inst = inst;
     if (start) {
+      this.ownSel = `${path}:${start}:${end ?? start}`;
       inst.setSelectedLines({ start, end: end ?? start });
-      requestAnimationFrame(() => this.scrollToRow(body, side === 'base' ? 'deletions' : 'additions', start));
+      requestAnimationFrame(() => this.scrollToRow(body, side === 'base' ? 'deletions' : 'additions', start, end ?? start, () => inst.setSelectedLines(null)));
     }
   }
 
@@ -448,26 +450,53 @@ class CodePanel implements PanelInstance {
     this.app.activeFile = t.path;
     this.app.bus.emit('active-file', t.path);
     const side = t.side === 'base' ? 'deletions' : 'additions';
-    if (t.start) b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side });
+    if (t.start && b.inst) unfold(b.inst, side, t.start, t.end ?? t.start);
+    // only the newest jump stays lit; one interrupted before it settled would otherwise keep its highlight
+    if (this.lit && this.lit !== b.inst) this.lit.setSelectedLines(null);
+    this.lit = b.inst;
+    if (t.start) {
+      this.ownSel = `${t.path}:${t.start}:${t.end ?? t.start}`;
+      b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side });
+    }
     const block = b;
     // Files above the target (and the target itself) finish highlighting asynchronously and change
     // height after we scroll, so keep the target pinned until the layout settles or the user scrolls.
-    this.pinScroll(() => {
-      const row = t.start ? this.rowFor(block.body, side, t.start) : null;
-      if (row) return { top: this.offsetIn(row) - this.scroller.clientHeight * 0.3, row };
-      return { top: block.el.offsetTop - 4, row: null };
-    });
+    this.pinScroll(
+      () => {
+        const row = t.start ? this.rowFor(block.body, side, t.start) : null;
+        if (row) return { top: this.offsetIn(row) - this.scroller.clientHeight * 0.3, row };
+        return { top: block.el.offsetTop - 4, row: null };
+      },
+      () => t.start && this.pulse(block.body, side, t.start, t.end ?? t.start, () => block.inst?.setSelectedLines(null)),
+    );
+  }
+
+  /** Draw the eye to lines just landed on: glow a few times, then let the highlight go. */
+  private pulse(container: HTMLElement, side: 'additions' | 'deletions', start: number, end: number, clear: () => void) {
+    const rows: HTMLElement[] = [];
+    for (let l = start; l <= Math.min(end, start + 80); l++) {
+      const r = this.rowFor(container, side, l);
+      if (r) rows.push(r);
+    }
+    clear();
+    const glow = 'color-mix(in srgb, var(--rr-accent) 26%, transparent)';
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const frames = still ? [{ backgroundColor: glow }, { backgroundColor: 'transparent' }] : [0, 1, 2].flatMap(() => [{ backgroundColor: 'transparent' }, { backgroundColor: glow }]).concat({ backgroundColor: 'transparent' });
+    rows.forEach((r) => r.animate?.(frames, { duration: still ? 900 : 1500, easing: 'ease-in-out' }));
   }
 
   private pinToken = 0;
+  private lit?: FileDiff<Meta>;
+  /** The range a jump highlighted: pierre reports it back through onLineSelected, but nobody selected it. */
+  private ownSel = '';
   private offsetIn(el: HTMLElement) {
     return el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
   }
-  private pinScroll(target: () => { top: number; row: HTMLElement | null }) {
+  private pinScroll(target: () => { top: number; row: HTMLElement | null }, onLanded?: () => void) {
     const token = ++this.pinToken;
     const sc = this.scroller;
-    let cancelled = false;
-    const cancel = () => (cancelled = true);
+    let cancelled: false | string = false;
+    const cancel = (e: Event) => (cancelled = e.type);
     const opts = { passive: true } as const;
     sc.addEventListener('wheel', cancel, opts);
     sc.addEventListener('pointerdown', cancel, opts);
@@ -476,20 +505,17 @@ class CodePanel implements PanelInstance {
       sc.removeEventListener('wheel', cancel);
       sc.removeEventListener('pointerdown', cancel);
       window.removeEventListener('keydown', cancel);
+      // a newer jump owns the highlight now; a click hands it to the user (new selection, or click-away clears it)
+      if (token === this.pinToken && cancelled !== 'pointerdown') onLanded?.();
     };
     const t0 = performance.now();
-    let flashed = false;
     let stableFrames = 0;
     const tick = () => {
       if (cancelled || token !== this.pinToken) return done();
       const { top, row } = target();
       const want = Math.max(0, Math.round(top));
       if (Math.abs(sc.scrollTop - want) > 2) { sc.scrollTop = want; stableFrames = 0; } else stableFrames++;
-      if (row && !flashed) {
-        flashed = true;
-        row.animate?.([{ outline: '2px solid var(--rr-accent, #2b5fd9)' }, { outline: '2px solid transparent' }], { duration: 1400 });
-      }
-      // settle: the row exists and nothing moved for ~10 frames, or give up after 2.5s
+      // settle (then pulse): the row exists and nothing moved for ~10 frames, or give up after 2.5s
       if ((row && stableFrames > 10) || performance.now() - t0 > 2500) return done();
       requestAnimationFrame(tick);
     };
@@ -507,12 +533,12 @@ class CodePanel implements PanelInstance {
     return null;
   }
 
-  private scrollToRow(container: HTMLElement, side: 'additions' | 'deletions', line: number) {
+  private scrollToRow(container: HTMLElement, side: 'additions' | 'deletions', line: number, end: number, clear: () => void) {
     const row = this.rowFor(container, side, line);
     if (!row) return false;
     const top = this.offsetIn(row);
-    this.scroller.scrollTo({ top: Math.max(0, top - this.scroller.clientHeight * 0.3), behavior: 'smooth' });
-    row.animate?.([{ outline: '2px solid var(--rr-accent, #2b5fd9)' }, { outline: '2px solid transparent' }], { duration: 1400 });
+    this.scroller.scrollTo({ top: Math.max(0, top - this.scroller.clientHeight * 0.3) });
+    this.pulse(container, side, line, end, clear);
     return true;
   }
 
@@ -570,8 +596,13 @@ class CodePanel implements PanelInstance {
   // ------------------------------------------------------------ selection → comments
   private onSelect(path: string, r: SelectedLineRange | null) {
     if (!r) return;
-    const side = r.side === 'deletions' ? 'base' : 'head';
     const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];
+    if (this.ownSel === `${path}:${start}:${end}`) return void (this.ownSel = '');
+    // the user's own selection: a pending jump must not pulse it away, and a jump highlight elsewhere goes
+    this.pinToken++;
+    if (this.lit && this.lit !== this.blocks.get(path)?.inst) this.lit.setSelectedLines(null);
+    this.lit = undefined;
+    const side = r.side === 'deletions' ? 'base' : 'head';
     this.app.selection = { kind: 'code', path, side, start, end, ...this.lastPointer };
     this.app.bus.emit('selection', this.app.selection);
   }
@@ -589,6 +620,17 @@ class CodePanel implements PanelInstance {
     this.io.disconnect();
     this.blocks.forEach((b) => b.inst?.cleanUp());
     this.fileView?.inst?.cleanUp();
+  }
+}
+
+/** Lines the PR didn't touch sit in folded context: unfold around them so a link to them shows something. */
+function unfold(inst: FileDiff<Meta>, side: 'additions' | 'deletions', start: number, end: number) {
+  const hunks = inst.fileDiff?.hunks;
+  if (!hunks?.length) return;
+  for (const l of new Set([start, end])) {
+    // revealLine speaks new-file numbers
+    const n = side === 'additions' ? l : oldToNewLine(hunks, l);
+    if (n) inst.revealLine(n);
   }
 }
 

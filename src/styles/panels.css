@@ -104,6 +104,31 @@
 .rr-side > .rr-scroll {
   flex: 1;
 }
+.rr-side-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 4px;
+  border-top: 1px solid var(--rr-line);
+}
+/* PR conversation: quiet in the footer until wanted */
+.rr-convo-btn {
+  flex: none;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 6px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.rr-convo-btn:hover,
+.rr-convo-btn:focus-visible {
+  opacity: 1;
+  background: var(--rr-hover);
+}
+.rr-convo-btn[hidden] {
+  display: none;
+}
 .rr-side-head {
   flex: none;
   display: flex;
@@ -111,6 +136,26 @@
   gap: 8px;
   padding: 10px;
   border-bottom: 1px solid var(--rr-line);
+}
+.rr-side-head__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rr-side-head__row > .rr-seg {
+  flex: 1;
+  min-width: 0;
+}
+/* thread filter menu: a starter's avatar beside their name */
+.rr-filter-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rr-filter-author img {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
 }
 .rr-side-row {
   display: flex;
@@ -340,12 +385,11 @@
   font-weight: 500;
 }
 .rr-round-foot {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 16px 6px 0;
-  padding: 10px;
-  border-top: 1px solid var(--rr-line);
+  padding: 8px 6px;
   font-size: var(--rr-text-sm);
 }
 .rr-chip__icon {
@@ -828,6 +872,15 @@ a.rr-ci-check:hover span {
 }
 .rr-tbadge.is-resolved {
   color: var(--rr-faint);
+}
+.rr-tbadge__avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.rr-tbadge.is-resolved .rr-tbadge__avatar {
+  filter: grayscale(1);
+  opacity: 0.6;
 }
 .rr-tbadge.is-resolved .rr-tbadge__n {
   background: var(--rr-faint);

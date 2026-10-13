@@ -4,6 +4,7 @@ import { createDockview, type DockviewApi, type IContentRenderer, type DockviewG
 import { h, icon } from '../core/dom';
 import { loadRaw, saveLocal } from '../core/store';
 import type { ReviewApp } from './app';
+import { withoutPanels } from '../core/dockjson';
 
 export interface PanelDef {
   id: string;
@@ -28,9 +29,34 @@ export function definePanel(def: PanelDef) {
 export const panelDefs = () => [...registry.values()];
 
 export type PresetName = 'reading' | 'wide-code' | 'code-focus' | 'narrative-focus';
-/** Back to the review's starting layout (its layout="" attribute, else Reading). */
+/** Back to the review's starting layout: the reviewer's saved default, else its layout="" attribute, else Reading. */
 export function resetLayout(app: ReviewApp) {
-  applyPreset(app, (app.root.getAttribute('layout') as PresetName) || 'reading');
+  if (!applyDefault(app)) applyPreset(app, (app.root.getAttribute('layout') as PresetName) || 'reading');
+}
+
+// panels opened for one thing (a thread, one file) aren't part of a default
+const onDemandPanel = (id: string) => id.includes(':');
+
+function applyDefault(app: ReviewApp): boolean {
+  if (!app.defaultLayout) return false;
+  try {
+    app.dock.fromJSON(app.defaultLayout as any);
+    // the PR's own panels only mean something on a PR
+    if (!app.meta.number) ['ci', 'description'].forEach((id) => app.dock.getPanel(id)?.api.close());
+    return app.dock.panels.length > 0;
+  } catch (e) {
+    console.warn('[reviewroom] saved default layout no longer loads, using preset', e);
+    app.dock.clear();
+    return false;
+  }
+}
+
+/** Remember the current arrangement for every review on this machine (or forget it: null). */
+export async function saveDefaultLayout(app: ReviewApp, forget = false) {
+  const layout = forget ? null : withoutPanels(app.dock.toJSON() as any, onDemandPanel);
+  if (!(await app.backend.saveDefaultLayout?.(layout))) return app.toast('Could not save the default layout', 'error');
+  app.defaultLayout = layout;
+  app.toast(forget ? 'Default layout forgotten: new reviews start from the preset' : 'Saved: reviews without a layout of their own open like this');
 }
 
 export const presets: { id: PresetName; title: string; hint: string }[] = [
@@ -41,6 +67,33 @@ export const presets: { id: PresetName; title: string; hint: string }[] = [
 ];
 
 const layoutKey = (app: ReviewApp) => `reviewroom:layout:${app.meta.id}`;
+
+// ---------------------------------------------------------------- undo
+// Settled layouts (after the save debounce), newest last. Switching tabs isn't a layout change, and
+// neither is the window resizing: that only moves the baseline.
+type Snap = { raw: string; key: string; w: number; h: number };
+const undoStack: Snap[] = [];
+let last: Snap | undefined;
+const snapshot = (api: DockviewApi): Snap => {
+  const j = api.toJSON();
+  return { raw: JSON.stringify(j), key: JSON.stringify(j, (k, v) => (k === 'activeGroup' || k === 'activeView' ? undefined : v)), w: j.grid.width, h: j.grid.height };
+};
+function track(api: DockviewApi) {
+  const s = snapshot(api);
+  if (last && s.key !== last.key && s.w === last.w && s.h === last.h) {
+    undoStack.push(last);
+    if (undoStack.length > 30) undoStack.shift();
+  }
+  last = s;
+}
+export const canUndoLayout = () => undoStack.length > 0;
+/** Back to the layout before the last change (presets and resets included). */
+export function undoLayout(app: ReviewApp) {
+  const prev = undoStack.pop();
+  if (!prev) return;
+  app.dock.fromJSON(JSON.parse(prev.raw));
+  last = snapshot(app.dock); // the change this fires is the undo itself, not a new step
+}
 
 export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   const api = createDockview(host, {
@@ -120,12 +173,16 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
       api.clear();
     }
   }
-  if (!restored) applyPreset(app, (app.root.getAttribute('layout') as PresetName) || 'reading');
+  if (!restored && !applyDefault(app)) applyPreset(app, (app.root.getAttribute('layout') as PresetName) || 'reading');
 
   let t: ReturnType<typeof setTimeout> | undefined;
+  last = snapshot(api);
   api.onDidLayoutChange(() => {
     clearTimeout(t);
-    t = setTimeout(() => saveLocal(layoutKey(app), api.toJSON()), 250);
+    t = setTimeout(() => {
+      saveLocal(layoutKey(app), api.toJSON());
+      track(api);
+    }, 250);
   });
   return api;
 }
@@ -222,6 +279,7 @@ export function offerGitHubPanels(app: ReviewApp) {
     if (!has || app.dock.getPanel(id) || loadRaw(key)) return;
     saveLocal(key, 1);
     place(app);
+    last = snapshot(app.dock); // the PR's panels arriving is part of the starting layout, not something to undo
   };
   offer('ci', g?.ci?.length, addCiTab);
   offer('description', g?.description, addDescription);

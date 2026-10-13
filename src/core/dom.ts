@@ -74,6 +74,8 @@ export const icons = {
   arrowDown: P('M8 3v10M4 9l4 4 4-4'),
   dots: '<circle cx="4" cy="8" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/><circle cx="12" cy="8" r="1.1" fill="currentColor"/>',
   round: P('M13 8a5 5 0 1 1-1.5-3.5M13 2.5v3h-3'),
+  smile: P('M8 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM5.5 9.5c1.2 1.4 3.8 1.4 5 0M6 6.2v.1M10 6.2v.1'),
+  undo: P('M5.5 3 2.5 6l3 3M3 6h6.5a3.5 3.5 0 0 1 0 7H7'),
   bolt: P('M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z'),
   target: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'),
   symbol: P('M5.5 2.5C4 2.5 4 4 4 5.5S3.5 8 2.5 8c1 0 1.5 1 1.5 2.5s0 3 1.5 3M10.5 2.5c1.5 0 1.5 1.5 1.5 3s.5 2.5 1.5 2.5c-1 0-1.5 1-1.5 2.5s0 3-1.5 3'),
@@ -88,12 +90,16 @@ export const icon = (name: keyof typeof icons, size = 16) => svg(icons[name], si
 const clawd = (resolved: boolean, size: number) => h('img', { class: 'rr-clawd', src: resolved ? CLAWD_RESOLVED : CLAWD, width: size, height: size, alt: '' });
 
 /** A thread's marker: GitHub's mark (on the PR) or Clawd (with the agent), its message count in a corner pill; greyed out once resolved. */
-export function threadBadge(t: { gh?: unknown; status: string; messages: unknown[] }, agentReplied = false) {
+export function threadBadge(t: { gh?: { conversation?: boolean }; status: string; messages: { gh?: { login: string; avatar?: string } }[] }, agentReplied = false) {
   const resolved = t.status === 'resolved';
+  // a GitHub thread shows who started it; the PR conversation (everyone's) keeps GitHub's mark
+  const starter = t.gh && !t.gh.conversation ? t.messages[0]?.gh : undefined;
   return h(
     'span',
     { class: 'rr-tbadge ' + (t.gh ? 'is-gh' : 'is-agent') + (resolved ? ' is-resolved' : agentReplied ? ' has-agent' : '') },
-    t.gh ? icon('github', 16) : clawd(resolved, 18),
+    starter?.avatar
+      ? h('img', { class: 'rr-tbadge__avatar', src: starter.avatar + (starter.avatar.includes('?') ? '&' : '?') + 's=40', alt: '', title: starter.login, loading: 'lazy' })
+      : t.gh ? icon('github', 16) : clawd(resolved, 18),
     h('span', { class: 'rr-tbadge__n' }, String(t.messages.length)),
   );
 }

@@ -200,7 +200,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
   const refresh = () =>
     (inflight ??= (async () => {
       try {
-        if (!target) return (snap = { ok: false, error: 'not a GitHub pull request' });
+        if (!target) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
         snap = { ...(await fetchPr(repo, target, localHead)), at: new Date().toISOString() };
         fs.writeFileSync(file, JSON.stringify(snap, null, 2));
       } catch (e) {

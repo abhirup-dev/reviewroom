@@ -26,7 +26,8 @@ export interface Prefs {
   lineDiff: 'word-alt' | 'char' | 'none';
   popoutPlacement: 'right' | 'below' | 'float';
   /** Where new code and general comments go when the review is a GitHub PR: the agent, or your GitHub review. */
-  reviewMode: 'agent' | 'team';
+  /** Agent: comments to the agent, agent threads listed. Team: code/PR comments to GitHub, GitHub threads listed. All: comments to the agent, every thread listed. */
+  reviewMode: 'agent' | 'team' | 'all';
 }
 
 export const defaultPrefs: Prefs = {
@@ -81,6 +82,8 @@ export class ReviewApp {
   meta!: ReviewMeta;
   provider!: CodeProvider;
   backend!: StateBackend;
+  /** The reviewer's saved default layout, used when this review has none of its own. */
+  defaultLayout: object | null = null;
   state: ReviewState = emptyState();
   /** The PR's GitHub threads, when the review is a GitHub PR and the server can reach it. */
   github: GitHubSnapshot | null = null;
