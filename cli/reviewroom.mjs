@@ -50,7 +50,7 @@ cli
   .option('--wait', 'Then block like `review` until the round ends')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
-  .example('  reviewroom pr 4821 --detach')
+  .example('  reviewroom pr 4821 --wait')
   .example('  reviewroom pr --head worktree --wait')
   .action(run(cmdPr));
 
@@ -73,7 +73,8 @@ cli
   .option('--resolve', 'Resolve the thread; without a body, only resolve it')
   .option('--file <path>', 'Read the body from a file')
   .option('--json [file]', 'Bulk: [{"thread": id, "body": md, "resolve": bool}] from a file or "-"; all or nothing')
-  .example('  reviewroom reply t_ab12 "Fixed in 3f2c1e" --resolve')
+  .example('  reviewroom reply t_ab12 "Fixed in 3f2c1e"')
+  .example('  reviewroom reply --json replies.json')
   .action(run(cmdReply));
 
 cli
@@ -93,7 +94,7 @@ cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 // What an agent needs beyond the flags, shown under the command's --help.
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes = {
-  reply: '  Thread ids can be shortened to a unique prefix.\n' + ghThreads,
+  reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   check: [
     '  Each link in review.html is remembered by what it pointed at when first seen. Problems:',
@@ -106,6 +107,8 @@ const notes = {
 };
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
+  // cac shows negated flags as "(default: true)", which reads as the opposite of what --no-open does
+  sections = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
   if (c) return notes[c] ? [...sections, { title: 'Notes', body: notes[c] }] : sections;
   return [
@@ -113,9 +116,11 @@ cli.help((sections) => {
     {
       title: 'A review',
       body: [
-        '  reviewroom pr <n> --detach       create + serve; write review.html',
-        '  reviewroom review --dir <dir>    block until feedback; answer each thread:',
-        '  reviewroom reply <thread> "…"    then review again for the next round',
+        '  reviewroom pr <n> --wait         create + serve, block until the first round ends; write review.html meanwhile',
+        '  reviewroom reply <thread> "…"    answer each thread in the feedback',
+        '  reviewroom review --dir <dir>    serve and block until the next round ends; repeat until approved',
+        '  Run the blocking commands in the background: a round can take hours. Threads, replies and rounds',
+        '  are kept when the server stops between rounds.',
       ].join('\n'),
     },
     {
