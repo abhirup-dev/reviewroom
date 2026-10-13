@@ -146,6 +146,13 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       if (url.pathname === '/api/search') return json(res, 200, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
       if (url.pathname === '/api/tree') return json(res, 200, prov.tree(q.rev || prov.head));
       if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, readState(dir));
+      // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
+      if (url.pathname === '/api/summary') {
+        const s = readState(dir);
+        const open = s.threads.filter((t) => t.status === 'open');
+        const round = s.rounds.find((r) => r.n === s.round);
+        return json(res, 200, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
+      }
       if (url.pathname === '/api/ops' && req.method === 'POST') {
         const b = await readJson(req);
         const ops = Array.isArray(b.ops) ? b.ops : [b];
