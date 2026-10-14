@@ -1,6 +1,6 @@
 // Docking layout. Every region is a dockview panel: drag tabs to split, float,
 // maximise or pop out; the layout is saved per review and presets rebuild it.
-import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IHeaderActionsRenderer, type CreateComponentOptions } from 'dockview-core';
+import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IDockviewPanel, type IHeaderActionsRenderer, type CreateComponentOptions } from 'dockview-core';
 import { h, icon } from '../core/dom';
 import { loadRaw, saveLocal } from '../core/store';
 import type { ReviewApp } from './app';
@@ -53,7 +53,8 @@ function applyDefault(app: ReviewApp): boolean {
 
 /** Remember the current arrangement for every review on this machine (or forget it: null). */
 export async function saveDefaultLayout(app: ReviewApp, forget = false) {
-  const layout = forget ? null : withoutPanels(app.dock.toJSON() as any, onDemandPanel);
+  const now = passing(app.dock) && last ? JSON.parse(last.raw) : app.dock.toJSON();
+  const layout = forget ? null : withoutPanels(now, onDemandPanel);
   if (!(await app.backend.saveDefaultLayout?.(layout))) return app.toast('Could not save the default layout', 'error');
   app.defaultLayout = layout;
   app.toast(forget ? 'Default layout forgotten: new reviews start from the preset' : 'Saved: reviews without a layout of their own open like this');
@@ -61,10 +62,14 @@ export async function saveDefaultLayout(app: ReviewApp, forget = false) {
 
 export const presets: { id: PresetName; title: string; hint: string }[] = [
   { id: 'reading', title: 'Reading', hint: 'Narrative centre, code on the right' },
-  { id: 'wide-code', title: 'Wide code', hint: 'Code below the narrative, full width' },
+  { id: 'wide-code', title: 'Wide code', hint: 'Code below, full width; description beside the narrative' },
   { id: 'code-focus', title: 'Code focus', hint: 'Code centre, narrative as a side column' },
   { id: 'narrative-focus', title: 'Narrative focus', hint: 'Just the narrative; code opens on demand' },
 ];
+
+// a pin or section opened big over the layout (focus.ts) isn't a layout change: not saved, not an undo step
+export const passingPanels = new Set<string>();
+const passing = (api: DockviewApi) => api.panels.some((p) => p.id.startsWith('slot:') || (passingPanels.has(p.id) && p.group.api.location.type === 'floating'));
 
 const layoutKey = (app: ReviewApp) => `reviewroom:layout:${app.meta.id}`;
 
@@ -131,7 +136,11 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
       const paint = () => {
         const floating = group.api.location.type === 'floating';
         const kids: HTMLElement[] = [
-          floating ? btn('dock', 'Dock this window', (b) => dockMenu(app, group, b)) : btn('popout', 'Float as a window', () => floatGroup(app, group)),
+          floating
+            ? hasSlot(app, group)
+              ? btn('dock', 'Put it back where it was (Esc)', () => putBack(app, group.activePanel!.id))
+              : btn('dock', 'Dock this window', (b) => dockMenu(app, group, b))
+            : btn('popout', 'Float as a window (double-click the tab)', () => group.activePanel && floatInPlace(app, group.activePanel.id)),
         ];
         if (!floating) kids.push(btn('maximize', group.api.isMaximized() ? 'Restore' : 'Maximise', () => (group.api.isMaximized() ? group.api.exitMaximized() : group.api.maximize())));
         el.replaceChildren(...kids);
@@ -151,10 +160,20 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
     // floating windows can never be dragged out of reach; a visible titlebar is the move handle
     floatingGroupBounds: 'boundedWithinViewport',
     floatingGroupDragHandle: 'titlebar',
-    getTabContextMenuItems: () => ['float', 'maximize', 'separator', 'close', 'closeOthers'],
+    // our own menu (styled, and its Float keeps the layout): dockview shows nothing for an empty list
+    getTabContextMenuItems: ({ panel, event }) => (tabMenu(app, panel, event), []),
   });
 
   app.dock = api;
+  // double-click a tab: float it in place, or put a floated one back
+  host.addEventListener('dblclick', (e) => {
+    const tab = (e.target as Element).closest('.dv-tab');
+    const group = tab && api.groups.find((g) => g.element.contains(tab));
+    const p = group?.panels[[...tab!.parentElement!.querySelectorAll(':scope > .dv-tab')].indexOf(tab!)];
+    if (!p || (e.target as Element).closest('.dv-default-tab-action')) return;
+    if (p.group.api.location.type !== 'floating') floatInPlace(app, p.id);
+    else if (api.getPanel('slot:' + p.id)) putBack(app, p.id);
+  });
   // dockview's own tab buttons get tooltips too
   const labelTabs = () =>
     requestAnimationFrame(() =>
@@ -180,6 +199,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   api.onDidLayoutChange(() => {
     clearTimeout(t);
     t = setTimeout(() => {
+      if (passing(api)) return;
       saveLocal(layoutKey(app), api.toJSON());
       track(api);
     }, 250);
@@ -205,6 +225,7 @@ export function applyPreset(app: ReviewApp, name: PresetName) {
   const extra = panelDefs().filter((d) => !d.onDemand && !['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'].includes(d.id));
   const W = api.width || window.innerWidth;
   const size = (id: string, s: { width?: number; height?: number }) => api.getPanel(id)?.group.api.setSize(s);
+  descBeside = name === 'wide-code';
   switch (name) {
     case 'reading':
       add(api, 'narrative');
@@ -264,9 +285,15 @@ function addCiTab(app: ReviewApp) {
   front?.api.setActive();
 }
 
-/** The PR description, above the agent's review (taking the top 40%). */
+// the last preset asked for the description beside the narrative rather than above it
+let descBeside = false;
+/** The PR description, above the agent's review (taking the top 40%), or beside it. */
 function addDescription(app: ReviewApp) {
   if (!app.dock.getPanel('narrative')) return;
+  if (descBeside) {
+    add(app.dock, 'description', { panel: 'narrative', dir: 'left' });
+    return app.dock.getPanel('description')?.group.api.setSize({ width: Math.round(((app.dock.width || window.innerWidth) - 264) * 0.33) });
+  }
   add(app.dock, 'description', { panel: 'narrative', dir: 'above' });
   app.dock.getPanel('description')?.group.api.setSize({ height: Math.round((app.dock.height || window.innerHeight) * 0.4) });
 }
@@ -322,9 +349,25 @@ export function centerBox(app: ReviewApp) {
   return { position: { top: Math.round((H - height) / 2), left: Math.round((W - width) / 2) }, width, height };
 }
 
-export function floatGroup(app: ReviewApp, group: DockviewGroupPanel) {
-  const p = group.activePanel;
-  if (p) app.dock.addFloatingGroup(group.panels.length > 1 ? p : group, floatBox(app));
+const hasSlot = (app: ReviewApp, group: DockviewGroupPanel) => !!group.activePanel && !!app.dock.getPanel('slot:' + group.activePanel.id);
+
+function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
+  e.preventDefault();
+  const tab = ((e.target as Element).closest('.dv-tab') ?? e.target) as HTMLElement;
+  const g = p.group;
+  const floating = g.api.location.type === 'floating';
+  import('./chrome').then(({ popMenu, menuItem }) =>
+    popMenu(tab, (close) => [
+      p.id.startsWith('slot:')
+        ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
+        : floating
+        ? app.dock.getPanel('slot:' + p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
+        : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
+      floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
+      menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
+      g.panels.length > 1 ? menuItem('Close others', () => (close(), g.panels.filter((x) => x !== p).forEach((x) => x.api.close()))) : null,
+    ]),
+  );
 }
 
 function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement) {
@@ -348,3 +391,70 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
     ]),
   );
 }
+
+/** Esc runs `back` once, if the panel is still floating then. */
+export function onEscape(app: ReviewApp, id: string, back: () => void) {
+  const f = () => {
+    app.escapers.splice(app.escapers.indexOf(f), 1);
+    const p = app.dock.getPanel(id);
+    if (!p || p.group.api.location.type !== 'floating') return false;
+    back();
+    return true;
+  };
+  app.escapers.push(f);
+}
+
+// ---------------------------------------------------------------- float in place
+/** Float a docked panel to the centre. A stand-in keeps its docked spot so nothing else moves;
+ *  Esc, "Put it back" or closing the window returns it to exactly that spot. Every way of floating
+ *  a panel (header button, tab double-click or menu, double-clicking a section, file or pin) comes here. */
+export function floatInPlace(app: ReviewApp, id: string) {
+  if (id.startsWith('slot:')) return putBack(app, id.slice(5)); // the stand-in itself: bring the panel home
+  const p = app.dock.getPanel(id);
+  if (!p) return;
+  if (p.group.api.location.type === 'floating') return p.api.setActive();
+  const group = p.group;
+  app.dock.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p } as any);
+  app.dock.addFloatingGroup(p, centerBox(app));
+  onEscape(app, id, () => putBack(app, id));
+}
+
+export function putBack(app: ReviewApp, id: string) {
+  const slot = app.dock.getPanel('slot:' + id);
+  if (!slot) return;
+  const group = slot.group;
+  const index = group.panels.indexOf(slot);
+  const keep = group.activePanel !== slot ? group.activePanel : undefined;
+  const p = app.dock.getPanel(id);
+  if (p) p.api.moveTo({ group, position: 'center', index });
+  else app.dock.addPanel({ id, component: (slot.params as any).component, params: (slot.params as any).params, title: slot.title, position: { referenceGroup: group, index } } as any); // its window was closed
+  slot.api.close();
+  keep?.api.setActive();
+}
+
+definePanel({
+  id: 'slot',
+  title: 'Open in a window',
+  onDemand: true,
+  create: (app, params, panelId) => {
+    const id = params.for as string;
+    const name = app.dock.getPanel(panelId)?.title ?? 'This panel';
+    const el = h(
+      'div',
+      { class: 'rr-slot' },
+      h('p', null, `${name} is open in a window.`),
+      h('button', { class: 'rr-btn', title: 'Back into this spot', 'data-keys': 'Escape', onclick: () => putBack(app, id) }, 'Put it back'),
+    );
+    const sub = app.dock.onDidLayoutChange(() =>
+      queueMicrotask(() => {
+        const slot = app.dock.getPanel(panelId);
+        const p = app.dock.getPanel(id);
+        if (!slot) return;
+        if (!p) putBack(app, id);
+        // docked somewhere else by hand: this spot has no job left
+        else if (p.group.api.location.type !== 'floating' && p.group !== slot.group) slot.api.close();
+      }),
+    );
+    return { element: el, dispose: () => sub.dispose() };
+  },
+});

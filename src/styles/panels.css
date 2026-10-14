@@ -142,6 +142,9 @@
   align-items: center;
   gap: 6px;
 }
+.rr-side-head__row--center {
+  justify-content: center;
+}
 .rr-side-head__row > .rr-seg {
   flex: 1;
   min-width: 0;
@@ -893,4 +896,15 @@ a.rr-ci-check:hover span {
 .rr-count-chip.is-gh {
   background: var(--rr-hover);
   color: var(--rr-ink-2);
+}
+
+/* stand-in for a panel floated over the layout (double-click a section or pin) */
+.rr-slot {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: var(--rr-muted);
+  background: var(--rr-panel-2);
 }

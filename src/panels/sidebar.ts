@@ -348,9 +348,14 @@ class ThreadsPanel implements PanelInstance {
         ),
         this.filterBtn,
       ),
-      app.teamMode
-        ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: 'Post a comment in the PR conversation on GitHub', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'PR comment')
-        : h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: 'A comment about the whole PR, not tied to a line or section', onclick: () => app.compose({ kind: 'general' }) }, icon('plus', 12), 'General comment'),
+      // a comment about the whole PR: for the agent, or the PR conversation on GitHub; the review mode greys out the side it leaves out
+      h(
+        'div',
+        { class: 'rr-side-head__row rr-side-head__row--center' },
+        ...app.commentTargets({ kind: 'general' }).map((b) =>
+          h('button', { class: 'rr-btn rr-btn--small rr-btn--send' + (b.to === 'agent' ? ' rr-btn--agent' : ''), title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => b.off || app.compose({ kind: 'general' }, undefined, b.to) }, icon('send', 12), b.label),
+        ),
+      ),
     );
     const list = all.filter((t) => this.match(t, this.filter));
     const groups: [string, Thread[]][] = [

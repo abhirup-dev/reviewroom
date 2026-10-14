@@ -20,7 +20,7 @@ import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
-import { mountHoverCards, mountPalette, mountSelectionToolbar, mountToasts } from './overlays/misc';
+import { mountHoverCards, mountPalette, mountSelectionRelease, mountToasts } from './overlays/misc';
 import { mountTooltips, tip } from './overlays/tooltip';
 import './panels/narrative';
 import './panels/code';
@@ -136,7 +136,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountToasts(app);
   mountTooltips(app);
   mountPalette(app);
-  mountSelectionToolbar(app);
+  mountSelectionRelease(app);
   mountHoverCards(app);
   mountThreadPopup(app);
   mountDock(app, dockHost);

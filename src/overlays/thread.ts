@@ -18,6 +18,8 @@ export interface ThreadViewOpts {
   id?: string;
   anchor?: Anchor;
   quote?: string;
+  /** New comment that can go either way: the send button ⌘↵ uses. */
+  to?: 'agent' | 'github';
   docked?: boolean;
   onClose?(): void;
   onDock?(id: string): void;
@@ -25,7 +27,12 @@ export interface ThreadViewOpts {
 }
 
 // ------------------------------------------------------------------ composer
-export function composer(app: ReviewApp, opts: { placeholder: string; submitLabel: string; initial?: string; autofocus?: boolean; draftKey?: string; onSubmit(body: string): unknown; onCancel?(): void }) {
+/** A send button; `off` greys it out and says why. */
+export type SendButton = { label: string; title?: string; off?: string; main?: boolean; icon?: boolean; to?: 'agent' | 'github'; onSubmit(body: string): unknown };
+
+export function composer(app: ReviewApp, opts: { placeholder: string; buttons: SendButton[]; initial?: string; autofocus?: boolean; draftKey?: string; onCancel?(): void }) {
+  const buttons = opts.buttons;
+  const main = buttons.find((b) => b.main && !b.off) ?? buttons.find((b) => !b.off) ?? buttons[0];
   // A plain contenteditable where links are atomic chips. People see “request_builder.go:51–53”,
   // never `[…](rr:code/…)`; the markdown with rr: links exists only in what gets saved for the agent.
   const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
@@ -154,13 +161,14 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     });
   };
   let busy = false;
-  const submit = async () => {
+  const submit = async (b: SendButton = main) => {
+    if (b.off) return;
     const body = serialize();
     if (!body) return ed.focus();
     if (busy) return;
     busy = true;
     // false (GitHub refused it, say): keep the text so nothing typed is lost
-    const ok = await Promise.resolve(opts.onSubmit(body)).finally(() => (busy = false));
+    const ok = await Promise.resolve(b.onSubmit(body)).finally(() => (busy = false));
     if (ok === false) return;
     ed.replaceChildren();
     keepDraft('');
@@ -232,10 +240,11 @@ export function composer(app: ReviewApp, opts: { placeholder: string; submitLabe
     h(
       'div',
       { class: 'rr-composer__foot' },
-      h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link · ', h('kbd', null, keyLabel('mod+enter')), ' send'),
+      h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link · ', h('kbd', null, keyLabel('mod+enter')), buttons.length > 1 ? ' ' + main.label : ' send'),
       h('span', { class: 'rr-toolbar__spacer' }),
       opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', onclick: () => opts.onCancel!() }, 'Cancel') : null,
-      h('button', { class: 'rr-btn rr-btn--primary', type: 'button', onclick: submit }, opts.submitLabel),
+      // aria-disabled, not disabled: a disabled button gets no hover, so its tooltip would never show
+      ...buttons.map((b) => h('button', { class: 'rr-btn' + (b.to === 'agent' ? ' rr-btn--send rr-btn--agent' : b.to ? ' rr-btn--send' : b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => submit(b) }, b.icon ? icon('send', 12) : null, b.label)),
     ),
   );
   if (opts.autofocus) requestAnimationFrame(() => restore());
@@ -254,12 +263,23 @@ async function anchorContext(app: ReviewApp, a: Anchor, quote?: string): Promise
 
 // ------------------------------------------------------------------ the view
 export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose(): void } {
-  const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') });
+  const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') + (o.id ? '' : ' is-new') });
   let off: (() => void) | undefined;
   let lastCount = -1;
 
+  const pinBtn = (ref: string) => {
+    const set = (b: HTMLElement) => {
+      const on = app.state.pins.includes(ref);
+      b.setAttribute('aria-pressed', String(on));
+      b.title = on ? 'Unpin' : 'Pin';
+    };
+    const b = h('button', { class: 'rr-icon-btn', 'aria-label': 'Pin', onclick: () => (app.togglePin(ref), set(b), app.toast(app.state.pins.includes(ref) ? 'Pinned' : 'Unpinned')) }, icon('pin', 14));
+    set(b);
+    return b;
+  };
   const header = (t: Thread | undefined, anchor: Anchor) => {
     const ref = app.anchorRef(anchor);
+    const bare = ref && app.anchorRef({ ...anchor, quote: undefined } as Anchor);
     const r = ref ? parseRef(ref) : null;
     return h(
       'header',
@@ -279,6 +299,9 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       t && (!t.gh || (t.status === 'open' ? t.gh.canResolve : t.gh.canUnresolve))
         ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => resolve(t) }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
         : null,
+      // a new comment: link or pin what it's about (the code range or section), from here rather than a toolbar over the page
+      !t && ref ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this (paste it into any comment)', 'aria-label': 'Copy link', onclick: () => (copyText(bare!), app.toast(`Link to ${app.label(bare!)} copied`)) }, icon('link', 14)) : null,
+      !t && ref ? pinBtn(bare!) : null,
       t ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this thread (paste it into any comment)', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Link to this thread copied')) }, icon('link', 14)) : null,
       t && !o.docked && o.onDock ? h('button', { class: 'rr-icon-btn', title: 'Dock as a panel', 'aria-label': 'Dock as a panel', onclick: () => o.onDock!(t.id) }, icon('dock', 14)) : null,
       t && o.docked && o.onUndock ? h('button', { class: 'rr-icon-btn', title: 'Open as popup', 'aria-label': 'Open as popup', onclick: () => o.onUndock!(t.id) }, icon('maximize', 14)) : null,
@@ -319,7 +342,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
               h('button', {
                 class: 'rr-link-btn',
                 onclick: () => {
-                  const c = composer(app, { placeholder: 'Edit comment', submitLabel: 'Save', initial: m.body, autofocus: true, onSubmit: (b) => app.editMessage(t.id, m.id, b), onCancel: () => render() });
+                  const c = composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() });
                   body.replaceWith(c.el);
                 },
               }, 'edit'),
@@ -382,7 +405,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     };
     bar.append(
       gh.canEdit
-        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.replaceWith(composer(app, { placeholder: 'Edit comment', submitLabel: 'Save', initial: m.body, autofocus: true, onSubmit: (b) => app.editMessage(t.id, m.id, b), onCancel: () => render() }).el) }, 'edit')
+        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.replaceWith(composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() }).el) }, 'edit')
         : '',
       gh.canDelete ? h('button', { class: 'rr-link-btn', title: 'Delete this comment', onclick: ask }, 'delete') : '',
     );
@@ -397,32 +420,33 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       root.replaceChildren(header(undefined, anchor), h('div', { class: 'rr-empty' }, 'This thread was deleted.'));
       return;
     }
-    const toGitHub = t ? !!t.gh : app.commentsToGitHub(anchor);
-    const [placeholder, submitLabel] = t?.gh
+    const [placeholder, replyLabel] = t?.gh
       ? t.gh.conversation ? ['Comment on the PR on GitHub…', 'Comment on GitHub']
         // GitHub files any reply into the viewer's pending review while one is open
         : t.messages.some((m) => m.gh?.pending) || app.github?.pending ? ['Reply (a draft too, until you submit the review)…', 'Add to review'] : ['Reply on GitHub…', 'Reply on GitHub']
       : t ? ['Reply…', 'Reply']
-      : !toGitHub ? ['Comment or ask the agent…', 'Comment']
-      : anchor.kind === 'code' ? ['Comment for your GitHub review (posted when you submit it)…', 'Add to review'] : ['Comment on the PR on GitHub…', 'Comment on GitHub'];
+      : ['Comment for the agent' + (app.commentTargets(anchor).length > 1 ? ', or on the PR…' : '…'), null];
     if (t?.gh && !t.gh.canReply) root.classList.add('is-readonly');
+    const create = async (body: string, gh: boolean) => {
+      const nt = app.createThread(anchor, body, 'you', gh);
+      if (nt instanceof Promise) {
+        const ok = await nt;
+        if (ok) (app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub'), o.onClose?.());
+        return ok;
+      }
+      if (!nt) return false;
+      o.id = nt.id;
+      render();
+    };
+    const buttons = t
+      ? [{ label: replyLabel!, icon: true, onSubmit: (body: string) => app.reply(t.id, body) }]
+      : app.commentTargets(anchor).map((b) => ({ ...b, icon: true, main: o.to === b.to, onSubmit: (body: string) => create(body, b.to === 'github') }));
     const c = composer(app, {
       placeholder,
-      submitLabel,
+      buttons,
       autofocus: true,
-      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : (toGitHub ? 'gh:' : '') + JSON.stringify(anchor)}`,
-      onSubmit: async (body) => {
-        if (t) return app.reply(t.id, body);
-        const nt = app.createThread(anchor, body);
-        if (nt instanceof Promise) {
-          const ok = await nt;
-          if (ok) (app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub'), o.onClose?.());
-          return ok;
-        }
-        if (!nt) return false;
-        o.id = nt.id;
-        render();
-      },
+      // drafts keep today's keys: the review mode still picks the GitHub one
+      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : (app.commentsToGitHub(anchor) ? 'gh:' : '') + JSON.stringify(anchor)}`,
       onCancel: o.onClose,
     });
     const msgs = t ? messages(t) : null;
@@ -476,6 +500,23 @@ export function mountThreadPopup(app: ReviewApp) {
   };
   scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
   scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
+  // drag by the header to park it somewhere; it opens centred, then stays where it was put until reload
+  let dx = 0, dy = 0;
+  box.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !(e.target as Element).closest('.rr-thread__head') || (e.target as Element).closest('button, a, input')) return;
+    e.preventDefault();
+    const x0 = e.clientX - dx, y0 = e.clientY - dy;
+    const r = box.getBoundingClientRect(), cx = r.left - dx, cy = r.top - dy;
+    const move = (m: PointerEvent) => {
+      // keep the header grabbable: at least 80px of it on screen
+      dx = Math.min(Math.max(m.clientX - x0, 80 - cx - r.width), innerWidth - 80 - cx);
+      dy = Math.min(Math.max(m.clientY - y0, -cy), innerHeight - 40 - cy);
+      box.style.translate = `${dx}px ${dy}px`;
+    };
+    const up = () => (removeEventListener('pointermove', move), removeEventListener('pointerup', up));
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+  });
   const dock = (id: string) => {
     close();
     const pid = 'thread:' + id;
@@ -501,7 +542,7 @@ export function mountThreadPopup(app: ReviewApp) {
   };
   app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
   app.bus.on('open-thread', ({ id }) => open({ id }));
-  app.bus.on('compose-thread', ({ anchor, quote }) => open({ anchor, quote }));
+  app.bus.on('compose-thread', ({ anchor, quote, to }) => open({ anchor, quote, to }));
   (app as any).dockThread = dock;
   return { open, close };
 }

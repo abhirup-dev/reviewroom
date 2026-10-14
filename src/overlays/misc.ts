@@ -1,5 +1,5 @@
-// Command palette (⌘K), selection toolbar, link hover previews, toasts.
-import { h, icon, copyText, debounce, fuzzyScore } from '../core/dom';
+// Command palette (⌘K), click-away selection release, link hover previews, toasts.
+import { h, icon, debounce, fuzzyScore } from '../core/dom';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
@@ -171,28 +171,8 @@ export function mountPalette(app: ReviewApp) {
   return { open };
 }
 
-// ================================================================ selection toolbar
-export function mountSelectionToolbar(app: ReviewApp) {
-  const bar = h('div', { class: 'rr-seltool', role: 'toolbar', 'aria-label': 'Selection actions', hidden: true });
-  document.body.append(bar);
-  const hide = () => (bar.hidden = true);
-  app.bus.on('selection', (s) => {
-    if (!s) return hide();
-    const ref = s.kind === 'code' ? formatRef({ type: 'code', path: s.path, rev: s.side, start: s.start, end: s.end }) : app.anchorRef({ ...s.anchor, quote: undefined } as any)!;
-    const anchor = s.kind === 'code' ? ({ kind: 'code', path: s.path, rev: s.side, start: s.start, end: s.end } as const) : s.anchor;
-    const label = s.kind === 'code' ? `${s.path.split('/').pop()}:${s.start}${s.end !== s.start ? '–' + s.end : ''}` : `“${plainExcerpt(s.label, 30)}”`;
-    bar.replaceChildren(
-      h('span', { class: 'rr-seltool__label' }, label),
-      h('button', { class: 'rr-btn rr-btn--small rr-btn--primary', onclick: () => (hide(), app.compose(anchor as any, s.kind === 'doc' ? s.label : undefined)) }, icon('thread', 12), 'Comment'),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this (paste it into any comment)', 'aria-label': 'Copy link', onclick: () => (copyText(ref), app.toast(`Link to ${label} copied`), hide()) }, icon('link', 14)),
-      h('button', { class: 'rr-icon-btn', title: 'Pin', 'aria-label': 'Pin', onclick: () => (app.togglePin(ref), app.toast('Pinned'), hide()) }, icon('pin', 14)),
-    );
-    bar.hidden = false;
-    const r = bar.getBoundingClientRect();
-    const x = Math.min(window.innerWidth - r.width - 8, Math.max(8, s.x - r.width / 2));
-    const y = s.y - r.height - 14 < 8 ? s.y + 18 : s.y - r.height - 14;
-    Object.assign(bar.style, { left: x + 'px', top: y + 'px' });
-  });
+// ================================================================ selection release
+export function mountSelectionRelease(app: ReviewApp) {
   // a click anywhere else lets go of the selection, as Esc does; clicks on line numbers or the gutter + make
   // (or extend) a new one, and clicks inside popups and menus belong to them
   const keeps = (n: EventTarget) =>
@@ -200,18 +180,13 @@ export function mountSelectionToolbar(app: ReviewApp) {
   document.addEventListener(
     'pointerdown',
     (e) => {
-      const path = e.composedPath();
-      if (path.includes(bar)) return;
-      hide();
-      if (path.some(keeps)) return;
+      if (e.composedPath().some(keeps)) return;
       // not removeAllRanges(): that would break starting a text selection in the narrative
       app.selection = null;
       app.bus.emit('selection', null);
     },
     true,
   );
-  app.escapers.push(() => (bar.hidden ? false : (hide(), true)));
-  document.addEventListener('scroll', hide, true);
 }
 
 // ================================================================ hover previews

@@ -170,8 +170,8 @@ function githubControls(app: ReviewApp) {
           'aria-pressed': String(app.prefs.reviewMode === m),
           title: {
             agent: 'Agent review: your comments go to the agent, round by round; Threads lists the agent threads',
-            team: "Team review: code and PR comments go to your GitHub review, for colleagues (narrative comments still go to the agent); Threads lists GitHub's threads",
-            all: 'All: Threads lists agent and GitHub threads together; your comments go to the agent',
+            team: "Team review: code and PR comments go to GitHub, for colleagues (narrative comments still go to the agent); Threads lists GitHub's threads",
+            all: 'All: Threads lists agent and GitHub threads together; code and PR comments can go to either',
           }[m],
           onclick: () => app.setPref('reviewMode', m),
         },

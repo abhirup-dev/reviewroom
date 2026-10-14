@@ -26,7 +26,7 @@ src/core/             data model (types), rr: links (refs), commands, markdown, 
 src/providers/        where code comes from (local server, GitHub, static fixture) and where state lives
 src/shell/            ReviewApp (shared context + events), dock layout & presets, header
 src/panels/           dockable panels: narrative, code, files/contents/threads
-src/overlays/         thread popup/panel + composer, palette, selection toolbar, hover previews, tooltips, toasts
+src/overlays/         thread popup/panel + composer, palette, hover previews, tooltips, toasts
 src/elements/         custom elements review authors use (<rr-ref>, <rr-code>, <rr-flow>, …)
 src/styles/           tokens.css (every colour/font as --rr-* variables) + component styles
 schema/               JSON schema of state.json (the contract between UI, CLI and agents)
@@ -74,3 +74,12 @@ mise run demo-page    # self-contained demo HTML in .demo/
 
 `dist/` is build output and not committed. Verify UI changes in a real browser (light and dark,
 wide and laptop widths) on the demo before calling them done.
+
+To get a new build into Claude Code sessions, build and then reinstall the plugin:
+
+```bash
+claude plugin uninstall reviewroom@reviewroom
+claude plugin install reviewroom@reviewroom
+```
+
+Running review servers keep their old build until restarted.
