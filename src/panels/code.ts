@@ -15,7 +15,8 @@ type Meta = { threadId: string };
 
 /** Blend @pierre/diffs into the panel colours (custom properties cross the shadow boundary). */
 // diff colours come from our --rr-add/--rr-del tokens (so review themes reach the code); dark tints are kept low
-export const PIERRE_CSS = `:host{--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;--diffs-light-addition-color:var(--rr-add);--diffs-dark-addition-color:var(--rr-add);--diffs-light-deletion-color:var(--rr-del);--diffs-dark-deletion-color:var(--rr-del);--diffs-bg-addition-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)));--diffs-bg-deletion-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)));}`;
+// Pierre tints a changed line's body by mixing that tint into the background again (--mix-*), which washes it out; the mixes keep more of it
+export const PIERRE_CSS = `:host{--rr-diff-mix-light:40%;--rr-diff-mix-dark:10%;--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;--diffs-light-addition-color:var(--rr-add);--diffs-dark-addition-color:var(--rr-add);--diffs-light-deletion-color:var(--rr-del);--diffs-dark-deletion-color:var(--rr-del);--diffs-bg-addition-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)));--diffs-bg-deletion-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)));}[data-line],[data-no-newline]{--mix-light:var(--rr-diff-mix-light);--mix-dark:var(--rr-diff-mix-dark)}`;
 
 interface Block {
   file: ChangedFile;
@@ -482,7 +483,7 @@ class CodePanel implements PanelInstance {
     const glow = 'color-mix(in srgb, var(--rr-accent) 26%, transparent)';
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const frames = still ? [{ backgroundColor: glow }, { backgroundColor: 'transparent' }] : [0, 1, 2].flatMap(() => [{ backgroundColor: 'transparent' }, { backgroundColor: glow }]).concat({ backgroundColor: 'transparent' });
-    rows.forEach((r) => r.animate?.(frames, { duration: still ? 900 : 1500, easing: 'ease-in-out' }));
+    rows.forEach((r) => r.animate?.(frames, { duration: still ? 900 : 3 * 1000, easing: 'ease-in-out' }));
   }
 
   private pinToken = 0;

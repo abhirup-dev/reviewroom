@@ -25,7 +25,7 @@ export interface Prefs {
   inlineThreads: boolean;
   lineDiff: 'word-alt' | 'char' | 'none';
   popoutPlacement: 'right' | 'below' | 'float';
-  /** Where new code and general comments go when the review is a GitHub PR: the agent, or your GitHub review. */
+  /** Which send buttons new code and general comments offer on a GitHub PR: the agent, GitHub, or both. */
   /** Agent: comments to the agent, agent threads listed. Team: code/PR comments to GitHub, GitHub threads listed. All: comments to the agent, every thread listed. */
   reviewMode: 'agent' | 'team' | 'all';
 }
@@ -61,7 +61,7 @@ export interface AppEvents extends Record<string, unknown> {
   'reveal-doc': { id: string; path?: string; threadId?: string };
   picker: boolean;
   'open-thread': { id: string; focusComposer?: boolean };
-  'compose-thread': { anchor: Anchor; quote?: string };
+  'compose-thread': { anchor: Anchor; quote?: string; to?: 'agent' | 'github' };
   selection: Selection;
   'doc-ready': HTMLElement;
   'active-section': string;
@@ -292,13 +292,36 @@ export class ReviewApp {
   thread(id: string) {
     return this.threads().find((t) => t.id === id) ?? this.state.threads.find((t) => t.id.startsWith(id));
   }
-  /** Team mode: new code and general comments go to GitHub instead of the agent. */
+  /** Team mode: new code and general comments go to GitHub by default instead of the agent. */
   get teamMode() {
     return this.prefs.reviewMode === 'team' && !!this.github?.ok;
   }
-  /** Where a new comment on this anchor goes. Narrative comments always go to the agent. */
+  /** Where a new comment on this anchor goes by default. Narrative comments always go to the agent. */
   commentsToGitHub(anchor: Anchor) {
     return this.teamMode && (anchor.kind === 'code' || anchor.kind === 'general');
+  }
+  /** The send buttons a new comment on this anchor offers, the same everywhere one starts: Agent, plus PR for code
+   *  and general comments; the review mode (or there being no GitHub PR) greys out (`off`, saying why) the side it leaves out. */
+  commentTargets(anchor: Anchor): { to: 'agent' | 'github'; label: string; title: string; off?: string }[] {
+    const pr = anchor.kind === 'code' || anchor.kind === 'general';
+    const gh = !!this.github?.ok;
+    const mode = gh ? this.prefs.reviewMode : 'agent';
+    const agent = {
+      to: 'agent' as const,
+      label: 'Agent',
+      title: 'A thread for the agent to answer this round',
+      off: pr && mode === 'team' ? 'Unavailable in Team review mode. Switch to Agent or All to comment for the agent' : undefined,
+    };
+    if (!pr) return [agent];
+    return [
+      agent,
+      {
+        to: 'github',
+        label: 'PR',
+        title: anchor.kind === 'code' ? 'A comment in your GitHub review, posted when you submit it' : 'A comment in the PR conversation on GitHub',
+        off: !gh ? 'Unavailable: this review is not of a GitHub pull request' : mode === 'agent' ? 'Unavailable in Agent review mode. Switch to Team or All to comment on the PR' : undefined,
+      },
+    ];
   }
   setGitHub(s: GitHubSnapshot) {
     const failed = s.error && s.error !== this.github?.error;
@@ -345,8 +368,8 @@ export class ReviewApp {
   }
 
   /** Local threads change at once; GitHub ones resolve once GitHub has taken the comment (undefined thread). */
-  createThread(anchor: Anchor, body: string, author: Author = 'you'): Thread | undefined | Promise<boolean> {
-    if (author === 'you' && this.commentsToGitHub(anchor))
+  createThread(anchor: Anchor, body: string, author: Author = 'you', toGitHub = this.commentsToGitHub(anchor)): Thread | undefined | Promise<boolean> {
+    if (author === 'you' && toGitHub)
       return anchor.kind === 'code' ? this.githubAct({ action: 'comment', anchor, body }) : this.githubAct({ action: 'conversation', body });
     const id = uid('t_');
     this.apply({ op: 'createThread', id, anchor, msgId: uid('m_'), body, author, at: new Date().toISOString() });
@@ -385,8 +408,9 @@ export class ReviewApp {
     return last?.author === 'agent' && last.round === this.state.round;
   }
 
-  compose(anchor: Anchor, quote?: string) {
-    this.bus.emit('compose-thread', { anchor, quote });
+  /** `to`: the send button ⌘↵ uses, when the comment can go to the agent or GitHub. */
+  compose(anchor: Anchor, quote?: string, to?: 'agent' | 'github') {
+    this.bus.emit('compose-thread', { anchor, quote, to });
   }
 
   // ------------------------------------------------------------ misc

@@ -109,7 +109,7 @@ src/
   providers/          LocalProvider + ServerState (CLI), GitHubProvider, StaticProvider, BrowserState
   shell/              ReviewApp (shared context), dockview layout + presets, header
   panels/             narrative, code (@pierre/diffs), files/contents/threads
-  overlays/           thread popup/panel + composer, palette, selection toolbar, hover previews, toasts
+  overlays/           thread popup/panel + composer, palette, hover previews, toasts
   elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
   styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
 cli/reviewroom.mjs   zero-dependency server + round commands
