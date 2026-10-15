@@ -30,7 +30,7 @@ run = "bun test"
 [tasks.smoke]
 description = "End-to-end: demo repo → reviewroom pr → API responds"
 depends = ["build"]
-run = "bun scripts/smoke.mjs"
+run = "bun scripts/smoke.ts"
 
 [tasks.check]
 description = "Everything an agent should run before committing"
@@ -49,5 +49,5 @@ description = "Build the self-contained demo HTML (static fixture, no server)"
 depends = ["build"]
 run = [
   "bash examples/make-demo-repo.sh .demo/demoapp",
-  "bun scripts/build-demo.mjs .demo/demoapp main feat/activity-events examples/activity-events .demo/reviewroom-demo.html",
+  "bun scripts/build-demo.ts .demo/demoapp main feat/activity-events examples/activity-events .demo/reviewroom-demo.html",
 ]
