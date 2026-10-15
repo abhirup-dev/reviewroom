@@ -72,7 +72,8 @@ mise run demo         # demo repo + live review on localhost
 mise run demo-page    # self-contained demo HTML in .demo/
 ```
 
-`dist/` is build output and not committed. Verify UI changes in a real browser (light and dark,
+`dist/` is build output and not committed. `reviewroom` (the plugin's `bin/` and `mise run demo`) runs the
+built CLI in `dist/cli/`, not `cli/` source: keep `mise run dev` running while you change the CLI. Verify UI changes in a real browser (light and dark,
 wide and laptop widths) on the demo before calling them done.
 
 To get a new build into Claude Code sessions, build and then reinstall the plugin:

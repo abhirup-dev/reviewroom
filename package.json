@@ -24,7 +24,7 @@
   "scripts": {
     "build": "bun scripts/build.mjs",
     "dev": "bun scripts/build.mjs --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p cli",
     "test": "bun test",
     "smoke": "bun scripts/smoke.mjs",
     "prepack": "bun scripts/build.mjs"
