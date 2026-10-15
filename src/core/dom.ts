@@ -146,20 +146,3 @@ export async function copyText(text: string) {
     ta.remove();
   }
 }
-
-export function fuzzyScore(q: string, s: string): number {
-  if (!q) return 1;
-  q = q.toLowerCase();
-  const t = s.toLowerCase();
-  const idx = t.indexOf(q);
-  if (idx >= 0) return 100 - idx + (idx === 0 || /[/._\s-]/.test(t[idx - 1]) ? 50 : 0);
-  let qi = 0, score = 0, last = -1;
-  for (let i = 0; i < t.length && qi < q.length; i++) {
-    if (t[i] === q[qi]) {
-      score += last === i - 1 ? 3 : 1;
-      last = i;
-      qi++;
-    }
-  }
-  return qi === q.length ? score : -1;
-}
