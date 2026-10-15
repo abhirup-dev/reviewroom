@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { flags, die } from './args.mjs';
 import { git, defaultBase } from './git.mjs';
 import { applyOp, OpError } from '../../src/shared/ops.ts';
+import { StoredState, issueText } from '../../src/shared/schema.ts';
 
 /** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
  *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
@@ -32,24 +33,34 @@ const emptyState = () => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open
 export const statePath = (dir) => path.join(dir, 'state.json');
 
 export class StateError extends Error {}
-/** Missing file = empty review. Unparseable file = moved aside and an error: never start over silently. */
+/** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
 export function readState(dir) {
   let raw;
   try {
     raw = fs.readFileSync(statePath(dir), 'utf8');
   } catch (e) {
-    if (e.code === 'ENOENT') return emptyState();
-    throw e;
+    if (e.code !== 'ENOENT') throw e;
+    // a moved-aside file means the review isn't empty: stay blocked until it is restored or deleted, never start over
+    const aside = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-')) : [];
+    if (aside.length) throw new StateError(`${statePath(dir)} was moved aside as ${aside.join(', ')}. Fix one and move it back as state.json, or delete them all to start the review over.`);
+    return emptyState();
   }
+  let data;
   try {
-    return JSON.parse(raw);
+    data = JSON.parse(raw);
   } catch (e) {
-    const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-    try {
-      fs.renameSync(statePath(dir), bad);
-    } catch {}
-    throw new StateError(`${statePath(dir)} is not valid JSON (${e.message}); moved it to ${bad}. Fix and move it back, or delete it to start the review over.`);
+    moveAside(dir, `is not valid JSON (${e.message})`);
   }
+  const checked = StoredState.safeParse(data);
+  if (!checked.success) moveAside(dir, `does not match schema/state.schema.json (${issueText(checked.error)})`);
+  return data; // as read, not Zod's copy: keys the schema doesn't know survive the next write
+}
+function moveAside(dir, why) {
+  const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  try {
+    fs.renameSync(statePath(dir), bad);
+  } catch {}
+  throw new StateError(`${statePath(dir)} ${why}; moved it to ${bad}. Fix and move it back, or delete it to start the review over.`);
 }
 /** Atomic: unique temp file in the same dir, fsync, rename. */
 export function writeState(dir, s) {

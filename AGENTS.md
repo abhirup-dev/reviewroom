@@ -23,14 +23,14 @@ cli/lib/              git.mjs (validated git layer), server.mjs (HTTP API, origi
                       scaffold.mjs, args.mjs
 src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
 src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
-src/shared/           used by both the client and the CLI (no DOM, no Node): ops (the state.json reducer), feedback
+src/shared/           used by both the client and the CLI (no DOM, no Node): schema (state.json + ops, Zod), ops (the reducer), feedback
 src/providers/        where code comes from (local server, GitHub, static fixture) and where state lives
 src/shell/            ReviewApp (shared context + events), dock layout & presets, header
 src/panels/           dockable panels: narrative, code, files/contents/threads
 src/overlays/         thread popup/panel + composer, palette, hover previews, tooltips, toasts
 src/elements/         custom elements review authors use (<rr-ref>, <rr-code>, <rr-flow>, …)
 src/styles/           tokens.css (every colour/font as --rr-* variables) + component styles
-schema/               JSON schema of state.json (the contract between UI, CLI and agents)
+schema/               JSON schema of state.json (the contract between UI, CLI and agents), generated from src/shared/schema.ts
 skills/reviewroom/   the skill agents use to run reviews (entry point + references)
 templates/            review.html scaffold
 examples/             demo review + script that creates the demo git repo
@@ -43,7 +43,9 @@ scripts/              build (Bun), smoke test, static demo builder
   tools around it (highlights via the CSS Highlight API, overlays, data attributes only).
 - **`rr:` links** (`src/core/refs.ts`) are the public addressing scheme used in HTML, threads, the
   CLI and agent replies. Keep old forms parsing.
-- **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it.
+- **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it. Change it in
+  `src/shared/schema.ts` (Zod: the TS types, op validation and the CLI's load check come from it), then `bun run schema`.
+  The CLI moves a `state.json` that breaks the schema aside, like a corrupt one.
 - **`~/.reviewroom/sessions/<pid>.json`** (`REVIEWROOM_HOME` overrides `~/.reviewroom`): written by every running
   server and removed on exit; other local tools (agent-annotation-hub) list running reviews from it.
   `~/.reviewroom/layout.json` holds the reviewer's default panel layout (Layout menu → Save layout as default).
