@@ -16,7 +16,7 @@ description = "Rebuild on change"
 run = "bun run dev"
 
 [tasks.typecheck]
-description = "Type-check the client"
+description = "Type-check the client and the CLI"
 run = "bun run typecheck"
 
 [tasks.test]
@@ -37,7 +37,7 @@ description = "Create the demo repo in .demo/ and open it in reviewroom"
 depends = ["build"]
 run = [
   "bash examples/make-demo-repo.sh .demo/demoapp",
-  "node cli/reviewroom.mjs pr feat/activity-events --repo .demo/demoapp --dir examples/activity-events",
+  "node dist/cli/reviewroom.mjs pr feat/activity-events --repo .demo/demoapp --dir examples/activity-events",
 ]
 
 [tasks.demo-page]

@@ -1,0 +1,13 @@
+{
+  // The CLI runs on Node: Node types, no DOM. Bun bundles it (scripts/build.mjs), so this only type-checks.
+  // .mjs files are accepted unchecked while the port to .ts is in progress (rr-mx3); each .ts file is checked.
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "lib": ["ES2023"], "types": ["node"], "strict": true, "skipLibCheck": true,
+    "noEmit": true, "isolatedModules": true,
+    "erasableSyntaxOnly": true, "allowImportingTsExtensions": true,
+    "allowJs": true, "checkJs": false
+  },
+  "include": ["."],
+  "exclude": ["**/*.test.*"]
+}
