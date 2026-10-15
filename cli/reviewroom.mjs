@@ -9,8 +9,8 @@
 //   rounds/<n>/            snapshot of review.html + feedback.md for every finished round
 import path from 'node:path';
 import { cac } from 'cac';
-import { flags, pos, die } from './lib/args.mjs';
-import { repoRoot } from './lib/git.mjs';
+import { flags, pos, die } from './lib/args.ts';
+import { repoRoot } from './lib/git.ts';
 import { cmdPr } from './commands/pr.mjs';
 import { cmdServe } from './commands/serve.mjs';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.mjs';

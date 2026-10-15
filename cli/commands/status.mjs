@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { flags } from '../lib/args.mjs';
-import { makeProvider } from '../lib/git.mjs';
+import { flags } from '../lib/args.ts';
+import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig, readState } from '../lib/state.mjs';
 import { liveServer, stopServer } from '../lib/server.mjs';
 

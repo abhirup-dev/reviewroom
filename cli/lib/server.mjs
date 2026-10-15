@@ -7,11 +7,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { feedbackMarkdown } from '../../src/shared/feedback.ts';
-import { makeProvider } from './git.mjs';
+import { makeProvider } from './git.ts';
 import { readState, writeState, answers } from './state.mjs';
 import { applyOp, OpError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.mjs';
-import { checkLinks, problems, report } from './links.mjs';
+import { checkLinks, problems, report } from './links.ts';
 
 export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const DIST = path.join(PKG, 'dist');
