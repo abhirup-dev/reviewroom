@@ -1,5 +1,5 @@
 // Top bar: identity, rounds, search, picker, layout, theme, send feedback.
-import { h, icon, copyText, relTime } from '../core/dom';
+import { h, icon, copyText, relTime, placeNear } from '../core/dom';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
@@ -19,12 +19,7 @@ export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTML
   const outside = (e: Event) => !menu.contains(e.target as Node) && !anchor.contains(e.target as Node) && close();
   menu.append(...(build(close).filter(Boolean) as HTMLElement[]));
   document.body.append(menu);
-  const r = anchor.getBoundingClientRect();
-  const m = menu.getBoundingClientRect();
-  // below if it fits, else above (menus near the bottom of a dialog), else as low as stays on screen
-  const below = r.bottom + 6, above = r.top - 6 - m.height;
-  const top = below + m.height <= window.innerHeight - 8 ? below : above >= 8 ? above : Math.max(8, window.innerHeight - 8 - m.height);
-  Object.assign(menu.style, { top: top + 'px', left: Math.max(8, Math.min(window.innerWidth - m.width - 8, r.right - m.width)) + 'px' });
+  void placeNear(anchor, menu, 'bottom-end', 6, 8);
   anchor.setAttribute('aria-expanded', 'true');
   setTimeout(() => document.addEventListener('mousedown', outside, true));
   menu.addEventListener('keydown', (e) => e.key === 'Escape' && close());

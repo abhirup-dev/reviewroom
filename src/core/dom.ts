@@ -1,5 +1,6 @@
 // Tiny DOM helpers. No framework on purpose: author content is plain HTML and
 // every shell part is a plain element you can restyle or replace.
+import { computePosition, flip, offset, shift, type Placement } from '@floating-ui/dom';
 import { CLAWD, CLAWD_RESOLVED } from './clawd';
 
 type Child = Node | string | number | null | undefined | false | Child[];
@@ -145,4 +146,16 @@ export async function copyText(text: string) {
     document.execCommand('copy');
     ta.remove();
   }
+}
+
+const placing = new WeakMap<HTMLElement, number>();
+/** Put a position:fixed overlay `gap` px from `ref`, on the other side if it doesn't fit, `pad` px inside the viewport.
+ *  If neither side fits it stays on `placement`'s side, shifted as far as it must. The latest call per overlay wins. */
+export function placeNear(ref: Element, el: HTMLElement, placement: Placement, gap: number, pad: number) {
+  const id = (placing.get(el) ?? 0) + 1;
+  placing.set(el, id);
+  const middleware = [offset(gap), flip({ padding: pad, fallbackStrategy: 'initialPlacement' }), shift({ padding: pad, crossAxis: true })];
+  return computePosition(ref, el, { strategy: 'fixed', placement, middleware }).then(({ x, y }) => {
+    if (placing.get(el) === id) Object.assign(el.style, { left: x + 'px', top: y + 'px' });
+  });
 }

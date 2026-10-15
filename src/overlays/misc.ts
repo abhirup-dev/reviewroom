@@ -1,6 +1,6 @@
 // Command palette (⌘K), click-away selection release, link hover previews, toasts.
 import { single } from 'fuzzysort';
-import { h, icon, debounce } from '../core/dom';
+import { h, icon, debounce, placeNear } from '../core/dom';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
@@ -249,15 +249,7 @@ export function mountHoverCards(app: ReviewApp) {
   });
   document.addEventListener('mousedown', (e) => !card.contains(e.target as Node) && hide());
   app.escapers.push(() => (card.hidden ? false : (hide(), true)));
-  function place(t: Element) {
-    const r = t.getBoundingClientRect();
-    const c = card.getBoundingClientRect();
-    const below = r.bottom + c.height + 12 < window.innerHeight;
-    Object.assign(card.style, {
-      left: Math.min(window.innerWidth - c.width - 10, Math.max(10, r.left)) + 'px',
-      top: (below ? r.bottom + 8 : Math.max(10, r.top - c.height - 8)) + 'px',
-    });
-  }
+  const place = (t: Element) => void placeNear(t, card, 'bottom-start', 8, 10);
 }
 
 // ================================================================ toasts
