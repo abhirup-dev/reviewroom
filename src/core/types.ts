@@ -1,4 +1,5 @@
 // Shared data model. Everything persisted lives in ReviewState (see schema/state.schema.json).
+import type { Anchor, Author, StoredMessage, StoredState, StoredThread } from '../shared/schema';
 
 export type Rev = string; // 'base' | 'head' | a git sha / ref
 
@@ -54,38 +55,17 @@ export interface SearchHit {
 
 // ---------------------------------------------------------------- anchors
 
-export interface TextQuote {
-  exact: string;
-  prefix?: string;
-  suffix?: string;
-}
+// The stored shapes (state.json) and ops are defined once as Zod schemas in src/shared/schema.ts.
+export type { Anchor, Author, Op, Round, TextQuote } from '../shared/schema';
 
-export type Anchor =
-  | { kind: 'doc'; target: string; path?: string; quote?: TextQuote } // target = element id in the narrative; path = css path below it (blocks without ids); quote = selected text
-  | { kind: 'code'; path: string; rev: 'base' | 'head'; start: number; end: number }
-  | { kind: 'symbol'; name: string }
-  | { kind: 'general' };
-
-export type Author = 'you' | 'agent';
-
-export interface Message {
-  id: string;
-  /** 'github': a comment on the PR on GitHub (see GitHubThread); never stored in state.json. */
+/** A stored message, or (author 'github') a comment on the PR on GitHub; those are never stored in state.json. */
+export interface Message extends Omit<StoredMessage, 'author'> {
   author: Author | 'github';
-  round: number;
-  body: string; // markdown; may contain rr: links and embeds
-  at: string; // ISO
   gh?: GitHubComment;
 }
 
-export interface Thread {
-  id: string;
-  anchor: Anchor;
-  status: 'open' | 'resolved';
-  createdRound: number;
+export interface Thread extends Omit<StoredThread, 'messages'> {
   messages: Message[];
-  /** Optional short label; defaults to the first line of the first message. */
-  title?: string;
   /** Set on threads that live on GitHub (ids `gh_…`); they come from /api/github, not state.json. */
   gh?: { node: string; url: string; outdated?: boolean; file?: boolean; conversation?: boolean; canResolve?: boolean; canUnresolve?: boolean; canReply: boolean };
 }
@@ -134,45 +114,9 @@ export interface CiCommit {
   checks: { name: string; state: CiState; url: string | null }[];
 }
 
-export interface Round {
-  n: number;
-  status: 'open' | 'sent' | 'approved';
-  startedAt: string;
-  sentAt?: string;
-  note?: string;
-  /** When `reviewroom review` printed this round's feedback; null = finished but not yet delivered. */
-  deliveredAt?: string | null;
-}
-
-export interface ReviewState {
-  version: 1;
-  /** Bumped by every applied op; missing = 0. */
-  rev?: number;
-  round: number;
-  rounds: Round[];
+export interface ReviewState extends Omit<StoredState, 'threads'> {
   threads: Thread[];
-  /** path -> true once marked viewed (per round). */
-  viewed: Record<string, number>;
-  pins: string[]; // rr: refs pinned by the reviewer
-  /** <rr-check> sign-offs keyed by check id. */
-  checks?: Record<string, 'todo' | 'pass' | 'fail'>;
-  /** Narrative rr: links -> fingerprint when first seen: hash of the lines for a line range, 'definition' for a symbol (stale-link check). */
-  links?: Record<string, string>;
 }
-
-/** Every change to ReviewState (applied by applyOp in src/shared/ops.ts). `at` defaults to now. */
-export type Op =
-  | { op: 'createThread'; id: string; anchor: Anchor; msgId: string; body: string; author: Author; at?: string }
-  | { op: 'addMessage'; threadId: string; id: string; body: string; author: Author; at?: string }
-  | { op: 'editMessage'; threadId: string; msgId: string; body: string }
-  | { op: 'deleteMessage'; threadId: string; msgId: string }
-  | { op: 'setThreadStatus'; threadId: string; status: Thread['status'] }
-  | { op: 'setViewed'; path: string; viewed: boolean }
-  | { op: 'setPin'; ref: string; pinned: boolean }
-  | { op: 'setCheck'; id: string; value: 'todo' | 'pass' | 'fail' }
-  | { op: 'setLinks'; links: Record<string, string> }
-  | { op: 'finishRound'; kind: 'feedback' | 'approve'; note?: string; round?: number; at?: string }
-  | { op: 'markDelivered'; round: number; at?: string };
 
 export const emptyState = (): ReviewState => ({
   version: 1,

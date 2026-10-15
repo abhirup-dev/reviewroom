@@ -192,6 +192,14 @@ try {
   const bad = await cliAsync(['reply', 't_one', 'x', ...d]);
   const kept = fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-'));
   check(bad.code !== 0 && /not valid JSON/.test(bad.stderr) && kept.length === 1 && fs.readFileSync(path.join(dir, kept[0]), 'utf8').includes('broken') && !fs.existsSync(path.join(dir, 'state.json')), 'corrupt state.json is preserved as .corrupt-* and not overwritten');
+  // ---- so is one that parses but breaks the schema
+  for (const f of kept) fs.rmSync(path.join(dir, f));
+  fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ version: 1, round: 'two', rounds: [], threads: [] }));
+  const wrong = await cliAsync(['reply', 't_one', 'x', ...d]);
+  const aside = fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-'));
+  check(wrong.code !== 0 && /does not match schema.*round/.test(wrong.stderr) && aside.length === 1 && !fs.existsSync(path.join(dir, 'state.json')), 'a state.json that breaks the schema is preserved as .corrupt-* with the reason');
+  const again = await cliAsync(['comment', 'general', 'after', ...d]);
+  check(again.code !== 0 && /moved aside/.test(again.stderr) && !fs.existsSync(path.join(dir, 'state.json')), 'after a state.json is moved aside, writes stay blocked instead of starting an empty review');
 } catch (e) {
   console.error(e.stderr || e.message);
   process.exitCode = 1;
