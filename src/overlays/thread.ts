@@ -11,7 +11,7 @@ import type { ReviewApp } from '../shell/app';
 import { renderPreview } from '../elements';
 import { popMenu } from '../shell/chrome';
 
-// shipped next to the bundle by scripts/build.mjs; a page without it (the static demo) shows the picker's own error
+// shipped next to the bundle by scripts/build.ts; a page without it (the static demo) shows the picker's own error
 const EMOJI_DATA = new URL('./emoji.json', import.meta.url).href;
 
 export interface ThreadViewOpts {

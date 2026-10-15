@@ -3,12 +3,12 @@
   "entry": [
     "src/index.ts",
     "cli/reviewroom.ts",
-    "scripts/*.{mjs,ts}"
+    "scripts/*.ts"
   ],
   "project": [
     "src/**/*.ts",
     "cli/**/*.ts",
-    "scripts/**/*.{ts,mjs}"
+    "scripts/**/*.ts"
   ],
   "ignoreDependencies": [
     "@fontsource-variable/.+",
