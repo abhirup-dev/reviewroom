@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { flags, die } from '../lib/args.ts';
+import { type Opts, die } from '../lib/args.ts';
 import { ensureExcluded } from '../lib/git.ts';
 import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
 import { undelivered } from '../../src/shared/ops.ts';
@@ -21,22 +21,22 @@ async function deliverPending(dir: string) {
   return rounds.length > 0;
 }
 
-export async function cmdServe(repo: string | null, blocking: boolean, dir?: string) {
+export async function cmdServe(repo: string | null, o: Opts, blocking: boolean, dir?: string) {
   if (!repo) die('not inside a git repository (use --repo <path>)');
-  dir ??= resolveDir(repo, { existing: true });
-  const cfg = loadConfig(dir, repo);
+  dir ??= resolveDir(repo, o.dir, { existing: true });
+  const cfg = loadConfig(dir, repo, o);
   if (blocking && (await deliverPending(dir))) return process.exit(0);
   // take over a detached server for the same review (same port, so an open tab reconnects)
   const prev = await stopServer(dir);
-  if (prev && !flags.port) flags.port = String(prev.port);
+  const portFlag = o.port || (prev ? String(prev.port) : undefined);
   fs.mkdirSync(dir, { recursive: true });
   if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
-  if (!fs.existsSync(path.join(dir, 'config.json')) || flags.base || flags.head || flags.title) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
+  if (!fs.existsSync(path.join(dir, 'config.json')) || o.base || o.head || o.title) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
   const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
-  const port = await listen(server, +(flags.port || 4848));
+  const port = await listen(server, +(portFlag || 4848));
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
   if (holder) die(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
@@ -55,7 +55,7 @@ export async function cmdServe(repo: string | null, blocking: boolean, dir?: str
   const s = readState(dir);
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
   checkNarrative(); // after the lock: it may write state.json
-  if (!flags['no-open']) {
+  if (!o['no-open']) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
     let seen = false;
     server.once('rr-client', () => (seen = true));

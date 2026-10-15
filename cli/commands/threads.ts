@@ -1,13 +1,13 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
-import { flags, pos, die } from '../lib/args.ts';
+import { type Opts, die } from '../lib/args.ts';
 import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.ts';
 import { anchorText, anchorRef, githubContext } from '../../src/shared/feedback.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/core/types.ts';
 import type { Op } from '../../src/shared/schema.ts';
 
-function threadArg() {
+function threadArg(pos: string[]) {
   const id = pos.shift();
   if (!id) die('missing thread id');
   return id;
@@ -18,24 +18,24 @@ function findThread(s: ReviewState, id: string) {
   if (!t) die(`no thread ${id}`);
   return t;
 }
-function readBody() {
+function readBody(o: Opts, pos: string[]) {
   let b = pos.shift();
-  if (typeof flags.file === 'string') b = fs.readFileSync(flags.file, 'utf8');
+  if (typeof o.file === 'string') b = fs.readFileSync(o.file, 'utf8');
   else if (b === '-' || (!b && !process.stdin.isTTY)) b = fs.readFileSync(0, 'utf8');
   if (!b?.trim()) die('missing message body');
   return b.trim();
 }
 
-export function cmdThreads(repo: string | null) {
-  const dir = dirForEdit(repo);
+export function cmdThreads(repo: string | null, o: Opts) {
+  const dir = dirForEdit(repo, o.dir);
   const s = readState(dir);
-  const list = s.threads.filter((t) => flags.all || t.status === 'open');
-  const github = cachedThreads(dir).filter((t) => flags.all || t.status === 'open');
-  if (flags.json) {
+  const list = s.threads.filter((t) => o.all || t.status === 'open');
+  const github = cachedThreads(dir).filter((t) => o.all || t.status === 'open');
+  if (o.json) {
     console.log(JSON.stringify({ round: s.round, threads: list, github }, null, 2));
     return;
   }
-  console.log(`round ${s.round} · ${list.length} ${flags.all ? '' : 'open '}thread(s)`);
+  console.log(`round ${s.round} · ${list.length} ${o.all ? '' : 'open '}thread(s)`);
   for (const t of list) {
     const last = t.messages[t.messages.length - 1];
     console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
@@ -57,33 +57,33 @@ function replyOps(s: ReviewState, items: ReplyItem[]) {
   });
 }
 
-export async function cmdReply(repo: string | null) {
-  const dir = dirForEdit(repo);
+export async function cmdReply(repo: string | null, o: Opts, pos: string[]) {
+  const dir = dirForEdit(repo, o.dir);
   let items: ReplyItem[];
-  if (flags.json) {
-    const src = typeof flags.json === 'string' ? flags.json : pos.shift() || '-';
+  if (o.json) {
+    const src = typeof o.json === 'string' ? o.json : pos.shift() || '-';
     try {
       items = JSON.parse(fs.readFileSync(src === '-' ? 0 : src, 'utf8'));
     } catch (e) {
       die(`--json: ${(e as Error).message}`);
     }
     if (!Array.isArray(items) || !items.length) die('--json expects a non-empty array of {thread, body, resolve?}');
-  } else if (flags.resolve && pos.length === 1 && !flags.file) {
+  } else if (o.resolve && pos.length === 1 && !o.file) {
     // `reply <thread> --resolve` without a body: resolve only
-    const t = findThread(readState(dir), threadArg());
+    const t = findThread(readState(dir), threadArg(pos));
     await commitOps(dir, [{ op: 'setThreadStatus', threadId: t.id, status: 'resolved' }]);
     return console.log(`resolved ${t.id}`);
-  } else items = [{ thread: threadArg(), body: readBody(), resolve: flags.resolve }];
+  } else items = [{ thread: threadArg(pos), body: readBody(o, pos), resolve: o.resolve }];
   const ops = replyOps(readState(dir), items);
   await commitOps(dir, ops);
-  if (flags.json) console.log(`replied to ${items.length} thread(s)`);
-  else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${flags.resolve ? ' (resolved)' : ''}`);
+  if (o.json) console.log(`replied to ${items.length} thread(s)`);
+  else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
 }
 
-export async function cmdComment(repo: string | null) {
-  const dir = dirForEdit(repo);
+export async function cmdComment(repo: string | null, o: Opts, pos: string[]) {
+  const dir = dirForEdit(repo, o.dir);
   const ref = pos.shift() || die('missing rr: ref (or "general")');
   const id = uid('t_');
-  await commitOps(dir, [{ op: 'createThread', id, anchor: parseAnchor(ref), msgId: uid('m_'), body: readBody(), author: 'agent' }]);
+  await commitOps(dir, [{ op: 'createThread', id, anchor: parseAnchor(ref), msgId: uid('m_'), body: readBody(o, pos), author: 'agent' }]);
   console.log(id);
 }
