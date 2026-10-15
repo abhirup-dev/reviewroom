@@ -1,10 +1,13 @@
-// GitHub side of a PR review: read the PR's human comment threads and post to them, through the
-// `gh` CLI (its login, its host config; no token ever reaches the browser). GitHub stays the source
+// GitHub side of a PR review: read the PR's human comment threads and post to them, through GitHub's
+// GraphQL API (Octokit) as the `gh` CLI's logged-in user (no token ever reaches the browser). GitHub stays the source
 // of truth: nothing here is written to state.json, only cached in github.json for the CLI.
 //
 // New comments go into the viewer's pending review (GitHub's own drafts, also visible on github.com)
 // until submitted; replies and PR conversation comments post at once.
-import { spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { Octokit } from '@octokit/core';
+import { paginateGraphQL } from '@octokit/plugin-paginate-graphql';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseAnchor } from './state.ts';
@@ -87,38 +90,50 @@ export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
   return r && cfg.number ? { host: 'github.com', owner: r[1], name: r[2], number: +cfg.number } : null;
 }
 
-/** `gh api graphql`, variables passed as JSON on stdin. Rejects with GitHub's own error text. */
-export function gql<T = any>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const p = spawn('gh', ['api', 'graphql', '--hostname', host, '--input', '-'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
-    let out = '';
-    let err = '';
-    const timer = setTimeout(() => p.kill(), 30000);
-    p.stdout.on('data', (c) => (out += c));
-    p.stderr.on('data', (c) => (err += c));
-    p.on('error', (e: NodeJS.ErrnoException) => (clearTimeout(timer), reject(new Error(e.code === 'ENOENT' ? 'the GitHub CLI (gh) is not installed' : e.message))));
-    p.on('close', (code) => {
-      clearTimeout(timer);
-      let b: { data: T; errors?: { message: string }[] } | null = null;
-      try {
-        b = JSON.parse(out);
-      } catch {}
-      if (b?.errors?.length) return reject(new Error(b.errors.map((e) => e.message).join('; ')));
-      if (code !== 0 || !b) return reject(new Error((err || out).trim().split('\n')[0] || `gh exited with ${code}`));
-      resolve(b.data);
-    });
-    p.stdin.end(JSON.stringify({ query, variables }));
-  });
+const execFileP = promisify(execFile);
+const GH = Octokit.plugin(paginateGraphQL);
+const clients = new Map<string, Promise<InstanceType<typeof GH>>>();
+// github.com and GHE.com (Enterprise Cloud) serve the API on api.<host>; GitHub Enterprise Server on <host>/api/v3
+const apiUrl = (host: string) => (host === 'github.com' || host.endsWith('.ghe.com') ? `https://api.${host}` : `https://${host}/api/v3`);
+/** An Octokit for `host` with gh's token (`gh auth token`): no login of our own, the token stays in this process. */
+function client(cwd: string, host: string) {
+  let c = clients.get(host);
+  if (!c) {
+    c = execFileP('gh', ['auth', 'token', '--hostname', host], { cwd, timeout: 10_000 }).then(
+      ({ stdout }) => {
+        const gh = new GH({ auth: stdout.trim(), baseUrl: apiUrl(host) });
+        gh.hook.before('request', (o) => void (o.request = { ...o.request, signal: AbortSignal.timeout(30_000) })); // per request, also per page
+        return gh;
+      },
+      (e) => {
+        throw new Error(e.code === 'ENOENT' ? 'the GitHub CLI (gh) is not installed' : String(e.stderr || e.message).trim().split('\n')[0], { cause: e });
+      },
+    );
+    c.catch(() => clients.delete(host)); // a failed lookup (gh not logged in yet) is retried next time
+    clients.set(host, c);
+  }
+  return c;
+}
+
+/** GraphQL as gh's user; `paginate` follows the one connection with `pageInfo` (variable `$cursor`). Rejects with GitHub's own error text. */
+export async function gql<T extends object = any>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}, { paginate = false } = {}): Promise<T> {
+  const c = await client(cwd, host);
+  try {
+    return await (paginate ? c.graphql.paginate<T>(query, variables) : c.graphql<T>(query, variables));
+  } catch (e: any) {
+    if (e.status === 401) clients.delete(host); // token revoked or rotated: ask gh again next time
+    throw new Error(e.errors?.length ? e.errors.map((x: { message: string }) => x.message).join('; ') : e.message, { cause: e });
+  }
 }
 
 const AUTHOR = 'author { login avatarUrl }';
 const COMMENT = `id databaseId body createdAt url viewerCanUpdate viewerCanDelete ${AUTHOR}`;
-const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
   viewer { login }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       id url headRefOid body createdAt ${AUTHOR}
-      reviewThreads(first: 100, after: $after) {
+      reviewThreads(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id isResolved path line startLine diffSide startDiffSide originalLine originalStartLine subjectType
@@ -139,18 +154,10 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: 
 
 /** Fetch everything and normalize. shortcut: conversation comments and reviews stop at 100 each, page them if a PR ever has more. */
 export async function fetchPr(cwd: string, t: PrTarget, localHead: string | null) {
-  let data: PrQuery;
-  const threads: GhReviewThread[] = [];
-  let after: string | null = null;
-  do {
-    data = await gql<PrQuery>(cwd, t.host, PR_QUERY, { owner: t.owner, name: t.name, number: t.number, after });
-    const pr = data.repository?.pullRequest;
-    if (!pr) throw new Error(`PR #${t.number} not found in ${t.owner}/${t.name}`);
-    threads.push(...pr.reviewThreads.nodes);
-    after = pr.reviewThreads.pageInfo.hasNextPage ? pr.reviewThreads.pageInfo.endCursor : null;
-  } while (after);
-  const pr = data.repository!.pullRequest!;
-  return normalize({ ...pr, reviewThreads: { nodes: threads } }, data.viewer.login, localHead);
+  const data = await gql<PrQuery>(cwd, t.host, PR_QUERY, { owner: t.owner, name: t.name, number: t.number }, { paginate: true });
+  const pr = data.repository?.pullRequest;
+  if (!pr) throw new Error(`PR #${t.number} not found in ${t.owner}/${t.name}`);
+  return normalize(pr, data.viewer.login, localHead);
 }
 
 const VERDICT: Record<string, string | undefined> = { APPROVED: '**Approved**', CHANGES_REQUESTED: '**Requested changes**', DISMISSED: '_Review dismissed_' };

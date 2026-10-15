@@ -57,6 +57,8 @@
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
     "@hono/node-server": "^2.1.5",
+    "@octokit/core": "^7.0.8",
+    "@octokit/plugin-paginate-graphql": "^6.0.0",
     "fuzzysort": "^4.0.2",
     "hono": "^4.13.13",
     "open": "^11.0.4"
