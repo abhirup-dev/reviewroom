@@ -36,10 +36,10 @@ class FilesPanel implements PanelInstance {
     const types = [...new Set(app.files.map((f) => fileType(f.path)))].sort();
     const hasTests = app.files.some((f) => isTestFile(f.path));
     const ranges = app.range ? app.ranges() : [];
-    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' }) as HTMLSelectElement;
+    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' });
     ranges.forEach((r) => select.append(h('option', { value: r.key, selected: r.key === app.range?.key }, r.label)));
     select.addEventListener('change', () => app.setRange(ranges.find((r) => r.key === select.value)!));
-    const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' }) as HTMLInputElement;
+    const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' });
     search.addEventListener('input', () => {
       this.q = search.value;
       this.renderList();
@@ -104,7 +104,7 @@ class FilesPanel implements PanelInstance {
         const t = isTestFile(f.path) ? 'tests' : fileType(f.path);
         groups.set(t, [...(groups.get(t) ?? []), f]);
       });
-      for (const [t, fs] of [...groups.entries()].sort()) {
+      for (const [t, fs] of [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
         out.push(h('div', { class: 'rr-group-label' }, t === 'tests' ? 'Tests' : TYPE_LABEL[t] ?? '.' + t, h('span', null, String(fs.length))));
         fs.forEach((f) => out.push(this.row(f, f.path, 0)));
       }

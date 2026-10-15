@@ -24,7 +24,7 @@ export function h(tag: string, attrs?: Attrs | null, ...children: Child[]): HTML
 }
 
 export function append(el: Node, children: Child[]) {
-  for (const c of children.flat(Infinity as 1) as Child[]) {
+  for (const c of children.flat(Infinity as 1)) {
     if (c === null || c === undefined || c === false) continue;
     el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
   }
@@ -149,7 +149,7 @@ export function fuzzyScore(q: string, s: string): number {
   q = q.toLowerCase();
   const t = s.toLowerCase();
   const idx = t.indexOf(q);
-  if (idx >= 0) return 100 - idx + (idx === 0 || /[\/._\s-]/.test(t[idx - 1]) ? 50 : 0);
+  if (idx >= 0) return 100 - idx + (idx === 0 || /[/._\s-]/.test(t[idx - 1]) ? 50 : 0);
   let qi = 0, score = 0, last = -1;
   for (let i = 0; i < t.length && qi < q.length; i++) {
     if (t[i] === q[qi]) {

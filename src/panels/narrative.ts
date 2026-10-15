@@ -22,8 +22,7 @@ const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
 // one highlight registry for the page: each panel contributes its own ranges
 const highlightRanges = new Map<string, Range[]>();
 
-export { findDocElement } from '../core/describe';
-import { findDocElement, describeElement } from '../core/describe';
+import { describeElement } from '../core/describe';
 
 export function anchorFor(doc: HTMLElement, el: Element): { target: string; path?: string } {
   if (el.id) return { target: el.id };
@@ -124,7 +123,7 @@ class NarrativePanel implements PanelInstance {
     this.offs.push(
       app.bus.on('state', () => (this.renderHead(), this.decorate())),
       app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
-      app.bus.on('picker', ((on: boolean) => this.setPicking(on)) as any),
+      app.bus.on('picker', (on: boolean) => this.setPicking(on)),
     );
     if (!isDesc) {
       this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)));
@@ -194,7 +193,7 @@ class NarrativePanel implements PanelInstance {
   private spyBound = false;
 
   private reveal(id: string, path?: string, threadId?: string) {
-    if (this.historic) this.showRound(0);
+    if (this.historic) void this.showRound(0);
     this.app.showPanel(this.isDesc ? 'description' : 'narrative');
     const el = this.app.docElement(id, path);
     if (!el) return this.app.toast(this.isDesc ? 'That part of the PR description is gone' : `“${id}” is not in the narrative`, 'error');
@@ -289,7 +288,7 @@ class NarrativePanel implements PanelInstance {
     if (!el) return;
     const a = this.anchorOf(el);
     const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
-    copyText(ref);
+    void copyText(ref);
     this.app.toast(`Link to ${this.app.label(ref)} copied — paste it into any comment`);
   }
   private pinBlock(el = this.hoverBlock) {
@@ -303,19 +302,19 @@ class NarrativePanel implements PanelInstance {
   private onClick(e: MouseEvent) {
     const t = e.target as Element;
     // description: a link to a comment on this PR opens its thread here
-    const gh = this.isDesc && !e.metaKey && !e.ctrlKey && this.app.githubThreadFor((t.closest('a[href]') as HTMLAnchorElement | null)?.href ?? '');
+    const gh = this.isDesc && !e.metaKey && !e.ctrlKey && this.app.githubThreadFor(t.closest<HTMLAnchorElement>('a[href]')?.href ?? '');
     if (gh) return e.preventDefault(), this.app.bus.emit('open-thread', { id: gh });
     const link = t.closest('a[href^="rr:"], rr-ref');
     if (link) {
       e.preventDefault();
-      this.app.open(link.getAttribute('href') ?? link.getAttribute('ref')!);
+      void this.app.open(link.getAttribute('href') ?? link.getAttribute('ref')!);
       return;
     }
     if (this.picking && this.doc.contains(t) && !t.closest('.rr-block-handle')) {
       e.preventDefault();
       e.stopPropagation();
       this.commentOnBlock(t);
-      if (this.pickToggle) this.app.bus.emit('picker' as any, false as any);
+      if (this.pickToggle) this.app.bus.emit('picker' as any, false);
     }
   }
 
@@ -338,7 +337,7 @@ class NarrativePanel implements PanelInstance {
       prefix: idx > 0 ? ownerText.slice(Math.max(0, idx - 32), idx) : undefined,
       suffix: idx >= 0 ? ownerText.slice(idx + range.toString().length, idx + range.toString().length + 32) : undefined,
     };
-    const a = { target: owner === this.current ? this.rootId : (owner as Element).id };
+    const a = { target: owner === this.current ? this.rootId : owner.id };
     this.app.selection = { kind: 'doc', anchor: { kind: 'doc', ...a, quote }, x: e.clientX, y: e.clientY, label: exact };
     this.app.bus.emit('selection', this.app.selection);
   }

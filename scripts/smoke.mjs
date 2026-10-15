@@ -107,7 +107,7 @@ try {
 
   // ---- finishing a round, nobody waiting: one finish wins, the next `review` hands it over
   const [f1, f2] = await Promise.all([post(url + 'api/finish', { kind: 'feedback', round: 1 }), post(url + 'api/finish', { kind: 'feedback', round: 1 })]);
-  check([f1.status, f2.status].sort().join() === '200,409', `double finish: one wins, the other gets 409 (${f1.status}, ${f2.status})`);
+  check([f1.status, f2.status].sort((a, b) => a - b).join() === '200,409', `double finish: one wins, the other gets 409 (${f1.status}, ${f2.status})`);
   check(state().round === 2 && state().rounds[0].deliveredAt === null, 'round advanced once; feedback not yet delivered');
   const late = await cliAsync(['review', '--no-open', ...d]);
   check(late.code === 0 && late.stdout.includes('t_one') && late.stdout.includes('and?'), 'review prints feedback sent while no agent was waiting');

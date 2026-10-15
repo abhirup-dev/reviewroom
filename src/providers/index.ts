@@ -111,7 +111,7 @@ export class ServerState implements StateBackend {
   }
   apply(op: Op) {
     this.queue.push({ op });
-    this.pump();
+    void this.pump();
   }
   private view() {
     // ops are idempotent, so one that already reached `base` re-applies as a no-op
@@ -136,7 +136,7 @@ export class ServerState implements StateBackend {
     return (this.running ??= this.drain());
   }
   private async drain() {
-    await null; // let pump() store the promise before anything below can clear it
+    await Promise.resolve(); // let pump() store the promise before anything below can clear it
     try {
       for (;;) {
         const batch = this.queue.filter((q) => !q.ackRev);
@@ -180,16 +180,16 @@ export class ServerState implements StateBackend {
     const connect = () => {
       const es = new EventSource(`${this.api}/events`);
       es.addEventListener('hello', async (e) => {
-        const h = JSON.parse((e as MessageEvent).data).hash;
+        const h = JSON.parse(e.data).hash;
         // reconnected to a new `reviewroom review` run: pick up whatever the agent changed meanwhile
         if (hash !== null && h !== hash) return on.review();
         if (hash !== null) this.receive(await this.fetchState());
         hash = h;
-        this.pump();
+        void this.pump();
       });
-      es.addEventListener('state', (e) => this.receive(JSON.parse((e as MessageEvent).data)));
+      es.addEventListener('state', (e) => this.receive(JSON.parse(e.data)));
       es.addEventListener('review', () => on.review());
-      es.addEventListener('github', (e) => on.github?.(JSON.parse((e as MessageEvent).data)));
+      es.addEventListener('github', (e) => on.github?.(JSON.parse(e.data)));
       es.onerror = () => {
         es.close();
         setTimeout(connect, 2000);

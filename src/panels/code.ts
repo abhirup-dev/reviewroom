@@ -89,7 +89,7 @@ class CodePanel implements PanelInstance {
       }),
       app.bus.on('state', () => this.refreshAnnotations()),
       app.bus.on('reveal-code', (t) => {
-        if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
+        if ((t.panel ?? 'code') === this.panelId) void this.reveal(t);
       }),
       app.bus.on('selection', (sel) => {
         // Esc / clearing the selection also clears the highlighted line range
@@ -122,7 +122,7 @@ class CodePanel implements PanelInstance {
       const f = this.app.files.find((x) => x.path === this.pin);
       const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
       left.push(
-        h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()!),
+        h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()),
         h(
           'div',
           { class: 'rr-seg', role: 'group', 'aria-label': 'View' },
@@ -221,7 +221,7 @@ class CodePanel implements PanelInstance {
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
-    const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' }) as HTMLInputElement;
+    const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => {
       app.setViewed(f.path, cb.checked);
       this.toggleCollapse(f.path, cb.checked);
@@ -278,12 +278,12 @@ class CodePanel implements PanelInstance {
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: true,
-      parseDiffOptions: p.ignoreWhitespace ? ({ ignoreWhitespace: true } as any) : undefined,
+      parseDiffOptions: p.ignoreWhitespace ? { ignoreWhitespace: true } : undefined,
       unsafeCSS: PIERRE_CSS + focusCSS,
       onLineSelected: (r) => this.onSelect(path, r),
       onGutterUtilityClick: (r) => this.onGutter(path, r),
       renderAnnotation: (a) => {
-        const t = this.app.thread(a.metadata!.threadId);
+        const t = this.app.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
     };
@@ -297,7 +297,7 @@ class CodePanel implements PanelInstance {
       .map((t) => {
         const a = t.anchor as Extract<Thread['anchor'], { kind: 'code' }>;
         const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
-        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } } as DiffLineAnnotation<Meta>);
+        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } });
       });
   }
 
@@ -376,7 +376,7 @@ class CodePanel implements PanelInstance {
       b.el.querySelector('.rr-file__head')?.replaceWith(head);
     });
     if (this.fileView?.inst) {
-      this.fileView.inst.setLineAnnotations(this.fileAnnotations(this.fileView.path, this.fileView.side) as any);
+      this.fileView.inst.setLineAnnotations(this.fileAnnotations(this.fileView.path, this.fileView.side));
       this.fileView.inst.rerender();
     }
   }
@@ -415,11 +415,11 @@ class CodePanel implements PanelInstance {
       onLineSelected: (r) => r && !rev && this.onSelect(path, { ...r, side: side === 'base' ? 'deletions' : 'additions' }),
       onGutterUtilityClick: (r) => !rev && this.onGutter(path, { ...r, side: side === 'base' ? 'deletions' : 'additions' }),
       renderAnnotation: (a) => {
-        const t = this.app.thread(a.metadata!.threadId);
+        const t = this.app.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
     });
-    inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side) as any, containerWrapper: body });
+    inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side), containerWrapper: body });
     this.fileView.inst = inst;
     if (start) {
       this.ownSel = `${path}:${start}:${end ?? start}`;
@@ -528,7 +528,7 @@ class CodePanel implements PanelInstance {
     container.querySelectorAll('*').forEach((n) => (n as HTMLElement).shadowRoot && roots.push((n as HTMLElement).shadowRoot!));
     for (const root of roots) {
       const col = root.querySelector(`[data-${side}]`) ?? root.querySelector('[data-unified]') ?? root;
-      const row = (col as ParentNode).querySelector(`[data-line="${line}"]`) as HTMLElement | null;
+      const row = col.querySelector(`[data-line="${line}"]`) as HTMLElement | null;
       if (row) return row;
     }
     return null;
@@ -577,7 +577,7 @@ class CodePanel implements PanelInstance {
     const top = this.scroller.scrollTop + 8;
     const cur = order.findIndex((b) => b.el.offsetTop + b.el.offsetHeight > top);
     const next = order[Math.max(0, Math.min(order.length - 1, cur + dir))];
-    if (next) this.reveal({ path: next.file.path, side: 'head' });
+    if (next) void this.reveal({ path: next.file.path, side: 'head' });
   }
 
   private trackActive() {
@@ -650,7 +650,7 @@ export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 
   const name = path.split('/').pop()!;
   const ref = (near && app.dock.getPanel(near)) || app.dock.getPanel('code') || app.dock.activePanel;
   const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } };
-  if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) } as any);
+  if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
   else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined } as any);
   return id;
 }
