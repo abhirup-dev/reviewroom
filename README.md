@@ -112,7 +112,7 @@ src/
   overlays/           thread popup/panel + composer, palette, hover previews, toasts
   elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
   styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
-cli/reviewroom.mjs   zero-dependency server + round commands
+cli/                  CLI (TypeScript, bundled for Node): server + round commands
 templates/            review.html scaffold
 schema/               JSON schema for state.json (generated from src/shared/schema.ts)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)

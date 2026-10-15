@@ -3,18 +3,18 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { flags, pos, die } from '../lib/args.ts';
-import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
+import { type ReviewConfig, git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
 import { resolveDir, loadConfig } from '../lib/state.ts';
 import { liveServer, stopServer } from '../lib/server.ts';
-import { cmdServe } from './serve.mjs';
+import { cmdServe } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
-const shortPath = (p) => (path.relative(process.cwd(), p).startsWith('..') ? p : path.relative(process.cwd(), p) || '.');
+const shortPath = (p: string) => (path.relative(process.cwd(), p).startsWith('..') ? p : path.relative(process.cwd(), p) || '.');
 // --detach respawns the running entry (the source or the bundle)
 const ENTRY = process.argv[1];
 
-function gh(repo, args) {
+function gh(repo: string, args: string[]) {
   try {
     return JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
   } catch {
@@ -22,13 +22,13 @@ function gh(repo, args) {
   }
 }
 
-export async function cmdPr(repo) {
+export async function cmdPr(repo: string | null) {
   if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
   const arg = pos.shift();
   const remote = typeof flags.remote === 'string' ? flags.remote : 'origin';
   const m = arg && String(arg).match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
-  const cfg = {};
-  let dir;
+  const cfg: Partial<ReviewConfig> = {};
+  let dir: string;
   if (m) {
     const n = m[1];
     const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);

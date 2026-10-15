@@ -2,12 +2,12 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/index.ts",
-    "cli/reviewroom.mjs",
+    "cli/reviewroom.ts",
     "scripts/*.{mjs,ts}"
   ],
   "project": [
     "src/**/*.ts",
-    "cli/**/*.{ts,mjs}",
+    "cli/**/*.ts",
     "scripts/**/*.{ts,mjs}"
   ],
   "ignoreDependencies": [

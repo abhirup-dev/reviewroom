@@ -4,13 +4,13 @@ import { flags, die } from '../lib/args.ts';
 import { ensureExcluded } from '../lib/git.ts';
 import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
 import { undelivered } from '../../src/shared/ops.ts';
-import { DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.ts';
+import { type Finished, DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.ts';
 
-const print = (text) => new Promise((r) => process.stdout.write(text, r));
+const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
 
 // Feedback the reviewer sent while no agent was blocked in `review`: hand it over now, oldest first.
 // Marked delivered only after printing (a repeat beats a loss). A running server keeps running.
-async function deliverPending(dir) {
+async function deliverPending(dir: string) {
   const rounds = undelivered(readState(dir));
   for (const r of rounds) {
     const f = path.join(dir, 'rounds', String(r.n), 'feedback.md');
@@ -21,7 +21,7 @@ async function deliverPending(dir) {
   return rounds.length > 0;
 }
 
-export async function cmdServe(repo, blocking, dir) {
+export async function cmdServe(repo: string | null, blocking: boolean, dir?: string) {
   if (!repo) die('not inside a git repository (use --repo <path>)');
   dir ??= resolveDir(repo, { existing: true });
   const cfg = loadConfig(dir, repo);
@@ -33,8 +33,8 @@ export async function cmdServe(repo, blocking, dir) {
   if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
   if (!fs.existsSync(path.join(dir, 'config.json')) || flags.base || flags.head || flags.title) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
-  let finish;
-  const done = new Promise((r) => (finish = r));
+  let finish!: (f: Finished) => void;
+  const done = new Promise<Finished>((r) => (finish = r));
   const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
   const port = await listen(server, +(flags.port || 4848));
   const url = `http://127.0.0.1:${port}/`;
@@ -68,7 +68,7 @@ export async function cmdServe(repo, blocking, dir) {
     try {
       commit([{ op: 'markDelivered', round: res.round }]);
     } catch (e) {
-      console.error(`reviewroom: could not record delivery: ${e.message}`);
+      console.error(`reviewroom: could not record delivery: ${(e as Error).message}`);
     }
     console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} → ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
     server.closeAllConnections?.();

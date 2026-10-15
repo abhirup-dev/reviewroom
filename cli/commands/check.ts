@@ -7,11 +7,11 @@ import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
 
 // Stale-link check of review.html. --fix rewrites links whose code moved ≤5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.
-export async function cmdCheck(repo) {
+export async function cmdCheck(repo: string | null) {
   const dir = dirForEdit(repo);
   const file = path.join(dir, 'review.html');
   if (!fs.existsSync(file)) die(`no review.html in ${dir}`);
-  const prov = makeProvider(repo, loadConfig(dir, repo));
+  const prov = makeProvider(repo!, loadConfig(dir, repo!)); // null with only --dir: rr-5qv
   const known = readState(dir).links ?? {};
   const html = fs.readFileSync(file, 'utf8');
   let { results, links } = checkLinks(html, prov, flags.accept ? {} : known);
