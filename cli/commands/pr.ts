@@ -2,7 +2,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { flags, pos, die } from '../lib/args.ts';
+import { type Opts, die } from '../lib/args.ts';
 import { type ReviewConfig, git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
 import { resolveDir, loadConfig } from '../lib/state.ts';
@@ -22,10 +22,9 @@ function gh(repo: string, args: string[]) {
   }
 }
 
-export async function cmdPr(repo: string | null) {
+export async function cmdPr(repo: string | null, o: Opts, arg?: string) {
   if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
-  const arg = pos.shift();
-  const remote = typeof flags.remote === 'string' ? flags.remote : 'origin';
+  const remote = typeof o.remote === 'string' ? o.remote : 'origin';
   const m = arg && String(arg).match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
   const cfg: Partial<ReviewConfig> = {};
   let dir: string;
@@ -43,15 +42,15 @@ export async function cmdPr(repo: string | null) {
       console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
       ref = local;
     }
-    const baseBranch = (typeof flags.base === 'string' ? flags.base : info?.baseRefName) || remoteDefaultBranch(repo, remote);
+    const baseBranch = (typeof o.base === 'string' ? o.base : info?.baseRefName) || remoteDefaultBranch(repo, remote);
     if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
     const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo)) || die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-    Object.assign(cfg, { base, head: ref, number: +n, title: typeof flags.title === 'string' ? flags.title : info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
+    Object.assign(cfg, { base, head: ref, number: +n, title: typeof o.title === 'string' ? o.title : info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
     dir = path.join(repo, '.reviewroom', `pr-${n}`);
   } else if (!arg) {
     // no target: the current branch (or --base/--head), nothing fetched
-    dir = resolveDir(repo);
-    Object.assign(cfg, loadConfig(dir, repo));
+    dir = resolveDir(repo, o.dir);
+    Object.assign(cfg, loadConfig(dir, repo, o));
   } else {
     const branch = String(arg);
     let head = branch;
@@ -60,26 +59,26 @@ export async function cmdPr(repo: string | null) {
       head = `${remote}/${branch}`;
       if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called “${branch}”`);
     }
-    Object.assign(cfg, { base: typeof flags.base === 'string' ? flags.base : defaultBase(repo), head, title: typeof flags.title === 'string' ? flags.title : undefined });
+    Object.assign(cfg, { base: typeof o.base === 'string' ? o.base : defaultBase(repo), head, title: typeof o.title === 'string' ? o.title : undefined });
     dir = path.join(repo, '.reviewroom', branch.replace(/[^\w.-]+/g, '-'));
   }
-  if (typeof flags.dir === 'string') dir = path.resolve(flags.dir);
+  if (typeof o.dir === 'string') dir = path.resolve(o.dir);
   fs.mkdirSync(dir, { recursive: true });
   ensureExcluded(repo);
   const prevCfg = fs.existsSync(path.join(dir, 'config.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')) : {};
   const full = { ...prevCfg, ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined && v !== null)) };
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(full, null, 2));
-  const fresh = scaffold(repo, dir, full);
+  const fresh = scaffold(repo, dir, full, !!o.force);
   const prov = makeProvider(repo, full);
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed · review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded — fill it in)' : ''}`);
-  flags.dir = dir;
-  for (const k of ['base', 'head', 'title']) delete flags[k];
+  // serve this dir; --base/--head/--title are in config.json now
+  const serveOpts: Opts = { ...o, dir, base: undefined, head: undefined, title: undefined };
 
-  if (flags.detach) {
+  if (o.detach) {
     const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
-    if (flags.port) args.push('--port', String(flags.port));
-    if (flags['no-open']) args.push('--no-open');
+    if (o.port) args.push('--port', String(o.port));
+    if (o['no-open']) args.push('--no-open');
     await stopServer(dir);
     const out = fs.openSync(path.join(dir, 'server.log'), 'a');
     spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
@@ -94,5 +93,5 @@ export async function cmdPr(repo: string | null) {
     }
     die(`server did not start — see ${path.join(dir, 'server.log')}`);
   }
-  await cmdServe(repo, !!flags.wait, dir);
+  await cmdServe(repo, serveOpts, !!o.wait, dir);
 }

@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { flags } from './args.ts';
 import { makeProvider, type ReviewConfig } from './git.ts';
 import { PKG } from './server.ts';
 
-export function scaffold(repo: string, dir: string, cfg: ReviewConfig) {
+export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = false) {
   const target = path.join(dir, 'review.html');
-  if (fs.existsSync(target) && !flags.force) return false;
+  if (fs.existsSync(target) && !force) return false;
   const prov = makeProvider(repo, cfg);
   const meta = prov.meta();
   const files = prov.files(prov.base, prov.head);

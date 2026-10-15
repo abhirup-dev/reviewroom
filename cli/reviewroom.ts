@@ -9,7 +9,7 @@
 //   rounds/<n>/            snapshot of review.html + feedback.md for every finished round
 import path from 'node:path';
 import { cac } from 'cac';
-import { flags, pos, die } from './lib/args.ts';
+import { type Opts, die } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
 import { cmdPr } from './commands/pr.ts';
 import { cmdServe } from './commands/serve.ts';
@@ -26,16 +26,17 @@ cli
 
 // Hand cac's result to the commands as the flags they were typed as: kebab-case, `--no-x` as no-x,
 // values as strings (cac turns "42" into 42).
-const run = (fn: (repo: string | null) => unknown) => async (...args: unknown[]) => {
+const run = (fn: (repo: string | null, o: Opts, pos: string[]) => unknown) => async (...args: unknown[]) => {
   const opts = args.pop() as Record<string, unknown>;
+  const flags: Record<string, string | true> = {};
   for (const [k, v] of Object.entries(opts)) {
     if (k === '--') continue;
     const key = k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
     if (v === false) flags['no-' + key] = true;
     else flags[key] = v === true ? true : String(v);
   }
-  pos.push(...(args.filter((a) => a !== undefined) as string[]));
-  await fn(repoRoot(flags.repo ? path.resolve(flags.repo) : process.cwd()));
+  const pos = args.filter((a) => a !== undefined) as string[];
+  await fn(repoRoot(flags.repo ? path.resolve(flags.repo as string) : process.cwd()), flags, pos);
 };
 
 cli
@@ -52,21 +53,21 @@ cli
   .option('--no-open', 'Do not open the browser')
   .example('  reviewroom pr 4821 --wait')
   .example('  reviewroom pr --head worktree --wait')
-  .action(run(cmdPr));
+  .action(run((repo, o, pos) => cmdPr(repo, o, pos[0])));
 
 cli
   .command('review', 'Serve and block until the reviewer sends feedback or approves; print it')
   .option('--forever', 'Keep serving; never wait for a round (for a long-running session)')
   .option('--port <n>', 'Port (default: the previous one, else 4848)')
   .option('--no-open', 'Do not open the browser')
-  .action(run((repo) => cmdServe(repo, !flags.forever)));
+  .action(run((repo, o) => cmdServe(repo, o, !o.forever)));
 
 cli
   .command('status', 'Round, threads, threads awaiting your reply')
   .option('--threads', 'List the open threads with their messages')
   .option('--all', 'With --threads: include resolved threads')
   .option('--json', 'Machine-readable: paths, URL, shas (and threads with --threads)')
-  .action(run((repo) => (flags.threads ? cmdThreads(repo) : cmdStatus(repo))));
+  .action(run((repo, o) => (o.threads ? cmdThreads(repo, o) : cmdStatus(repo, o))));
 
 cli
   .command('reply [thread] [body]', 'Answer a thread as the agent ("-" = body from stdin)')

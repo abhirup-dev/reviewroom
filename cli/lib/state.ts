@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { flags, die } from './args.ts';
+import { type Opts, die } from './args.ts';
 import { git, defaultBase, type ReviewConfig } from './git.ts';
 import type { Anchor, Op, ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, type OpErrorCode } from '../../src/shared/ops.ts';
@@ -10,8 +10,8 @@ import { StoredState, issueText } from '../../src/shared/schema.ts';
 
 /** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
  *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
-export function resolveDir(repo: string | null, { existing = false } = {}): string {
-  if (flags.dir) return path.resolve(flags.dir);
+export function resolveDir(repo: string | null, dirFlag: string | undefined, { existing = false } = {}): string {
+  if (dirFlag) return path.resolve(dirFlag);
   repo = repo!; // only dirForEdit passes none, and only with --dir
   const root = path.join(repo, '.reviewroom');
   const branch = (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim().replace(/[^\w.-]+/g, '-');
@@ -22,10 +22,10 @@ export function resolveDir(repo: string | null, { existing = false } = {}): stri
   die(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
-export function loadConfig(dir: string, repo: string): ReviewConfig {
+export function loadConfig(dir: string, repo: string, o: Opts): ReviewConfig {
   const file = path.join(dir, 'config.json');
   const cfg: ReviewConfig = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-  for (const k of ['base', 'head', 'title'] as const) if (typeof flags[k] === 'string') cfg[k] = flags[k];
+  for (const k of ['base', 'head', 'title'] as const) if (typeof o[k] === 'string') cfg[k] = o[k];
   cfg.base ||= defaultBase(repo);
   cfg.head ||= 'HEAD';
   return cfg;
@@ -156,9 +156,9 @@ export async function commitOps(dir: string, ops: Op[]): Promise<number | undefi
 }
 export const uid = (p: string) => p + crypto.randomBytes(4).toString('hex');
 
-export const dirForEdit = (repo: string | null) => {
-  if (!repo && !flags.dir) die('not inside a git repository (use --dir)');
-  return resolveDir(repo, { existing: true });
+export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => {
+  if (!repo && !dirFlag) die('not inside a git repository (use --dir)');
+  return resolveDir(repo, dirFlag, { existing: true });
 };
 
 
