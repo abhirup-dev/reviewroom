@@ -19,8 +19,8 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 ```
 cli/reviewroom.mjs   entry: usage text + dispatch to commands/
 cli/commands/         one module per command group: pr, serve (review), threads (status --threads, reply, comment), status (status, stop), check
-cli/lib/              git.ts (validated git layer), server.mjs (HTTP API, origin guards, SSE), state.mjs,
-                      scaffold.ts, args.ts, links.ts (stale-link check)
+cli/lib/              git.ts (validated git layer), server.ts (HTTP API, origin guards, SSE), state.ts,
+                      github.ts (PR threads via gh), scaffold.ts, args.ts, links.ts (stale-link check)
 src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
 src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
 src/shared/           used by both the client and the CLI (no DOM, no Node): schema (state.json + ops, Zod), ops (the reducer), feedback

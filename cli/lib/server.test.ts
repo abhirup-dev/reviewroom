@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import http from 'node:http';
-import { listen } from './server.mjs';
+import { listen } from './server.ts';
 
 test('listen reports the port it fell back to when the first is taken', async () => {
   const taken = http.createServer();

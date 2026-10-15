@@ -17,7 +17,7 @@ import { cmdThreads, cmdReply, cmdComment } from './commands/threads.mjs';
 import { cmdStatus, cmdStop } from './commands/status.mjs';
 import { cmdCheck } from './commands/check.mjs';
 import { OpError } from '../src/shared/ops.ts';
-import { StateError } from './lib/state.mjs';
+import { StateError } from './lib/state.ts';
 
 const cli = cac('reviewroom');
 cli

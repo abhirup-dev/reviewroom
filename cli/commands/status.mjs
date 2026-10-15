@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { flags } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, readState } from '../lib/state.mjs';
-import { liveServer, stopServer } from '../lib/server.mjs';
+import { dirForEdit, loadConfig, readState } from '../lib/state.ts';
+import { liveServer, stopServer } from '../lib/server.ts';
 
 export function cmdStatus(repo) {
   const dir = dirForEdit(repo);
