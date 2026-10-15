@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
-// takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.mjs).
+// takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
 // The review dir defaults to <repo>/.reviewroom/<branch>/ (`pr <n>` uses pr-<n>/) and holds:
 //   review.html            the narrative (written by the agent, any HTML)

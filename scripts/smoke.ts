@@ -1,6 +1,6 @@
 // End-to-end smoke test: demo repo → `reviewroom pr` (detached) → API + bundle respond → state ops,
 // rounds and the agent hand-off → stop → file-only writes (lock, corrupt state).
-// Run with `mise run smoke` (or `bun scripts/smoke.mjs`). Exits non-zero on any failure.
+// Run with `mise run smoke` (or `bun scripts/smoke.ts`). Exits non-zero on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -13,12 +13,12 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-smoke-'));
 const repo = path.join(tmp, 'repo');
 process.env.REVIEWROOM_HOME = path.join(tmp, 'home'); // children inherit it: keep the session registry out of ~
 const sessions = () => { try { return fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'sessions', f), 'utf8'))); } catch { return []; } };
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+const run = (cmd: string, args: string[], opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 const node = process.execPath;
 const port = String(4900 + Math.floor(Math.random() * 90));
 // raw request so crafted Host / Sec-Fetch-Site / Origin headers reach the server untouched
-const raw = (url, headers = {}, method = 'GET') =>
-  new Promise((resolve, reject) => {
+const raw = (url: string, headers: Record<string, string> = {}, method = 'GET') =>
+  new Promise<number | undefined>((resolve, reject) => {
     const req = http.request(url, { method, headers }, (res) => {
       res.resume();
       res.on('end', () => resolve(res.statusCode));
@@ -27,8 +27,8 @@ const raw = (url, headers = {}, method = 'GET') =>
     req.end(method === 'GET' ? undefined : '{}');
   });
 // async CLI run, for concurrency and blocking `review`
-const cliAsync = (args, input) =>
-  new Promise((resolve) => {
+const cliAsync = (args: string[], input?: string) =>
+  new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const p = spawn(node, [cli, ...args]);
     let stdout = '', stderr = '';
     p.stdout.on('data', (d) => (stdout += d));
@@ -36,9 +36,9 @@ const cliAsync = (args, input) =>
     p.on('exit', (code) => resolve({ code, stdout, stderr }));
     p.stdin.end(input);
   });
-const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const check = (cond, msg) => {
+const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const check = (cond: unknown, msg: string) => {
   if (!cond) {
     console.error('✗ ' + msg);
     process.exitCode = 1;
@@ -49,16 +49,16 @@ try {
   run('bash', [path.join(root, 'examples', 'make-demo-repo.sh'), repo]);
   const url = run(node, [cli, 'pr', 'feat/habit-events', '--repo', repo, '--detach', '--no-open', '--port', port]).trim();
   check(url.startsWith('http://127.0.0.1:'), `server up at ${url}`);
-  const files = await (await fetch(url + 'api/files')).json();
+  const files = await (await fetch(url + 'api/files')).json() as any;
   check(files.length === 5, `diff has ${files.length} files`);
-  const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json();
-  check(sym.some((h) => h.kind === 'definition'), 'symbol search finds the definition');
+  const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json() as any;
+  check(sym.some((h: any) => h.kind === 'definition'), 'symbol search finds the definition');
   const js = await fetch(url + '_rr/reviewroom.js');
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
   check(page.includes('<rr-review>'), 'review page is scaffolded');
   check(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-habit-events')), 'a running server is listed in the per-user session registry');
-  const sum = await (await fetch(url + 'api/summary')).json();
+  const sum = await (await fetch(url + 'api/summary')).json() as any;
   check(sum.round === 1 && sum.threads === 0 && typeof sum.browserClients === 'number', 'summary gives round and counts without thread text');
 
   // security regressions
@@ -88,7 +88,7 @@ try {
   const d = ['--repo', repo, '--dir', dir];
   check(JSON.parse(fs.readFileSync(path.join(dir, 'state.lock'), 'utf8')).port === +port, 'server holds state.lock');
   const created = await post(url + 'api/ops', { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
-  check(created.ok && (await created.json()).rev >= 1, 'browser op creates a thread');
+  check(created.ok && ((await created.json()) as any).rev >= 1, 'browser op creates a thread');
   // a CLI reply racing a stream of browser ops (spanning the CLI's whole run): everything must land
   const browserOps = async () => {
     const codes = [];
@@ -98,7 +98,7 @@ try {
   };
   const [cliReply, codes] = await Promise.all([cliAsync(['reply', 't_one', 'because', ...d]), browserOps()]);
   const s1 = state();
-  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
+  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m: any) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
   check((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status === 404, 'op on an unknown thread is a 404');
   check((await post(url + 'api/ops', { op: 'finishRound', kind: 'feedback' })).status === 400, 'rounds cannot be finished through /api/ops');
   const second = run(node, [cli, 'comment', 'general', 'fyi', ...d]).trim();
@@ -146,11 +146,11 @@ try {
   // ---- no server: CLI writes take the lock, a dead holder's lock is stale
   fs.writeFileSync(path.join(dir, 'state.lock'), JSON.stringify({ pid: 999999, port: null }));
   const [c1, c2] = await Promise.all([cliAsync(['comment', 'general', 'one', ...d]), cliAsync(['comment', 'general', 'two', ...d])]);
-  const bodies = state().threads.map((t) => t.messages[0].body);
+  const bodies = state().threads.map((t: any) => t.messages[0].body);
   check(c1.code === 0 && c2.code === 0 && bodies.includes('one') && bodies.includes('two') && !fs.existsSync(path.join(dir, 'state.lock')), 'concurrent CLI writes both land (stale lock taken over, then released)');
 
   // ---- stale links: fingerprint, head moves 2 lines, check reports, --fix heals
-  const file = files.find((f) => f.status !== 'deleted').path;
+  const file = files.find((f: any) => f.status !== 'deleted').path;
   const ref = `rr:code/${file}#L3-4`;
   const reviewFile = path.join(dir, 'review.html');
   fs.writeFileSync(reviewFile, `<rr-review><section id="s"><a href="${ref}">x</a> <a href="rr:sym/RecentEvents">y</a> <a href="rr:doc/nope">z</a></section></rr-review>`);
@@ -182,7 +182,7 @@ try {
   const typo = await cliAsync(['status', '--jsn', ...d]);
   check(typo.code === 2 && typo.stderr.includes('--jsn'), 'an unknown flag is an error (exit 2)');
   const rs = await cliAsync(['reply', 't_one', '--resolve', ...d]);
-  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
+  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t: any) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
   const local = path.join(tmp, 'local-review');
   const lp = spawn(node, [cli, 'pr', '--base', 'main', '--head', 'feat/habit-events', '--no-open', '--port', String(+port + 3), '--repo', repo, '--dir', local], { stdio: 'ignore' });
   for (let i = 0; i < 50 && !fs.existsSync(path.join(local, 'server.json')); i++) await sleep(100);
@@ -204,7 +204,7 @@ try {
   const again = await cliAsync(['comment', 'general', 'after', ...d]);
   check(again.code !== 0 && /moved aside/.test(again.stderr) && !fs.existsSync(path.join(dir, 'state.json')), 'after a state.json is moved aside, writes stay blocked instead of starting an empty review');
 } catch (e) {
-  console.error(e.stderr || e.message);
+  console.error((e as any).stderr || (e as Error).message);
   process.exitCode = 1;
 } finally {
   try {

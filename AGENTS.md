@@ -11,7 +11,7 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 
 - **CLI + server** (`cli/`): reads git, serves the page and its API,
   stores threads/rounds on disk, runs the round loop.
-- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with Bun (`scripts/build.mjs`). Boots from a
+- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with Bun (`scripts/build.ts`). Boots from a
   `<rr-app>` element in the review page.
 
 ## Map
