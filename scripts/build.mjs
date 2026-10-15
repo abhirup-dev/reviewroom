@@ -68,7 +68,7 @@ async function build() {
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
   // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
-  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.mjs')], target: 'node', format: 'esm', outdir: at('dist/cli'), naming: '[name].mjs' });
+  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'node', format: 'esm', outdir: at('dist/cli'), naming: '[name].mjs' });
   for (const r of [res, cli]) {
     if (r.success) continue;
     for (const log of r.logs) console.error(log);

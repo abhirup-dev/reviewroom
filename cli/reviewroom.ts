@@ -11,11 +11,11 @@ import path from 'node:path';
 import { cac } from 'cac';
 import { flags, pos, die } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
-import { cmdPr } from './commands/pr.mjs';
-import { cmdServe } from './commands/serve.mjs';
-import { cmdThreads, cmdReply, cmdComment } from './commands/threads.mjs';
-import { cmdStatus, cmdStop } from './commands/status.mjs';
-import { cmdCheck } from './commands/check.mjs';
+import { cmdPr } from './commands/pr.ts';
+import { cmdServe } from './commands/serve.ts';
+import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
+import { cmdStatus, cmdStop } from './commands/status.ts';
+import { cmdCheck } from './commands/check.ts';
 import { OpError } from '../src/shared/ops.ts';
 import { StateError } from './lib/state.ts';
 
@@ -26,15 +26,15 @@ cli
 
 // Hand cac's result to the commands as the flags they were typed as: kebab-case, `--no-x` as no-x,
 // values as strings (cac turns "42" into 42).
-const run = (fn) => async (...args) => {
-  const opts = args.pop();
+const run = (fn: (repo: string | null) => unknown) => async (...args: unknown[]) => {
+  const opts = args.pop() as Record<string, unknown>;
   for (const [k, v] of Object.entries(opts)) {
     if (k === '--') continue;
     const key = k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
     if (v === false) flags['no-' + key] = true;
     else flags[key] = v === true ? true : String(v);
   }
-  pos.push(...args.filter((a) => a !== undefined));
+  pos.push(...(args.filter((a) => a !== undefined) as string[]));
   await fn(repoRoot(flags.repo ? path.resolve(flags.repo) : process.cwd()));
 };
 
@@ -93,7 +93,7 @@ cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 
 // What an agent needs beyond the flags, shown under the command's --help.
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
-const notes = {
+const notes: Record<string, string> = {
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   check: [
@@ -140,7 +140,7 @@ try {
   else if (cli.args.length) die(`unknown command \`${cli.args[0]}\`; see \`reviewroom --help\``, 2);
   else if (!cli.options.help) cli.outputHelp();
 } catch (e) {
-  if (e.name === 'CACError') die(`${e.message}; see \`reviewroom ${cli.matchedCommandName ?? ''} --help\``.replace('  ', ' '), 2);
+  if ((e as Error).name === 'CACError') die(`${(e as Error).message}; see \`reviewroom ${cli.matchedCommandName ?? ''} --help\``.replace('  ', ' '), 2);
   if (!(e instanceof OpError || e instanceof StateError)) throw e;
   die(e.message);
 }

@@ -4,13 +4,15 @@ import { flags, pos, die } from '../lib/args.ts';
 import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.ts';
 import { anchorText, anchorRef, githubContext } from '../../src/shared/feedback.ts';
 import { cachedThreads } from '../lib/github.ts';
+import type { ReviewState } from '../../src/core/types.ts';
+import type { Op } from '../../src/shared/schema.ts';
 
 function threadArg() {
   const id = pos.shift();
   if (!id) die('missing thread id');
   return id;
 }
-function findThread(s, id) {
+function findThread(s: ReviewState, id: string) {
   if (id.startsWith('gh_')) die(`${id} is a GitHub thread: only the reviewer posts there. Link it with rr:thread/${id} in review.html or your reply instead.`);
   const t = s.threads.find((x) => x.id === id) || s.threads.filter((x) => x.id.startsWith(id) || x.id === 't_' + id)[0];
   if (!t) die(`no thread ${id}`);
@@ -24,7 +26,7 @@ function readBody() {
   return b.trim();
 }
 
-export function cmdThreads(repo) {
+export function cmdThreads(repo: string | null) {
   const dir = dirForEdit(repo);
   const s = readState(dir);
   const list = s.threads.filter((t) => flags.all || t.status === 'open');
@@ -44,25 +46,26 @@ export function cmdThreads(repo) {
 }
 
 // Agent replies as ops: `reply <thread> "<md>"`, or `reply --json <file|->` with [{thread, body, resolve?}].
-function replyOps(s, items) {
+type ReplyItem = { thread?: unknown; body?: unknown; resolve?: unknown };
+function replyOps(s: ReviewState, items: ReplyItem[]) {
   return items.flatMap((it, i) => {
     if (typeof it?.thread !== 'string' || typeof it.body !== 'string' || !it.body.trim()) die(`reply ${i}: needs "thread" and a non-empty "body"`);
     const t = findThread(s, it.thread);
-    const ops = [{ op: 'addMessage', threadId: t.id, id: uid('m_'), body: it.body.trim(), author: 'agent' }];
+    const ops: Op[] = [{ op: 'addMessage', threadId: t.id, id: uid('m_'), body: it.body.trim(), author: 'agent' }];
     if (it.resolve) ops.push({ op: 'setThreadStatus', threadId: t.id, status: 'resolved' });
     return ops;
   });
 }
 
-export async function cmdReply(repo) {
+export async function cmdReply(repo: string | null) {
   const dir = dirForEdit(repo);
-  let items;
+  let items: ReplyItem[];
   if (flags.json) {
     const src = typeof flags.json === 'string' ? flags.json : pos.shift() || '-';
     try {
       items = JSON.parse(fs.readFileSync(src === '-' ? 0 : src, 'utf8'));
     } catch (e) {
-      die(`--json: ${e.message}`);
+      die(`--json: ${(e as Error).message}`);
     }
     if (!Array.isArray(items) || !items.length) die('--json expects a non-empty array of {thread, body, resolve?}');
   } else if (flags.resolve && pos.length === 1 && !flags.file) {
@@ -74,10 +77,10 @@ export async function cmdReply(repo) {
   const ops = replyOps(readState(dir), items);
   await commitOps(dir, ops);
   if (flags.json) console.log(`replied to ${items.length} thread(s)`);
-  else console.log(`replied to ${ops[0].threadId}${flags.resolve ? ' (resolved)' : ''}`);
+  else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${flags.resolve ? ' (resolved)' : ''}`);
 }
 
-export async function cmdComment(repo) {
+export async function cmdComment(repo: string | null) {
   const dir = dirForEdit(repo);
   const ref = pos.shift() || die('missing rr: ref (or "general")');
   const id = uid('t_');

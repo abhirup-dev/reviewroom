@@ -17,7 +17,7 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 ## Map
 
 ```
-cli/reviewroom.mjs   entry: usage text + dispatch to commands/
+cli/reviewroom.ts    entry: usage text + dispatch to commands/
 cli/commands/         one module per command group: pr, serve (review), threads (status --threads, reply, comment), status (status, stop), check
 cli/lib/              git.ts (validated git layer), server.ts (HTTP API, origin guards, SSE), state.ts,
                       github.ts (PR threads via gh), scaffold.ts, args.ts, links.ts (stale-link check)
@@ -49,7 +49,7 @@ scripts/              build (Bun), smoke test, static demo builder
 - **`~/.reviewroom/sessions/<pid>.json`** (`REVIEWROOM_HOME` overrides `~/.reviewroom`): written by every running
   server and removed on exit; other local tools (agent-annotation-hub) list running reviews from it.
   `~/.reviewroom/layout.json` holds the reviewer's default panel layout (Layout menu → Save layout as default).
-- **CLI commands and flags** documented in `reviewroom --help` (`cli/reviewroom.mjs`): the help is the reference, keep it complete.
+- **CLI commands and flags** documented in `reviewroom --help` (`cli/reviewroom.ts`): the help is the reference, keep it complete.
 - **`window.rr` and the custom elements** documented in `skills/reviewroom/references/authoring.md`.
 
 ## Conventions
