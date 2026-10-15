@@ -1,7 +1,7 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates, and the server.json record.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { spawn } from 'node:child_process';
+import open from 'open';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -234,12 +234,7 @@ export function listen(server: http.Server, port: number) {
   });
 }
 
-export function openBrowser(url: string) {
-  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-  try {
-    spawn(cmd, [url], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref();
-  } catch {}
-}
+export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
 
 
 // A running server records itself so `review`/`stop` can find (and take over) it.
