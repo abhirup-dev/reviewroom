@@ -124,11 +124,14 @@ export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number): T 
 
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 
+const rtf = new Intl.RelativeTimeFormat(undefined, { style: 'narrow', numeric: 'auto' });
+/** "just now", "5m ago", "3h ago", "yesterday", "4d ago"; a date after a week. */
 export function relTime(iso: string): string {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return 'just now';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  if (s < 3600) return rtf.format(-Math.floor(s / 60), 'minute');
+  if (s < 86400) return rtf.format(-Math.floor(s / 3600), 'hour');
+  if (s < 7 * 86400) return rtf.format(-Math.floor(s / 86400), 'day');
   return new Date(iso).toLocaleDateString();
 }
 
