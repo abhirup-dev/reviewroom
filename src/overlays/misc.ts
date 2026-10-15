@@ -1,5 +1,6 @@
 // Command palette (⌘K), click-away selection release, link hover previews, toasts.
-import { h, icon, debounce, fuzzyScore } from '../core/dom';
+import { single } from 'fuzzysort';
+import { h, icon, debounce } from '../core/dom';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
@@ -52,8 +53,8 @@ export function mountPalette(app: ReviewApp) {
     const mode = q[0];
     const text = /^[>#/@]/.test(q) ? q.slice(1).trim() : q.trim();
     const add = (it: Omit<Item, 'score'>, hay: string) => {
-      const s = fuzzyScore(text, hay);
-      if (s >= 0) out.push({ ...it, score: s });
+      const s = text ? single(text, hay)?.score : 1; // 0..1, higher is better
+      if (s !== undefined) out.push({ ...it, score: s });
     };
     if (q.trim().startsWith('rr:') && parseRef(q.trim())) {
       const ref = q.trim();
@@ -71,9 +72,10 @@ export function mountPalette(app: ReviewApp) {
         const ref = formatRef({ type: 'doc', id: s.id });
         add({ kind: 'section', label: s.title, detail: 'Section', ref, run: () => app.bus.emit('reveal-doc', { id: s.id }) }, s.title + ' ' + s.id);
       }
+      // shortcut: matches the first 999 chars of a thread (fuzzysort only caches shorter targets), widen if long threads go unfound
       for (const t of app.threads()) {
         const ref = formatRef({ type: 'thread', id: t.id });
-        add({ kind: 'thread', label: plainExcerpt(t.messages[0]?.body ?? '', 70), detail: app.anchorLabel(t.anchor), ref, run: () => app.bus.emit('open-thread', { id: t.id }) }, t.messages.map((m) => m.body).join(' '));
+        add({ kind: 'thread', label: plainExcerpt(t.messages[0]?.body ?? '', 70), detail: app.anchorLabel(t.anchor), ref, run: () => app.bus.emit('open-thread', { id: t.id }) }, t.messages.map((m) => m.body).join(' ').slice(0, 999));
       }
     }
     return out;
