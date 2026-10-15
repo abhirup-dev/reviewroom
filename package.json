@@ -22,14 +22,14 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun scripts/build.mjs",
-    "dev": "bun scripts/build.mjs --watch",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p cli",
+    "build": "bun scripts/build.ts",
+    "dev": "bun scripts/build.ts --watch",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p cli && tsc --noEmit -p scripts",
     "lint": "oxlint --type-aware --deny-warnings && knip && jscpd",
     "test": "bun test",
-    "smoke": "bun scripts/smoke.mjs",
+    "smoke": "bun scripts/smoke.ts",
     "schema": "bun scripts/schema.ts",
-    "prepack": "bun scripts/build.mjs"
+    "prepack": "bun scripts/build.ts"
   },
   "engines": {
     "node": ">=20"
@@ -39,6 +39,7 @@
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.0",
     "@pierre/diffs": "^1.5.2",
+    "@types/bun": "^1.4.3",
     "@types/node": "^22",
     "cac": "^7.1.0",
     "dockview-core": "^8.4.1",
