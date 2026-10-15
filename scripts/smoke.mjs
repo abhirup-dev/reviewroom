@@ -78,6 +78,9 @@ try {
   fs.writeFileSync(path.join(leak, 'secret.txt'), 'secret');
   const trav = await fetch(url + '..%2ffeat-habit-events-leak%2fsecret.txt');
   check(trav.status === 403, `static route stays inside the review dir (${trav.status})`);
+  fs.writeFileSync(path.join(repo, '.reviewroom', 'feat-habit-events', 'fig #1?.txt'), 'fig');
+  const fig = await fetch(url + encodeURIComponent('fig #1?.txt'));
+  check(fig.ok && (await fig.text()) === 'fig', `static file with # and ? in its name is served (${fig.status})`);
 
   // ---- state ops through the running server
   const dir = path.join(repo, '.reviewroom', 'feat-habit-events');
