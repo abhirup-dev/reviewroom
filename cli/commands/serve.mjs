@@ -3,7 +3,7 @@ import path from 'node:path';
 import { flags, die } from '../lib/args.mjs';
 import { ensureExcluded } from '../lib/git.mjs';
 import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.mjs';
-import { undelivered } from '../lib/ops.mjs';
+import { undelivered } from '../../src/shared/ops.ts';
 import { DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.mjs';
 
 const print = (text) => new Promise((r) => process.stdout.write(text, r));

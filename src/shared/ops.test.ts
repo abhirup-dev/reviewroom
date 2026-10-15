@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { applyOp, OpError, undelivered } from './ops.mjs';
+import { applyOp, OpError, undelivered } from './ops';
 
 const empty = () => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: '2026-01-01T00:00:00Z' }], threads: [], viewed: {}, pins: [] });
 const run = (s, ...ops) => ops.reduce(applyOp, s);

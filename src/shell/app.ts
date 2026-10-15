@@ -6,10 +6,10 @@ import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
 import { h, uid } from '../core/dom';
 import { renderMarkdown } from '../core/markdown';
-import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { PR_DESCRIPTION } from '../shared/feedback';
 import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
-import { applyOp } from '../../cli/lib/ops.mjs';
+import { applyOp } from '../shared/ops';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 

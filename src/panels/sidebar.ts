@@ -2,7 +2,7 @@
 import { h, icon, relTime, threadBadge, threadCounts } from '../core/dom';
 import { cssPathWithin, parseRef, refIcon } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
-import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { PR_DESCRIPTION } from '../shared/feedback';
 import { openCentered } from '../shell/focus';
 import type { ChangedFile, CiCommit, CiState, Thread } from '../core/types';
 import { definePanel, type PanelInstance } from '../shell/layout';

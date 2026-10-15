@@ -16,7 +16,7 @@ import { cmdServe } from './commands/serve.mjs';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.mjs';
 import { cmdStatus, cmdStop } from './commands/status.mjs';
 import { cmdCheck } from './commands/check.mjs';
-import { OpError } from './lib/ops.mjs';
+import { OpError } from '../src/shared/ops.ts';
 import { StateError } from './lib/state.mjs';
 
 const cli = cac('reviewroom');

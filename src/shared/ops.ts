@@ -1,45 +1,46 @@
 // Every change to state.json is one of these ops, applied by one pure reducer.
 // Shared by the CLI/server (the single writer) and the browser (optimistic apply).
-// Plain JS, no Node imports, so the client bundle can import it.
+// No DOM or Node imports, so both the client bundle and the CLI can import it.
 //
 // Ops are absolute (setPin {pinned}, not a toggle) and creates are keyed by
 // client-made ids, so re-applying an op that already landed changes nothing.
 
-/** @typedef {import('../../src/core/types').ReviewState} ReviewState */
-/** @typedef {import('../../src/core/types').Op} Op */
+import type { Op, ReviewState, Round, Thread } from '../core/types';
 
 const STATUS = { bad_op: 400, not_found: 404, conflict: 409 };
+type OpErrorCode = keyof typeof STATUS;
 
 export class OpError extends Error {
-  /** @param {'bad_op' | 'not_found' | 'conflict'} code @param {string} message */
-  constructor(code, message) {
+  code: OpErrorCode;
+  status: number;
+  constructor(code: OpErrorCode, message: string) {
     super(message);
     this.code = code;
     this.status = STATUS[code];
   }
 }
 
-const str = (v, name) => {
+// ops arrive as JSON from the browser and the CLI: the Op type is what they should be, these checks make sure
+const str = (v: unknown, name: string): string => {
   if (typeof v !== 'string' || !v) throw new OpError('bad_op', `${name} must be a non-empty string`);
   return v;
 };
-const oneOf = (v, allowed, name) => {
-  if (!allowed.includes(v)) throw new OpError('bad_op', `${name} must be one of ${allowed.join(', ')}`);
-  return v;
+const oneOf = <T extends string>(v: unknown, allowed: readonly T[], name: string): T => {
+  if (!allowed.includes(v as T)) throw new OpError('bad_op', `${name} must be one of ${allowed.join(', ')}`);
+  return v as T;
 };
-const thread = (s, id) => s.threads.find((t) => t.id === id) || (() => { throw new OpError('not_found', `no thread ${id}`); })();
-const message = (t, id) => t.messages.find((m) => m.id === id) || (() => { throw new OpError('not_found', `no message ${id} in thread ${t.id}`); })();
-const AUTHORS = ['you', 'agent'];
+const thread = (s: ReviewState, id: string): Thread => s.threads.find((t) => t.id === id) || (() => { throw new OpError('not_found', `no thread ${id}`); })();
+const message = (t: Thread, id: string) => t.messages.find((m) => m.id === id) || (() => { throw new OpError('not_found', `no message ${id} in thread ${t.id}`); })();
+const AUTHORS = ['you', 'agent'] as const;
 const ANCHORS = ['doc', 'code', 'symbol', 'general'];
 
 /**
  * Apply one op and return the new state (the input is not modified). Bumps `rev`.
- * @param {ReviewState} state @param {Op} op @returns {ReviewState}
  */
-export function applyOp(state, op) {
+export function applyOp(state: ReviewState, op: Op): ReviewState {
   if (!op || typeof op !== 'object') throw new OpError('bad_op', 'op must be an object');
   const s = structuredClone(state);
-  const now = typeof op.at === 'string' ? op.at : new Date().toISOString();
+  const now = 'at' in op && typeof op.at === 'string' ? op.at : new Date().toISOString();
   switch (op.op) {
     case 'createThread': {
       str(op.id, 'id');
@@ -92,7 +93,7 @@ export function applyOp(state, op) {
       if (op.round !== undefined && op.round !== s.round) throw new OpError('conflict', `round ${op.round} is already finished (now round ${s.round})`);
       if (r && r.status !== 'open') throw new OpError('conflict', `round ${s.round} is already ${r.status}`);
       // deliveredAt null = finished, not yet printed to the agent (absent on rounds from before this field existed)
-      const done = { status: op.kind === 'approve' ? 'approved' : 'sent', sentAt: now, note: op.note || undefined, deliveredAt: null };
+      const done: Pick<Round, 'status' | 'sentAt' | 'note' | 'deliveredAt'> = { status: op.kind === 'approve' ? 'approved' : 'sent', sentAt: now, note: op.note || undefined, deliveredAt: null };
       if (r) Object.assign(r, done);
       else s.rounds.push({ n: s.round, startedAt: now, ...done });
       if (op.kind === 'feedback') {
@@ -108,11 +109,11 @@ export function applyOp(state, op) {
       break;
     }
     default:
-      throw new OpError('bad_op', `unknown op ${JSON.stringify(op.op)}`);
+      throw new OpError('bad_op', `unknown op ${JSON.stringify((op as { op: unknown }).op)}`);
   }
   s.rev = (s.rev ?? 0) + 1;
   return s;
 }
 
 /** Rounds finished but never printed to the agent, oldest first. */
-export const undelivered = (s) => s.rounds.filter((r) => r.status !== 'open' && r.deliveredAt === null);
+export const undelivered = (s: ReviewState) => s.rounds.filter((r) => r.status !== 'open' && r.deliveredAt === null);
