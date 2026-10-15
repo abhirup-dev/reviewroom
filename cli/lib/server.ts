@@ -222,7 +222,8 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       if (!f.startsWith(dir + path.sep) || /^\.?state\.(json|lock)/.test(path.basename(f))) return json(c, {}, 403);
       await next();
     },
-    serveStatic({ root: dir, allowPercentInPath: true }),
+    // serveStatic decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F), so `a%231.png` finds `a#1.png`
+    serveStatic({ root: dir, allowPercentInPath: true, rewriteRequestPath: (p) => p.replace(/%(23|24|26|2B|2C|3A|3B|3D|3F|40)/gi, decodeURIComponent) }),
   );
 
   const server = createAdaptorServer({ fetch: app.fetch, overrideGlobalObjects: false }) as http.Server;
