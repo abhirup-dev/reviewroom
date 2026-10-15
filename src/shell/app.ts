@@ -356,7 +356,7 @@ export class ReviewApp {
     const m = href.slice(pr.length).match(/^(?:\/[^#]*)?#(?:discussion_r|r|issuecomment-|pullrequestreview-)(\d+)$/);
     return m ? this.github!.threads.find((t) => t.messages.some((x) => x.id === 'gh_' + m[1]))?.id : undefined;
   }
-  /** One GitHub action (see cli/lib/github.mjs); false (with a toast) if GitHub refused it. */
+  /** One GitHub action (see cli/lib/github.ts); false (with a toast) if GitHub refused it. */
   async githubAct(action: Record<string, unknown>): Promise<boolean> {
     try {
       this.setGitHub(await this.backend.githubAct!(action));

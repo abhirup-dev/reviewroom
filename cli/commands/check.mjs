@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { flags, die } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, readState, commitOps } from '../lib/state.mjs';
+import { dirForEdit, loadConfig, readState, commitOps } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
 
 // Stale-link check of review.html. --fix rewrites links whose code moved ≤5 lines; --accept

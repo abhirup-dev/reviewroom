@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { flags } from './args.ts';
 import { makeProvider, type ReviewConfig } from './git.ts';
-import { PKG } from './server.mjs';
+import { PKG } from './server.ts';
 
 export function scaffold(repo: string, dir: string, cfg: ReviewConfig) {
   const target = path.join(dir, 'review.html');

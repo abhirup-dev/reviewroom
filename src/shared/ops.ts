@@ -9,11 +9,13 @@ import type { ReviewState, Thread } from '../core/types';
 import { issueText, Op, type Round } from './schema';
 
 const STATUS = { bad_op: 400, not_found: 404, conflict: 409 };
-type OpErrorCode = keyof typeof STATUS;
+export type OpErrorCode = keyof typeof STATUS;
 
 export class OpError extends Error {
   code: OpErrorCode;
   status: number;
+  /** Set by the server: which op of a batch failed. */
+  index?: number;
   constructor(code: OpErrorCode, message: string) {
     super(message);
     this.code = code;

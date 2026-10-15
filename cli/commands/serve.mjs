@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { flags, die } from '../lib/args.ts';
 import { ensureExcluded } from '../lib/git.ts';
-import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.mjs';
+import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
 import { undelivered } from '../../src/shared/ops.ts';
-import { DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.mjs';
+import { DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.ts';
 
 const print = (text) => new Promise((r) => process.stdout.write(text, r));
 

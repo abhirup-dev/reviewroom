@@ -5,8 +5,8 @@ import path from 'node:path';
 import { flags, pos, die } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { resolveDir, loadConfig } from '../lib/state.mjs';
-import { liveServer, stopServer } from '../lib/server.mjs';
+import { resolveDir, loadConfig } from '../lib/state.ts';
+import { liveServer, stopServer } from '../lib/server.ts';
 import { cmdServe } from './serve.mjs';
 
 // a path as the user would type it: relative when inside the cwd, else absolute

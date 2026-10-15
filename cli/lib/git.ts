@@ -77,7 +77,7 @@ export function ensureExcluded(repo: string) {
   } catch {}
 }
 
-/** config.json, with --base/--head/--title applied (state.mjs loadConfig). */
+/** config.json, with --base/--head/--title applied (state.ts loadConfig). */
 export interface ReviewConfig {
   base: string;
   head: string;

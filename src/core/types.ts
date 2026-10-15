@@ -84,7 +84,7 @@ export interface GitHubComment {
   canDelete: boolean;
 }
 
-/** GET /api/github: the PR's human comment threads (cli/lib/github.mjs). */
+/** GET /api/github: the PR's human comment threads (cli/lib/github.ts). */
 export interface GitHubSnapshot {
   ok: boolean;
   error?: string;

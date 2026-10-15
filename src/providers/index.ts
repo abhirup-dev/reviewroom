@@ -36,7 +36,7 @@ export interface StateBackend {
   saveDefaultLayout?(layout: object | null): Promise<boolean>;
   /** The PR's GitHub threads (cached by the server unless refresh). */
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
-  /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.mjs); resolves to the refetched threads. */
+  /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */
   githubAct?(action: Record<string, unknown>): Promise<GitHubSnapshot>;
 }
 export interface BackendEvents {

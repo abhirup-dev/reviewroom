@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { ciOf, normalize, prTarget, toGitHubMarkdown } from './github.mjs';
+import { ciOf, normalize, prTarget, toGitHubMarkdown } from './github.ts';
 
 const author = (login) => ({ login, avatarUrl: `https://avatars.example/${login}` });
 const comment = (databaseId, login, body, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
