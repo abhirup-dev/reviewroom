@@ -78,8 +78,11 @@ export function cachedThreads(dir: string): Thread[] {
 
 /** Which PR a review is about: from config.url (any GitHub host), else repo + number. */
 export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
+  // config.json is hand-editable: a non-string url/repo must mean "no PR", not a crash
+  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   const m = String(cfg.url || '').match(/^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   if (m) return { host: m[1], owner: m[2], name: m[3], number: +m[4] };
+  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   const r = String(cfg.repo || '').match(/^([\w.-]+)\/([\w.-]+)$/);
   return r && cfg.number ? { host: 'github.com', owner: r[1], name: r[2], number: +cfg.number } : null;
 }
@@ -173,7 +176,7 @@ export function normalize(pr: GhPullRequest, viewer: string, localHead: string |
         createdRound: 0,
         messages: t.comments.nodes.map((c) => msg(c, 'review')),
         // no current line: the code moved on (outdated) or the comment is on the whole file
-        gh: { node: t.id, url: t.comments.nodes[0].url, outdated: t.line == null && t.subjectType !== 'FILE', file: t.subjectType === 'FILE', canResolve: !!t.viewerCanResolve, canUnresolve: !!t.viewerCanUnresolve, canReply: !!t.viewerCanReply },
+        gh: { node: t.id, url: t.comments.nodes[0].url, outdated: t.line == null && t.subjectType !== 'FILE', file: t.subjectType === 'FILE', canResolve: t.viewerCanResolve, canUnresolve: t.viewerCanUnresolve, canReply: t.viewerCanReply },
       };
     });
   const reviews = pr.reviews.nodes.filter((r) => r.state !== 'PENDING');
@@ -279,8 +282,8 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       } finally {
         inflight = null;
       }
-      onChange?.(snap!);
-      return snap!;
+      onChange?.(snap);
+      return snap;
     })());
 
   // a failed action may still have changed something (a half-made review): refetch either way
@@ -303,8 +306,8 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         const an = a.anchor;
         if (an?.kind !== 'code' || !Number.isInteger(an.start) || !Number.isInteger(an.end)) throw new GitHubError('GitHub comments need a code line range', 400);
         const text = body();
-        const started = !snap!.pending;
-        const review = snap!.pending?.id ?? (await run('startReview', { pr: snap!.pr, commit: localHead })).addPullRequestReview.pullRequestReview.id;
+        const started = !snap.pending;
+        const review = snap.pending?.id ?? (await run('startReview', { pr: snap.pr, commit: localHead })).addPullRequestReview.pullRequestReview.id;
         const side = an.rev === 'base' ? 'LEFT' : 'RIGHT';
         const multi = an.start < an.end;
         const r = await run('thread', { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: text });
@@ -319,7 +322,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         await run('reply', { thread: await threadNode(), body: body() });
         break;
       case 'conversation':
-        await run('comment', { pr: snap!.pr, body: body() });
+        await run('comment', { pr: snap.pr, body: body() });
         break;
       case 'edit': {
         const m = msg();
@@ -340,12 +343,12 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         const event = ({ comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as Record<string, string | undefined>)[a.event!];
         if (!event) throw new GitHubError('event must be comment, approve or request_changes', 400);
         const text = typeof a.body === 'string' && a.body.trim() ? body() : null;
-        if (snap!.pending) await run('submit', { review: snap!.pending.id, event, body: text });
-        else await run('review', { pr: snap!.pr, commit: localHead, event, body: text });
+        if (snap.pending) await run('submit', { review: snap.pending.id, event, body: text });
+        else await run('review', { pr: snap.pr, commit: localHead, event, body: text });
         break;
       }
       case 'discard':
-        if (snap!.pending) await run('discard', { review: snap!.pending.id });
+        if (snap.pending) await run('discard', { review: snap.pending.id });
         break;
       default:
         throw new GitHubError(`unknown action ${JSON.stringify(a.action)}`, 400);

@@ -25,7 +25,7 @@
     "build": "bun scripts/build.mjs",
     "dev": "bun scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit && tsc --noEmit -p cli",
-    "lint": "oxlint --type-aware && knip && jscpd",
+    "lint": "oxlint --type-aware --deny-warnings && knip && jscpd",
     "test": "bun test",
     "smoke": "bun scripts/smoke.mjs",
     "schema": "bun scripts/schema.ts",

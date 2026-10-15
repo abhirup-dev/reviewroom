@@ -1,5 +1,5 @@
 // Shared data model. Everything persisted lives in ReviewState (see schema/state.schema.json).
-import type { Anchor, Author, StoredMessage, StoredState, StoredThread } from '../shared/schema';
+import type { Author, StoredMessage, StoredState, StoredThread } from '../shared/schema';
 
 export type Rev = string; // 'base' | 'head' | a git sha / ref
 
@@ -56,7 +56,7 @@ export interface SearchHit {
 // ---------------------------------------------------------------- anchors
 
 // The stored shapes (state.json) and ops are defined once as Zod schemas in src/shared/schema.ts.
-export type { Anchor, Author, Op, Round, TextQuote } from '../shared/schema';
+export type { Anchor, Author, Op, TextQuote } from '../shared/schema';
 
 /** A stored message, or (author 'github') a comment on the PR on GitHub; those are never stored in state.json. */
 export interface Message extends Omit<StoredMessage, 'author'> {

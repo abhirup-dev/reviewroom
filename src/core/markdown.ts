@@ -28,7 +28,7 @@ const BARE_EMBED = /^\s*(rr:[^\s]+)\s*$/gm;
 
 export function renderMarkdown(src: string): string {
   const pre = src.replace(BARE_EMBED, (_m, ref) => `![](${ref})`);
-  const html = md.parse(pre, { async: false }) as string;
+  const html = md.parse(pre, { async: false });
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['rr-ref', 'rr-embed'],
     ADD_ATTR: ['ref', 'caption', 'target'],

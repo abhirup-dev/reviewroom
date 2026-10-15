@@ -79,7 +79,7 @@ const fixture = { meta, commits, files, contents };
 // 3) page
 const review = fs.readFileSync(path.join(exampleDir, 'review.html'), 'utf8');
 const state = fs.readFileSync(path.join(exampleDir, 'state.json'), 'utf8');
-const pick = (re) => (review.match(re) || [, ''])[1];
+const pick = (re) => (review.match(re) || ['', ''])[1];
 const style = pick(/<style>([\s\S]*?)<\/style>/);
 let app = pick(/(<rr-app[\s\S]*<\/rr-app>)/).replace('<rr-app>', '<rr-app provider="static">');
 const json = (id, data) => `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;

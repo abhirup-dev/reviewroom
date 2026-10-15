@@ -192,7 +192,7 @@ export class ReviewApp {
   /** Open anything addressable. Accepts an rr: string or a parsed Ref. */
   async open(ref: string | Ref) {
     const r = typeof ref === 'string' ? parseRef(ref) : ref;
-    if (!r) return this.toast(`Unknown link: ${ref}`, 'error');
+    if (!r) return this.toast(`Unknown link: ${ref as string}`, 'error'); // a Ref always resolves
     switch (r.type) {
       case 'doc':
         this.bus.emit('reveal-doc', { id: r.id, path: r.path });
@@ -327,7 +327,7 @@ export class ReviewApp {
     const failed = s.error && s.error !== this.github?.error;
     this.github = s;
     this.renderDescription();
-    if (failed && s.ok !== false) this.toast('GitHub: ' + s.error, 'error');
+    if (failed && s.ok) this.toast('GitHub: ' + s.error, 'error');
     this.bus.emit('state', this.state);
   }
   private renderDescription() {

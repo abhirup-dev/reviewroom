@@ -13,7 +13,7 @@ export function git(args: string[], cwd: string, opts: GitOpts = {}): string | n
     return execFileSync('git', args, { cwd, encoding: opts.encoding ?? 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e: any) {
     if (opts.soft) return null;
-    throw new Error(`git ${args.join(' ')}: ${(e.stderr || e.message).toString().trim()}`);
+    throw new Error(`git ${args.join(' ')}: ${(e.stderr || e.message).toString().trim()}`, { cause: e });
   }
 }
 // Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.

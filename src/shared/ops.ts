@@ -73,7 +73,7 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
       if (op.pinned) s.pins.push(op.ref);
       break;
     case 'setCheck':
-      s.checks = { ...(s.checks ?? {}), [op.id]: op.value };
+      s.checks = { ...s.checks, [op.id]: op.value };
       break;
     case 'setLinks':
       s.links = op.links;

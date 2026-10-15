@@ -250,7 +250,7 @@ class RRCode extends HTMLElement {
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
       this.inst = new PierreFile({ theme: { dark: 'pierre-dark', light: 'pierre-light' }, themeType: app.resolvedTheme(), disableFileHeader: true, overflow: 'scroll', disableLineNumbers: ranged, unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, 'var(--rr-panel-2)') });
-      this.inst.render({ file: { name, contents, lang: lang as any }, containerWrapper: body });
+      this.inst.render({ file: { name, contents, lang: lang }, containerWrapper: body });
       this.app = app;
       this.listen();
     });

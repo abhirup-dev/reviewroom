@@ -21,7 +21,7 @@ export interface ThreadViewOpts {
   /** New comment that can go either way: the send button ⌘↵ uses. */
   to?: 'agent' | 'github';
   docked?: boolean;
-  onClose?(): void;
+  onClose?: () => void;
   onDock?(id: string): void;
   onUndock?(id: string): void;
 }
@@ -96,7 +96,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     for (const m of md.matchAll(re)) {
       text(md.slice(last, m.index));
       ed.append(chip(m[3], m[2] || app.label(m[3]), !!m[1]));
-      last = m.index! + m[0].length;
+      last = m.index + m[0].length;
     }
     text(md.slice(last));
   };
@@ -154,7 +154,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     const { Picker } = await import('emoji-picker-element');
     const picker = new Picker({ dataSource: EMOJI_DATA });
     picker.classList.add(app.resolvedTheme(), 'rr-emoji-picker');
-    const close = popMenu(btn, () => [picker as unknown as HTMLElement]);
+    const close = popMenu(btn, () => [picker]);
     picker.addEventListener('emoji-click', (e) => {
       close();
       if (e.detail.unicode) insertText(e.detail.unicode);
@@ -187,13 +187,13 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     if (node?.nodeType === 3 && (node as Text).data.slice(0, sel!.anchorOffset).endsWith('[[')) {
       const t = node as Text;
       t.deleteData(sel!.anchorOffset - 2, 2);
-      linkPicker();
+      void linkPicker();
     }
   });
   ed.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
-      submit();
+      void submit();
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       opts.onCancel?.();
@@ -210,7 +210,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   });
   ed.addEventListener('click', (e) => {
     const c = (e.target as Element).closest('[data-ref]') as HTMLElement | null;
-    if (c && (e.metaKey || e.ctrlKey)) app.open(c.dataset.ref!);
+    if (c && (e.metaKey || e.ctrlKey)) void app.open(c.dataset.ref!);
   });
 
   const sel = app.selection;
@@ -262,7 +262,7 @@ async function anchorContext(app: ReviewApp, a: Anchor, quote?: string): Promise
 }
 
 // ------------------------------------------------------------------ the view
-export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose(): void } {
+export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose: () => void } {
   const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') + (o.id ? '' : ' is-new') });
   let off: (() => void) | undefined;
   let lastCount = -1;
@@ -462,7 +462,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     }
   };
   const anchor = (o.id ? app.thread(o.id)?.anchor : o.anchor) ?? { kind: 'general' as const };
-  anchorContext(app, anchor, o.quote).then((ctx) => ctx && ctxHost.replaceChildren(ctx));
+  void anchorContext(app, anchor, o.quote).then((ctx) => ctx && ctxHost.replaceChildren(ctx));
   render();
   off = app.bus.on('state', () => {
     // don't clobber an in-progress draft: only re-render the message list
@@ -482,7 +482,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 
 // ------------------------------------------------------------------ popup host
 export function mountThreadPopup(app: ReviewApp) {
-  let current: { el: HTMLElement; dispose(): void } | null = null;
+  let current: { el: HTMLElement; dispose: () => void } | null = null;
   let lastFocus: Element | null = null;
   let composing = false;
   const scrim = h('div', { class: 'rr-scrim', hidden: true });

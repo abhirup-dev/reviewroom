@@ -38,7 +38,7 @@ export const menuLabel = (t: string) => h('div', { class: 'rr-menu__label-row' }
 // ---------------------------------------------------------------- send dialog
 export function sendDialog(app: ReviewApp) {
   const pending = app.pendingFeedback();
-  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' }) as HTMLTextAreaElement;
+  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
   const scrim = h('div', { class: 'rr-scrim' });
   const esc = () => (close(), true);
   const close = () => {
@@ -93,7 +93,7 @@ export function sendDialog(app: ReviewApp) {
 // ---------------------------------------------------------------- submit GitHub review
 export function submitReviewDialog(app: ReviewApp) {
   const drafts = app.github?.pending?.drafts ?? 0;
-  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' }) as HTMLTextAreaElement;
+  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' });
   const scrim = h('div', { class: 'rr-scrim' });
   const esc = () => (close(), true);
   const close = () => {

@@ -25,7 +25,7 @@ function gh(repo: string, args: string[]) {
 export async function cmdPr(repo: string | null, o: Opts, arg?: string) {
   if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
   const remote = typeof o.remote === 'string' ? o.remote : 'origin';
-  const m = arg && String(arg).match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
+  const m = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
   const cfg: Partial<ReviewConfig> = {};
   let dir: string;
   if (m) {
@@ -52,7 +52,7 @@ export async function cmdPr(repo: string | null, o: Opts, arg?: string) {
     dir = resolveDir(repo, o.dir);
     Object.assign(cfg, loadConfig(dir, repo, o));
   } else {
-    const branch = String(arg);
+    const branch = arg;
     let head = branch;
     if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
       fetchRef(remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`, repo);
@@ -77,7 +77,7 @@ export async function cmdPr(repo: string | null, o: Opts, arg?: string) {
 
   if (o.detach) {
     const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
-    if (o.port) args.push('--port', String(o.port));
+    if (o.port) args.push('--port', o.port);
     if (o['no-open']) args.push('--no-open');
     await stopServer(dir);
     const out = fs.openSync(path.join(dir, 'server.log'), 'a');

@@ -13,7 +13,7 @@ import cssText from 'virtual:rr-css';
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
-import { emptyState, type ReviewMeta, type ReviewState } from './core/types';
+import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
 import { mountDock, applyPreset, canUndoLayout, definePanel, saveDefaultLayout, ensurePanel, offerGitHubPanels, presets, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
@@ -37,7 +37,7 @@ function injectCSS() {
   document.head.prepend(s);
 }
 
-function readJSON<T>(sel: string, root: ParentNode = document): T | null {
+function readJSON(sel: string, root: ParentNode = document): unknown {
   const el = root.querySelector(sel);
   if (!el?.textContent?.trim()) return null;
   try {
@@ -95,11 +95,11 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.applyTheme();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => app.prefs.theme === 'system' && app.applyTheme());
 
-  const authored = readJSON<Partial<ReviewMeta> & { theme?: ThemeOverrides }>('#rr-meta', root) ?? {};
+  const authored = (readJSON('#rr-meta', root) as (Partial<ReviewMeta> & { theme?: ThemeOverrides }) | null) ?? {};
   if (authored.theme) applyThemeOverrides(authored.theme);
   for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) (authored as any)[k] = root.getAttribute(k);
-  const fixture = readJSON<Fixture>('#rr-fixture');
-  const seedState = readJSON<ReviewState>('#rr-state');
+  const fixture = readJSON('#rr-fixture') as Fixture | null;
+  const seedState = readJSON('#rr-state') as ReviewState | null;
   const review = root.querySelector('rr-review') as HTMLElement | null;
   const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No <rr-review> content yet.'));
   doc.remove();
@@ -119,13 +119,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     app.meta = meta;
     if (!document.title) document.title = meta.title;
     app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined);
-    app.state = { ...emptyState(), ...((await app.backend.load()) ?? {}) };
+    app.state = { ...emptyState(), ...(await app.backend.load()) };
     app.defaultLayout = (await app.backend.defaultLayout?.().catch(() => null)) ?? null;
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
     await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
   } catch (e) {
-    root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, String((e as Error).message ?? e))));
+    root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
     throw e;
   }
 
@@ -195,13 +195,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     app,
     open: (ref: string) => app.open(ref),
     findSymbol: (name: string) => app.findSymbol(name),
-    read: (path: string, rev: 'base' | 'head' | string = 'head') => app.read(path, rev === 'base' || rev === 'head' ? app.revFor(rev) : rev),
+    read: (path: string, rev: Rev = 'head') => app.read(path, rev === 'base' || rev === 'head' ? app.revFor(rev) : rev),
     files: () => app.files,
     search: (q: string, symbol = false) => app.search(q, symbol),
     comment: (ref: string, body?: string) => {
       const r = parseRef(ref);
       const anchor =
-        r?.type === 'doc' ? { kind: 'doc' as const, target: r.id, path: r.path } : r?.type === 'code' ? { kind: 'code' as const, path: r.path, rev: (r.rev === 'base' ? 'base' : 'head') as 'base' | 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1 } : r?.type === 'sym' ? { kind: 'symbol' as const, name: r.name } : { kind: 'general' as const };
+        r?.type === 'doc' ? { kind: 'doc' as const, target: r.id, path: r.path } : r?.type === 'code' ? { kind: 'code' as const, path: r.path, rev: r.rev === 'base' ? ('base' as const) : ('head' as const), start: r.start ?? 1, end: r.end ?? r.start ?? 1 } : r?.type === 'sym' ? { kind: 'symbol' as const, name: r.name } : { kind: 'general' as const };
       return body ? app.createThread(anchor, body) : app.compose(anchor);
     },
     on: app.bus.on.bind(app.bus),
@@ -223,7 +223,7 @@ function registerCommands(app: ReviewApp) {
   const C = app.commands;
   const pal = (q = '') => () => (app as any).openPalette(q);
   const codeCmd = (name: string) => () => {
-    const scroller = (document.activeElement?.closest('.rr-code-panel') ?? document.querySelector('.rr-code-panel')) as any;
+    const scroller = (document.activeElement?.closest('.rr-code-panel') ?? document.querySelector('.rr-code-panel'));
     scroller?.dispatchEvent(new CustomEvent('rr-code-cmd', { detail: name }));
   };
   C.register(

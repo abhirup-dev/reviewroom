@@ -70,7 +70,7 @@ Toolchain via [mise](https://mise.jdx.dev) (Node for the CLI, Bun for installs a
 mise install          # once
 mise run setup        # bun install, build, put `reviewroom` on PATH (bun link)
 mise run dev          # rebuild on change
-mise run check        # typecheck + end-to-end smoke test: run before committing
+mise run check        # typecheck, lint (oxlint, knip, jscpd), tests, end-to-end smoke test: run before committing
 mise run demo         # demo repo + live review on localhost
 mise run demo-page    # self-contained demo HTML in .demo/
 ```

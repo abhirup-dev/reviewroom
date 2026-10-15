@@ -52,7 +52,7 @@ export function parseRef(input: string): Ref | null {
           rev = rest.slice(at + 1);
           rest = rest.slice(0, at);
         }
-        return { type, path: decodeURI(rest), rev, start, end } as Ref;
+        return { type, path: decodeURI(rest), rev, start, end };
       }
       case 'sym':
         return { type: 'sym', name: decodeURIComponent(rest) };

@@ -8,7 +8,7 @@ export class Emitter<Events extends Record<string, unknown>> {
     let set = this.map.get(type);
     if (!set) this.map.set(type, (set = new Set()));
     set.add(fn);
-    return () => set!.delete(fn);
+    return () => set.delete(fn);
   }
   emit<K extends keyof Events>(type: K, payload: Events[K]) {
     this.map.get(type)?.forEach((fn) => {
