@@ -708,6 +708,7 @@ rr-embed {
 .rr-tooltip {
   position: fixed;
   z-index: 1300;
+  width: max-content; /* measured where it was last shown; don't let that spot's wrapping change its width */
   max-width: 300px;
   display: flex;
   align-items: center;

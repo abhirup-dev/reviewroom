@@ -3,7 +3,7 @@
 // Any element with `title` or `data-tip` gets a styled tooltip; `data-keys="mod+k"` adds a
 // shortcut hint. Native `title` is migrated to `data-tip` on first hover so the browser's own
 // slow, unstyled tooltip never doubles up. Works inside shadow DOM and for keyboard focus.
-import { h } from '../core/dom';
+import { h, placeNear } from '../core/dom';
 import { keyLabel } from '../core/commands';
 import type { ReviewApp } from '../shell/app';
 
@@ -44,13 +44,7 @@ export function mountTooltips(app: ReviewApp) {
     const keys = el.dataset.keys;
     box.replaceChildren(h('span', null, text), ...(keys ? keys.split(',').map((k) => h('kbd', null, keyLabel(k.trim()))) : []));
     box.hidden = false;
-    const r = el.getBoundingClientRect();
-    const b = box.getBoundingClientRect();
-    const above = r.top - b.height - 8 > 4;
-    const left = Math.min(window.innerWidth - b.width - 6, Math.max(6, r.left + r.width / 2 - b.width / 2));
-    box.style.left = left + 'px';
-    box.style.top = (above ? r.top - b.height - 8 : r.bottom + 8) + 'px';
-    box.dataset.side = above ? 'top' : 'bottom';
+    void placeNear(el, box, 'top', 8, 6);
   };
   const hide = () => {
     clearTimeout(timer);

@@ -55,6 +55,7 @@
   },
   "packageManager": "bun@1.4.2",
   "dependencies": {
+    "@floating-ui/dom": "^1.8.0",
     "fuzzysort": "^4.0.2",
     "open": "^11.0.4"
   }
