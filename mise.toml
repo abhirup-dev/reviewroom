@@ -19,6 +19,10 @@ run = "bun run dev"
 description = "Type-check the client and the CLI"
 run = "bun run typecheck"
 
+[tasks.lint]
+description = "Lint (oxlint, type-aware), dead code and unused deps (knip), copy-paste (jscpd)"
+run = "bun run lint"
+
 [tasks.test]
 description = "Unit tests (bun test, *.test.ts next to the code)"
 run = "bun test"

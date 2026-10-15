@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/index.ts",
+    "cli/reviewroom.mjs",
+    "scripts/*.{mjs,ts}"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "cli/**/*.{ts,mjs}",
+    "scripts/**/*.{ts,mjs}"
+  ],
+  "ignoreDependencies": [
+    "@fontsource-variable/.+",
+    "emoji-picker-element-data"
+  ],
+  "ignoreExportsUsedInFile": true
+}
