@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { flags, die } from './args.mjs';
-import { git, defaultBase } from './git.mjs';
+import { flags, die } from './args.ts';
+import { git, defaultBase } from './git.ts';
 import { applyOp, OpError } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
 

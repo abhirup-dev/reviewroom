@@ -2,9 +2,9 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { flags, pos, die } from '../lib/args.mjs';
-import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.mjs';
-import { scaffold } from '../lib/scaffold.mjs';
+import { flags, pos, die } from '../lib/args.ts';
+import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
+import { scaffold } from '../lib/scaffold.ts';
 import { resolveDir, loadConfig } from '../lib/state.mjs';
 import { liveServer, stopServer } from '../lib/server.mjs';
 import { cmdServe } from './serve.mjs';

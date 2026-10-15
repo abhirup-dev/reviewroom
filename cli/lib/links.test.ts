@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { applyFixes, checkLinks, problems } from './links.mjs';
+import { applyFixes, checkLinks, problems } from './links.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
 const prov = (files) => ({ head: 'h', base: 'b', read: (_rev, p) => files[p] ?? null, search: (q) => (q === 'Build' ? [{ kind: 'definition' }] : []) });

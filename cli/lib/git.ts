@@ -2,17 +2,22 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/core/types.ts';
 
-export const git = (args, cwd, opts = {}) => {
+type GitOpts = { soft?: boolean; encoding?: BufferEncoding };
+export function git(args: string[], cwd: string, opts: GitOpts & { soft: true }): string | null;
+export function git(args: string[], cwd: string, opts?: GitOpts & { soft?: false }): string;
+export function git(args: string[], cwd: string, opts?: GitOpts): string | null;
+export function git(args: string[], cwd: string, opts: GitOpts = {}): string | null {
   try {
     return execFileSync('git', args, { cwd, encoding: opts.encoding ?? 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (e) {
+  } catch (e: any) {
     if (opts.soft) return null;
     throw new Error(`git ${args.join(' ')}: ${(e.stderr || e.message).toString().trim()}`);
   }
-};
+}
 // Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.
-export const fetchRef = (remote, refspec, cwd) => {
+export const fetchRef = (remote: string, refspec: string, cwd: string) => {
   try {
     execFileSync('git', ['fetch', '--quiet', '--end-of-options', remote, refspec], {
       cwd, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000,
@@ -26,37 +31,37 @@ const GREP_MAX = (() => {
   const m = (git(['--version'], process.cwd(), { soft: true }) || '').match(/(\d+)\.(\d+)/);
   return !!m && (+m[1] > 2 || (+m[1] === 2 && +m[2] >= 38));
 })();
-const maxCount = (n) => (GREP_MAX ? [`--max-count=${n}`] : []);
-const capPerFile = (hits, n) => {
+const maxCount = (n: number) => (GREP_MAX ? [`--max-count=${n}`] : []);
+const capPerFile = (hits: SearchHit[], n: number) => {
   if (GREP_MAX) return hits;
-  const seen = new Map();
+  const seen = new Map<string, number>();
   return hits.filter((h) => { const c = (seen.get(h.path) || 0) + 1; seen.set(h.path, c); return c <= n; });
 };
 // Every rev that reaches git argv passes through here: a leading `-` would be read as an option
 // (`--output=…` writes files), so revs are restricted to ref/sha syntax.
-export const isRev = (r) => typeof r === 'string' && /^[\w@][\w./~^@{}+-]*$/.test(r);
-export const checkRev = (r) => {
+export const isRev = (r: unknown): r is string => typeof r === 'string' && /^[\w@][\w./~^@{}+-]*$/.test(r);
+export const checkRev = (r: unknown) => {
   if (isRev(r)) return r;
   throw Object.assign(new Error(`invalid revision ${JSON.stringify(r)}`), { status: 400 });
 };
-export const hasRef = (ref, cwd) => isRev(ref) && !!git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd, { soft: true });
-export const repoRoot = (from) => (git(['rev-parse', '--show-toplevel'], from, { soft: true }) || '').trim() || null;
+export const hasRef = (ref: string, cwd: string) => isRev(ref) && !!git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd, { soft: true });
+export const repoRoot = (from: string) => (git(['rev-parse', '--show-toplevel'], from, { soft: true }) || '').trim() || null;
 export const WORKTREE = 'worktree';
 
-export function defaultBase(repo) {
+export function defaultBase(repo: string) {
   for (const b of ['origin/main', 'origin/master', 'main', 'master', 'origin/moj_master', 'moj_master']) {
     if (git(['rev-parse', '--verify', '--quiet', b], repo, { soft: true })) return b;
   }
   return 'HEAD~1';
 }
 
-export function remoteName(repo) {
+export function remoteName(repo: string) {
   const url = (git(['remote', 'get-url', 'origin'], repo, { soft: true }) || '').trim();
   const m = url.match(/[:/]([^/:]+\/[^/]+?)(\.git)?$/);
   return m ? m[1] : path.basename(repo);
 }
 
-export function remoteDefaultBranch(repo, remote) {
+export function remoteDefaultBranch(repo: string, remote: string) {
   const r = (git(['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`], repo, { soft: true }) || '').trim();
   if (r) return r.replace(`refs/remotes/${remote}/`, '');
   for (const b of ['main', 'master', 'moj_master']) if (git(['rev-parse', '--verify', '--quiet', `${remote}/${b}`], repo, { soft: true })) return b;
@@ -64,7 +69,7 @@ export function remoteDefaultBranch(repo, remote) {
 }
 
 
-export function ensureExcluded(repo) {
+export function ensureExcluded(repo: string) {
   const ex = path.join(repo, '.git', 'info', 'exclude');
   try {
     const cur = fs.existsSync(ex) ? fs.readFileSync(ex, 'utf8') : '';
@@ -72,17 +77,31 @@ export function ensureExcluded(repo) {
   } catch {}
 }
 
-export function makeProvider(repo, cfg) {
-  const resolve = (ref) => (ref === WORKTREE ? WORKTREE : git(['rev-parse', checkRev(ref)], repo).trim());
+/** config.json, with --base/--head/--title applied (state.mjs loadConfig). */
+export interface ReviewConfig {
+  base: string;
+  head: string;
+  title?: string;
+  repo?: string;
+  number?: number | string;
+  author?: string;
+  url?: string;
+  baseLabel?: string;
+  headLabel?: string;
+}
+export type Provider = ReturnType<typeof makeProvider>;
+
+export function makeProvider(repo: string, cfg: ReviewConfig) {
+  const resolve = (ref: string) => (ref === WORKTREE ? WORKTREE : git(['rev-parse', checkRev(ref)], repo).trim());
   const head = resolve(cfg.head);
   const headCommit = head === WORKTREE ? git(['rev-parse', 'HEAD'], repo).trim() : head;
   const base = (git(['merge-base', resolve(cfg.base), headCommit], repo, { soft: true }) || resolve(cfg.base)).trim();
-  const isWT = (r) => r === WORKTREE;
+  const isWT = (r: string) => r === WORKTREE;
   const realRepo = fs.realpathSync(repo);
   return {
     base,
     head,
-    meta() {
+    meta(): Omit<ReviewMeta, 'id'> {
       // Without a PR title, the oldest commit of the range describes the change better than the latest fixup.
       const subject = isWT(head) ? 'Working tree changes'
         : (git(['log', '--reverse', '--format=%s', `${base}..${head}`], repo, { soft: true }) || '').split('\n')[0].trim() || git(['log', '-1', '--format=%s', head], repo).trim();
@@ -98,21 +117,21 @@ export function makeProvider(repo, cfg) {
         headLabel: cfg.headLabel || (isWT(head) ? 'working tree' : (git(['rev-parse', '--abbrev-ref', cfg.head], repo, { soft: true }) || cfg.head).trim()),
       };
     },
-    commits() {
+    commits(): Commit[] {
       if (isWT(head)) return [];
       const out = git(['log', '--reverse', '--format=%H%x1f%h%x1f%s%x1f%an%x1f%aI', `${base}..${head}`], repo).trim();
       return out ? out.split('\n').map((l) => { const [sha, short, subject, author, date] = l.split('\x1f'); return { sha, short, subject, author, date }; }) : [];
     },
-    files(b, h) {
+    files(b: string, h: string): ChangedFile[] {
       const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
       const num = git(['diff', '--numstat', '-M', '-z', '--end-of-options', ...range], repo);
-      const files = [];
+      const files: ChangedFile[] = [];
       const parts = num.split('\0');
       for (let i = 0; i < parts.length; i++) {
         const p = parts[i];
         if (!p) continue;
         const [a, d, name] = p.split('\t');
-        let file, prev;
+        let file: string, prev: string | undefined;
         if (name === '') {
           prev = parts[++i];
           file = parts[++i];
@@ -141,7 +160,7 @@ export function makeProvider(repo, cfg) {
       }
       return files.filter((f) => !f.path.startsWith('.reviewroom/'));
     },
-    read(rev, p) {
+    read(rev: string, p: string): string | null {
       if (isWT(rev)) {
         let full;
         try {
@@ -154,12 +173,12 @@ export function makeProvider(repo, cfg) {
       }
       return git(['show', '--end-of-options', `${checkRev(rev)}:${p}`], repo, { soft: true });
     },
-    search(q, rev, symbol, limit = 60) {
+    search(q: unknown, rev: string, symbol?: boolean, limit = 60): SearchHit[] {
       if (typeof q !== 'string') return [];
       const r = isWT(rev) ? [] : [checkRev(rev)];
       const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // -z: `[<rev>:]<path>\0<line>\0<text>`, so paths containing `:<n>:` parse correctly
-      const grep = (opts, pattern, kind) =>
+      const grep = (opts: string[], pattern: string, kind: SearchHit['kind']) =>
         (git(['grep', '-n', '-z', '-I', ...opts, '-e', pattern, ...r, '--', '.', ':!.reviewroom'], repo, { soft: true }) || '')
           .split('\n')
           .filter(Boolean)
@@ -169,8 +188,8 @@ export function makeProvider(repo, cfg) {
             const file = !isWT(rev) && name.startsWith(rev + ':') ? name.slice(rev.length + 1) : name;
             return { path: file, line: +line, text: text.join('\0').trim().slice(0, 240), rev, kind };
           })
-          .filter(Boolean);
-      let hits = [];
+          .filter((h) => h !== null);
+      let hits: SearchHit[] = [];
       if (symbol) {
         const def = `(func|type|class|def|interface|struct|enum|message|service|const|let|var|fn|trait|object)[[:space:]]+(\\([^)]*\\)[[:space:]]*)?${esc}([^[:alnum:]_]|$)`;
         hits = capPerFile(grep(['-E', ...maxCount(20)], def, 'definition'), 20);
@@ -179,7 +198,7 @@ export function makeProvider(repo, cfg) {
       } else hits = capPerFile(grep(['-i', '-F', ...maxCount(20)], q, 'text'), 20);
       return hits.slice(0, limit);
     },
-    tree(rev) {
+    tree(rev: string): string[] {
       if (isWT(rev)) return git(['ls-files'], repo).split('\n').filter(Boolean);
       return git(['ls-tree', '-r', '--name-only', '--end-of-options', checkRev(rev)], repo).split('\n').filter(Boolean);
     },

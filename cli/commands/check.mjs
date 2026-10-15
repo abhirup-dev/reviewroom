@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { flags, die } from '../lib/args.mjs';
-import { makeProvider } from '../lib/git.mjs';
+import { flags, die } from '../lib/args.ts';
+import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig, readState, commitOps } from '../lib/state.mjs';
-import { checkLinks, problems, report, applyFixes } from '../lib/links.mjs';
+import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
 
 // Stale-link check of review.html. --fix rewrites links whose code moved ≤5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.

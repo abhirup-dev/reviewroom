@@ -1,6 +1,6 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
-import { flags, pos, die } from '../lib/args.mjs';
+import { flags, pos, die } from '../lib/args.ts';
 import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.mjs';
 import { anchorText, anchorRef, githubContext } from '../../src/shared/feedback.ts';
 import { cachedThreads } from '../lib/github.mjs';
