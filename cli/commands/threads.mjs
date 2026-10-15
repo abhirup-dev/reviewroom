@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { flags, pos, die } from '../lib/args.mjs';
 import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.mjs';
-import { anchorText, anchorRef, githubContext } from '../lib/feedback.mjs';
+import { anchorText, anchorRef, githubContext } from '../../src/shared/feedback.ts';
 import { cachedThreads } from '../lib/github.mjs';
 
 function threadArg() {

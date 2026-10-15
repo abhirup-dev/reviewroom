@@ -160,7 +160,7 @@ export interface ReviewState {
   links?: Record<string, string>;
 }
 
-/** Every change to ReviewState (applied by applyOp in cli/lib/ops.mjs). `at` defaults to now. */
+/** Every change to ReviewState (applied by applyOp in src/shared/ops.ts). `at` defaults to now. */
 export type Op =
   | { op: 'createThread'; id: string; anchor: Anchor; msgId: string; body: string; author: Author; at?: string }
   | { op: 'addMessage'; threadId: string; id: string; body: string; author: Author; at?: string }

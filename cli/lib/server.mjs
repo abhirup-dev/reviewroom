@@ -6,10 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { feedbackMarkdown } from './feedback.mjs';
+import { feedbackMarkdown } from '../../src/shared/feedback.ts';
 import { makeProvider } from './git.mjs';
 import { readState, writeState, answers } from './state.mjs';
-import { applyOp, OpError } from './ops.mjs';
+import { applyOp, OpError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.mjs';
 import { checkLinks, problems, report } from './links.mjs';
 

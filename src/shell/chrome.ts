@@ -3,7 +3,7 @@ import { h, icon, copyText, relTime } from '../core/dom';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
-import { feedbackMarkdown } from '../../cli/lib/feedback.mjs';
+import { feedbackMarkdown } from '../shared/feedback';
 import { applyPreset, canUndoLayout, ensurePanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 

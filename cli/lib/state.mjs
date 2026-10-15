@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { flags, die } from './args.mjs';
 import { git, defaultBase } from './git.mjs';
-import { applyOp, OpError } from './ops.mjs';
+import { applyOp, OpError } from '../../src/shared/ops.ts';
 
 /** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
  *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */

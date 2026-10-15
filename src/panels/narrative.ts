@@ -7,7 +7,7 @@
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
 import { h, icon, copyText, debounce, relTime, threadBadge } from '../core/dom';
-import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { PR_DESCRIPTION } from '../shared/feedback';
 import { cssPathWithin, formatRef, parseRef } from '../core/refs';
 import { linkedSymbol } from '../core/symbols';
 import { plainExcerpt } from '../core/markdown';

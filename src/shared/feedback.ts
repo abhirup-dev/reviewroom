@@ -1,10 +1,11 @@
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
-// agent can act on. Plain JS so both Node and the bundle can import it.
+// agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
+import type { Anchor, ReviewState, Thread } from '../core/types';
 
 /** Doc anchors with this target are on the PR's own description (GitHub's text, not review.html). */
 export const PR_DESCRIPTION = 'rr-pr-description';
 
-export const anchorText = (a) => {
+export const anchorText = (a: Anchor) => {
   switch (a.kind) {
     case 'doc':
       if (a.target === PR_DESCRIPTION)
@@ -20,7 +21,7 @@ export const anchorText = (a) => {
 };
 
 /** Open GitHub threads as markdown: what colleagues said on the PR. The agent can link them (rr:thread/<id>), not post to them. */
-export function githubContext(threads = []) {
+export function githubContext(threads: Thread[] = []) {
   const open = threads.filter((t) => t.status === 'open' && t.messages.length);
   if (!open.length) return [];
   const lines = ['## Open on GitHub (colleagues; context only, not feedback for you to reply to)', '', 'You cannot post to these. Link one from review.html or a reply with rr:thread/<id> when it bears on your answer.', ''];
@@ -32,7 +33,7 @@ export function githubContext(threads = []) {
   return [...lines, ''];
 }
 
-export const anchorRef = (a) => {
+export const anchorRef = (a: Anchor) => {
   switch (a.kind) {
     case 'doc':
       return `rr:doc/${encodeURIComponent(a.target)}${a.path ? '/' + encodeURIComponent(a.path) : ''}`;
@@ -45,18 +46,22 @@ export const anchorRef = (a) => {
   }
 };
 
-/**
- * @param {import('../../src/core/types').ReviewState} state
- * @param {{ note?: string, kind: 'feedback'|'approve', dir?: string, codeExcerpt?: (a:any)=>string|null, github?: any[] }} opts
- *   dir: the review dir; when known, the commands to run name it (agents run from anywhere)
- *   github: the PR's GitHub threads, listed as context (colleagues' comments, not this reviewer's feedback)
- */
-export function feedbackMarkdown(state, opts) {
+export interface FeedbackOpts {
+  kind: 'feedback' | 'approve';
+  note?: string;
+  /** The review dir; when known, the commands to run name it (agents run from anywhere). */
+  dir?: string;
+  codeExcerpt?: (a: Anchor) => string | null;
+  /** The PR's GitHub threads, listed as context (colleagues' comments, not this reviewer's feedback). */
+  github?: Thread[];
+}
+
+export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   const round = state.round;
   const at = opts.dir ? ` --dir '${opts.dir.replace(/'/g, `'\\''`)}'` : '';
   const touched = state.threads.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === round));
   const open = state.threads.filter((t) => t.status === 'open');
-  const lines = [];
+  const lines: string[] = [];
   if (opts.kind === 'approve') {
     lines.push(`# Review round ${round}: APPROVED`, '');
     if (opts.note) lines.push(opts.note, '');

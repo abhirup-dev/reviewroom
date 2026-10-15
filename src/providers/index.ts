@@ -2,7 +2,7 @@
 // Order of preference: local CLI server (git on your clone) -> GitHub -> static fixture.
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, …).
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
-import { applyOp } from '../../cli/lib/ops.mjs';
+import { applyOp } from '../shared/ops';
 import { loadRaw } from '../core/store';
 
 export interface CodeProvider {
