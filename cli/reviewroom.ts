@@ -16,8 +16,7 @@ import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck } from './commands/check.ts';
-import { OpError } from '../src/shared/ops.ts';
-import { StateError } from './lib/state.ts';
+import { ReviewroomError } from '../src/shared/ops.ts';
 
 const cli = cac('reviewroom');
 cli
@@ -139,6 +138,6 @@ try {
   else if (!cli.options.help) cli.outputHelp();
 } catch (e) {
   if ((e as Error).name === 'CACError') die(`${(e as Error).message}; see \`reviewroom ${cli.matchedCommandName ?? ''} --help\``.replace('  ', ' '), 2);
-  if (!(e instanceof OpError || e instanceof StateError)) throw e;
+  if (!(e instanceof ReviewroomError)) throw e;
   die(e.message);
 }

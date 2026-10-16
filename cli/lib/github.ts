@@ -13,6 +13,7 @@ import path from 'node:path';
 import { anchorOf } from '../../src/shared/refs.ts';
 import type { Provider, ReviewConfig } from './git.ts';
 import type { Anchor, CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
+import { ReviewroomError } from '../../src/shared/ops.ts';
 
 // The parts of GitHub's GraphQL schema that PR_QUERY asks for (field names as in the query).
 type Nodes<T> = { nodes: T[] };
@@ -247,14 +248,6 @@ const M: Record<string, string | undefined> = {
   discard: 'mutation($review: ID!) { deletePullRequestReview(input: {pullRequestReviewId: $review}) { clientMutationId } }',
 };
 
-class GitHubError extends Error {
-  status: number;
-  constructor(message: string, status = 502) {
-    super(message);
-    this.status = status;
-  }
-}
-
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
 /** POST /api/github body. Untrusted: perform() checks every field it uses. */
 export interface GitHubAction {
@@ -296,22 +289,22 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
   // a failed action may still have changed something (a half-made review): refetch either way
   const act = (a: GitHubAction) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
   async function perform(a: GitHubAction) {
-    if (!target) throw new GitHubError('this review is not about a GitHub pull request', 400);
+    if (!target) throw new ReviewroomError('this review is not about a GitHub pull request', 400);
     if (!snap?.ok) await refresh();
-    if (!snap?.ok) throw new GitHubError(snap?.error || 'GitHub is not reachable');
+    if (!snap?.ok) throw new ReviewroomError(snap?.error || 'GitHub is not reachable', 502);
     // snap is re-read live below (a refresh may land between awaits); the checks above guarantee it
-    const run = (name: string, vars: Record<string, unknown>) => gql(repo, target.host, M[name]!, vars).catch((e) => Promise.reject(new GitHubError(e.message)));
+    const run = (name: string, vars: Record<string, unknown>) => gql(repo, target.host, M[name]!, vars).catch((e) => Promise.reject(new ReviewroomError(e.message, 502)));
     const body = () => {
-      if (typeof a.body !== 'string' || !a.body.trim()) throw new GitHubError('body must be a non-empty string', 400);
+      if (typeof a.body !== 'string' || !a.body.trim()) throw new ReviewroomError('body must be a non-empty string', 400);
       return toGitHubMarkdown(a.body.trim(), target, { base: prov.base, head: localHead || snap!.headSha! });
     };
-    const threadNode = () => snap!.threads.find((t) => t.id === a.thread)?.gh!.node || Promise.reject(new GitHubError(`no GitHub thread ${a.thread}`, 404));
-    const msg = () => (snap!.threads.flatMap((t) => t.messages).find((m) => m.id === a.message) as (Message & { gh: GitHubComment }) | undefined) || (() => { throw new GitHubError(`no GitHub comment ${a.message}`, 404); })();
+    const threadNode = () => snap!.threads.find((t) => t.id === a.thread)?.gh!.node || Promise.reject(new ReviewroomError(`no GitHub thread ${a.thread}`, 404));
+    const msg = () => (snap!.threads.flatMap((t) => t.messages).find((m) => m.id === a.message) as (Message & { gh: GitHubComment }) | undefined) || (() => { throw new ReviewroomError(`no GitHub comment ${a.message}`, 404); })();
     switch (a.action) {
       case 'comment': {
         // a new line comment: a draft in the viewer's pending review (started on the commit being reviewed)
         const an = a.anchor;
-        if (an?.kind !== 'code' || !Number.isInteger(an.start) || !Number.isInteger(an.end)) throw new GitHubError('GitHub comments need a code line range', 400);
+        if (an?.kind !== 'code' || !Number.isInteger(an.start) || !Number.isInteger(an.end)) throw new ReviewroomError('GitHub comments need a code line range', 400);
         const text = body();
         const started = !snap.pending;
         const review = snap.pending?.id ?? (await run('startReview', { pr: snap.pr, commit: localHead })).addPullRequestReview.pullRequestReview.id;
@@ -321,7 +314,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         // GitHub answers a line outside the diff with no thread and no error
         if (!r.addPullRequestReviewThread?.thread) {
           if (started) await run('discard', { review }).catch(() => {});
-          throw new GitHubError(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one`, 422);
+          throw new ReviewroomError(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one`, 422);
         }
         break;
       }
@@ -333,13 +326,13 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         break;
       case 'edit': {
         const m = msg();
-        if (!m.gh.canEdit || !M['edit:' + m.gh.kind]) throw new GitHubError('you cannot edit that comment', 403);
+        if (!m.gh.canEdit || !M['edit:' + m.gh.kind]) throw new ReviewroomError('you cannot edit that comment', 403);
         await run('edit:' + m.gh.kind, { id: m.gh.node, body: body() });
         break;
       }
       case 'delete': {
         const m = msg();
-        if (!m.gh.canDelete || !M['delete:' + m.gh.kind]) throw new GitHubError('you cannot delete that comment', 403);
+        if (!m.gh.canDelete || !M['delete:' + m.gh.kind]) throw new ReviewroomError('you cannot delete that comment', 403);
         await run('delete:' + m.gh.kind, { id: m.gh.node });
         break;
       }
@@ -348,7 +341,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         break;
       case 'submit': {
         const event = ({ comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as Record<string, string | undefined>)[a.event!];
-        if (!event) throw new GitHubError('event must be comment, approve or request_changes', 400);
+        if (!event) throw new ReviewroomError('event must be comment, approve or request_changes', 400);
         const text = typeof a.body === 'string' && a.body.trim() ? body() : null;
         if (snap.pending) await run('submit', { review: snap.pending.id, event, body: text });
         else await run('review', { pr: snap.pr, commit: localHead, event, body: text });
@@ -358,7 +351,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         if (snap.pending) await run('discard', { review: snap.pending.id });
         break;
       default:
-        throw new GitHubError(`unknown action ${JSON.stringify(a.action)}`, 400);
+        throw new ReviewroomError(`unknown action ${JSON.stringify(a.action)}`, 400);
     }
   }
 

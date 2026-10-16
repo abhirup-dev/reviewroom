@@ -11,7 +11,7 @@ import { feedbackMarkdown } from '../../src/shared/feedback.ts';
 import { makeProvider, type Provider, type ReviewConfig } from './git.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, writeState, answers } from './state.ts';
-import { applyOp, OpError } from '../../src/shared/ops.ts';
+import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
 import { Hono, type Context } from 'hono';
@@ -127,9 +127,10 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
     await next();
   });
   app.notFound((c) => json(c, { error: 'not found' }, 404));
-  app.onError((e: any, c) => {
-    if (!(e instanceof OpError)) console.error(`reviewroom: ${c.req.method} ${c.req.path}: ${e.message || e}`);
-    return json(c, { error: String(e.message || e), code: e.code, index: e.index }, e.status || 500);
+  app.onError((e, c) => {
+    if (!(e instanceof OpError)) console.error(`reviewroom: ${c.req.method} ${c.req.path}: ${e.message}`);
+    const op = e instanceof OpError ? e : undefined;
+    return json(c, { error: e.message, code: op?.code, index: op?.index }, e instanceof ReviewroomError ? e.status : 500);
   });
 
   const page = (c: Context) => {
