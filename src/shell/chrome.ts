@@ -37,91 +37,93 @@ export const menuItem = (label: string | Node, fn: () => void, opts: { hint?: st
   h('button', { class: 'rr-menu__item', role: 'menuitem', onclick: fn }, h('span', { class: 'rr-menu__check' }, opts.checked ? icon('check', 12) : opts.icon ? icon(opts.icon, 14) : ''), h('span', { class: 'rr-menu__label' }, label), opts.hint ? h('span', { class: 'rr-menu__hint' }, opts.hint) : null);
 export const menuLabel = (t: string) => h('div', { class: 'rr-menu__label-row' }, t);
 
-// ---------------------------------------------------------------- send dialog
-export function sendDialog(app: ReviewApp) {
-  const pending = app.pendingFeedback();
-  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
+// ---------------------------------------------------------------- send dialogs
+/** A narrow modal dialog (title, close button, body, footer), removed once closed; `note` gets the focus.
+ *  `act` wraps a footer action: one at a time (a double click must not do it twice), closing when it returns true. */
+type Act = (fn: () => Promise<boolean>) => () => Promise<void>;
+function noteDialog(label: string, title: string, note: HTMLElement, content: (act: Act, close: () => void) => [body: (HTMLElement | null)[], foot: HTMLElement[]]) {
   const close = () => box.close();
-  const go = async (kind: 'feedback' | 'approve') => {
-    const n = app.state.round;
-    const text = note.value.trim() || undefined;
-    // one finish at a time: a double click must not end two rounds
+  const act: Act = (fn) => async () => {
     const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
     if (buttons.some((b) => b.disabled)) return;
     buttons.forEach((b) => (b.disabled = true));
-    if (app.backend.finish) {
-      const res = await app.backend.finish(kind, text, n).catch((e) => ({ ok: false, message: String(e) }));
-      if (!res.ok) {
-        buttons.forEach((b) => (b.disabled = false));
-        return app.toast('Failed: ' + (res.message ?? 'unknown'), 'error');
-      }
-      close();
-      app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
-      app.root.classList.add('is-waiting');
-    } else {
-      await copyText(feedbackMarkdown(app.state, { kind, note: text }));
-      app.apply({ op: 'finishRound', kind, note: text, round: n });
-      close();
-      app.toast('Feedback copied — paste it to your agent');
-    }
+    if (await fn()) close();
+    else buttons.forEach((b) => (b.disabled = false));
   };
+  const [body, foot] = content(act, close);
   const box = h(
     'dialog',
-    { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Finish round', onmousedown: backdropCloses, onclose: () => box.remove() },
-    h('header', { class: 'rr-thread__head' }, h('strong', null, `Finish round ${app.state.round}`), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
-    h(
-      'div',
-      { class: 'rr-send__body' },
-      h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
-      h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
-      note,
-      app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
-    ),
-    h('footer', { class: 'rr-composer__foot' }, h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => go('approve') }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: () => go('feedback') }, icon('send', 12), 'Send feedback')),
+    { class: 'rr-modal rr-modal--narrow', 'aria-label': label, onmousedown: backdropCloses, onclose: () => box.remove() },
+    h('header', { class: 'rr-thread__head' }, h('strong', null, title), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
+    h('div', { class: 'rr-send__body' }, ...body),
+    h('footer', { class: 'rr-composer__foot' }, ...foot),
   );
   document.body.append(box);
   box.showModal();
   note.focus();
 }
 
+export function sendDialog(app: ReviewApp) {
+  const pending = app.pendingFeedback();
+  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
+  const go = (kind: 'feedback' | 'approve') => async () => {
+    const n = app.state.round;
+    const text = note.value.trim() || undefined;
+    if (app.backend.finish) {
+      const res = await app.backend.finish(kind, text, n).catch((e) => ({ ok: false, message: String(e) }));
+      if (!res.ok) {
+        app.toast('Failed: ' + (res.message ?? 'unknown'), 'error');
+        return false;
+      }
+      app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
+      app.root.classList.add('is-waiting');
+    } else {
+      await copyText(feedbackMarkdown(app.state, { kind, note: text }));
+      app.apply({ op: 'finishRound', kind, note: text, round: n });
+      app.toast('Feedback copied — paste it to your agent');
+    }
+    return true;
+  };
+  noteDialog(
+    'Finish round',
+    `Finish round ${app.state.round}`,
+    note,
+    (act, close) => [
+      [
+        h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
+        h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
+        note,
+        app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
+      ],
+      [h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(go('approve')) }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: act(go('feedback')) }, icon('send', 12), 'Send feedback')],
+    ],
+  );
+}
+
 // ---------------------------------------------------------------- submit GitHub review
 export function submitReviewDialog(app: ReviewApp) {
   const drafts = app.github?.pending?.drafts ?? 0;
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' });
-  const close = () => box.close();
-  const go = async (action: GitHubAction, done: string) => {
-    const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
-    if (buttons.some((b) => b.disabled)) return;
-    buttons.forEach((b) => (b.disabled = true));
-    if (await app.githubAct(action)) {
-      close();
-      app.toast(done);
-    } else buttons.forEach((b) => (b.disabled = false));
-  };
-  const submit = (event: Extract<GitHubAction, { action: 'submit' }>['event'], done: string) => go({ action: 'submit', event, body: note.value }, done);
-  const box = h(
-    'dialog',
-    { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Submit review on GitHub', onmousedown: backdropCloses, onclose: () => box.remove() },
-    h('header', { class: 'rr-thread__head' }, h('strong', null, 'Submit your review on GitHub'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
-    h(
-      'div',
-      { class: 'rr-send__body' },
-      h('p', { class: 'rr-muted' }, drafts ? `${plural(drafts, 'draft comment')} will be posted with it, visible to everyone on the PR.` : 'No draft comments: this posts just the summary and your verdict.'),
-      note,
-      drafts ? h('button', { class: 'rr-link-btn', title: 'Delete every draft comment in this review', onclick: () => go({ action: 'discard' }, 'Drafts discarded') }, 'Discard all drafts') : null,
-    ),
-    h(
-      'footer',
-      { class: 'rr-composer__foot' },
-      h('button', { class: 'rr-btn rr-btn--ghost', title: 'Ask for changes before this can merge', onclick: () => submit('request_changes', 'Review submitted: changes requested') }, 'Request changes'),
-      h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => submit('approve', 'Review submitted: approved') }, icon('check', 12), 'Approve'),
-      h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-btn rr-btn--primary', title: 'Post your comments without approving or blocking', onclick: () => submit('comment', 'Review submitted') }, icon('send', 12), 'Comment'),
-    ),
+  const go = (done: string, action: () => GitHubAction) => async () => (await app.githubAct(action())) && (app.toast(done), true);
+  const submit = (event: Extract<GitHubAction, { action: 'submit' }>['event'], done: string) => go(done, () => ({ action: 'submit', event, body: note.value }));
+  noteDialog(
+    'Submit review on GitHub',
+    'Submit your review on GitHub',
+    note,
+    (act) => [
+      [
+        h('p', { class: 'rr-muted' }, drafts ? `${plural(drafts, 'draft comment')} will be posted with it, visible to everyone on the PR.` : 'No draft comments: this posts just the summary and your verdict.'),
+        note,
+        drafts ? h('button', { class: 'rr-link-btn', title: 'Delete every draft comment in this review', onclick: act(go('Drafts discarded', () => ({ action: 'discard' }))) }, 'Discard all drafts') : null,
+      ],
+      [
+        h('button', { class: 'rr-btn rr-btn--ghost', title: 'Ask for changes before this can merge', onclick: act(submit('request_changes', 'Review submitted: changes requested')) }, 'Request changes'),
+        h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(submit('approve', 'Review submitted: approved')) }, icon('check', 12), 'Approve'),
+        h('span', { class: 'rr-toolbar__spacer' }),
+        h('button', { class: 'rr-btn rr-btn--primary', title: 'Post your comments without approving or blocking', onclick: act(submit('comment', 'Review submitted')) }, icon('send', 12), 'Comment'),
+      ],
+    ],
   );
-  document.body.append(box);
-  box.showModal();
-  note.focus();
 }
 
 /** GitHub status + the Agent/Team switch: shown only for reviews of a GitHub PR. */
