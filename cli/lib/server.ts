@@ -35,17 +35,9 @@ export interface Finished {
   round: number;
 }
 
-export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void }) {
-  const prov = makeProvider(repo, cfg);
-  const clients = new Set<SSEStreamingApi>();
-  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
-  const reviewFile = path.join(dir, 'review.html');
-  const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
-  const send = (event: string, data: unknown) => {
-    for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
-  };
-  // The server holds state.lock while it runs and is the only writer of state.json (CLI writes
-  // come in through /api/ops), so only review.html and its assets are watched.
+/** Watch the review dir for review.html and its assets (debounced); `edited` = review.html itself changed.
+ *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
+function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   let t: NodeJS.Timeout | undefined, edited = false;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
@@ -53,26 +45,20 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       edited ||= f === 'review.html';
       clearTimeout(t);
       t = setTimeout(() => {
-        send('review', { hash: hash() });
-        if (edited) (edited = false), checkNarrative();
+        onChange(edited);
+        edited = false;
       }, 150);
     }
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
   watcher.on('error', (e) => console.error(`reviewroom: file watch stopped: ${e.message}`));
+}
 
-  const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
-  // untrusted: applyOp (Zod) or the handler checks every field it uses
-  const readJson = async (c: Context): Promise<any> => {
-    try {
-      return JSON.parse((await c.req.text()) || '{}');
-    } catch {
-      throw new OpError('bad_op', 'request body is not JSON');
-    }
-  };
-  // Stale-link check: fingerprint new links, tell the agent (stderr) when the report changes.
+/** Stale-link check of review.html: fingerprint new links, tell the agent (stderr) when the report changes. */
+function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
+  const reviewFile = path.join(dir, 'review.html');
   let lastReport = '';
-  const checkNarrative = () => {
+  return () => {
     try {
       if (!fs.existsSync(reviewFile)) return;
       const known = readState(dir).links ?? {};
@@ -85,6 +71,27 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       lastReport = text;
     } catch (e) {
       console.error(`reviewroom: link check failed: ${(e as Error).message}`);
+    }
+  };
+}
+
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
+export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
+  const prov = makeProvider(repo, cfg);
+  const clients = new Set<SSEStreamingApi>();
+  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
+  const reviewFile = path.join(dir, 'review.html');
+  const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
+  const send = (event: string, data: unknown) => {
+    for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
+  };
+  const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
+  // untrusted: applyOp (Zod) or the handler checks every field it uses
+  const readJson = async (c: Context): Promise<any> => {
+    try {
+      return JSON.parse((await c.req.text()) || '{}');
+    } catch {
+      throw new OpError('bad_op', 'request body is not JSON');
     }
   };
   // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.
@@ -102,6 +109,11 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
     send('state', s);
     return s;
   };
+  const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
+  watchNarrative(dir, (edited) => {
+    send('review', { hash: hash() });
+    if (edited) checkNarrative();
+  });
 
   // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
   // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
@@ -141,7 +153,7 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
   app.get(
     '/_rr/*',
     async (c, next) => (c.header('cache-control', c.req.path.endsWith('/reviewroom.js') ? 'no-store' : 'max-age=3600'), next()),
-    serveStatic({ root: DIST, rewriteRequestPath: (p) => p.slice(4) }),
+    serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }),
   );
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
   app.get('/api/meta', (c) => json(c, prov.meta()));
@@ -189,7 +201,7 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash() }) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
-      server.emit('rr-client');
+      onClient?.();
       await new Promise<void>((r) => stream.onAbort(r));
       clearInterval(ping);
       clients.delete(stream);
@@ -211,7 +223,7 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
     onFinish?.({ kind, md, round: n }); // serve.ts exits 150 ms later, after this response is out
     return res;
   });
-  app.get('/api/rounds/:n{[0-9]+}/review.html', serveStatic({ root: dir, rewriteRequestPath: (p) => p.slice(4) }));
+  app.get('/api/rounds/:n{[0-9]+}/review.html', serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
   // anything else: static files next to review.html (images, extra css/js the agent wrote)
   app.get(
     '*',
