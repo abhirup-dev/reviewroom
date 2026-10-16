@@ -32,7 +32,7 @@ export const StoredMessage = z.object({
   id: z.string(),
   author: Author,
   round: int,
-  body: z.string().describe('Markdown. rr: links render as chips; ![](rr:…) as embeds.'),
+  body: z.string().describe('Markdown. rr: links render as chips; ![](rr:...) as embeds.'),
   at: dateTime,
 });
 
@@ -96,7 +96,7 @@ export type Round = z.infer<typeof Round>;
 export type StoredState = z.infer<typeof StoredState>;
 export type Op = z.infer<typeof Op>;
 
-/** Zod's issues as one line: `path: message; …`. */
+/** Zod's issues as one line: `path: message; ...`. */
 export const issueText = (e: z.ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
 
 /** schema/state.schema.json, generated (scripts/schema.ts writes it; a test fails when the committed file is stale). */

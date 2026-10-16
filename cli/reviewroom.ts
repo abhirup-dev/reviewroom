@@ -28,7 +28,7 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
   const o = args.pop() as Record<string, unknown>;
   for (const [k, v] of Object.entries(o)) {
     const last: unknown = Array.isArray(v) ? v.at(-1) : v;
-    if (typeof last === 'object' && k !== '--') die(`unknown option \`--${k}.…\`; see \`reviewroom --help\``, 2); // cac nests --a.b as an object
+    if (typeof last === 'object' && k !== '--') die(`unknown option \`--${k}....\`; see \`reviewroom --help\``, 2); // cac nests --a.b as an object
     o[k] = typeof last === 'number' ? String(last) : last;
   }
   const pos = args.filter((a) => a !== undefined) as string[];
@@ -95,10 +95,10 @@ const notes: Record<string, string> = {
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   check: [
     '  Each link in review.html is remembered by what it pointed at when first seen. Problems:',
-    '    moved     same lines, now at most 5 lines away   → --fix rewrites the link',
+    '    moved     same lines, now at most 5 lines away   -> --fix rewrites the link',
     '    changed   code at those lines changed, or moved further, or a symbol lost its definition',
-    '              → re-read the code; fix the link and the prose around it (or --accept if both still hold)',
-    '    broken    the file, symbol or section (rr:doc/<id>) is gone → fix or remove the link',
+    '              -> re-read the code; fix the link and the prose around it (or --accept if both still hold)',
+    '    broken    the file, symbol or section (rr:doc/<id>) is gone -> fix or remove the link',
     '  The server also checks on start and on every save of review.html. Links in HTML comments are ignored.',
   ].join('\n'),
 };
@@ -114,7 +114,7 @@ cli.help((sections) => {
       title: 'A review',
       body: [
         '  reviewroom pr <n> --wait         create + serve, block until the first round ends; write review.html meanwhile',
-        '  reviewroom reply <thread> "…"    answer each thread in the feedback',
+        '  reviewroom reply <thread> "..."    answer each thread in the feedback',
         '  reviewroom review --dir <dir>    serve and block until the next round ends; repeat until approved',
         '  Run the blocking commands in the background: a round can take hours. Threads, replies and rounds',
         '  are kept when the server stops between rounds.',

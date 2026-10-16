@@ -1,5 +1,5 @@
 // Code panel: the whole diff as a stack of files (lazy-rendered with @pierre/diffs),
-// or one full file at base/head/any sha. Supports several instances ("code", "code:2"…).
+// or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOptions, type SelectedLineRange } from '@pierre/diffs';
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
@@ -66,7 +66,7 @@ class CodePanel implements PanelInstance {
   private lastPointer = { x: 0, y: 0 };
   private offs: (() => void)[] = [];
   private isPrimary: boolean;
-  /** Single-file panel (opened via “open in new panel”): shows only this path as diff, before or after. */
+  /** Single-file panel (opened via "open in new panel"): shows only this path as diff, before or after. */
   private pin?: string;
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
@@ -149,7 +149,7 @@ class CodePanel implements PanelInstance {
       const dels = vis.reduce((a, f) => a + f.deletions, 0);
       left.push(
         h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, `${vis.length} file${vis.length === 1 ? '' : 's'}`),
-        h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '−' + dels)),
+        h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels)),
         this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
       );
     }
@@ -169,7 +169,7 @@ class CodePanel implements PanelInstance {
           ? seg([
               ['All', 'Show added and removed lines', p.focus === 'all', () => this.app.setPref('focus', 'all')],
               ['+', 'Focus on new code: hide removed lines', p.focus === 'additions', () => this.app.setPref('focus', 'additions'), '+'],
-              ['−', 'Focus on old code: hide added lines', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions'), '-'],
+              ['\u2212', 'Focus on old code: hide added lines', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions'), '-'],
             ])
           : null,
         this.mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => this.app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
@@ -242,7 +242,7 @@ class CodePanel implements PanelInstance {
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),
       ),
-      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
+      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
@@ -594,7 +594,7 @@ class CodePanel implements PanelInstance {
     }
   }
 
-  // ------------------------------------------------------------ selection → comments
+  // ------------------------------------------------------------ selection -> comments
   private onSelect(path: string, r: SelectedLineRange | null) {
     if (!r) return;
     const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];

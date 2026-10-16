@@ -232,7 +232,7 @@ export class ReviewApp {
     return hits;
   }
 
-  /** Human name for a narrative element (section title, or “Table in Proto & storage”). */
+  /** Human name for a narrative element (section title, or "Table in Proto & storage"). */
   describeDoc(id: string, path?: string): string {
     const el = this.docElement(id, path);
     if (id === PR_DESCRIPTION) return path && el ? describeElement(el) + ' in the PR description' : 'PR description';

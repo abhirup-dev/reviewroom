@@ -202,7 +202,7 @@ export function normalize(pr: GhPullRequest, viewer: string, localHead: string |
 
 const CHECK: Record<string, CiState | undefined> = { SUCCESS: 'success', NEUTRAL: 'success', SKIPPED: 'success', PENDING: 'pending', EXPECTED: 'pending' };
 
-/** The PR's commits with their checks, newest first: GitHub Actions and any CI that reports a commit status (Jenkins, TeamCity, …). */
+/** The PR's commits with their checks, newest first: GitHub Actions and any CI that reports a commit status (Jenkins, TeamCity, ...). */
 export function ciOf(commits: GhCommit[]): CiCommit[] {
   return commits
     .map(({ commit: c }) => {

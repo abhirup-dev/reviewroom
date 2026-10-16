@@ -34,8 +34,8 @@ export type SendButton = { label: string; title?: string; off?: string; main?: b
 export function composer(app: ReviewApp, opts: { placeholder: string; buttons: SendButton[]; initial?: string; autofocus?: boolean; draftKey?: string; onCancel?(): void }) {
   const buttons = opts.buttons;
   const main = buttons.find((b) => b.main && !b.off) ?? buttons.find((b) => !b.off) ?? buttons[0];
-  // A plain contenteditable where links are atomic chips. People see “request_builder.go:51–53”,
-  // never `[…](rr:code/…)`; the markdown with rr: links exists only in what gets saved for the agent.
+  // A plain contenteditable where links are atomic chips. People see "request_builder.go:51-53",
+  // never `[...](rr:code/...)`; the markdown with rr: links exists only in what gets saved for the agent.
   const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
   const preview = h('div', { class: 'rr-composer__preview rr-prose', hidden: true });
   let saved: Range | null = null;
@@ -73,7 +73,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   const serialize = (): string => {
     let out = '';
     const walk = (n: Node, top: boolean) => {
-      if (n.nodeType === 3) out += (n as Text).data.replace(/ /g, ' ');
+      if (n.nodeType === 3) out += (n as Text).data.replace(/\u00a0/g, ' ');
       else if (n instanceof HTMLElement) {
         if (n.dataset.ref) {
           const lab = (n.dataset.label || '').replace(/[[\]]/g, '');
@@ -116,7 +116,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     sel.addRange(r);
     remember();
   };
-  const insertRef = (ref: string, embed = false) => insertNodes(...(embed ? [h('br')] : []), chip(ref, app.label(ref), embed), document.createTextNode(' '));
+  const insertRef = (ref: string, embed = false) => insertNodes(...(embed ? [h('br')] : []), chip(ref, app.label(ref), embed), document.createTextNode('\u00a0'));
   const insertText = (t: string) => {
     restore();
     document.execCommand('insertText', false, t);
@@ -182,7 +182,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   ed.addEventListener('input', () => {
     if (!ed.textContent && !ed.querySelector('[data-ref]')) ed.replaceChildren(); // keep :empty placeholder working
     remember();
-    // “[[” opens the link picker
+    // "[[" opens the link picker
     const sel = document.getSelection();
     const node = sel?.anchorNode;
     if (node?.nodeType === 3 && (node as Text).data.slice(0, sel!.anchorOffset).endsWith('[[')) {
