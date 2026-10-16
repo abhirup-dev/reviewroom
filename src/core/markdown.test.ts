@@ -25,3 +25,7 @@ test('outside links open in a new tab, raw HTML ones too; rr: links stay', () =>
   expect(renderMarkdown('<a href="https://x.dev">a</a>')).toContain('target="_blank"');
   expect(renderMarkdown('<a href="rr:doc/s">a</a>')).not.toContain('target');
 });
+
+test("GitHub's emoji shortcodes", () => {
+  expect(renderMarkdown('ship it :+1: :tada: :nope:')).toBe('<p>ship it \u{1F44D}\uFE0F \u{1F389} :nope:</p>\n');
+});

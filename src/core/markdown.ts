@@ -2,11 +2,14 @@
 //   [label](rr:code/pkg/x.go#L45-54)   -> inline chip (<rr-ref>)
 //   ![caption](rr:doc/request-path)    -> mini preview embed (<rr-embed>)
 //   a line that is only `rr:...`          -> embed
+//   :shortcode:                           -> emoji (GitHub's)
 // Everything is sanitised: thread bodies come from files anyone can edit.
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { markedEmoji } from 'marked-emoji';
+import { githubEmoji } from './emoji' with { type: 'macro' };
 
-const md = new Marked();
+const md = new Marked(markedEmoji({ emojis: githubEmoji(), renderer: (t) => t.emoji })); // :tada: as on GitHub
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
