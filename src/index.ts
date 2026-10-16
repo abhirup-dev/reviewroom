@@ -1,14 +1,14 @@
-// reviewroom — entry point.
+// reviewroom - entry point.
 //
 // A review page is any HTML file that loads this module and contains:
 //
 //   <rr-app>                                  (attributes: provider, api, layout, repo, base, head)
-//     <script type="application/json" id="rr-meta">{ "title": "…", … }</script>   (optional)
-//     <rr-review> …freeform HTML: sections, diagrams, scripts, anything… </rr-review>
+//     <script type="application/json" id="rr-meta">{ "title": "...", ... }</script>   (optional)
+//     <rr-review> ...freeform HTML: sections, diagrams, scripts, anything... </rr-review>
 //   </rr-app>
 //
-// Everything else — docking layout, diffs, files, contents, threads, rounds,
-// palette, theming — is provided. See skills/reviewroom/references/authoring.md.
+// Everything else - docking layout, diffs, files, contents, threads, rounds,
+// palette, theming - is provided. See skills/reviewroom/references/authoring.md.
 import cssText from 'virtual:rr-css';
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';

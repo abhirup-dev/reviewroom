@@ -1,4 +1,4 @@
-/** Flags every command takes; each command declares the rest (as cac parses them: camelCase, `--no-open` → open: false). */
+/** Flags every command takes; each command declares the rest (as cac parses them: camelCase, `--no-open` -> open: false). */
 export interface Global {
   repo?: string;
   dir?: string;

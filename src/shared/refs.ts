@@ -3,7 +3,7 @@ import type { Anchor } from '../core/types';
 
 // Durable links. Every addressable thing in a review has an `rr:` ref that
 // survives reloads and rounds and can be pasted into comments, markdown, HTML
-// (<a href="rr:…">) or passed to rr.open().
+// (<a href="rr:...">) or passed to rr.open().
 //
 //   rr:doc/<id>                 a section or any element with an id in the narrative
 //   rr:doc/<id>/<css-path>      an element without an id, addressed below an ancestor id

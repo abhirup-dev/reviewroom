@@ -1,5 +1,5 @@
-// End-to-end smoke test: demo repo → `reviewroom pr` (detached) → API + bundle respond → state ops,
-// rounds and the agent hand-off → stop → file-only writes (lock, corrupt state).
+// End-to-end smoke test: demo repo -> `reviewroom pr` (detached) -> API + bundle respond -> state ops,
+// rounds and the agent hand-off -> stop -> file-only writes (lock, corrupt state).
 // Run with `mise run smoke` (or `bun scripts/smoke.ts`). Exits non-zero on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -40,9 +40,9 @@ const post = (url: string, body: unknown) => fetch(url, { method: 'POST', header
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const check = (cond: unknown, msg: string) => {
   if (!cond) {
-    console.error('✗ ' + msg);
+    console.error('FAIL ' + msg);
     process.exitCode = 1;
-  } else console.log('✓ ' + msg);
+  } else console.log('ok ' + msg);
 };
 
 try {
@@ -114,7 +114,7 @@ try {
   check(typeof state().rounds[0].deliveredAt === 'string' && (await fetch(url + 'api/meta')).ok, 'delivery recorded; the running server kept running');
   check(/--dir '[^']*\/\.reviewroom\/feat-habit-events'/.test(late.stdout), 'feedback names the review dir in the commands it asks for'); // git may report the repo via /private/var on macOS
 
-  // ---- bare commands from another branch find the repo's only review; several reviews → ask for --dir
+  // ---- bare commands from another branch find the repo's only review; several reviews -> ask for --dir
   run('git', ['-C', repo, 'checkout', '-q', 'main']);
   check(run(node, [cli, 'status', '--threads', '--all', '--repo', repo]).includes('t_one'), 'bare `threads` on another branch finds the only review');
   fs.mkdirSync(path.join(repo, '.reviewroom', 'other'));

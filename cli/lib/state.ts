@@ -19,7 +19,7 @@ export function resolveDir(repo: string | null, dirFlag: string | undefined, { e
   if (!existing || fs.existsSync(own)) return own;
   const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
-  throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
+  throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept
@@ -69,7 +69,7 @@ export function readState(dir: string): ReviewState {
   }
   const checked = StoredState.safeParse(data);
   if (!checked.success) moveAside(dir, `does not match schema/state.schema.json (${issueText(checked.error)})`);
-  return data; // as read, not Zod's copy: keys the schema doesn't know survive the next write
+  return { ...checked.data, ...data }; // the file as read (keys this version doesn't know survive), plus the schema's defaults (an older file has no pins)
 }
 function moveAside(dir: string, why: string): never {
   const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;

@@ -5,7 +5,7 @@ import { listen } from './server.ts';
 
 test('listen reports the port it fell back to when the first is taken', async () => {
   const taken = http.createServer();
-  const p = await listen(taken, 4990);
+  const p = await listen(taken, 0); // a free port from the OS, so the test never collides with a real server
   const s = http.createServer();
   const port = () => (s.address() as AddressInfo).port;
   expect(await listen(s, p)).toBe(port());

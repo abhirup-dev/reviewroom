@@ -7,7 +7,7 @@ const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (
 const html = (...refs: string[]) => `<!-- e.g. <a href="rr:code/path#L10-20"> --><rr-review><section id="intro">${refs.map((r) => `<a href="${r}">x</a>`).join(' ')}</section></rr-review>`;
 const status = (results: LinkResult[]) => Object.fromEntries(results.map((x) => [x.ref, x.status]));
 
-test('code shifted ≤5 lines is moved and fixable; further or edited is changed', () => {
+test('code shifted <=5 lines is moved and fixable; further or edited is changed', () => {
   const { links } = checkLinks(html('rr:code/a.go#L4-6', 'rr:code/a.go#L4', 'rr:code/a.go#L20-21'), prov({ 'a.go': body.join('\n') }));
   // 3 lines inserted above line 1; line 20 edited
   const shifted = ['n1', 'n2', 'n3', ...body];
