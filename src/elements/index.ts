@@ -58,6 +58,16 @@ function codeOptions(surface = '--rr-panel') {
     unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, `var(${surface})`) + ':host{color-scheme:inherit}[data-line]{white-space:var(--rr-wrap,pre);word-break:break-word}',
   };
 }
+// pierre holds every instance in a static resize map until cleanUp(): release the previews that have left the page
+const live = new Map<HTMLElement, [{ cleanUp(): void }, number]>();
+const track = (box: HTMLElement, inst: { cleanUp(): void }) => {
+  for (const [b, [i, t]] of live) {
+    if (b.isConnected || Date.now() - t < 5000) continue;
+    i.cleanUp();
+    live.delete(b);
+  }
+  live.set(box, [inst, Date.now()]);
+};
 const range = (start: number, end: number) => ({ startingLine: start - 1, totalLines: end - start + 1, bufferBefore: 0, bufferAfter: 0 });
 
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, opts: { endAt?: number } = {}): Promise<HTMLElement> {
@@ -68,13 +78,16 @@ async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }
   // a changed file without lines: its hunks
   const diff = !r.start && r.type === 'code' && r.rev === 'head' ? await changedDiff(app, r.path, text) : null;
   if (diff?.hunks.length) {
-    new FileDiff({ ...codeOptions(), diffStyle: 'unified', hunkSeparators: 'simple' }).render({ fileDiff: diff, containerWrapper: box });
+    const fd = new FileDiff({ ...codeOptions(), diffStyle: 'unified', hunkSeparators: 'simple' });
+    fd.render({ fileDiff: diff, containerWrapper: box });
+    track(box, fd);
     return box;
   }
   const lines = text.split('\n').length;
   const file = new PierreFile(codeOptions());
   const [s, e] = r.start ? [Math.max(1, r.start - context), Math.min(lines, (opts.endAt ?? r.end ?? r.start) + context)] : [1, Math.min(lines, 25)];
   file.render({ file: { name: r.path, contents: text }, containerWrapper: box, renderRange: range(s, e) });
+  track(box, file);
   if (r.start) file.setSelectedLines({ start: r.start, end: r.end ?? r.start }, { notify: false });
   return box;
 }

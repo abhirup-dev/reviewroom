@@ -12,6 +12,7 @@ describe('api', () => {
   let url = '';
   beforeAll(async () => (url = await serve()));
 
+  test('the patch is a plain git diff whatever the git config', async () => expect(await (await fetch(url + 'api/patch')).text()).toStartWith('diff --git a/'));
   test('symbol search finds the definition', async () => {
     const hits: SearchHit[] = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json();
     expect(hits.some((h) => h.kind === 'definition')).toBe(true);

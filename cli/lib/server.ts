@@ -161,6 +161,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   app.get('/api/meta', (c) => json(c, prov.meta()));
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
+  app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
   app.get('/api/read', (c) => {
     const { rev, path: p } = c.req.query();
     const text = prov.read(rev, p);
