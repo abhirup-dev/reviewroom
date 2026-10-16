@@ -23,76 +23,78 @@ function gh(repo: string, args: string[]) {
 }
 
 export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean };
+/** Where the review lives and what it compares; base and head are always resolved. */
+type Target = { dir: string; cfg: ReviewConfig };
+
+/** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
+function prTarget(repo: string, o: PrOpts, n: string): Target {
+  const { remote } = o;
+  const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
+  console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
+  let head = `refs/reviewroom/pr-${n}`;
+  const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo) || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${head}`, repo));
+  if (!fetched) {
+    // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
+    const local = [head, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
+    if (!local) die(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
+    console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
+    head = local;
+  }
+  const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
+  if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
+  const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
+  if (!base) die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
+  const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
+  return { dir: path.join(repo, '.reviewroom', `pr-${n}`), cfg };
+}
+
+/** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
+function branchTarget(repo: string, o: PrOpts, branch: string): Target {
+  let head = branch;
+  if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
+    fetchRef(o.remote, `+refs/heads/${branch}:refs/remotes/${o.remote}/${branch}`, repo);
+    head = `${o.remote}/${branch}`;
+    if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called "${branch}"`);
+  }
+  return { dir: path.join(repo, '.reviewroom', branch.replace(/[^\w.-]+/g, '-')), cfg: { base: o.base ?? defaultBase(repo), head, title: o.title } };
+}
+
+/** `pr`: the current branch (or --base/--head), nothing fetched. */
+function localTarget(repo: string, o: PrOpts): Target {
+  const dir = resolveDir(repo, o.dir);
+  return { dir, cfg: loadConfig(dir, repo, o) };
+}
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
-  const { remote } = o;
-  const m = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/);
-  const cfg: Partial<ReviewConfig> = {};
-  let dir: string;
-  if (m) {
-    const n = m[1];
-    const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
-    console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
-    let ref = `refs/reviewroom/pr-${n}`;
-    const fetched = fetchRef(remote, `+refs/pull/${n}/head:${ref}`, repo)
-      || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${ref}`, repo));
-    if (!fetched) {
-      // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
-      const local = [ref, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
-      if (!local) die(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
-      console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
-      ref = local;
-    }
-    const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
-    if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
-    const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo)) || die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-    Object.assign(cfg, { base, head: ref, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` });
-    dir = path.join(repo, '.reviewroom', `pr-${n}`);
-  } else if (!arg) {
-    // no target: the current branch (or --base/--head), nothing fetched
-    dir = resolveDir(repo, o.dir);
-    Object.assign(cfg, loadConfig(dir, repo, o));
-  } else {
-    const branch = arg;
-    let head = branch;
-    if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
-      fetchRef(remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`, repo);
-      head = `${remote}/${branch}`;
-      if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called "${branch}"`);
-    }
-    Object.assign(cfg, { base: o.base ?? defaultBase(repo), head, title: o.title });
-    dir = path.join(repo, '.reviewroom', branch.replace(/[^\w.-]+/g, '-'));
-  }
-  if (o.dir) dir = path.resolve(o.dir);
+  const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
+  const t = n ? prTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
+  const dir = o.dir ? path.resolve(o.dir) : t.dir;
   fs.mkdirSync(dir, { recursive: true });
   ensureExcluded(repo);
-  const full = { ...readConfig(dir), ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined && v !== null)) } as ReviewConfig;
-  fs.writeFileSync(configPath(dir), JSON.stringify(full, null, 2));
-  const fresh = scaffold(repo, dir, full, !!o.force);
-  const prov = makeProvider(repo, full);
+  // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
+  const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)) } as ReviewConfig;
+  fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
+  const fresh = scaffold(repo, dir, cfg, !!o.force);
+  const prov = makeProvider(repo, cfg);
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
-  // serve this dir; --base/--head/--title are in config.json now
-  const serveOpts: ServeOpts = { ...o, dir, base: undefined, head: undefined, title: undefined };
 
-  if (o.detach) {
-    const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
-    if (o.port) args.push('--port', o.port);
-    if (!o.open) args.push('--no-open');
-    await stopServer(dir);
-    const out = fs.openSync(path.join(dir, 'server.log'), 'a');
-    spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
-    for (let i = 0; i < 50; i++) {
-      const rec = liveServer(dir);
-      if (rec) {
-        console.log(rec.url);
-        console.error(`reviewroom: server running in the background (pid ${rec.pid}) | stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
-        return process.exit(0);
-      }
-      await new Promise((r) => setTimeout(r, 100));
+  if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open }, !!o.wait); // --base/--head/--title are in config.json now
+  const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
+  if (o.port) args.push('--port', o.port);
+  if (!o.open) args.push('--no-open');
+  await stopServer(dir);
+  const out = fs.openSync(path.join(dir, 'server.log'), 'a');
+  spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
+  for (let i = 0; i < 50; i++) {
+    const rec = liveServer(dir);
+    if (rec) {
+      console.log(rec.url);
+      console.error(`reviewroom: server running in the background (pid ${rec.pid}) | stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
+      return;
     }
-    die(`server did not start - see ${path.join(dir, 'server.log')}`);
+    await new Promise((r) => setTimeout(r, 100));
   }
-  await cmdServe(repo, serveOpts, !!o.wait, dir);
+  die(`server did not start - see ${path.join(dir, 'server.log')}`);
 }

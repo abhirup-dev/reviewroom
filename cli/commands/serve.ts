@@ -23,9 +23,9 @@ async function deliverPending(dir: string) {
 
 export type ServeOpts = Global & { base?: string; head?: string; title?: string; port?: string; open: boolean; forever?: boolean };
 
-export async function cmdServe(repo: string | null, o: ServeOpts, blocking: boolean, dir?: string) {
+export async function cmdServe(repo: string | null, o: ServeOpts, blocking: boolean) {
   if (!repo) die('not inside a git repository (use --repo <path>)');
-  dir ??= resolveDir(repo, o.dir, { existing: true });
+  const dir = resolveDir(repo, o.dir, { existing: true });
   const cfg = loadConfig(dir, repo, o);
   if (blocking && (await deliverPending(dir))) return process.exit(0);
   // take over a detached server for the same review (same port, so an open tab reconnects)
