@@ -6,7 +6,7 @@ import { die } from '../lib/args.ts';
 import { type ReviewConfig, git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
 import { resolveDir, loadConfig, readConfig, configPath } from '../lib/state.ts';
-import { liveServer, stopServer } from '../lib/server.ts';
+import { liveServer, stopServer } from '../lib/registry.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute

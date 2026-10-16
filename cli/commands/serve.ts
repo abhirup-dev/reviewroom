@@ -4,7 +4,9 @@ import { type Global, die } from '../lib/args.ts';
 import { ensureExcluded } from '../lib/git.ts';
 import { resolveDir, loadConfig, configPath, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
 import { undelivered } from '../../src/shared/ops.ts';
-import { type Finished, DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.ts';
+import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
+import { DIST, PKG } from '../lib/paths.ts';
+import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
 
 const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
 

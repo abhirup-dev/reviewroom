@@ -1,16 +1,15 @@
-// HTTP server: review page, client bundle, JSON API, SSE live updates, and the server.json record.
+// HTTP server: review page, client bundle, JSON API, SSE live updates.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import open from 'open';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { feedbackMarkdown } from '../../src/shared/feedback.ts';
 import { makeProvider, type Provider, type ReviewConfig } from './git.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
-import { readState, writeState, answers } from './state.ts';
+import { readState, writeState } from './state.ts';
+import { DIST, PKG, layoutFile } from './paths.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
@@ -19,9 +18,6 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { createAdaptorServer } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-
-export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-export const DIST = path.join(PKG, 'dist');
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
@@ -243,45 +239,3 @@ export function listen(server: http.Server, port: number) {
 }
 
 export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
-
-
-// A running server records itself so `review`/`stop` can find (and take over) it.
-/** server.json, written by `serve`. */
-export type ServerRecord = { pid: number; port: number; url: string; startedAt: string };
-export const serverFile = (dir: string) => path.join(dir, 'server.json');
-export function liveServer(dir: string): ServerRecord | null {
-  try {
-    const rec = JSON.parse(fs.readFileSync(serverFile(dir), 'utf8'));
-    process.kill(rec.pid, 0);
-    return rec;
-  } catch {
-    return null;
-  }
-}
-// Per-user registry of running servers, one <pid>.json each, so other local tools (an annotation hub)
-// can list reviews without knowing which repos have them. Best effort: a failure never stops a review.
-const homeDir = () => process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.reviewroom');
-export const registryDir = () => path.join(homeDir(), 'sessions');
-/** The reviewer's own default panel layout (dockview JSON), shared by every review on this machine. */
-export const layoutFile = () => path.join(homeDir(), 'layout.json');
-export function register(rec: ServerRecord & Record<string, unknown>) {
-  try {
-    fs.mkdirSync(registryDir(), { recursive: true });
-    fs.writeFileSync(path.join(registryDir(), `${rec.pid}.json`), JSON.stringify(rec, null, 2));
-  } catch {}
-}
-export function unregister(pid: number) {
-  try {
-    fs.unlinkSync(path.join(registryDir(), `${pid}.json`));
-  } catch {}
-}
-// server.json can outlive its server and the pid be reused: only signal a pid that our server reports.
-export async function stopServer(dir: string) {
-  const rec = liveServer(dir);
-  if (!rec || rec.pid === process.pid || !(await answers(rec.pid, rec.port, 1500))) return null;
-  try {
-    process.kill(rec.pid, 'SIGTERM');
-  } catch {}
-  for (let i = 0; i < 30 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
-  return rec;
-}
