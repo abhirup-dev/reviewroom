@@ -17,7 +17,7 @@ md.use({
       level: 'block',
       start: (src) => src.match(/^ {0,3}rr:/m)?.index,
       tokenizer(src) {
-        const m = /^ {0,3}(rr:\S+) *(?:\n+|$)/.exec(src);
+        const m = /^ {0,3}(rr:\S+)[ \t]*(?:\n+|$)/.exec(src);
         if (m) return { type: 'rrEmbed', raw: m[0], ref: m[1] };
       },
       renderer: (t) => `<rr-embed ref="${esc(t.ref)}"></rr-embed>\n`,

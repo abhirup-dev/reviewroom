@@ -6,7 +6,7 @@ Object.assign(globalThis, { window: new JSDOM('').window });
 const { renderMarkdown } = await import('./markdown.ts');
 
 test('bare rr: line embeds, but not inside a code block', () => {
-  expect(renderMarkdown('see\n\nrr:code/a.go#L1\n\nafter')).toContain('<rr-embed ref="rr:code/a.go#L1"></rr-embed>');
+  expect(renderMarkdown('see\n\nrr:code/a.go#L1\t\n\nafter')).toContain('<rr-embed ref="rr:code/a.go#L1"></rr-embed>');
   expect(renderMarkdown('```\nrr:code/a.go#L1\n```')).toBe('<pre><code>rr:code/a.go#L1\n</code></pre>\n');
 });
 
