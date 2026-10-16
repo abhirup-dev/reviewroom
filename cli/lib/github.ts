@@ -121,9 +121,10 @@ export async function gql<T extends object = any>(cwd: string, host: string, que
   const c = await client(cwd, host);
   try {
     return await (paginate ? c.graphql.paginate<T>(query, variables) : c.graphql<T>(query, variables));
-  } catch (e: any) {
+  } catch (err) {
+    const e = err as Error & { status?: number; errors?: { message: string }[] }; // Octokit's RequestError / GraphqlResponseError
     if (e.status === 401) clients.delete(host); // token revoked or rotated: ask gh again next time
-    throw new Error(e.errors?.length ? e.errors.map((x: { message: string }) => x.message).join('; ') : e.message, { cause: e });
+    throw new Error(e.errors?.length ? e.errors.map((x) => x.message).join('; ') : e.message, { cause: err });
   }
 }
 
@@ -276,9 +277,9 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         if (!target) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
         snap = { ...(await fetchPr(repo, target, localHead)), at: new Date().toISOString() };
         fs.writeFileSync(file, JSON.stringify(snap, null, 2));
-      } catch (e: any) {
+      } catch (e) {
         // keep showing the last good threads; say why they may be old
-        snap = { ...(snap?.ok ? snap : { ok: false, threads: [] }), error: e.message };
+        snap = { ...(snap?.ok ? snap : { ok: false, threads: [] }), error: (e as Error).message };
       } finally {
         inflight = null;
       }

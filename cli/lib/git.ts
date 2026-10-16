@@ -12,9 +12,10 @@ export function git(args: string[], cwd: string, opts?: GitOpts): string | null;
 export function git(args: string[], cwd: string, opts: GitOpts = {}): string | null {
   try {
     return execFileSync('git', args, { cwd, encoding: opts.encoding ?? 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (e: any) {
+  } catch (e) {
     if (opts.soft) return null;
-    throw new Error(`git ${args.join(' ')}: ${(e.stderr || e.message).toString().trim()}`, { cause: e });
+    const { stderr, message } = e as Error & { stderr?: Buffer | string }; // execFileSync's error
+    throw new Error(`git ${args.join(' ')}: ${(stderr || message).toString().trim()}`, { cause: e });
   }
 }
 // Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.
