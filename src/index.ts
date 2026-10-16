@@ -9,7 +9,7 @@
 //
 // Everything else - docking layout, diffs, files, contents, threads, rounds,
 // palette, theming - is provided. See skills/reviewroom/references/authoring.md.
-import cssText from 'virtual:rr-css';
+import cssText from './styles/bundle.css' with { type: 'text' };
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
