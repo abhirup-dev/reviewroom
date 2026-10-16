@@ -19,7 +19,7 @@ export function resolveDir(repo: string | null, dirFlag: string | undefined, { e
   if (!existing || fs.existsSync(own)) return own;
   const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
-  throw new StateError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
+  throw new StateError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept

@@ -16,7 +16,7 @@ async function deliverPending(dir: string) {
     const f = path.join(dir, 'rounds', String(r.n), 'feedback.md');
     await print((fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : `(round ${r.n} was ${r.status} but ${f} is missing)`) + '\n');
     await commitOps(dir, [{ op: 'markDelivered', round: r.n }]);
-    console.error(`reviewroom: round ${r.n} was ${r.status === 'approved' ? 'approved' : 'sent'} while you were not waiting → ${f}`);
+    console.error(`reviewroom: round ${r.n} was ${r.status === 'approved' ? 'approved' : 'sent'} while you were not waiting -> ${f}`);
   }
   return rounds.length > 0;
 }
@@ -34,7 +34,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   fs.mkdirSync(dir, { recursive: true });
   if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
   if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
-  if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
+  if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
   const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
@@ -55,7 +55,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   process.on('exit', cleanup);
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   const s = readState(dir);
-  console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
+  console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} | round ${s.round} | ${url}`);
   checkNarrative(); // after the lock: it may write state.json
   if (o.open) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
@@ -72,7 +72,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
     } catch (e) {
       console.error(`reviewroom: could not record delivery: ${(e as Error).message}`);
     }
-    console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} → ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
+    console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} -> ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
     server.closeAllConnections?.();
     server.close();
     process.exit(0);

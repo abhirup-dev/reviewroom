@@ -38,7 +38,7 @@ const capPerFile = (hits: SearchHit[], n: number) => {
   return hits.filter((h) => { const c = (seen.get(h.path) || 0) + 1; seen.set(h.path, c); return c <= n; });
 };
 // Every rev that reaches git argv passes through here: a leading `-` would be read as an option
-// (`--output=…` writes files), so revs are restricted to ref/sha syntax.
+// (`--output=...` writes files), so revs are restricted to ref/sha syntax.
 export const isRev = (r: unknown): r is string => typeof r === 'string' && /^[\w@][\w./~^@{}+-]*$/.test(r);
 export const checkRev = (r: unknown) => {
   if (isRev(r)) return r;
@@ -80,7 +80,7 @@ export function ensureExcluded(repo: string) {
 import type { ReviewConfig } from './state.ts';
 export type { ReviewConfig };
 const STATUS: Record<string, ChangedFile['status'] | undefined> = { A: 'added', D: 'deleted', R: 'renamed' };
-/** `git diff -M -z --numstat` and `--name-status` of the same range → changed files (status from the latter). */
+/** `git diff -M -z --numstat` and `--name-status` of the same range -> changed files (status from the latter). */
 export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {
   const status = new Map<string, ChangedFile['status']>();
   const ns = nameStatus.split('\0');

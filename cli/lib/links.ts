@@ -14,7 +14,7 @@ export interface LinkResult {
   /** for `moved`: the fixed link */
   to?: string;
 }
-/** ref → fingerprint (a line-range hash, or 'definition' for a symbol): state.json `links`. */
+/** ref -> fingerprint (a line-range hash, or 'definition' for a symbol): state.json `links`. */
 export type Links = Record<string, string>;
 
 const DRIFT = 5; // a block that moved further than this is reported for the agent to fix, not healed
@@ -29,9 +29,9 @@ const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 
 /**
- * Check every link in `html` against the code. `known` is the ref → hash map from the last check
+ * Check every link in `html` against the code. `known` is the ref -> hash map from the last check
  * (state.json `links`); the returned `links` is the new one (links no longer in the narrative drop out).
- * status: ok | new (fingerprinted now) | moved (same code within ±5 lines; `to` is the fixed link) |
+ * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
 export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}) {
@@ -104,9 +104,9 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
 export const problems = (results: LinkResult[]) => results.filter((x) => x.status === 'moved' || x.status === 'changed' || x.status === 'broken');
 
 /** One line per problem, for the agent. */
-export const report = (bad: LinkResult[]) => bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' → ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}`).join('\n');
+export const report = (bad: LinkResult[]) => bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}`).join('\n');
 
-/** Rewrite moved links in one pass (so #L4→#L7 and #L7→#L10 can't chain) and move their fingerprints along. */
+/** Rewrite moved links in one pass (so #L4->#L7 and #L7->#L10 can't chain) and move their fingerprints along. */
 export function applyFixes(html: string, results: LinkResult[], links: Links) {
   const to = new Map(results.filter((x) => x.status === 'moved').map((x) => [x.ref, x.to!]));
   const moved = [...to].map(([from, dest]) => [dest, links[from]]);

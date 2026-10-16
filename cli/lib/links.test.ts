@@ -17,7 +17,7 @@ test('first sighting fingerprints; unchanged code stays ok', () => {
   expect(again.links).toEqual(first.links);
 });
 
-test('code shifted ≤5 lines is moved and fixable; further or edited is changed', () => {
+test('code shifted <=5 lines is moved and fixable; further or edited is changed', () => {
   const { links } = checkLinks(html('rr:code/a.go#L4-6', 'rr:code/a.go#L4', 'rr:code/a.go#L20-21'), prov({ 'a.go': body.join('\n') }));
   // 3 lines inserted above line 1; line 20 edited
   const shifted = ['n1', 'n2', 'n3', ...body];

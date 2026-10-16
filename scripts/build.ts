@@ -90,6 +90,6 @@ if (import.meta.main) {
     };
     watch(at('src'), { recursive: true }, rebuild);
     watch(at('cli'), { recursive: true }, rebuild);
-    console.log('watching src/ and cli/ …');
+    console.log('watching src/ and cli/ ...');
   }
 }

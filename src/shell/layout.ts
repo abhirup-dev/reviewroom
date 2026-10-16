@@ -22,7 +22,7 @@ export interface PanelInstance {
 }
 
 const registry = new Map<string, PanelDef>();
-/** Register a panel type. Agents can add their own (a metrics chart, a query runner…) from review.html. */
+/** Register a panel type. Agents can add their own (a metrics chart, a query runner...) from review.html. */
 export function definePanel(def: PanelDef) {
   registry.set(def.id, def);
 }

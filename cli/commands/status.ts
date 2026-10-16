@@ -21,7 +21,7 @@ export function cmdStatus(repo: string | null, o: StatusOpts) {
     console.log(JSON.stringify({ dir, review: path.join(dir, 'review.html'), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
     return;
   }
-  console.log(`${dir}\nround ${s.round} (${s.rounds.find((r) => r.n === s.round)?.status}) · ${s.threads.length} threads · ${open.length} open · ${waiting.length} awaiting agent reply`);
+  console.log(`${dir}\nround ${s.round} (${s.rounds.find((r) => r.n === s.round)?.status}) | ${s.threads.length} threads | ${open.length} open | ${waiting.length} awaiting agent reply`);
 }
 
 export async function cmdStop(repo: string | null, o: Global) {

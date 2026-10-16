@@ -66,7 +66,7 @@ export interface Message extends Omit<StoredMessage, 'author'> {
 
 export interface Thread extends Omit<StoredThread, 'messages'> {
   messages: Message[];
-  /** Set on threads that live on GitHub (ids `gh_…`); they come from /api/github, not state.json. */
+  /** Set on threads that live on GitHub (ids `gh_...`); they come from /api/github, not state.json. */
   gh?: { node: string; url: string; outdated?: boolean; file?: boolean; conversation?: boolean; canResolve?: boolean; canUnresolve?: boolean; canReply: boolean };
 }
 
