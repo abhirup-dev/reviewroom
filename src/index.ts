@@ -97,7 +97,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
 
   const authored = (readJSON('#rr-meta', root) as (Partial<ReviewMeta> & { theme?: ThemeOverrides }) | null) ?? {};
   if (authored.theme) applyThemeOverrides(authored.theme);
-  for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) (authored as any)[k] = root.getAttribute(k);
+  for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
   const fixture = readJSON('#rr-fixture') as Fixture | null;
   const seedState = readJSON('#rr-state') as ReviewState | null;
   const review = root.querySelector('rr-review') as HTMLElement | null;
@@ -141,7 +141,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountThreadPopup(app);
   mountDock(app, dockHost);
   registerCommands(app);
-  app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as any) ?? 'global';
+  app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.commands.attach(document);
 
   app.backend.subscribe?.({
@@ -214,14 +214,14 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     markdown: renderMarkdown,
     tip,
   };
-  (window as any).rr = api;
+  Object.assign(window, { rr: api });
   window.dispatchEvent(new CustomEvent('reviewroom:ready', { detail: api }));
   return app;
 }
 
 function registerCommands(app: ReviewApp) {
   const C = app.commands;
-  const pal = (q = '') => () => (app as any).openPalette(q);
+  const pal = (q = '') => () => app.openPalette(q);
   const codeCmd = (name: string) => () => {
     const scroller = (document.activeElement?.closest('.rr-code-panel') ?? document.querySelector('.rr-code-panel'));
     scroller?.dispatchEvent(new CustomEvent('rr-code-cmd', { detail: name }));

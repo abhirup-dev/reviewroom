@@ -231,11 +231,17 @@ export class ServerState implements StateBackend {
 // File contents come from raw.githubusercontent.com (not the REST API), so a
 // review costs ~2 API calls (compare + commits) regardless of PR size.
 
+/** The fields of GitHub's compare response that are read here. */
+type Compare = {
+  commits: { sha: string; commit: { message: string; author: { name?: string; date?: string } | null } }[];
+  files: { filename: string; previous_filename?: string; status: string; additions: number; deletions: number }[];
+};
+
 export class GitHubProvider implements CodeProvider {
   readonly name = 'github';
-  private cmp: any;
+  private cmp?: Compare;
   constructor(private repo: string, private base: string, private head: string, private token?: string) {}
-  private gh(path: string) {
+  private gh(path: string): Promise<Compare> {
     const headers: Record<string, string> = { accept: 'application/vnd.github+json' };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
     return fetch(`https://api.github.com/repos/${this.repo}${path}`, { headers }).then(json);
@@ -248,12 +254,12 @@ export class GitHubProvider implements CodeProvider {
   }
   async commits(): Promise<Commit[]> {
     const c = await this.compare();
-    return c.commits.map((x: any) => ({ sha: x.sha, short: x.sha.slice(0, 7), subject: x.commit.message.split('\n')[0], author: x.commit.author?.name, date: x.commit.author?.date }));
+    return c.commits.map((x) => ({ sha: x.sha, short: x.sha.slice(0, 7), subject: x.commit.message.split('\n')[0], author: x.commit.author?.name, date: x.commit.author?.date }));
   }
   async files(range: DiffRange): Promise<ChangedFile[]> {
     const c = range.base === this.base && range.head === this.head ? await this.compare() : await this.gh(`/compare/${range.base}...${range.head}`);
     const st: Record<string, ChangedFile['status']> = { added: 'added', removed: 'deleted', renamed: 'renamed', modified: 'modified', changed: 'modified' };
-    return c.files.map((f: any) => ({ path: f.filename, prevPath: f.previous_filename, status: st[f.status] ?? 'modified', additions: f.additions, deletions: f.deletions }));
+    return c.files.map((f) => ({ path: f.filename, prevPath: f.previous_filename, status: st[f.status] ?? 'modified', additions: f.additions, deletions: f.deletions }));
   }
   async read(path: string, rev: Rev) {
     const r = await fetch(`https://raw.githubusercontent.com/${this.repo}/${encodeURIComponent(rev)}/${path}`);

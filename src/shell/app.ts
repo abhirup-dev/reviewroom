@@ -105,6 +105,9 @@ export class ReviewApp {
   /** Esc handlers for open overlays, newest last; each returns true if it closed something. */
   escapers: (() => boolean)[] = [];
   activeFile = '';
+  /** Set when the palette overlay mounts. */
+  openPalette!: (initial?: string) => void;
+  pickRef!: () => Promise<string | null>;
   private cache = new Map<string, Promise<string | null>>();
 
   constructor(public root: HTMLElement) {
@@ -228,7 +231,7 @@ export class ReviewApp {
       this.bus.emit('reveal-code', { path: pick.path, side: 'head', start: pick.line, end: pick.line, view: inDiff ? 'diff' : 'file' });
     } else {
       this.commands.run('palette.symbols:' + name);
-      (this as any).openPalette?.('#' + name);
+      this.openPalette?.('#' + name);
     }
     return hits;
   }

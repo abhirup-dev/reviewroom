@@ -145,7 +145,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   };
   const linkPicker = async (embed = false) => {
     remember();
-    const ref = await (app as any).pickRef?.();
+    const ref = await app.pickRef?.();
     if (ref) insertRef(ref, embed);
     else restore();
   };
@@ -233,7 +233,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       tb(icon('link', 14), 'Link to a section, file, line, symbol or thread (or type [[)', () => linkPicker()),
       tb(icon('expand', 14), 'Embed a live preview of a section, code range or thread', () => linkPicker(true)),
       sel
-        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : anchorRef({ ...sel.anchor, quote: undefined } as any)!))
+        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : anchorRef({ ...sel.anchor, quote: undefined })!))
         : null,
     ),
     ed,
@@ -332,7 +332,10 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       body.addEventListener('click', (e) => {
         const a = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
         const id = a && !e.metaKey && !e.ctrlKey && app.githubThreadFor(a.href);
-        if (id) e.preventDefault(), app.bus.emit('open-thread', { id });
+        if (id) {
+          e.preventDefault();
+          app.bus.emit('open-thread', { id });
+        }
       });
       const actions = m.gh
         ? githubActions(m, body)
@@ -432,7 +435,10 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       const nt = app.createThread(anchor, body, 'you', gh);
       if (nt instanceof Promise) {
         const ok = await nt;
-        if (ok) (app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub'), o.onClose?.());
+        if (ok) {
+          app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub');
+          o.onClose?.();
+        }
         return ok;
       }
       if (!nt) return false;
@@ -497,7 +503,10 @@ export function mountThreadPopup(app: ReviewApp) {
     scrim.classList.remove('is-leaving');
     (lastFocus as HTMLElement | null)?.focus?.();
     // the lines a new comment was for stop being highlighted once it's sent or dropped
-    if (composing) (app.selection = null), app.bus.emit('selection', null);
+    if (composing) {
+      app.selection = null;
+      app.bus.emit('selection', null);
+    }
   };
   scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
   scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
@@ -526,7 +535,7 @@ export function mountThreadPopup(app: ReviewApp) {
       const other = app.dock.panels.find((p) => p.id.startsWith('thread:'));
       const near = other ?? app.dock.getPanel('narrative') ?? app.dock.activePanel;
       const t = app.thread(id)!;
-      app.dock.addPanel({ id: pid, component: 'thread', title: t.title ?? app.anchorLabel(t.anchor), params: { id }, position: near ? { referencePanel: near.id, direction: other ? 'within' : 'right' } : undefined } as any);
+      app.dock.addPanel({ id: pid, component: 'thread', title: t.title ?? app.anchorLabel(t.anchor), params: { id }, position: near ? { referencePanel: near.id, direction: other ? 'within' : 'right' } : undefined });
       if (!other) app.dock.getPanel(pid)?.group.api.setSize({ width: 420 });
     }
     app.showPanel(pid);
@@ -544,7 +553,6 @@ export function mountThreadPopup(app: ReviewApp) {
   app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
   app.bus.on('open-thread', ({ id }) => open({ id }));
   app.bus.on('compose-thread', ({ anchor, quote, to }) => open({ anchor, quote, to }));
-  (app as any).dockThread = dock;
   return { open, close };
 }
 

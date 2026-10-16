@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import type { ChangedFile, SearchHit } from '../src/core/types.ts';
+import type { StoredMessage, StoredThread } from '../src/shared/schema.ts';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const cli = path.join(root, 'dist', 'cli', 'reviewroom.mjs');
@@ -52,7 +54,7 @@ try {
   const files = await (await fetch(url + 'api/files')).json();
   check(files.length === 5, `diff has ${files.length} files`);
   const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json();
-  check(sym.some((h: any) => h.kind === 'definition'), 'symbol search finds the definition');
+  check(sym.some((h: SearchHit) => h.kind === 'definition'), 'symbol search finds the definition');
   const js = await fetch(url + '_rr/reviewroom.js');
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
@@ -96,7 +98,7 @@ try {
   };
   const [cliReply, codes] = await Promise.all([cliAsync(['reply', 't_one', 'because', ...d]), browserOps()]);
   const s1 = state();
-  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m: any) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
+  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m: StoredMessage) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
   check((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status === 404, 'op on an unknown thread is a 404');
   check((await post(url + 'api/ops', { op: 'finishRound', kind: 'feedback' })).status === 400, 'rounds cannot be finished through /api/ops');
   const second = run(node, [cli, 'comment', 'general', 'fyi', ...d]).trim();
@@ -143,11 +145,11 @@ try {
   // ---- no server: CLI writes take the lock, a dead holder's lock is stale
   fs.writeFileSync(path.join(dir, 'state.lock'), JSON.stringify({ pid: 999999, port: null }));
   const [c1, c2] = await Promise.all([cliAsync(['comment', 'general', 'one', ...d]), cliAsync(['comment', 'general', 'two', ...d])]);
-  const bodies = state().threads.map((t: any) => t.messages[0].body);
+  const bodies = state().threads.map((t: StoredThread) => t.messages[0].body);
   check(c1.code === 0 && c2.code === 0 && bodies.includes('one') && bodies.includes('two') && !fs.existsSync(path.join(dir, 'state.lock')), 'concurrent CLI writes both land (stale lock taken over, then released)');
 
   // ---- stale links: fingerprint, head moves 2 lines, check reports, --fix heals
-  const file = files.find((f: any) => f.status !== 'deleted').path;
+  const file = files.find((f: ChangedFile) => f.status !== 'deleted').path;
   const ref = `rr:code/${file}#L3-4`;
   const reviewFile = path.join(dir, 'review.html');
   fs.writeFileSync(reviewFile, `<rr-review><section id="s"><a href="${ref}">x</a> <a href="rr:sym/RecentEvents">y</a> <a href="rr:doc/nope">z</a></section></rr-review>`);
@@ -179,7 +181,7 @@ try {
   const typo = await cliAsync(['status', '--jsn', ...d]);
   check(typo.code === 2 && typo.stderr.includes('--jsn'), 'an unknown flag is an error (exit 2)');
   const rs = await cliAsync(['reply', 't_one', '--resolve', ...d]);
-  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t: any) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
+  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t: StoredThread) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
   const local = path.join(tmp, 'local-review');
   const lp = spawn(node, [cli, 'pr', '--base', 'main', '--head', 'feat/habit-events', '--no-open', '--port', String(+port + 3), '--repo', repo, '--dir', local], { stdio: 'ignore' });
   for (let i = 0; i < 50 && !fs.existsSync(path.join(local, 'server.json')); i++) await sleep(100);
@@ -201,7 +203,7 @@ try {
   const again = await cliAsync(['comment', 'general', 'after', ...d]);
   check(again.code !== 0 && /moved aside/.test(again.stderr) && !fs.existsSync(path.join(dir, 'state.json')), 'after a state.json is moved aside, writes stay blocked instead of starting an empty review');
 } catch (e) {
-  console.error((e as any).stderr || (e as Error).message);
+  console.error((e as { stderr?: string }).stderr || (e as Error).message); // execFileSync errors carry the child's stderr
   process.exitCode = 1;
 } finally {
   try {

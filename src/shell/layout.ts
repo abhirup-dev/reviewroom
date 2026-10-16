@@ -1,6 +1,6 @@
 // Docking layout. Every region is a dockview panel: drag tabs to split, float,
 // maximise or pop out; the layout is saved per review and presets rebuild it.
-import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IDockviewPanel, type IHeaderActionsRenderer, type CreateComponentOptions } from 'dockview-core';
+import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IDockviewPanel, type IHeaderActionsRenderer, type CreateComponentOptions, type SerializedDockview } from 'dockview-core';
 import { h, icon } from '../core/dom';
 import { loadRaw, saveLocal } from '../core/store';
 import type { ReviewApp } from './app';
@@ -40,7 +40,7 @@ const onDemandPanel = (id: string) => id.includes(':');
 function applyDefault(app: ReviewApp): boolean {
   if (!app.defaultLayout) return false;
   try {
-    app.dock.fromJSON(app.defaultLayout as any);
+    app.dock.fromJSON(app.defaultLayout as SerializedDockview); // a saved file; fromJSON throws on a bad one
     // the PR's own panels only mean something on a PR
     if (!app.meta.number) ['ci', 'description'].forEach((id) => app.dock.getPanel(id)?.api.close());
     return app.dock.panels.length > 0;
@@ -317,8 +317,14 @@ export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, 
   const api = app.dock;
   let p = api.getPanel(id);
   // the PR's own panels go back where the presets put them
-  if (!p && id === 'description' && api.getPanel('narrative')) addDescription(app), (p = api.getPanel(id));
-  if (!p && id === 'ci' && api.getPanel('threads')) addCiTab(app), (p = api.getPanel(id));
+  if (!p && id === 'description' && api.getPanel('narrative')) {
+    addDescription(app);
+    p = api.getPanel(id);
+  }
+  if (!p && id === 'ci' && api.getPanel('threads')) {
+    addCiTab(app);
+    p = api.getPanel(id);
+  }
   if (!p) {
     const kind = id.split(':')[0];
     const near = kind === 'code' ? (api.getPanel('narrative') ? { panel: 'narrative', dir: 'right' as const } : undefined) : api.getPanel('toc') ? { panel: 'toc', dir: 'within' as const } : api.getPanel('narrative') ? { panel: 'narrative', dir: 'left' as const } : undefined;
@@ -427,7 +433,7 @@ export function putBack(app: ReviewApp, id: string) {
   const keep = group.activePanel !== slot ? group.activePanel : undefined;
   const p = app.dock.getPanel(id);
   if (p) p.api.moveTo({ group, position: 'center', index });
-  else app.dock.addPanel({ id, component: (slot.params as any).component, params: (slot.params as any).params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
+  else app.dock.addPanel({ id, component: slot.params!.component, params: slot.params!.params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
   slot.api.close();
   keep?.api.setActive();
 }
