@@ -14,8 +14,8 @@ test('rr: links and images become chips and embeds', () => {
   expect(renderMarkdown('![cap](rr:doc/s)')).toContain('<rr-embed ref="rr:doc/s" caption="cap"></rr-embed>');
 });
 
-test('only rr-ref and rr-embed survive sanitising', () => {
-  expect(renderMarkdown('<rr-check id="t">x</rr-check>')).not.toContain('rr-check');
+test('only rr-ref and rr-embed survive sanitising; javascript: links go', () => {
+  expect(renderMarkdown('<rr-check id="t">x</rr-check>[a](javascript:alert(1))')).not.toMatch(/rr-check|javascript/);
 });
 
 test('outside links open in a new tab, raw HTML ones too; rr: links stay', () => {
