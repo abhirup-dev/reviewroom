@@ -12,6 +12,8 @@ export interface CodeProvider {
   commits(): Promise<Commit[]>;
   files(range: DiffRange): Promise<ChangedFile[]>;
   read(path: string, rev: Rev): Promise<string | null>;
+  /** The range's unified diff (git format), so files render from their hunks and are read only when expanded. Null: read them. */
+  patch?(range: DiffRange, ignoreWhitespace: boolean): Promise<string | null>;
   /** Text search at a revision. symbol=true biases to definitions. Optional: the shell falls back to searching loaded files. */
   search?(query: string, opts: { rev: Rev; symbol?: boolean; limit?: number }): Promise<SearchHit[]>;
   /** All file paths at a revision (for browsing outside the diff). */
@@ -71,6 +73,10 @@ export class LocalProvider implements CodeProvider {
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`read ${path}@${rev}: ${r.status}`);
     return r.text();
+  }
+  async patch(range: DiffRange, ws: boolean) {
+    const r = await fetch(`${this.api}/patch?base=${encodeURIComponent(range.base)}&head=${encodeURIComponent(range.head)}${ws ? '&ws=1' : ''}`);
+    return r.ok ? r.text() : null;
   }
   search(q: string, o: { rev: Rev; symbol?: boolean; limit?: number }) {
     const p = new URLSearchParams({ q, rev: o.rev, symbol: o.symbol ? '1' : '', limit: String(o.limit ?? 50) });
@@ -234,7 +240,7 @@ export class ServerState implements StateBackend {
 /** The fields of GitHub's compare response that are read here. */
 type Compare = {
   commits: { sha: string; commit: { message: string; author: { name?: string; date?: string } | null } }[];
-  files: { filename: string; previous_filename?: string; status: string; additions: number; deletions: number }[];
+  files: { filename: string; previous_filename?: string; status: string; additions: number; deletions: number; patch?: string }[];
 };
 
 export class GitHubProvider implements CodeProvider {
@@ -256,14 +262,28 @@ export class GitHubProvider implements CodeProvider {
     const c = await this.compare();
     return c.commits.map((x) => ({ sha: x.sha, short: x.sha.slice(0, 7), subject: x.commit.message.split('\n')[0], author: x.commit.author?.name, date: x.commit.author?.date }));
   }
+  private compareFor(range: DiffRange) {
+    return range.base === this.base && range.head === this.head ? this.compare() : this.gh(`/compare/${range.base}...${range.head}`);
+  }
   async files(range: DiffRange): Promise<ChangedFile[]> {
-    const c = range.base === this.base && range.head === this.head ? await this.compare() : await this.gh(`/compare/${range.base}...${range.head}`);
+    const c = await this.compareFor(range);
     const st: Record<string, ChangedFile['status']> = { added: 'added', removed: 'deleted', renamed: 'renamed', modified: 'modified', changed: 'modified' };
     return c.files.map((f) => ({ path: f.filename, prevPath: f.previous_filename, status: st[f.status] ?? 'modified', additions: f.additions, deletions: f.deletions }));
   }
   async read(path: string, rev: Rev) {
     const r = await fetch(`https://raw.githubusercontent.com/${this.repo}/${encodeURIComponent(rev)}/${path}`);
     return r.ok ? r.text() : null;
+  }
+  /** From the compare response's per-file hunks: no request beyond the one files() made. GitHub leaves out big and binary files' hunks; those are read. */
+  async patch(range: DiffRange, ws: boolean) {
+    if (ws) return null; // GitHub's hunks can't ignore whitespace
+    return (await this.compareFor(range)).files
+      .filter((f) => f.patch)
+      .map((f) => {
+        const old = f.previous_filename ?? f.filename;
+        return `diff --git a/${old} b/${f.filename}\n--- ${f.status === 'added' ? '/dev/null' : 'a/' + old}\n+++ ${f.status === 'removed' ? '/dev/null' : 'b/' + f.filename}\n${f.patch}\n`;
+      })
+      .join('');
   }
 }
 

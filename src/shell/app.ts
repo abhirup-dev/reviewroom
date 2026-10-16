@@ -412,7 +412,11 @@ export class ReviewApp {
   showPanel(id: string) {
     const p = this.dock?.getPanel(id);
     if (p) {
-      p.api.setActive();
+      // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
+      // a panel behind another group's maximize still needs setActive, which brings it out
+      const covered = this.dock.hasMaximizedGroup() && !p.group.api.isMaximized();
+      if (p.api.isVisible && !covered) p.group.api.setActive();
+      else p.api.setActive();
       return true;
     }
     return false;
