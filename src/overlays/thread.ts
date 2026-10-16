@@ -1,5 +1,7 @@
 // Thread view: used as the centred popup AND as a dockable panel ("thread:<id>").
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
+import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
 import { h, icon, relTime, copyText, backdropCloses } from '../core/dom';
 import { loadRaw } from '../core/store';
 import { renderMarkdown } from '../core/markdown';
@@ -31,14 +33,57 @@ export interface ThreadViewOpts {
 /** A send button; `off` greys it out and says why. */
 export type SendButton = { label: string; title?: string; off?: string; main?: boolean; icon?: boolean; to?: 'agent' | 'github'; onSubmit(body: string): unknown };
 
+// a link in the composer's text: `[label](rr:...)`, `![label](rr:...)` for an embed
+const RR_LINK = /(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g;
+
+/** The markdown saved for a message: link labels lose their brackets, embeds get a line of their own. */
+const composerMarkdown = (text: string, label: (ref: string) => string) =>
+  text
+    .replace(RR_LINK, (_, bang: string, lab: string, ref: string) => {
+      const link = `[${(lab || label(ref)).replace(/[[\]]/g, '')}](${ref})`;
+      return bang ? `\n!${link}\n` : link;
+    })
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+class Chip extends WidgetType {
+  constructor(
+    readonly ref: string,
+    readonly label: string,
+    readonly embed: boolean,
+  ) {
+    super();
+  }
+  eq(o: Chip) {
+    return o.ref === this.ref && o.label === this.label && o.embed === this.embed;
+  }
+  toDOM() {
+    const r = parseRef(this.ref);
+    return h('span', { class: 'rr-chip rr-chip--token' + (this.embed ? ' is-embed' : ''), 'data-ref': this.ref, title: this.embed ? 'Shows a live preview of this in the comment' : 'Link: opens this when clicked' }, r ? refIcon(r) : null, this.embed ? h('span', { class: 'rr-chip__kind' }, 'preview') : null, this.label);
+  }
+}
+
 export function composer(app: ReviewApp, opts: { placeholder: string; buttons: SendButton[]; initial?: string; autofocus?: boolean; draftKey?: string; onCancel?(): void }) {
   const buttons = opts.buttons;
   const main = buttons.find((b) => b.main && !b.off) ?? buttons.find((b) => !b.off) ?? buttons[0];
-  // A plain contenteditable where links are atomic chips. People see "request_builder.go:51-53",
-  // never `[...](rr:code/...)`; the markdown with rr: links exists only in what gets saved for the agent.
-  const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
+  // The text is the markdown itself, with rr: links drawn as atomic chips: people see "request_builder.go:51-53",
+  // never `[...](rr:code/...)`.
+  const chips = new MatchDecorator({ regexp: RR_LINK, decoration: (m) => Decoration.replace({ widget: new Chip(m[3], m[2] || app.label(m[3]), !!m[1]) }) });
+  const chipView = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(v: EditorView) {
+        this.decorations = chips.createDeco(v);
+      }
+      update(u: ViewUpdate) {
+        this.decorations = chips.updateDeco(u, this.decorations);
+      }
+    },
+    { decorations: (p) => p.decorations, provide: (p) => EditorView.atomicRanges.of((v) => v.plugin(p)?.decorations ?? Decoration.none) },
+  );
+  const ed = h('div', { class: 'rr-composer__input' });
   const preview = h('div', { class: 'rr-composer__preview rr-prose', hidden: true });
-  let saved: Range | null = null;
   // unsent text survives a reload (localStorage, per thread or anchor)
   const keepDraft = (md: string) => {
     if (!opts.draftKey) return;
@@ -49,81 +94,15 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       /* private mode: drafts just don't persist */
     }
   };
-  const remember = () => {
-    const sel = document.getSelection();
-    if (sel?.rangeCount && ed.contains(sel.anchorNode)) saved = sel.getRangeAt(0).cloneRange();
-    keepDraft(serialize());
+  const serialize = () => composerMarkdown(view.state.doc.toString(), (r) => app.label(r));
+  const insert = (t: string) => {
+    view.focus();
+    view.dispatch(view.state.replaceSelection(t), { scrollIntoView: true });
   };
-  const restore = () => {
-    ed.focus();
-    const sel = document.getSelection()!;
-    sel.removeAllRanges();
-    if (saved && ed.contains(saved.startContainer)) sel.addRange(saved);
-    else {
-      const r = document.createRange();
-      r.selectNodeContents(ed);
-      r.collapse(false);
-      sel.addRange(r);
-    }
+  const insertRef = (ref: string, embed = false) => {
+    const link = `[${app.label(ref).replace(/[[\]]/g, '')}](${ref})`;
+    insert(embed ? `\n!${link}\n` : link + ' ');
   };
-  const chip = (ref: string, label: string, embed = false) => {
-    const r = parseRef(ref);
-    return h('span', { class: 'rr-chip rr-chip--token' + (embed ? ' is-embed' : ''), contenteditable: 'false', 'data-ref': ref, 'data-label': label, 'data-embed': embed ? '1' : undefined, title: embed ? 'Shows a live preview of this in the comment' : 'Link: opens this when clicked' }, r ? refIcon(r) : null, embed ? h('span', { class: 'rr-chip__kind' }, 'preview') : null, label);
-  };
-  const serialize = (): string => {
-    let out = '';
-    const walk = (n: Node, top: boolean) => {
-      if (n.nodeType === 3) out += (n as Text).data.replace(/\u00a0/g, ' ');
-      else if (n instanceof HTMLElement) {
-        if (n.dataset.ref) {
-          const lab = (n.dataset.label || '').replace(/[[\]]/g, '');
-          out += n.dataset.embed ? `\n![${lab}](${n.dataset.ref})\n` : `[${lab}](${n.dataset.ref})`;
-          return;
-        }
-        if (n.tagName === 'BR') return void (out += '\n');
-        const block = !top && /^(DIV|P)$/.test(n.tagName);
-        if (block && out && !out.endsWith('\n')) out += '\n';
-        n.childNodes.forEach((c) => walk(c, false));
-      }
-    };
-    ed.childNodes.forEach((c) => walk(c, false));
-    return out.replace(/\n{3,}/g, '\n\n').trim();
-  };
-  const load = (md: string) => {
-    ed.replaceChildren();
-    const re = /(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g;
-    let last = 0;
-    const text = (t: string) => t.split('\n').forEach((line, i) => (i && ed.append(h('br')), line && ed.append(line)));
-    for (const m of md.matchAll(re)) {
-      text(md.slice(last, m.index));
-      ed.append(chip(m[3], m[2] || app.label(m[3]), !!m[1]));
-      last = m.index + m[0].length;
-    }
-    text(md.slice(last));
-  };
-  const insertNodes = (...nodes: Node[]) => {
-    restore();
-    const sel = document.getSelection()!;
-    const r = sel.getRangeAt(0);
-    r.deleteContents();
-    const frag = document.createDocumentFragment();
-    nodes.forEach((n) => frag.append(n));
-    const lastNode = frag.lastChild!;
-    r.insertNode(frag);
-    r.setStartAfter(lastNode);
-    r.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(r);
-    remember();
-  };
-  const insertRef = (ref: string, embed = false) => insertNodes(...(embed ? [h('br')] : []), chip(ref, app.label(ref), embed), document.createTextNode('\u00a0'));
-  const insertText = (t: string) => {
-    restore();
-    document.execCommand('insertText', false, t);
-    remember();
-  };
-  const initial = opts.initial ?? (opts.draftKey ? loadRaw(opts.draftKey) : null);
-  if (initial) load(initial);
 
   let mode: 'write' | 'preview' = 'write';
   const tabW = h('button', { class: 'rr-tab is-on', type: 'button', onclick: () => setMode('write') }, 'Write');
@@ -135,22 +114,18 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     ed.hidden = m === 'preview';
     preview.hidden = m === 'write';
     if (m === 'preview') preview.innerHTML = renderMarkdown(serialize() || '_Nothing to preview_');
-    else restore();
+    else view.focus();
   };
   const wrapSel = (before: string, after = before, placeholder = '') => {
-    restore();
-    const sel = document.getSelection()!.toString() || placeholder;
-    document.execCommand('insertText', false, before + sel + after);
-    remember();
+    const { from, to } = view.state.selection.main;
+    insert(before + (view.state.sliceDoc(from, to) || placeholder) + after);
   };
   const linkPicker = async (embed = false) => {
-    remember();
     const ref = await app.pickRef?.();
     if (ref) insertRef(ref, embed);
-    else restore();
+    else view.focus();
   };
   const emojiPicker = async () => {
-    remember();
     const btn = el.querySelector('[aria-label="Emoji"]') as HTMLElement;
     const { Picker } = await import('emoji-picker-element');
     const picker = new Picker({ dataSource: EMOJI_DATA });
@@ -158,57 +133,61 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     const close = popMenu(btn, () => [picker]);
     picker.addEventListener('emoji-click', (e) => {
       close();
-      if (e.detail.unicode) insertText(e.detail.unicode);
+      if (e.detail.unicode) insert(e.detail.unicode);
     });
   };
   let busy = false;
   const submit = async (b: SendButton = main) => {
     if (b.off) return;
     const body = serialize();
-    if (!body) return ed.focus();
+    if (!body) return view.focus();
     if (busy) return;
     busy = true;
     // false (GitHub refused it, say): keep the text so nothing typed is lost
     const ok = await Promise.resolve(b.onSubmit(body)).finally(() => (busy = false));
     if (ok === false) return;
-    ed.replaceChildren();
-    keepDraft('');
-    saved = null;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length } });
     setMode('write');
   };
-  ed.addEventListener('keyup', remember);
-  ed.addEventListener('mouseup', remember);
-  ed.addEventListener('blur', remember);
-  ed.addEventListener('input', () => {
-    if (!ed.textContent && !ed.querySelector('[data-ref]')) ed.replaceChildren(); // keep :empty placeholder working
-    remember();
-    // "[[" opens the link picker
-    const sel = document.getSelection();
-    const node = sel?.anchorNode;
-    if (node?.nodeType === 3 && (node as Text).data.slice(0, sel!.anchorOffset).endsWith('[[')) {
-      const t = node as Text;
-      t.deleteData(sel!.anchorOffset - 2, 2);
-      void linkPicker();
-    }
-  });
-  ed.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault();
-      void submit();
-    } else if (e.key === 'Escape') {
-      e.stopPropagation();
-      if (opts.onCancel) e.preventDefault(); // cancel the edit, not the dialog around it
-      opts.onCancel?.();
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      document.execCommand('insertLineBreak');
-    }
-  });
-  ed.addEventListener('paste', (e) => {
-    e.preventDefault();
-    const t = e.clipboardData?.getData('text/plain') ?? '';
-    if (/^rr:\S+$/.test(t.trim()) && parseRef(t.trim())) insertRef(t.trim());
-    else insertText(t);
+  const initial = opts.initial ?? (opts.draftKey ? loadRaw(opts.draftKey) : null) ?? '';
+  const view = new EditorView({
+    parent: ed,
+    doc: initial,
+    selection: { anchor: initial.length },
+    extensions: [
+      // Enter is a plain line break (no auto-indent); ⌘↵ sends
+      keymap.of([{ key: 'Mod-Enter', run: () => (void submit(), true) }, { key: 'Enter', shift: insertNewline, run: insertNewline }, ...standardKeymap, ...historyKeymap]),
+      history(),
+      chipView,
+      placeholder(opts.placeholder),
+      EditorView.lineWrapping,
+      EditorView.contentAttributes.of({ 'aria-label': opts.placeholder, spellcheck: 'true' }),
+      EditorView.updateListener.of((u) => u.docChanged && keepDraft(serialize())),
+      // "[[" opens the link picker
+      EditorView.inputHandler.of((v, from, to, text) => {
+        if (text !== '[' || v.state.sliceDoc(from - 1, from) !== '[') return false;
+        v.dispatch({ changes: { from: from - 1, to } });
+        void linkPicker();
+        return true;
+      }),
+      EditorView.domEventHandlers({
+        keydown: (e) => {
+          if (e.key !== 'Escape') return false;
+          e.stopPropagation();
+          if (opts.onCancel) e.preventDefault(); // cancel the edit, not the dialog around it
+          opts.onCancel?.();
+          return true;
+        },
+        // pasted text arrives as plain text (CodeMirror reads text/plain); a bare rr: link becomes a chip
+        paste: (e) => {
+          const t = e.clipboardData?.getData('text/plain').trim() ?? '';
+          if (!/^rr:\S+$/.test(t) || !parseRef(t)) return false;
+          e.preventDefault();
+          insertRef(t);
+          return true;
+        },
+      }),
+    ],
   });
   ed.addEventListener('click', (e) => {
     const c = (e.target as Element).closest('[data-ref]') as HTMLElement | null;
@@ -229,7 +208,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       tb(h('strong', null, 'B'), 'Bold', () => wrapSel('**', '**', 'bold')),
       tb(h('em', null, 'I'), 'Italic', () => wrapSel('_', '_', 'italic')),
       tb(icon('code', 14), 'Inline code', () => wrapSel('`', '`', 'code')),
-      tb('•', 'Bulleted list', () => insertText('\n- ')),
+      tb('•', 'Bulleted list', () => insert('\n- ')),
       tb(icon('smile', 14), 'Emoji', () => emojiPicker()),
       tb(icon('link', 14), 'Link to a section, file, line, symbol or thread (or type [[)', () => linkPicker()),
       tb(icon('expand', 14), 'Embed a live preview of a section, code range or thread', () => linkPicker(true)),
@@ -249,8 +228,8 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       ...buttons.map((b) => h('button', { class: 'rr-btn' + (b.to === 'agent' ? ' rr-btn--send rr-btn--agent' : b.to ? ' rr-btn--send' : b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => submit(b) }, b.icon ? icon('send', 12) : null, b.label)),
     ),
   );
-  if (opts.autofocus) requestAnimationFrame(() => restore());
-  return { el, focus: () => restore() };
+  if (opts.autofocus) requestAnimationFrame(() => view.focus());
+  return { el, focus: () => view.focus() };
 }
 
 // ------------------------------------------------------------------ anchor context
