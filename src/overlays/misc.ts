@@ -20,7 +20,7 @@ const KIND_ICON: Record<Item['kind'], Parameters<typeof icon>[0]> = { command: '
 
 // ================================================================ palette
 export function mountPalette(app: ReviewApp) {
-  const input = h('input', { class: 'rr-palette__input', placeholder: '', 'aria-label': 'Command palette', autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
+  const input = h('input', { class: 'rr-palette__input', placeholder: '', 'aria-label': 'Command palette', autocomplete: 'off', spellcheck: 'false' });
   const list = h('div', { class: 'rr-palette__list', role: 'listbox' });
   const hint = h('div', { class: 'rr-palette__hint' });
   const box = h('div', { class: 'rr-palette', role: 'dialog', 'aria-label': 'Command palette' }, input, list, hint);
@@ -55,7 +55,7 @@ export function mountPalette(app: ReviewApp) {
       const s = fuzzyScore(text, hay);
       if (s >= 0) out.push({ ...it, score: s });
     };
-    if (/^rr:/.test(q.trim()) && parseRef(q.trim())) {
+    if (q.trim().startsWith('rr:') && parseRef(q.trim())) {
       const ref = q.trim();
       out.push({ kind: 'link', label: 'Open ' + app.label(ref), ref, score: 999, run: () => app.open(ref) });
     }
@@ -99,7 +99,7 @@ export function mountPalette(app: ReviewApp) {
         ref: symbol && hit.kind === 'definition' ? formatRef({ type: 'sym', name: term }) : formatRef({ type: inDiff ? 'code' : 'file', path: hit.path, rev: 'head', start: hit.line }),
         score: 100 - i,
         run: () => app.bus.emit('reveal-code', { path: hit.path, side: 'head', start: hit.line, end: hit.line, view: inDiff ? 'diff' : 'file' }),
-      } as Item;
+      };
     });
     paint();
   }, 160);
@@ -139,7 +139,7 @@ export function mountPalette(app: ReviewApp) {
 
   input.addEventListener('input', () => {
     sel = 0;
-    if (/^[#/]/.test(input.value)) searchRemote(input.value);
+    if (/^[#/]/.test(input.value)) void searchRemote(input.value);
     paint();
   });
   input.addEventListener('keydown', (e) => {
@@ -155,7 +155,7 @@ export function mountPalette(app: ReviewApp) {
     input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : 'Jump to a file, section, thread or command…';
     scrim.hidden = false;
     paint();
-    if (/^[#/]/.test(initial)) searchRemote(initial);
+    if (/^[#/]/.test(initial)) void searchRemote(initial);
     requestAnimationFrame(() => {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);

@@ -1,93 +1,300 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "reviewroom/state.schema.json",
-  "title": "reviewroom review state (.reviewroom/<branch>/state.json)",
   "type": "object",
-  "required": ["version", "round", "rounds", "threads"],
   "properties": {
-    "version": { "const": 1 },
-    "rev": { "type": "integer", "minimum": 0, "description": "Bumped by every applied change (op). Missing = 0." },
-    "round": { "type": "integer", "minimum": 1, "description": "Current round. Agent replies are tagged with it." },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "rev": {
+      "description": "Bumped by every applied change (op). Missing = 0.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Current round. Agent replies are tagged with it."
+    },
     "rounds": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["n", "status", "startedAt"],
         "properties": {
-          "n": { "type": "integer" },
-          "status": { "enum": ["open", "sent", "approved"] },
-          "startedAt": { "type": "string", "format": "date-time" },
-          "sentAt": { "type": "string", "format": "date-time" },
-          "note": { "type": "string" },
+          "n": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "sent",
+              "approved"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string"
+          },
           "deliveredAt": {
-            "type": ["string", "null"],
-            "format": "date-time",
-            "description": "When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."
+            "description": "When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
-        }
+        },
+        "required": [
+          "n",
+          "status",
+          "startedAt"
+        ]
       }
     },
     "threads": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "anchor", "status", "createdRound", "messages"],
         "properties": {
-          "id": { "type": "string" },
-          "status": { "enum": ["open", "resolved"] },
-          "createdRound": { "type": "integer" },
-          "title": { "type": "string" },
+          "id": {
+            "type": "string"
+          },
           "anchor": {
             "oneOf": [
               {
                 "type": "object",
-                "required": ["kind", "target"],
                 "properties": {
-                  "kind": { "const": "doc" },
-                  "target": { "type": "string", "description": "Element id in the narrative ('' = review root)" },
-                  "path": { "type": "string", "description": "CSS path below the target for blocks without an id" },
+                  "kind": {
+                    "type": "string",
+                    "const": "doc"
+                  },
+                  "target": {
+                    "type": "string",
+                    "description": "Element id in the narrative ('' = review root)"
+                  },
+                  "path": {
+                    "description": "CSS path below the target for blocks without an id",
+                    "type": "string"
+                  },
                   "quote": {
                     "type": "object",
-                    "required": ["exact"],
-                    "properties": { "exact": { "type": "string" }, "prefix": { "type": "string" }, "suffix": { "type": "string" } }
+                    "properties": {
+                      "exact": {
+                        "type": "string"
+                      },
+                      "prefix": {
+                        "type": "string"
+                      },
+                      "suffix": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "exact"
+                    ]
                   }
-                }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ]
               },
               {
                 "type": "object",
-                "required": ["kind", "path", "rev", "start", "end"],
                 "properties": {
-                  "kind": { "const": "code" },
-                  "path": { "type": "string" },
-                  "rev": { "enum": ["base", "head"] },
-                  "start": { "type": "integer" },
-                  "end": { "type": "integer" }
-                }
+                  "kind": {
+                    "type": "string",
+                    "const": "code"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "rev": {
+                    "type": "string",
+                    "enum": [
+                      "base",
+                      "head"
+                    ]
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "path",
+                  "rev",
+                  "start",
+                  "end"
+                ]
               },
-              { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "symbol" }, "name": { "type": "string" } } },
-              { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "general" } } }
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "symbol"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "general"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
             ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved"
+            ]
+          },
+          "createdRound": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "messages": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["id", "author", "round", "body", "at"],
               "properties": {
-                "id": { "type": "string" },
-                "author": { "enum": ["you", "agent"] },
-                "round": { "type": "integer" },
-                "body": { "type": "string", "description": "Markdown. rr: links render as chips; ![](rr:…) as embeds." },
-                "at": { "type": "string", "format": "date-time" }
-              }
+                "id": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "string",
+                  "enum": [
+                    "you",
+                    "agent"
+                  ]
+                },
+                "round": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "body": {
+                  "type": "string",
+                  "description": "Markdown. rr: links render as chips; ![](rr:...) as embeds."
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "author",
+                "round",
+                "body",
+                "at"
+              ]
             }
+          },
+          "title": {
+            "type": "string"
           }
-        }
+        },
+        "required": [
+          "id",
+          "anchor",
+          "status",
+          "createdRound",
+          "messages"
+        ]
       }
     },
-    "viewed": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "path -> round it was marked viewed" },
-    "pins": { "type": "array", "items": { "type": "string" } },
-    "checks": { "type": "object", "additionalProperties": { "enum": ["todo", "pass", "fail"] } },
-    "links": { "type": "object", "additionalProperties": { "type": "string" }, "description": "narrative rr: link -> fingerprint when first seen: hash of the lines for a line range, \"definition\" for a symbol (stale-link check)" }
-  }
+    "viewed": {
+      "default": {},
+      "description": "path -> round it was marked viewed",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "pins": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checks": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "todo",
+          "pass",
+          "fail"
+        ]
+      }
+    },
+    "links": {
+      "description": "narrative rr: link -> fingerprint when first seen: hash of the lines for a line range, \"definition\" for a symbol (stale-link check)",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "round",
+    "rounds",
+    "threads"
+  ],
+  "$id": "reviewroom/state.schema.json",
+  "title": "reviewroom review state (.reviewroom/<branch>/state.json)"
 }

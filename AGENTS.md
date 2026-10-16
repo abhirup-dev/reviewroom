@@ -11,25 +11,26 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 
 - **CLI + server** (`cli/`): reads git, serves the page and its API,
   stores threads/rounds on disk, runs the round loop.
-- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with Bun (`scripts/build.mjs`). Boots from a
+- **Client** (`src/` → `dist/`): framework-free TypeScript bundled with Bun (`scripts/build.ts`). Boots from a
   `<rr-app>` element in the review page.
 
 ## Map
 
 ```
-cli/reviewroom.mjs   entry: usage text + dispatch to commands/
+cli/reviewroom.ts    entry: usage text + dispatch to commands/
 cli/commands/         one module per command group: pr, serve (review), threads (status --threads, reply, comment), status (status, stop), check
-cli/lib/              git.mjs (validated git layer), server.mjs (HTTP API, origin guards, SSE), state.mjs,
-                      scaffold.mjs, args.mjs; feedback.mjs is shared with the client
+cli/lib/              git.ts (validated git layer), server.ts (HTTP API, origin guards, SSE), state.ts,
+                      github.ts (PR threads via gh), scaffold.ts, args.ts, links.ts (stale-link check)
 src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
 src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
+src/shared/           used by both the client and the CLI (no DOM, no Node): schema (state.json + ops, Zod), ops (the reducer), feedback
 src/providers/        where code comes from (local server, GitHub, static fixture) and where state lives
 src/shell/            ReviewApp (shared context + events), dock layout & presets, header
 src/panels/           dockable panels: narrative, code, files/contents/threads
 src/overlays/         thread popup/panel + composer, palette, hover previews, tooltips, toasts
 src/elements/         custom elements review authors use (<rr-ref>, <rr-code>, <rr-flow>, …)
 src/styles/           tokens.css (every colour/font as --rr-* variables) + component styles
-schema/               JSON schema of state.json (the contract between UI, CLI and agents)
+schema/               JSON schema of state.json (the contract between UI, CLI and agents), generated from src/shared/schema.ts
 skills/reviewroom/   the skill agents use to run reviews (entry point + references)
 templates/            review.html scaffold
 examples/             demo review + script that creates the demo git repo
@@ -42,11 +43,13 @@ scripts/              build (Bun), smoke test, static demo builder
   tools around it (highlights via the CSS Highlight API, overlays, data attributes only).
 - **`rr:` links** (`src/core/refs.ts`) are the public addressing scheme used in HTML, threads, the
   CLI and agent replies. Keep old forms parsing.
-- **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it.
+- **`state.json`** follows `schema/state.schema.json`; the CLI, browser and agents all write it. Change it in
+  `src/shared/schema.ts` (Zod: the TS types, op validation and the CLI's load check come from it), then `bun run schema`.
+  The CLI moves a `state.json` that breaks the schema aside, like a corrupt one.
 - **`~/.reviewroom/sessions/<pid>.json`** (`REVIEWROOM_HOME` overrides `~/.reviewroom`): written by every running
   server and removed on exit; other local tools (agent-annotation-hub) list running reviews from it.
   `~/.reviewroom/layout.json` holds the reviewer's default panel layout (Layout menu → Save layout as default).
-- **CLI commands and flags** documented in `reviewroom --help` (`cli/reviewroom.mjs`): the help is the reference, keep it complete.
+- **CLI commands and flags** documented in `reviewroom --help` (`cli/reviewroom.ts`): the help is the reference, keep it complete.
 - **`window.rr` and the custom elements** documented in `skills/reviewroom/references/authoring.md`.
 
 ## Conventions
@@ -61,18 +64,20 @@ scripts/              build (Bun), smoke test, static demo builder
 
 ## Working on it
 
-Toolchain via [mise](https://mise.jdx.dev) (Node for the CLI, Bun for installs and scripts):
+Bun is the toolchain: it installs dependencies (`bun.lock`, pinned by `packageManager`), bundles the client and the
+CLI, and runs the scripts and tests. Node (>= 20) only runs the built CLI. Every library is bundled into `dist/`, so all
+of them are `devDependencies`; the published package has no runtime dependencies.
 
 ```bash
-mise install          # once
-mise run setup        # bun install, build, put `reviewroom` on PATH (bun link)
-mise run dev          # rebuild on change
-mise run check        # typecheck + end-to-end smoke test: run before committing
-mise run demo         # demo repo + live review on localhost
-mise run demo-page    # self-contained demo HTML in .demo/
+bun run setup         # bun install --frozen-lockfile, build, put `reviewroom` on PATH (bun link)
+bun run dev           # rebuild on change
+bun run check         # typecheck, lint (oxlint, knip, jscpd, ASCII), tests, end-to-end smoke test: run before committing
+bun run demo          # demo repo + live review on localhost
+bun run demo-page     # self-contained demo HTML in .demo/
 ```
 
-`dist/` is build output and not committed. Verify UI changes in a real browser (light and dark,
+`dist/` is build output and not committed. `reviewroom` (the plugin's `bin/` and `bun run demo`) runs the
+built CLI in `dist/cli/`, not `cli/` source: keep `bun run dev` running while you change the CLI. Verify UI changes in a real browser (light and dark,
 wide and laptop widths) on the demo before calling them done.
 
 To get a new build into Claude Code sessions, build and then reinstall the plugin:

@@ -1,5 +1,5 @@
 // Code panel: the whole diff as a stack of files (lazy-rendered with @pierre/diffs),
-// or one full file at base/head/any sha. Supports several instances ("code", "code:2"…).
+// or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOptions, type SelectedLineRange } from '@pierre/diffs';
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
@@ -66,7 +66,7 @@ class CodePanel implements PanelInstance {
   private lastPointer = { x: 0, y: 0 };
   private offs: (() => void)[] = [];
   private isPrimary: boolean;
-  /** Single-file panel (opened via “open in new panel”): shows only this path as diff, before or after. */
+  /** Single-file panel (opened via "open in new panel"): shows only this path as diff, before or after. */
   private pin?: string;
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
@@ -89,7 +89,7 @@ class CodePanel implements PanelInstance {
       }),
       app.bus.on('state', () => this.refreshAnnotations()),
       app.bus.on('reveal-code', (t) => {
-        if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
+        if ((t.panel ?? 'code') === this.panelId) void this.reveal(t);
       }),
       app.bus.on('selection', (sel) => {
         // Esc / clearing the selection also clears the highlighted line range
@@ -122,7 +122,7 @@ class CodePanel implements PanelInstance {
       const f = this.app.files.find((x) => x.path === this.pin);
       const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
       left.push(
-        h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()!),
+        h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()),
         h(
           'div',
           { class: 'rr-seg', role: 'group', 'aria-label': 'View' },
@@ -149,7 +149,7 @@ class CodePanel implements PanelInstance {
       const dels = vis.reduce((a, f) => a + f.deletions, 0);
       left.push(
         h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, `${vis.length} file${vis.length === 1 ? '' : 's'}`),
-        h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '−' + dels)),
+        h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels)),
         this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
       );
     }
@@ -169,7 +169,7 @@ class CodePanel implements PanelInstance {
           ? seg([
               ['All', 'Show added and removed lines', p.focus === 'all', () => this.app.setPref('focus', 'all')],
               ['+', 'Focus on new code: hide removed lines', p.focus === 'additions', () => this.app.setPref('focus', 'additions'), '+'],
-              ['−', 'Focus on old code: hide added lines', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions'), '-'],
+              ['\u2212', 'Focus on old code: hide added lines', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions'), '-'],
             ])
           : null,
         this.mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => this.app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
@@ -221,7 +221,7 @@ class CodePanel implements PanelInstance {
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
-    const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' }) as HTMLInputElement;
+    const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => {
       app.setViewed(f.path, cb.checked);
       this.toggleCollapse(f.path, cb.checked);
@@ -242,7 +242,7 @@ class CodePanel implements PanelInstance {
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),
       ),
-      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
+      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
@@ -278,12 +278,12 @@ class CodePanel implements PanelInstance {
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: true,
-      parseDiffOptions: p.ignoreWhitespace ? ({ ignoreWhitespace: true } as any) : undefined,
+      parseDiffOptions: p.ignoreWhitespace ? { ignoreWhitespace: true } : undefined,
       unsafeCSS: PIERRE_CSS + focusCSS,
       onLineSelected: (r) => this.onSelect(path, r),
       onGutterUtilityClick: (r) => this.onGutter(path, r),
       renderAnnotation: (a) => {
-        const t = this.app.thread(a.metadata!.threadId);
+        const t = this.app.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
     };
@@ -297,7 +297,7 @@ class CodePanel implements PanelInstance {
       .map((t) => {
         const a = t.anchor as Extract<Thread['anchor'], { kind: 'code' }>;
         const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
-        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } } as DiffLineAnnotation<Meta>);
+        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } });
       });
   }
 
@@ -376,7 +376,7 @@ class CodePanel implements PanelInstance {
       b.el.querySelector('.rr-file__head')?.replaceWith(head);
     });
     if (this.fileView?.inst) {
-      this.fileView.inst.setLineAnnotations(this.fileAnnotations(this.fileView.path, this.fileView.side) as any);
+      this.fileView.inst.setLineAnnotations(this.fileAnnotations(this.fileView.path, this.fileView.side));
       this.fileView.inst.rerender();
     }
   }
@@ -415,11 +415,11 @@ class CodePanel implements PanelInstance {
       onLineSelected: (r) => r && !rev && this.onSelect(path, { ...r, side: side === 'base' ? 'deletions' : 'additions' }),
       onGutterUtilityClick: (r) => !rev && this.onGutter(path, { ...r, side: side === 'base' ? 'deletions' : 'additions' }),
       renderAnnotation: (a) => {
-        const t = this.app.thread(a.metadata!.threadId);
+        const t = this.app.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
     });
-    inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side) as any, containerWrapper: body });
+    inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side), containerWrapper: body });
     this.fileView.inst = inst;
     if (start) {
       this.ownSel = `${path}:${start}:${end ?? start}`;
@@ -528,7 +528,7 @@ class CodePanel implements PanelInstance {
     container.querySelectorAll('*').forEach((n) => (n as HTMLElement).shadowRoot && roots.push((n as HTMLElement).shadowRoot!));
     for (const root of roots) {
       const col = root.querySelector(`[data-${side}]`) ?? root.querySelector('[data-unified]') ?? root;
-      const row = (col as ParentNode).querySelector(`[data-line="${line}"]`) as HTMLElement | null;
+      const row = col.querySelector(`[data-line="${line}"]`) as HTMLElement | null;
       if (row) return row;
     }
     return null;
@@ -577,7 +577,7 @@ class CodePanel implements PanelInstance {
     const top = this.scroller.scrollTop + 8;
     const cur = order.findIndex((b) => b.el.offsetTop + b.el.offsetHeight > top);
     const next = order[Math.max(0, Math.min(order.length - 1, cur + dir))];
-    if (next) this.reveal({ path: next.file.path, side: 'head' });
+    if (next) void this.reveal({ path: next.file.path, side: 'head' });
   }
 
   private trackActive() {
@@ -594,7 +594,7 @@ class CodePanel implements PanelInstance {
     }
   }
 
-  // ------------------------------------------------------------ selection → comments
+  // ------------------------------------------------------------ selection -> comments
   private onSelect(path: string, r: SelectedLineRange | null) {
     if (!r) return;
     const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];
@@ -650,7 +650,7 @@ export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 
   const name = path.split('/').pop()!;
   const ref = (near && app.dock.getPanel(near)) || app.dock.getPanel('code') || app.dock.activePanel;
   const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } };
-  if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) } as any);
+  if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
   else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined } as any);
   return id;
 }

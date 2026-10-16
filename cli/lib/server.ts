@@ -1,22 +1,24 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates, and the server.json record.
 import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { feedbackMarkdown } from './feedback.mjs';
-import { makeProvider } from './git.mjs';
-import { readState, writeState, answers } from './state.mjs';
-import { applyOp, OpError } from './ops.mjs';
-import { makeGitHub } from './github.mjs';
-import { checkLinks, problems, report } from './links.mjs';
+import { feedbackMarkdown } from '../../src/shared/feedback.ts';
+import { makeProvider, type Provider, type ReviewConfig } from './git.ts';
+import type { Anchor, Op } from '../../src/core/types.ts';
+import { readState, writeState, answers } from './state.ts';
+import { applyOp, OpError } from '../../src/shared/ops.ts';
+import { makeGitHub } from './github.ts';
+import { checkLinks, problems, report } from './links.ts';
 
 export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const DIST = path.join(PKG, 'dist');
 
-function excerpt(prov, anchor) {
+function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
   const text = prov.read(anchor.rev === 'base' ? prov.base : prov.head, anchor.path);
   if (!text) return null;
@@ -25,22 +27,28 @@ function excerpt(prov, anchor) {
 }
 
 
-const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.woff2': 'font/woff2' };
+const MIME: Record<string, string | undefined> = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.woff2': 'font/woff2' };
 
-export function startServer({ repo, dir, cfg, onFinish }) {
+export interface Finished {
+  kind: 'feedback' | 'approve';
+  md: string;
+  round: number;
+}
+
+export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void }) {
   const prov = makeProvider(repo, cfg);
-  const clients = new Set();
+  const clients = new Set<http.ServerResponse>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, 'review.html');
   const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
-  const send = (ev, data) => {
+  const send = (ev: string, data: unknown) => {
     for (const c of clients) c.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   };
   // The server holds state.lock while it runs and is the only writer of state.json (CLI writes
   // come in through /api/ops), so only review.html and its assets are watched.
-  let t, edited;
+  let t: NodeJS.Timeout | undefined, edited = false;
   fs.mkdirSync(dir, { recursive: true });
-  const watcher = fs.watch(dir, (_e, f) => {
+  const watcher = fs.watch(dir, (_e, f: string | null) => {
     if (f === 'review.html' || (f && /\.(css|js|svg|png)$/.test(f))) {
       edited ||= f === 'review.html';
       clearTimeout(t);
@@ -53,12 +61,13 @@ export function startServer({ repo, dir, cfg, onFinish }) {
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
   watcher.on('error', (e) => console.error(`reviewroom: file watch stopped: ${e.message}`));
 
-  const json = (res, code, body) => {
+  const json = (res: http.ServerResponse, code: number, body: unknown) => {
     res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify(body));
   };
-  const body = (req) => new Promise((r) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => r(b)); });
-  const readJson = async (req) => {
+  const body = (req: http.IncomingMessage) => new Promise<string>((r) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => r(b)); });
+  // untrusted: applyOp (Zod) or the handler checks every field it uses
+  const readJson = async (req: http.IncomingMessage): Promise<any> => {
     try {
       return JSON.parse((await body(req)) || '{}');
     } catch {
@@ -78,12 +87,12 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
       if (text && text !== lastReport) console.error(text);
       lastReport = text;
-    } catch (e) {
+    } catch (e: any) {
       console.error(`reviewroom: link check failed: ${e.message}`);
     }
   };
   // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.
-  const commit = (ops) => {
+  const commit = (ops: Op[]) => {
     let s = readState(dir);
     ops.forEach((op, i) => {
       try {
@@ -97,7 +106,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
     send('state', s);
     return s;
   };
-  const serveFile = (res, file) => {
+  const serveFile = (res: http.ServerResponse, file: string) => {
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: 'not found' });
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': file.startsWith(DIST) && !file.endsWith('reviewroom.js') ? 'max-age=3600' : 'no-store' });
     fs.createReadStream(file).pipe(res);
@@ -105,10 +114,10 @@ export function startServer({ repo, dir, cfg, onFinish }) {
 
   // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
   // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
-  const allowed = (req, url) => {
-    const port = server.address()?.port;
+  const allowed = (req: http.IncomingMessage, url: URL) => {
+    const port = (server.address() as AddressInfo | null)?.port;
     const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
-    if (!origins.includes(req.headers.host)) return false;
+    if (!origins.includes(req.headers.host ?? '')) return false;
     if (!url.pathname.startsWith('/api/')) return true;
     const site = req.headers['sec-fetch-site'];
     if (site && site !== 'same-origin' && site !== 'none') return false;
@@ -118,7 +127,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
 
   const server = http.createServer(async (req, res) => {
     res.setHeader('x-reviewroom-pid', String(process.pid));
-    const url = new URL(req.url, 'http://x');
+    const url = new URL(req.url!, 'http://x');
     if (!allowed(req, url)) return json(res, 403, { error: 'forbidden' });
     const q = Object.fromEntries(url.searchParams);
     try {
@@ -155,8 +164,8 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       }
       if (url.pathname === '/api/ops' && req.method === 'POST') {
         const b = await readJson(req);
-        const ops = Array.isArray(b.ops) ? b.ops : [b];
-        if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
+        const ops: Op[] = Array.isArray(b.ops) ? b.ops : [b];
+        if (ops.some((o: any) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
         return json(res, 200, { rev: commit(ops).rev });
       }
       if (url.pathname === '/api/layout') {
@@ -206,7 +215,7 @@ export function startServer({ repo, dir, cfg, onFinish }) {
       const f = path.resolve(dir, '.' + decodeURIComponent(url.pathname));
       if (!f.startsWith(dir + path.sep) || /^\.?state\.(json|lock)/.test(path.basename(f))) return json(res, 403, {});
       return serveFile(res, f);
-    } catch (e) {
+    } catch (e: any) {
       if (!(e instanceof OpError)) console.error(`reviewroom: ${req.method} ${url.pathname}: ${e.message || e}`);
       json(res, e.status || 500, { error: String(e.message || e), code: e.code, index: e.index });
     }
@@ -214,18 +223,18 @@ export function startServer({ repo, dir, cfg, onFinish }) {
   return { server, prov, commit, github, checkNarrative };
 }
 
-export function listen(server, port) {
-  return new Promise((resolve, reject) => {
-    const tryPort = (p, left) => {
-      server.once('error', (e) => (e.code === 'EADDRINUSE' && left > 0 ? tryPort(p + 1, left - 1) : reject(e)));
+export function listen(server: http.Server, port: number) {
+  return new Promise<number>((resolve, reject) => {
+    const tryPort = (p: number, left: number) => {
+      server.once('error', (e: NodeJS.ErrnoException) => (e.code === 'EADDRINUSE' && left > 0 ? tryPort(p + 1, left - 1) : reject(e)));
       // the callback of a failed attempt stays registered and fires on the next success: report the real port
-      server.listen(p, '127.0.0.1', () => resolve(server.address().port));
+      server.listen(p, '127.0.0.1', () => resolve((server.address() as AddressInfo).port));
     };
     tryPort(port, 20);
   });
 }
 
-export function openBrowser(url) {
+export function openBrowser(url: string) {
   const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
   try {
     spawn(cmd, [url], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref();
@@ -234,8 +243,10 @@ export function openBrowser(url) {
 
 
 // A running server records itself so `review`/`stop` can find (and take over) it.
-export const serverFile = (dir) => path.join(dir, 'server.json');
-export function liveServer(dir) {
+/** server.json, written by `serve`. */
+export type ServerRecord = { pid: number; port: number; url: string; startedAt: string };
+export const serverFile = (dir: string) => path.join(dir, 'server.json');
+export function liveServer(dir: string): ServerRecord | null {
   try {
     const rec = JSON.parse(fs.readFileSync(serverFile(dir), 'utf8'));
     process.kill(rec.pid, 0);
@@ -250,19 +261,19 @@ const homeDir = () => process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.r
 export const registryDir = () => path.join(homeDir(), 'sessions');
 /** The reviewer's own default panel layout (dockview JSON), shared by every review on this machine. */
 export const layoutFile = () => path.join(homeDir(), 'layout.json');
-export function register(rec) {
+export function register(rec: ServerRecord & Record<string, unknown>) {
   try {
     fs.mkdirSync(registryDir(), { recursive: true });
     fs.writeFileSync(path.join(registryDir(), `${rec.pid}.json`), JSON.stringify(rec, null, 2));
   } catch {}
 }
-export function unregister(pid) {
+export function unregister(pid: number) {
   try {
     fs.unlinkSync(path.join(registryDir(), `${pid}.json`));
   } catch {}
 }
 // server.json can outlive its server and the pid be reused: only signal a pid that our server reports.
-export async function stopServer(dir) {
+export async function stopServer(dir: string) {
   const rec = liveServer(dir);
   if (!rec || rec.pid === process.pid || !(await answers(rec.pid, rec.port, 1500))) return null;
   try {

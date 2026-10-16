@@ -22,7 +22,7 @@ export interface PanelInstance {
 }
 
 const registry = new Map<string, PanelDef>();
-/** Register a panel type. Agents can add their own (a metrics chart, a query runner…) from review.html. */
+/** Register a panel type. Agents can add their own (a metrics chart, a query runner...) from review.html. */
 export function definePanel(def: PanelDef) {
   registry.set(def.id, def);
 }
@@ -116,7 +116,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
             el.append(h('div', { class: 'rr-empty' }, `Unknown panel “${kind}”`));
             return;
           }
-          inst = def.create(app, (params.params ?? {}) as Record<string, unknown>, opts.id);
+          inst = def.create(app, (params.params ?? {}), opts.id);
           el.append(inst.element);
           params.api.onDidVisibilityChange((e) => e.isVisible && inst?.onShow?.());
         },
@@ -216,7 +216,7 @@ function add(api: DockviewApi, id: string, ref?: { panel?: string; group?: strin
     title: def.title,
     params,
     position: ref ? (ref.panel ? { referencePanel: ref.panel, direction: ref.dir } : undefined) : undefined,
-  } as any);
+  });
 }
 
 export function applyPreset(app: ReviewApp, name: PresetName) {
@@ -323,7 +323,7 @@ export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, 
     const kind = id.split(':')[0];
     const near = kind === 'code' ? (api.getPanel('narrative') ? { panel: 'narrative', dir: 'right' as const } : undefined) : api.getPanel('toc') ? { panel: 'toc', dir: 'within' as const } : api.getPanel('narrative') ? { panel: 'narrative', dir: 'left' as const } : undefined;
     const def = registry.get(kind)!;
-    p = api.addPanel({ id, component: kind, title: def.title + (id.includes(':') ? ' ' + id.split(':')[1] : ''), params, position: near ? { referencePanel: near.panel, direction: near.dir } : undefined } as any);
+    p = api.addPanel({ id, component: kind, title: def.title + (id.includes(':') ? ' ' + id.split(':')[1] : ''), params, position: near ? { referencePanel: near.panel, direction: near.dir } : undefined });
   }
   if (!p.api.isVisible) p.api.setActive();
   return p;
@@ -356,7 +356,7 @@ function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
   const tab = ((e.target as Element).closest('.dv-tab') ?? e.target) as HTMLElement;
   const g = p.group;
   const floating = g.api.location.type === 'floating';
-  import('./chrome').then(({ popMenu, menuItem }) =>
+  void import('./chrome').then(({ popMenu, menuItem }) =>
     popMenu(tab, (close) => [
       p.id.startsWith('slot:')
         ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
@@ -378,7 +378,7 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
     group.api.moveTo({ group: target, position });
   };
   const main = targets.find((g) => g.panels.some((p) => p.id === 'code')) ?? targets.find((g) => g.panels.some((p) => p.id === 'narrative')) ?? targets[0];
-  import('./chrome').then(({ popMenu, menuItem, menuLabel }) =>
+  void import('./chrome').then(({ popMenu, menuItem, menuLabel }) =>
     popMenu(anchor, (close) => [
       menuLabel(`Dock next to ${main ? named(main) : 'the layout'}`),
       menuItem('Right', () => (close(), go(main, 'right')), { icon: 'split' }),
@@ -414,7 +414,7 @@ export function floatInPlace(app: ReviewApp, id: string) {
   if (!p) return;
   if (p.group.api.location.type === 'floating') return p.api.setActive();
   const group = p.group;
-  app.dock.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p } as any);
+  app.dock.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p });
   app.dock.addFloatingGroup(p, centerBox(app));
   onEscape(app, id, () => putBack(app, id));
 }
@@ -427,7 +427,7 @@ export function putBack(app: ReviewApp, id: string) {
   const keep = group.activePanel !== slot ? group.activePanel : undefined;
   const p = app.dock.getPanel(id);
   if (p) p.api.moveTo({ group, position: 'center', index });
-  else app.dock.addPanel({ id, component: (slot.params as any).component, params: (slot.params as any).params, title: slot.title, position: { referenceGroup: group, index } } as any); // its window was closed
+  else app.dock.addPanel({ id, component: (slot.params as any).component, params: (slot.params as any).params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
   slot.api.close();
   keep?.api.setActive();
 }

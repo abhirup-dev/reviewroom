@@ -1,10 +1,11 @@
 import { expect, test } from 'bun:test';
-import { applyOp, OpError, undelivered } from './ops.mjs';
+import { applyOp, OpError, undelivered } from './ops';
+import type { Op, ReviewState } from '../core/types';
 
-const empty = () => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: '2026-01-01T00:00:00Z' }], threads: [], viewed: {}, pins: [] });
-const run = (s, ...ops) => ops.reduce(applyOp, s);
-const create = { op: 'createThread', id: 't_1', anchor: { kind: 'general' }, msgId: 'm_1', body: 'hi', author: 'you' };
-const code = (fn) => {
+const empty = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: '2026-01-01T00:00:00Z' }], threads: [], viewed: {}, pins: [] });
+const run = (s: ReviewState, ...ops: Op[]) => ops.reduce(applyOp, s);
+const create: Op = { op: 'createThread', id: 't_1', anchor: { kind: 'general' }, msgId: 'm_1', body: 'hi', author: 'you' };
+const code = (fn: () => unknown) => {
   try {
     fn();
   } catch (e) {
@@ -27,7 +28,7 @@ test('ops apply, bump rev, and leave the input alone', () => {
 });
 
 test('re-applying ops is a no-op (safe to resend)', () => {
-  const ops = [create, { op: 'addMessage', threadId: 't_1', id: 'm_2', body: 'r', author: 'you' }, { op: 'setPin', ref: 'p', pinned: true }, { op: 'deleteMessage', threadId: 't_1', msgId: 'm_2' }];
+  const ops: Op[] = [create, { op: 'addMessage', threadId: 't_1', id: 'm_2', body: 'r', author: 'you' }, { op: 'setPin', ref: 'p', pinned: true }, { op: 'deleteMessage', threadId: 't_1', msgId: 'm_2' }];
   const once = run(empty(), ...ops);
   const twice = run(once, ...ops);
   expect(twice.threads).toEqual(once.threads);
@@ -49,9 +50,9 @@ test('typed errors for unknown targets and bad input', () => {
   expect(code(() => applyOp(s, { op: 'addMessage', threadId: 't_x', id: 'm', body: 'b', author: 'you' }))).toBe('not_found');
   expect(code(() => applyOp(s, { op: 'editMessage', threadId: 't_1', msgId: 'nope', body: 'b' }))).toBe('not_found');
   expect(code(() => applyOp(s, { op: 'addMessage', threadId: 't_1', id: 'm', body: '', author: 'you' }))).toBe('bad_op');
-  expect(code(() => applyOp(s, { op: 'setCheck', id: 'c', value: 'maybe' }))).toBe('bad_op');
-  expect(code(() => applyOp(s, { op: 'rm -rf' }))).toBe('bad_op');
-  expect(code(() => applyOp(s, null))).toBe('bad_op');
+  expect(code(() => applyOp(s, { op: 'setCheck', id: 'c', value: 'maybe' } as never))).toBe('bad_op');
+  expect(code(() => applyOp(s, { op: 'rm -rf' } as never))).toBe('bad_op');
+  expect(code(() => applyOp(s, null as never))).toBe('bad_op');
 });
 
 test('finishRound advances once; a second finish of the same round conflicts', () => {
@@ -68,7 +69,7 @@ test('finishRound advances once; a second finish of the same round conflicts', (
 });
 
 test('delivery tracking: null until printed; legacy rounds count as delivered', () => {
-  const legacy = { ...empty(), round: 2, rounds: [{ n: 1, status: 'sent', startedAt: 'x' }, { n: 2, status: 'open', startedAt: 'x' }] };
+  const legacy: ReviewState = { ...empty(), round: 2, rounds: [{ n: 1, status: 'sent', startedAt: 'x' }, { n: 2, status: 'open', startedAt: 'x' }] };
   expect(undelivered(legacy)).toEqual([]);
   const s = applyOp(legacy, { op: 'finishRound', kind: 'feedback' });
   expect(undelivered(s).map((r) => r.n)).toEqual([2]);

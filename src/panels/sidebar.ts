@@ -1,8 +1,9 @@
 // Files, Contents (TOC + pins) and Threads panels.
 import { h, icon, relTime, threadBadge, threadCounts } from '../core/dom';
 import { cssPathWithin, parseRef, refIcon } from '../core/refs';
+import { anchorRef } from '../shared/refs';
 import { plainExcerpt } from '../core/markdown';
-import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { PR_DESCRIPTION } from '../shared/feedback';
 import { openCentered } from '../shell/focus';
 import type { ChangedFile, CiCommit, CiState, Thread } from '../core/types';
 import { definePanel, type PanelInstance } from '../shell/layout';
@@ -36,10 +37,10 @@ class FilesPanel implements PanelInstance {
     const types = [...new Set(app.files.map((f) => fileType(f.path)))].sort();
     const hasTests = app.files.some((f) => isTestFile(f.path));
     const ranges = app.range ? app.ranges() : [];
-    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' }) as HTMLSelectElement;
+    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' });
     ranges.forEach((r) => select.append(h('option', { value: r.key, selected: r.key === app.range?.key }, r.label)));
     select.addEventListener('change', () => app.setRange(ranges.find((r) => r.key === select.value)!));
-    const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' }) as HTMLInputElement;
+    const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' });
     search.addEventListener('input', () => {
       this.q = search.value;
       this.renderList();
@@ -86,7 +87,7 @@ class FilesPanel implements PanelInstance {
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h('span', { class: 'rr-file-row__name' }, label),
       ...threadCounts(threads, 'in this file'),
-      h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
+      h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       viewed ? h('span', { class: 'rr-viewed-mark', title: 'Viewed' }, icon('check', 12)) : null,
     );
   }
@@ -104,7 +105,7 @@ class FilesPanel implements PanelInstance {
         const t = isTestFile(f.path) ? 'tests' : fileType(f.path);
         groups.set(t, [...(groups.get(t) ?? []), f]);
       });
-      for (const [t, fs] of [...groups.entries()].sort()) {
+      for (const [t, fs] of [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
         out.push(h('div', { class: 'rr-group-label' }, t === 'tests' ? 'Tests' : TYPE_LABEL[t] ?? '.' + t, h('span', null, String(fs.length))));
         fs.forEach((f) => out.push(this.row(f, f.path, 0)));
       }
@@ -295,7 +296,7 @@ class ThreadsPanel implements PanelInstance {
 
   private item(t: Thread) {
     const app = this.app;
-    const ref = app.anchorRef(t.anchor);
+    const ref = anchorRef(t.anchor);
     const last = t.messages[t.messages.length - 1];
     const r = ref ? parseRef(ref) : null;
     return h(
