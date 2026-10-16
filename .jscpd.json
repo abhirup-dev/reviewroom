@@ -2,7 +2,8 @@
   "path": [
     "src",
     "cli",
-    "scripts"
+    "scripts",
+    "e2e"
   ],
   "ignore": [
     "**/*.test.*"
