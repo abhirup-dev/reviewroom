@@ -681,30 +681,40 @@ rr-embed {
   }
 }
 
-/* rich composer: contenteditable with atomic link chips */
+/* composer: CodeMirror, rr: links drawn as atomic chips */
 div.rr-composer__input {
   max-height: 320px;
   overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  padding: 0;
   cursor: text;
-  outline: none;
 }
-div.rr-composer__input:focus {
+div.rr-composer__input:focus-within {
   border-color: var(--rr-accent);
   box-shadow: 0 0 0 3px var(--rr-accent-soft);
 }
-div.rr-composer__input:empty::before {
-  content: attr(data-placeholder);
+div.rr-composer__input .cm-editor {
+  outline: none;
+}
+div.rr-composer__input .cm-scroller {
+  font: inherit;
+  line-height: inherit;
+}
+div.rr-composer__input .cm-content {
+  min-height: 70px;
+  padding: 8px 10px;
+  caret-color: var(--rr-ink);
+}
+div.rr-composer__input .cm-line {
+  padding: 0;
+}
+div.rr-composer__input .cm-placeholder {
   color: var(--rr-faint);
-  pointer-events: none;
 }
 .rr-chip--token {
   height: 21px;
   margin: 0 1px;
   vertical-align: 1px;
   font-size: 12px;
-  user-select: all;
   cursor: default;
 }
 .rr-chip--token.is-embed {
