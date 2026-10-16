@@ -1,6 +1,7 @@
 // Files, Contents (TOC + pins) and Threads panels.
 import { h, icon, relTime, threadBadge, threadCounts } from '../core/dom';
 import { cssPathWithin, parseRef, refIcon } from '../core/refs';
+import { anchorRef } from '../shared/refs';
 import { plainExcerpt } from '../core/markdown';
 import { PR_DESCRIPTION } from '../shared/feedback';
 import { openCentered } from '../shell/focus';
@@ -295,7 +296,7 @@ class ThreadsPanel implements PanelInstance {
 
   private item(t: Thread) {
     const app = this.app;
-    const ref = app.anchorRef(t.anchor);
+    const ref = anchorRef(t.anchor);
     const last = t.messages[t.messages.length - 1];
     const r = ref ? parseRef(ref) : null;
     return h(
