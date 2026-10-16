@@ -11,15 +11,22 @@ import { issueText, Op, type Round } from './schema';
 const STATUS = { bad_op: 400, not_found: 404, conflict: 409 };
 export type OpErrorCode = keyof typeof STATUS;
 
-export class OpError extends Error {
-  code: OpErrorCode;
+/** An error for whoever asked: the server answers with `status` and the message, the CLI prints the message and exits 1. */
+export class ReviewroomError extends Error {
   status: number;
+  constructor(message: string, status = 400, options?: ErrorOptions) {
+    super(message, options);
+    this.status = status;
+  }
+}
+
+export class OpError extends ReviewroomError {
+  code: OpErrorCode;
   /** Set by the server: which op of a batch failed. */
   index?: number;
   constructor(code: OpErrorCode, message: string) {
-    super(message);
+    super(message, STATUS[code]);
     this.code = code;
-    this.status = STATUS[code];
   }
 }
 
@@ -64,7 +71,6 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
       thread(s, op.threadId).status = op.status;
       break;
     case 'setViewed':
-      s.viewed ??= {};
       if (op.viewed) s.viewed[op.path] = s.round;
       else delete s.viewed[op.path];
       break;

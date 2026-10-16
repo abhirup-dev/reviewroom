@@ -1,19 +1,14 @@
 // Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
 // dist/fonts/, dist/emoji.json, and the CLI with its dependencies bundled in: dist/cli/reviewroom.mjs. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
 import type { BunPlugin } from 'bun';
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 
 const root = new URL('..', import.meta.url).pathname;
 const at = (p: string) => root + p;
 
 const styles = ['tokens', 'shell', 'panels', 'overlays', 'content', 'dockview'];
 
-// dockview only ships its stylesheet inside its UMD bundle; lift it out so it can be themed (and ordered first).
-function dockviewCss() {
-  const line = readFileSync(at('node_modules/dockview-core/dist/dockview-core.js'), 'utf8').split('\n').find((l) => l.includes('s.textContent = ".dv-'));
-  if (!line) throw new Error('dockview stylesheet not found in dockview-core.js: the extraction in scripts/build.ts needs updating');
-  return JSON.parse(line.slice(line.indexOf('"'), line.lastIndexOf('"') + 1));
-}
+const dockviewCss = () => readFileSync(at('node_modules/dockview/dist/styles/dockview.css'), 'utf8');
 
 // Fonts ship with the tool (latin, variable) so typography never depends on the network.
 // [family, package, file, style]
@@ -33,22 +28,15 @@ const fontFaces = (src: FontSrc) =>
 /** All client CSS. `fontSrc(pkg, file)` says where each font is served from. */
 export const clientCss = (fontSrc: FontSrc) => [fontFaces(fontSrc), dockviewCss(), ...styles.map((f) => `/* ${f}.css */\n` + readFileSync(at(`src/styles/${f}.css`), 'utf8'))].join('\n');
 
-const virtual = (name: string, contents: string): BunPlugin => ({
-  name,
-  setup(b) {
-    b.onResolve({ filter: new RegExp(`^${name}$`) }, () => ({ path: name, namespace: 'rr' }));
-    b.onLoad({ filter: /.*/, namespace: 'rr' }, () => ({ contents, loader: 'js' }));
-  },
-});
-
-/** Bundle the client. The CSS is inlined into the JS (virtual:rr-css) and injected at boot. */
+/** Bundle the client. The CSS is inlined into the JS (src/styles/bundle.css exists only in the build) and injected at boot. */
 export function clientBuild({ css, plugins = [], ...opts }: { css: string; plugins?: BunPlugin[] } & Omit<Bun.BuildConfig, 'entrypoints' | 'plugins'>) {
   return Bun.build({
     entrypoints: [at('src/index.ts')],
     format: 'esm',
     target: 'browser',
     minify: true,
-    plugins: [virtual('virtual:rr-css', `export default ${JSON.stringify(css)};`), ...plugins],
+    files: { [realpathSync(at('src/styles')) + '/bundle.css']: css },
+    plugins,
     ...opts,
   });
 }

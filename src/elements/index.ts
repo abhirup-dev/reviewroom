@@ -102,8 +102,10 @@ function declEnd(lines: string[], start: number, max = 40): number {
   let opened = false;
   for (let i = start; i <= last; i++) {
     for (const c of lines[i - 1]) {
-      if (c === '{' || c === '(' || c === '[') (depth++, (opened = true));
-      else if (c === '}' || c === ')' || c === ']') depth--;
+      if (c === '{' || c === '(' || c === '[') {
+        depth++;
+        opened = true;
+      } else if (c === '}' || c === ')' || c === ']') depth--;
     }
     if (i === start && depth <= 0) break; // one-liner or indent-scoped (Python, YAML): fall through
     if (opened && depth <= 0) return i;

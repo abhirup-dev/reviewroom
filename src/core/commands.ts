@@ -64,6 +64,8 @@ export class Commands {
     if (ev.altKey && /^Digit\d$/.test(ev.code)) k = ev.code.slice(5);
     const chord = [mod && 'mod', shift && 'shift', ev.altKey && 'alt', k].filter(Boolean).join('+');
     if (typing && !mod) return;
+    // open modal dialogs and menus close on Esc themselves: leave the key to the platform
+    if (k === 'escape' && document.querySelector('dialog:modal, [popover=auto]:popover-open')) return;
     const scope = this.scopeOf(t ?? null);
     const seq = this.pending ? this.pending + ' ' + chord : chord;
     let partial = false;
