@@ -1,10 +1,11 @@
 import { expect, test } from 'bun:test';
-import { applyFixes, checkLinks, problems } from './links.ts';
+import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
+import type { SearchHit } from '../../src/core/types.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
-const prov = (files) => ({ head: 'h', base: 'b', read: (_rev, p) => files[p] ?? null, search: (q) => (q === 'Build' ? [{ kind: 'definition' }] : []) });
-const html = (...refs) => `<!-- e.g. <a href="rr:code/path#L10-20"> --><rr-review><section id="intro">${refs.map((r) => `<a href="${r}">x</a>`).join(' ')}</section></rr-review>`;
-const status = (results) => Object.fromEntries(results.map((x) => [x.ref, x.status]));
+const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (_rev: string, p: string) => files[p] ?? null, search: (q: unknown) => (q === 'Build' ? [{ kind: 'definition' } as SearchHit] : []) });
+const html = (...refs: string[]) => `<!-- e.g. <a href="rr:code/path#L10-20"> --><rr-review><section id="intro">${refs.map((r) => `<a href="${r}">x</a>`).join(' ')}</section></rr-review>`;
+const status = (results: LinkResult[]) => Object.fromEntries(results.map((x) => [x.ref, x.status]));
 
 test('first sighting fingerprints; unchanged code stays ok', () => {
   const p = prov({ 'a.go': body.join('\n') });
@@ -51,7 +52,7 @@ test('broken files, symbols and sections; links that left the narrative drop out
 test('a symbol that loses its definition but keeps references is changed', () => {
   const page = html('rr:sym/Build');
   const { links } = checkLinks(page, prov({}));
-  const refsOnly = { head: 'h', base: 'b', read: () => null, search: () => [{ kind: 'reference' }] };
+  const refsOnly = { head: 'h', base: 'b', read: () => null, search: () => [{ kind: 'reference' } as SearchHit] };
   expect(checkLinks(page, refsOnly, links).results[0].status).toBe('changed');
   expect(checkLinks(page, refsOnly).results[0].status).toBe('ok'); // never had one: not held to it
 });
