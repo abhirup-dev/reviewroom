@@ -64,19 +64,20 @@ scripts/              build (Bun), smoke test, static demo builder
 
 ## Working on it
 
-Toolchain via [mise](https://mise.jdx.dev) (Node for the CLI, Bun for installs and scripts):
+Bun is the toolchain: it installs dependencies (`bun.lock`, pinned by `packageManager`), bundles the client and the
+CLI, and runs the scripts and tests. Node (>= 20) only runs the built CLI. Every library is bundled into `dist/`, so all
+of them are `devDependencies`; the published package has no runtime dependencies.
 
 ```bash
-mise install          # once
-mise run setup        # bun install, build, put `reviewroom` on PATH (bun link)
-mise run dev          # rebuild on change
-mise run check        # typecheck, lint (oxlint, knip, jscpd), tests, end-to-end smoke test: run before committing
-mise run demo         # demo repo + live review on localhost
-mise run demo-page    # self-contained demo HTML in .demo/
+bun run setup         # bun install --frozen-lockfile, build, put `reviewroom` on PATH (bun link)
+bun run dev           # rebuild on change
+bun run check         # typecheck, lint (oxlint, knip, jscpd, ASCII), tests, end-to-end smoke test: run before committing
+bun run demo          # demo repo + live review on localhost
+bun run demo-page     # self-contained demo HTML in .demo/
 ```
 
-`dist/` is build output and not committed. `reviewroom` (the plugin's `bin/` and `mise run demo`) runs the
-built CLI in `dist/cli/`, not `cli/` source: keep `mise run dev` running while you change the CLI. Verify UI changes in a real browser (light and dark,
+`dist/` is build output and not committed. `reviewroom` (the plugin's `bin/` and `bun run demo`) runs the
+built CLI in `dist/cli/`, not `cli/` source: keep `bun run dev` running while you change the CLI. Verify UI changes in a real browser (light and dark,
 wide and laptop widths) on the demo before calling them done.
 
 To get a new build into Claude Code sessions, build and then reinstall the plugin:
