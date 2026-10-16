@@ -15,7 +15,8 @@ export function tip(el: HTMLElement, text: string, keys?: string) {
 }
 
 export function mountTooltips(app: ReviewApp) {
-  const box = h('div', { class: 'rr-tooltip', role: 'tooltip', hidden: true });
+  const box = h('div', { class: 'rr-tooltip', role: 'tooltip', popover: 'manual' }); // a popover: over modal dialogs too
+  const shown = () => box.matches(':popover-open');
   document.body.append(box);
   let target: HTMLElement | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -43,13 +44,13 @@ export function mountTooltips(app: ReviewApp) {
     const text = el.dataset.tip!;
     const keys = el.dataset.keys;
     box.replaceChildren(h('span', null, text), ...(keys ? keys.split(',').map((k) => h('kbd', null, keyLabel(k.trim()))) : []));
-    box.hidden = false;
+    box.showPopover();
     void placeNear(el, box, 'top', 8, 6);
   };
   const hide = () => {
     clearTimeout(timer);
-    if (!box.hidden) warmUntil = Date.now() + 400;
-    box.hidden = true;
+    if (shown()) warmUntil = Date.now() + 400;
+    box.hidePopover();
     target = null;
   };
 
@@ -60,7 +61,7 @@ export function mountTooltips(app: ReviewApp) {
     if (!el) return hide();
     target = el;
     // the first tooltip waits; moving between controls right after shows instantly
-    timer = setTimeout(() => target === el && el.isConnected && show(el), Date.now() < warmUntil || !box.hidden ? 60 : 480);
+    timer = setTimeout(() => target === el && el.isConnected && show(el), Date.now() < warmUntil || shown() ? 60 : 480);
   };
   document.addEventListener('pointerover', enter, true);
   document.addEventListener('focusin', (e) => (e.target as HTMLElement).matches?.(':focus-visible') && enter(e), true);
@@ -73,5 +74,5 @@ export function mountTooltips(app: ReviewApp) {
   document.addEventListener('pointerdown', hide, true);
   document.addEventListener('scroll', hide, true);
   document.addEventListener('keydown', (e) => e.key === 'Escape' && hide(), true);
-  app.escapers.push(() => (box.hidden ? false : (hide(), true)));
+  app.escapers.push(() => (shown() ? (hide(), true) : false));
 }

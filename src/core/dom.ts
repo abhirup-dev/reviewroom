@@ -159,3 +159,11 @@ export function placeNear(ref: Element, el: HTMLElement, placement: Placement, g
     if (placing.get(el) === id) Object.assign(el.style, { left: x + 'px', top: y + 'px' });
   });
 }
+
+/** mousedown on a modal <dialog>: a press on its backdrop (the dialog itself, not its content) closes it,
+ *  leaving focus where the dialog returned it. */
+export function backdropCloses(e: MouseEvent) {
+  if (e.target !== e.currentTarget) return;
+  e.preventDefault();
+  (e.currentTarget as HTMLDialogElement).close();
+}
