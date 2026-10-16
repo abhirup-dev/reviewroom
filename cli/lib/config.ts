@@ -2,8 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { git, defaultBase } from './git.ts';
+import { git, defaultBase, repoRoot } from './git.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
+import { fail } from './args.ts';
 
 /** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
  *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
@@ -17,6 +18,9 @@ export function resolveDir(repo: string, dirFlag: string | undefined, { existing
   if (reviews.length === 1) return path.join(root, reviews[0]);
   throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
 }
+
+/** The repo a review dir belongs to: the one it sits in (<repo>/.reviewroom/<name>), else --repo or the cwd's. */
+export const repoOf = (dir: string, repo: string | null) => repoRoot(dir) ?? repo ?? fail('not inside a git repository (use --repo)');
 
 /** The dir of an existing review for commands that only edit it: --dir works without a repo. */
 export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => {
