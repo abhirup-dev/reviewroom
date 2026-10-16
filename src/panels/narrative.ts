@@ -329,7 +329,8 @@ class NarrativePanel implements PanelInstance {
     let container: Node | null = range.commonAncestorContainer;
     if (container.nodeType === 3) container = container.parentElement;
     const block = (container as Element).closest(BLOCKS) ?? (container as Element);
-    const owner = block.id ? block : block.closest('[id]') ?? this.current;
+    const found = block.id ? block : block.closest('[id]');
+    const owner = found && this.current.contains(found) ? found : this.current; // not the dock's wrapper around the review
     const ownerText = owner.textContent || '';
     const idx = ownerText.indexOf(range.toString());
     const quote: TextQuote = {
