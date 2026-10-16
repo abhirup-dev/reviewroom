@@ -472,6 +472,8 @@
   margin: 0;
 }
 .rr-inline-thread-wrap {
+  /* the card takes the code column's width, never sets it: with wrap on it would hold the column wide */
+  contain: inline-size;
   padding: 6px 10px 6px 12px;
   font-family: var(--rr-font);
 }
