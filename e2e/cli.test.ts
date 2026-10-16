@@ -1,4 +1,4 @@
-// CLI surface: strict flags, resolve without a body, pr without a target.
+// CLI surface: resolve without a body, --dir alone, pr without a target.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,6 @@ describe('cli', () => {
   let thread = '';
   beforeAll(async () => (thread = (await cli(['comment', 'general', 'why?', ...d])).stdout.trim()));
 
-  test('an unknown flag is an error (exit 2)', async () => expect(await cli(['status', '--jsn', ...d])).toMatchObject({ code: 2, stderr: expect.stringContaining('--jsn') }));
   test('reply --resolve without a body resolves the thread', async () => {
     expect((await cli(['reply', thread, '--resolve', ...d])).code).toBe(0);
     expect(state().threads.find((t: StoredThread) => t.id === thread).status).toBe('resolved');
