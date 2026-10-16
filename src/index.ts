@@ -264,8 +264,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'round.send', title: 'Finish round & send feedback (Team review: submit your GitHub review)', group: 'Rounds', keys: ['mod+shift+enter'], run: () => (app.teamMode ? submitReviewDialog(app) : sendDialog(app)) },
     { id: 'github.refresh', title: 'Refresh GitHub comments', group: 'GitHub', run: () => app.refreshGitHub() },
     { id: 'round.current', title: 'Back to current round', group: 'Rounds', run: () => app.bus.emit('round-view', 0) },
-    // open menus close on Esc themselves (popovers): leave the key to them
-    { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], when: () => !document.querySelector('.rr-menu:popover-open'), run: () => {
+    { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
       // innermost first: overlays (newest first), then the selection, then pick mode
       for (const f of [...app.escapers].reverse()) if (f()) return;
       if (app.root.classList.contains('is-picking')) return app.bus.emit('picker', false);

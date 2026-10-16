@@ -1,5 +1,5 @@
 // Top bar: identity, rounds, search, picker, layout, theme, send feedback.
-import { h, icon, copyText, relTime, placeNear } from '../core/dom';
+import { h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/dom';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
@@ -41,13 +41,7 @@ export const menuLabel = (t: string) => h('div', { class: 'rr-menu__label-row' }
 export function sendDialog(app: ReviewApp) {
   const pending = app.pendingFeedback();
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
-  const scrim = h('div', { class: 'rr-scrim' });
-  const esc = () => (close(), true);
-  const close = () => {
-    scrim.remove();
-    app.escapers = app.escapers.filter((f) => f !== esc);
-  };
-  app.escapers.push(esc);
+  const close = () => box.close();
   const go = async (kind: 'feedback' | 'approve') => {
     const n = app.state.round;
     const text = note.value.trim() || undefined;
@@ -72,8 +66,8 @@ export function sendDialog(app: ReviewApp) {
     }
   };
   const box = h(
-    'div',
-    { class: 'rr-modal rr-modal--narrow', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Finish round' },
+    'dialog',
+    { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Finish round', onmousedown: backdropCloses, onclose: () => box.remove() },
     h('header', { class: 'rr-thread__head' }, h('strong', null, `Finish round ${app.state.round}`), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
     h(
       'div',
@@ -85,10 +79,8 @@ export function sendDialog(app: ReviewApp) {
     ),
     h('footer', { class: 'rr-composer__foot' }, h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => go('approve') }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: () => go('feedback') }, icon('send', 12), 'Send feedback')),
   );
-  scrim.append(box);
-  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
-  scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
-  document.body.append(scrim);
+  document.body.append(box);
+  box.showModal();
   note.focus();
 }
 
@@ -96,13 +88,7 @@ export function sendDialog(app: ReviewApp) {
 export function submitReviewDialog(app: ReviewApp) {
   const drafts = app.github?.pending?.drafts ?? 0;
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' });
-  const scrim = h('div', { class: 'rr-scrim' });
-  const esc = () => (close(), true);
-  const close = () => {
-    scrim.remove();
-    app.escapers = app.escapers.filter((f) => f !== esc);
-  };
-  app.escapers.push(esc);
+  const close = () => box.close();
   const go = async (action: GitHubAction, done: string) => {
     const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
     if (buttons.some((b) => b.disabled)) return;
@@ -114,8 +100,8 @@ export function submitReviewDialog(app: ReviewApp) {
   };
   const submit = (event: Extract<GitHubAction, { action: 'submit' }>['event'], done: string) => go({ action: 'submit', event, body: note.value }, done);
   const box = h(
-    'div',
-    { class: 'rr-modal rr-modal--narrow', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Submit review on GitHub' },
+    'dialog',
+    { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Submit review on GitHub', onmousedown: backdropCloses, onclose: () => box.remove() },
     h('header', { class: 'rr-thread__head' }, h('strong', null, 'Submit your review on GitHub'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
     h(
       'div',
@@ -133,10 +119,8 @@ export function submitReviewDialog(app: ReviewApp) {
       h('button', { class: 'rr-btn rr-btn--primary', title: 'Post your comments without approving or blocking', onclick: () => submit('comment', 'Review submitted') }, icon('send', 12), 'Comment'),
     ),
   );
-  scrim.append(box);
-  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
-  scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
-  document.body.append(scrim);
+  document.body.append(box);
+  box.showModal();
   note.focus();
 }
 
