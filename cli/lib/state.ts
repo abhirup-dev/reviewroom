@@ -71,7 +71,7 @@ export function readState(dir: string): ReviewState {
   }
   const checked = StoredState.safeParse(data);
   if (!checked.success) moveAside(dir, `does not match schema/state.schema.json (${issueText(checked.error)})`);
-  return data; // as read, not Zod's copy: keys the schema doesn't know survive the next write
+  return { ...checked.data, ...data }; // the file as read (keys this version doesn't know survive), plus the schema's defaults (an older file has no pins)
 }
 function moveAside(dir: string, why: string): never {
   const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
