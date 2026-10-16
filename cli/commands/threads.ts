@@ -8,11 +8,6 @@ import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/core/types.ts';
 import type { Op } from '../../src/shared/schema.ts';
 
-function threadArg(pos: string[]) {
-  const id = pos.shift();
-  if (!id) die('missing thread id');
-  return id;
-}
 function findThread(s: ReviewState, id: string) {
   if (id.startsWith('gh_')) die(`${id} is a GitHub thread: only the reviewer posts there. Link it with rr:thread/${id} in review.html or your reply instead.`);
   const t = s.threads.find((x) => x.id === id) || s.threads.filter((x) => x.id.startsWith(id) || x.id === 't_' + id)[0];
@@ -20,10 +15,9 @@ function findThread(s: ReviewState, id: string) {
   return t;
 }
 type BodyOpts = Global & { file?: string };
-function readBody(o: BodyOpts, pos: string[]) {
-  let b = pos.shift();
-  if (o.file) b = fs.readFileSync(o.file, 'utf8');
-  else if (b === '-' || (!b && !process.stdin.isTTY)) b = fs.readFileSync(0, 'utf8');
+/** The message: --file, else the body argument, else stdin (`-`, or piped with no argument). */
+function readBody(file: string | undefined, arg: string | undefined) {
+  const b = file ? fs.readFileSync(file, 'utf8') : arg === '-' || (!arg && !process.stdin.isTTY) ? fs.readFileSync(0, 'utf8') : arg;
   if (!b?.trim()) die('missing message body');
   return b.trim();
 }
@@ -59,33 +53,35 @@ function replyOps(s: ReviewState, items: ReplyItem[]) {
   });
 }
 
-export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: boolean; json?: string | true }, pos: string[]) {
+export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: boolean; json?: string | true }, [thread, body]: string[]) {
   const dir = dirForEdit(repo, o.dir);
   let items: ReplyItem[];
   if (o.json) {
-    const src = typeof o.json === 'string' ? o.json : pos.shift() || '-';
+    // `--json file`, `--json -`, or `--json` alone (stdin); cac may leave the file as the first argument
+    const src = typeof o.json === 'string' ? o.json : (thread ?? '-');
     try {
       items = JSON.parse(fs.readFileSync(src === '-' ? 0 : src, 'utf8'));
     } catch (e) {
       die(`--json: ${(e as Error).message}`);
     }
     if (!Array.isArray(items) || !items.length) die('--json expects a non-empty array of {thread, body, resolve?}');
-  } else if (o.resolve && pos.length === 1 && !o.file) {
+  } else if (!thread) die('missing thread id');
+  else if (o.resolve && body === undefined && !o.file) {
     // `reply <thread> --resolve` without a body: resolve only
-    const t = findThread(readState(dir), threadArg(pos));
+    const t = findThread(readState(dir), thread);
     await commitOps(dir, [{ op: 'setThreadStatus', threadId: t.id, status: 'resolved' }]);
     return console.log(`resolved ${t.id}`);
-  } else items = [{ thread: threadArg(pos), body: readBody(o, pos), resolve: o.resolve }];
+  } else items = [{ thread, body: readBody(o.file, body), resolve: o.resolve }];
   const ops = replyOps(readState(dir), items);
   await commitOps(dir, ops);
   if (o.json) console.log(`replied to ${items.length} thread(s)`);
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
 }
 
-export async function cmdComment(repo: string | null, o: BodyOpts, pos: string[]) {
+export async function cmdComment(repo: string | null, o: BodyOpts, [ref, body]: string[]) {
   const dir = dirForEdit(repo, o.dir);
-  const ref = pos.shift() || die('missing rr: ref (or "general")');
+  if (!ref) die('missing rr: ref (or "general")');
   const id = uid('t_');
-  await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o, pos), author: 'agent' }]);
+  await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
   console.log(id);
 }
