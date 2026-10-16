@@ -3,7 +3,7 @@
 type Handler<T> = (payload: T) => void;
 
 export class Emitter<Events extends Record<string, unknown>> {
-  private map = new Map<keyof Events, Set<Handler<any>>>();
+  private map = new Map<keyof Events, Set<Handler<never>>>();
   on<K extends keyof Events>(type: K, fn: Handler<Events[K]>): () => void {
     let set = this.map.get(type);
     if (!set) this.map.set(type, (set = new Set()));
@@ -13,7 +13,7 @@ export class Emitter<Events extends Record<string, unknown>> {
   emit<K extends keyof Events>(type: K, payload: Events[K]) {
     this.map.get(type)?.forEach((fn) => {
       try {
-        fn(payload);
+        (fn as Handler<Events[K]>)(payload); // the set for `type` only holds handlers of its payload
       } catch (e) {
         console.error('[reviewroom]', type, e);
       }

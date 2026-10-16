@@ -87,9 +87,9 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   };
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
   // untrusted: applyOp (Zod) or the handler checks every field it uses
-  const readJson = async (c: Context): Promise<any> => {
+  const readJson = async <T = unknown>(c: Context): Promise<T> => {
     try {
-      return JSON.parse((await c.req.text()) || '{}');
+      return JSON.parse((await c.req.text()) || '{}') as T;
     } catch {
       throw new OpError('bad_op', 'request body is not JSON');
     }
@@ -179,15 +179,15 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
   });
   app.post('/api/ops', async (c) => {
-    const b = await readJson(c);
+    const b = await readJson<Op & { ops?: Op[] }>(c);
     const ops: Op[] = Array.isArray(b.ops) ? b.ops : [b];
-    if (ops.some((o: any) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
+    if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
   });
   app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
   app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
   app.put('/api/layout', async (c) => {
-    const b = await readJson(c);
+    const b = await readJson<{ grid?: unknown; panels?: unknown } | null>(c);
     if (!b || typeof b !== 'object' || !b.grid || !b.panels) throw new OpError('bad_op', 'not a dockview layout');
     fs.mkdirSync(path.dirname(layoutFile()), { recursive: true });
     fs.writeFileSync(layoutFile(), JSON.stringify(b));
@@ -208,7 +208,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     }),
   );
   app.post('/api/finish', async (c) => {
-    const { kind, note, round } = await readJson(c);
+    const { kind, note, round } = await readJson<Extract<Op, { op: 'finishRound' }>>(c);
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open

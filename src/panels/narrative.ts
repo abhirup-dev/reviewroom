@@ -314,7 +314,7 @@ class NarrativePanel implements PanelInstance {
       e.preventDefault();
       e.stopPropagation();
       this.commentOnBlock(t);
-      if (this.pickToggle) this.app.bus.emit('picker' as any, false);
+      if (this.pickToggle) this.app.bus.emit('picker', false);
     }
   }
 
@@ -363,7 +363,7 @@ class NarrativePanel implements PanelInstance {
     }
     if (supportsHighlights) {
       highlightRanges.set(this.rootId, ranges);
-      (CSS as any).highlights.set('rr-thread', new (window as any).Highlight(...[...highlightRanges.values()].flat()));
+      CSS.highlights.set('rr-thread', new Highlight(...[...highlightRanges.values()].flat()));
     }
     this.layoutRail();
   }
@@ -423,8 +423,8 @@ class NarrativePanel implements PanelInstance {
     if (!el) return;
     if (a.quote && supportsHighlights) {
       const r = rangeForQuote(el, a.quote);
-      if (on && r) (CSS as any).highlights.set('rr-thread-hot', new (window as any).Highlight(r));
-      else (CSS as any).highlights.delete('rr-thread-hot');
+      if (on && r) CSS.highlights.set('rr-thread-hot', new Highlight(r));
+      else CSS.highlights.delete('rr-thread-hot');
     } else el.toggleAttribute('data-rr-hot', on);
   }
 

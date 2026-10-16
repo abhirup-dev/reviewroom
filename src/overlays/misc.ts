@@ -140,14 +140,26 @@ export function mountPalette(app: ReviewApp) {
 
   input.addEventListener('input', () => {
     sel = 0;
-    if (/^[#/]/.test(input.value)) void searchRemote(input.value);
+    if (/^[#/]/.test(input.value)) searchRemote(input.value);
     paint();
   });
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) (sel = Math.min(items.length - 1, sel + 1)), paint(), e.preventDefault();
-    else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) (sel = Math.max(0, sel - 1)), paint(), e.preventDefault();
-    else if (e.key === 'Enter') (choose(sel), e.preventDefault());
-    else if (e.key === 'Escape') (close(), e.preventDefault(), e.stopPropagation());
+    if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
+      sel = Math.min(items.length - 1, sel + 1);
+      paint();
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
+      sel = Math.max(0, sel - 1);
+      paint();
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      choose(sel);
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      close();
+      e.preventDefault();
+      e.stopPropagation();
+    }
   });
 
   const open = (initial = '') => {
@@ -156,15 +168,15 @@ export function mountPalette(app: ReviewApp) {
     input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : 'Jump to a file, section, thread or command…';
     scrim.hidden = false;
     paint();
-    if (/^[#/]/.test(initial)) void searchRemote(initial);
+    if (/^[#/]/.test(initial)) searchRemote(initial);
     requestAnimationFrame(() => {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
     });
   };
   app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
-  (app as any).openPalette = open;
-  (app as any).pickRef = () =>
+  app.openPalette = open;
+  app.pickRef = () =>
     new Promise<string | null>((resolve) => {
       pick = resolve;
       open();

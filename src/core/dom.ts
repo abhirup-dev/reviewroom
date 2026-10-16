@@ -115,12 +115,12 @@ export function threadCounts(ts: { gh?: unknown }[], where: string) {
   ];
 }
 
-export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number): T {
+export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number): (...a: A) => void {
   let t: ReturnType<typeof setTimeout> | undefined;
-  return ((...a: any[]) => {
+  return (...a: A) => {
     clearTimeout(t);
     t = setTimeout(() => fn(...a), ms);
-  }) as T;
+  };
 }
 
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);

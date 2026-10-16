@@ -1,6 +1,6 @@
 // Code panel: the whole diff as a stack of files (lazy-rendered with @pierre/diffs),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
-import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOptions, type SelectedLineRange } from '@pierre/diffs';
+import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOptions, type FileDiffRenderProps, type SelectedLineRange } from '@pierre/diffs';
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
@@ -68,6 +68,8 @@ class CodePanel implements PanelInstance {
   private isPrimary: boolean;
   /** Single-file panel (opened via "open in new panel"): shows only this path as diff, before or after. */
   private pin?: string;
+  private optionsKey?: string;
+  private optionsInit = false;
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
     this.isPrimary = panelId === 'code';
@@ -335,7 +337,7 @@ class CodePanel implements PanelInstance {
         newFile: newText === null ? null : { name: f.path, contents: newText, cacheKey: `${r.head}:${f.path}` },
         lineAnnotations: this.annotations(path),
         containerWrapper: b.body,
-      } as any);
+      } as FileDiffRenderProps<Meta>); // one side is non-null (both-null returned above); TS can't see that
       b.inst = inst;
       // old-side threads can only be paired with their new line once the diff exists
       if (this.app.prefs.diffStyle === 'split' && this.app.threads().some((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === 'base')) {
@@ -350,10 +352,10 @@ class CodePanel implements PanelInstance {
     this.renderToolbar();
     const p = this.app.prefs;
     const key = `${p.ignoreWhitespace}|${p.lineDiff}|${p.hideTests}|${p.hiddenTypes.join()}`;
-    if (structural && key !== (this as any)._k) {
-      (this as any)._k = key;
-      if ((this as any)._init) return this.rebuild();
-      (this as any)._init = true;
+    if (structural && key !== this.optionsKey) {
+      this.optionsKey = key;
+      if (this.optionsInit) return this.rebuild();
+      this.optionsInit = true;
     }
     this.blocks.forEach((b, path) => {
       if (!b.inst) return;
@@ -386,7 +388,7 @@ class CodePanel implements PanelInstance {
     return this.app
       .threads()
       .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === side && onLine(t))
-      .map((t) => ({ lineNumber: (t.anchor as any).end, metadata: { threadId: t.id } }));
+      .map((t) => ({ lineNumber: (t.anchor as Extract<Thread['anchor'], { kind: 'code' }>).end, metadata: { threadId: t.id } }));
   }
 
   async openFile(path: string, side: 'base' | 'head', rev?: string, start?: number, end?: number) {
@@ -651,7 +653,7 @@ export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 
   const ref = (near && app.dock.getPanel(near)) || app.dock.getPanel('code') || app.dock.activePanel;
   const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } };
   if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
-  else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined } as any);
+  else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined });
   return id;
 }
 

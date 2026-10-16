@@ -1,5 +1,5 @@
 // Edits on dockview's serialised layout (pure, so it can be tested without a dock).
-type Node = { type: 'branch' | 'leaf'; data: any; size?: number };
+type Node = { type: 'branch' | 'leaf'; data: Group | Node[]; size?: number };
 type Group = { views: string[]; activeView?: string; id: string };
 
 /** The layout without the panels `drop` names (and any group or split left empty by that). */
@@ -10,7 +10,7 @@ export function withoutPanels<T extends { grid: { root: Node }; panels: Record<s
   };
   const node = (n: Node): Node | null => {
     if (n.type === 'leaf') {
-      const g = group(n.data);
+      const g = group(n.data as Group);
       return g ? { ...n, data: g } : null;
     }
     const kids = (n.data as Node[]).map(node).filter(Boolean) as Node[];

@@ -83,8 +83,10 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     const now = end <= lines.length ? hash(lines, r.start, end) : null;
     const prev = known[ref];
     if (!prev) {
-      if (now) (links[ref] = now), out(ref, 'new');
-      else out(ref, 'broken', `past the end of the file (${lines.length} lines)`);
+      if (now) {
+        links[ref] = now;
+        out(ref, 'new');
+      } else out(ref, 'broken', `past the end of the file (${lines.length} lines)`);
       continue;
     }
     links[ref] = prev; // keep the original fingerprint until the link is fixed or accepted

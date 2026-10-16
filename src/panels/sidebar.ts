@@ -143,7 +143,8 @@ class FilesPanel implements PanelInstance {
                 'aria-expanded': String(!closed),
                 title: closed ? 'Expand folder' : 'Collapse folder',
                 onclick: () => {
-                  closed ? this.collapsedDirs.delete(key) : this.collapsedDirs.add(key);
+                  if (closed) this.collapsedDirs.delete(key);
+                  else this.collapsedDirs.add(key);
                   this.renderList();
                 },
               },
@@ -327,7 +328,11 @@ class ThreadsPanel implements PanelInstance {
     const app = this.app;
     // switching Agent/Team/All starts over from that mode's default
     const mode = this.view();
-    if (mode !== this.mode) (this.mode = mode), (this.sources = null), this.authors.clear();
+    if (mode !== this.mode) {
+      this.mode = mode;
+      this.sources = null;
+      this.authors.clear();
+    }
     const every = app.threads().filter((t) => !t.gh?.conversation);
     const all = every.filter((t) => this.shown(t));
     const convo = app.threads().find((t) => t.gh?.conversation);
