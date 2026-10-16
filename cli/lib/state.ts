@@ -1,10 +1,10 @@
-// Review dir, config.json, state.json (read, atomic write, lock, ops) and rr: anchors.
+// Review dir, config.json, state.json (read, atomic write, lock, ops).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { type Opts, die } from './args.ts';
 import { git, defaultBase, type ReviewConfig } from './git.ts';
-import type { Anchor, Op, ReviewState } from '../../src/core/types.ts';
+import type { Op, ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
 
@@ -162,22 +162,3 @@ export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => 
 };
 
 
-export function parseAnchor(ref: string): Anchor {
-  const m = ref.match(/^rr:(\w+)\/(.*)$/);
-  if (!m) return { kind: 'general' };
-  const [, type, rest] = m;
-  if (type === 'doc') {
-    const [id, ...p] = rest.split('/');
-    return { kind: 'doc', target: decodeURIComponent(id), path: p.length ? decodeURIComponent(p.join('/')) : undefined };
-  }
-  if (type === 'code') {
-    const lm = rest.match(/#L(\d+)(?:-L?(\d+))?$/);
-    let p = lm ? rest.slice(0, lm.index) : rest;
-    let rev = 'head';
-    const at = p.lastIndexOf('@');
-    if (at > 0) (rev = p.slice(at + 1)), (p = p.slice(0, at));
-    return { kind: 'code', path: p, rev: rev === 'base' ? 'base' : 'head', start: lm ? +lm[1] : 1, end: lm ? +(lm[2] || lm[1]) : 1 };
-  }
-  if (type === 'sym') return { kind: 'symbol', name: decodeURIComponent(rest) };
-  return { kind: 'general' };
-}

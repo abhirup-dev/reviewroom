@@ -1,8 +1,9 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Opts, die } from '../lib/args.ts';
-import { dirForEdit, readState, commitOps, uid, parseAnchor } from '../lib/state.ts';
-import { anchorText, anchorRef, githubContext } from '../../src/shared/feedback.ts';
+import { dirForEdit, readState, commitOps, uid } from '../lib/state.ts';
+import { anchorText, githubContext } from '../../src/shared/feedback.ts';
+import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/core/types.ts';
 import type { Op } from '../../src/shared/schema.ts';
@@ -84,6 +85,6 @@ export async function cmdComment(repo: string | null, o: Opts, pos: string[]) {
   const dir = dirForEdit(repo, o.dir);
   const ref = pos.shift() || die('missing rr: ref (or "general")');
   const id = uid('t_');
-  await commitOps(dir, [{ op: 'createThread', id, anchor: parseAnchor(ref), msgId: uid('m_'), body: readBody(o, pos), author: 'agent' }]);
+  await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o, pos), author: 'agent' }]);
   console.log(id);
 }
