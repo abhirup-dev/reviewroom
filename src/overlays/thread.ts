@@ -247,6 +247,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
   const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') + (o.id ? '' : ' is-new') });
   let off: (() => void) | undefined;
   let lastCount = -1;
+  // an editor keeps document listeners (and through them this DOM) until destroyed: drop the ones about to be replaced
+  const drop = (n: Element) => n.querySelectorAll<HTMLElement>('.cm-editor').forEach((e) => EditorView.findFromDOM(e)?.destroy());
 
   const pinBtn = (ref: string) => {
     const set = (b: HTMLElement) => {
@@ -437,6 +439,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       onCancel: o.onClose,
     });
     const msgs = t ? messages(t) : null;
+    drop(root);
     root.replaceChildren(header(t, anchor), ctxHost, h('div', { class: 'rr-thread__scroll' }, msgs), c.el);
     if (t && t.messages.length !== lastCount) {
       const first = lastCount < 0;
@@ -457,14 +460,17 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     const t = app.thread(o.id);
     if (!t) return render();
     const scroll = root.querySelector('.rr-thread__scroll');
-    if (scroll) scroll.replaceChildren(messages(t));
+    if (scroll) {
+      drop(scroll);
+      scroll.replaceChildren(messages(t));
+    }
     root.querySelector('.rr-thread__head')?.replaceWith(header(t, t.anchor));
     if (t.messages.length !== lastCount) {
       lastCount = t.messages.length;
       scroll?.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
     }
   });
-  return { el: root, dispose: () => off?.() };
+  return { el: root, dispose: () => (off?.(), drop(root)) };
 }
 
 // ------------------------------------------------------------------ popup host
