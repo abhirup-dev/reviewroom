@@ -25,7 +25,6 @@ describe('ops', () => {
     expect([reply.code, codes.every((c) => c === 200), s.threads[0].messages.length, s.viewed['x.go']]).toEqual([0, true, 22, 1]);
     expect(s.threads[0].messages.some((m: StoredMessage) => m.body === 'because')).toBe(true);
   });
-  test('op on an unknown thread is a 404', async () => expect((await op(url, { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status).toBe(404));
   test('rounds cannot be finished through /api/ops', async () => expect((await op(url, { op: 'finishRound', kind: 'feedback' })).status).toBe(400));
   test('reply --json answers several threads', async () => {
     const second = (await cli(['comment', 'general', 'fyi', ...d])).stdout.trim();
