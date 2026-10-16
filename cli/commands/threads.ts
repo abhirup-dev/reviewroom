@@ -1,7 +1,8 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit, readState, commitOps, uid } from '../lib/state.ts';
+import { dirForEdit } from '../lib/config.ts';
+import { readState, commitOps, uid } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/shared/feedback.ts';
 import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
 import { cachedThreads } from '../lib/github.ts';

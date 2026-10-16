@@ -1,50 +1,11 @@
-// Review dir, config.json, state.json (read, atomic write, lock, ops).
+// state.json: read (checked against the schema), atomic write, and ops applied under state.lock.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { z } from 'zod';
-import { git, defaultBase } from './git.ts';
+import { takeLock, releaseLock } from './lock.ts';
 import type { Op, ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
-
-/** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
- *  (`existing`), a missing branch dir falls back to the repo's only review (e.g. pr-<n> made by `pr`). */
-export function resolveDir(repo: string | null, dirFlag: string | undefined, { existing = false } = {}): string {
-  if (dirFlag) return path.resolve(dirFlag);
-  repo = repo!; // only dirForEdit passes none, and only with --dir
-  const root = path.join(repo, '.reviewroom');
-  const branch = (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim().replace(/[^\w.-]+/g, '-');
-  const own = path.join(root, branch);
-  if (!existing || fs.existsSync(own)) return own;
-  const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
-  if (reviews.length === 1) return path.join(root, reviews[0]);
-  throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
-}
-
-// config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept
-const text = z.string().optional().catch(undefined);
-const ConfigFile = z.looseObject({ base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text });
-/** config.json, with --base/--head/--title applied (loadConfig). */
-export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
-export const configPath = (dir: string) => path.join(dir, 'config.json');
-
-export function readConfig(dir: string): z.infer<typeof ConfigFile> {
-  if (!fs.existsSync(configPath(dir))) return {};
-  try {
-    return ConfigFile.parse(JSON.parse(fs.readFileSync(configPath(dir), 'utf8')));
-  } catch (e) {
-    throw new ReviewroomError(`${configPath(dir)} is not valid JSON (${(e as Error).message}); fix or delete it`);
-  }
-}
-
-export function loadConfig(dir: string, repo: string, o: { base?: string; head?: string; title?: string } = {}): ReviewConfig {
-  const cfg = readConfig(dir) as ReviewConfig; // base and head are filled in below
-  for (const k of ['base', 'head', 'title'] as const) if (o[k] !== undefined) cfg[k] = o[k];
-  cfg.base ||= defaultBase(repo);
-  cfg.head ||= 'HEAD';
-  return cfg;
-}
 
 const emptyState = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: new Date().toISOString() }], threads: [], viewed: {}, pins: [] });
 export const statePath = (dir: string) => path.join(dir, 'state.json');
@@ -97,60 +58,6 @@ export function writeState(dir: string, s: ReviewState) {
   }
 }
 
-// state.lock {pid, port}: a running server holds it for its lifetime (port set); a CLI holds it
-// for one read-modify-write (port null). CLI writes go to the server while it holds the lock.
-const lockPath = (dir: string) => path.join(dir, 'state.lock');
-const alive = (pid: number) => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
-  }
-};
-/** Does a reviewroom server with this pid answer on this port? null = no answer in time (busy: git calls are synchronous). */
-export async function answers(pid: number, port: number, timeout = 800): Promise<boolean | null> {
-  try {
-    const r = await fetch(`http://127.0.0.1:${port}/favicon.ico`, { signal: AbortSignal.timeout(timeout) });
-    return r.headers.get('x-reviewroom-pid') === String(pid);
-  } catch (e) {
-    return (e as Error).name === 'TimeoutError' ? null : false;
-  }
-}
-/** Take state.lock. Returns null once it is ours, or the {pid, port} of the live server holding it. */
-export type LockHolder = { pid: number; port: number | null };
-export async function takeLock(dir: string, port: number | null = null): Promise<LockHolder | null> {
-  fs.mkdirSync(dir, { recursive: true });
-  for (let i = 0; ; i++) {
-    try {
-      fs.writeFileSync(lockPath(dir), JSON.stringify({ pid: process.pid, port }), { flag: 'wx' });
-      return null;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-    }
-    let h: LockHolder | null = null;
-    try {
-      h = JSON.parse(fs.readFileSync(lockPath(dir), 'utf8'));
-    } catch {}
-    if (h?.pid === process.pid) return null;
-    let busy = h ? alive(h.pid) && !h.port : true; // a CLI mid-write, or a holder still writing the file
-    if (h?.port && alive(h.pid)) {
-      const up = await answers(h.pid, h.port);
-      if (up) return h;
-      busy = up === null; // a busy server is not a dead one
-    }
-    if (busy && i < 60) {
-      await new Promise((r) => setTimeout(r, 50));
-      continue;
-    }
-    fs.rmSync(lockPath(dir), { force: true }); // stale: holder died, or a server that no longer answers
-  }
-}
-export function releaseLock(dir: string) {
-  try {
-    if (JSON.parse(fs.readFileSync(lockPath(dir), 'utf8')).pid === process.pid) fs.unlinkSync(lockPath(dir));
-  } catch {}
-}
 /** Apply ops as one all-or-nothing batch: via the running server, else straight to the file under the lock. */
 export async function commitOps(dir: string, ops: Op[]): Promise<number | undefined> {
   const holder = await takeLock(dir);
@@ -169,10 +76,3 @@ export async function commitOps(dir: string, ops: Op[]): Promise<number | undefi
   }
 }
 export const uid = (p: string) => p + crypto.randomBytes(4).toString('hex');
-
-export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => {
-  if (!repo && !dirFlag) throw new ReviewroomError('not inside a git repository (use --dir)');
-  return resolveDir(repo, dirFlag, { existing: true });
-};
-
-

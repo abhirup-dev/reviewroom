@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeProvider, type ReviewConfig } from './git.ts';
+import { makeProvider } from './git.ts';
+import type { ReviewConfig } from './config.ts';
 import { PKG } from './paths.ts';
 
 export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = false) {

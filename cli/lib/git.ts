@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
+import type { ReviewConfig } from './config.ts';
 
 type GitOpts = { soft?: boolean; encoding?: BufferEncoding };
 export function git(args: string[], cwd: string, opts: GitOpts & { soft: true }): string | null;
@@ -79,8 +80,6 @@ export function ensureExcluded(repo: string) {
   } catch {}
 }
 
-import type { ReviewConfig } from './state.ts';
-export type { ReviewConfig };
 const STATUS: Record<string, ChangedFile['status'] | undefined> = { A: 'added', D: 'deleted', R: 'renamed' };
 /** `git diff -M -z --numstat` and `--name-status` of the same range -> changed files (status from the latter). */
 export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {

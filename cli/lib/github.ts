@@ -12,7 +12,8 @@ import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestRe
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorOf } from '../../src/shared/refs.ts';
-import type { Provider, ReviewConfig } from './git.ts';
+import type { Provider } from './git.ts';
+import type { ReviewConfig } from './config.ts';
 import type { Anchor, CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
 

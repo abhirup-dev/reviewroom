@@ -1,7 +1,8 @@
 import path from 'node:path';
 import type { Global } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, readConfig, readState } from '../lib/state.ts';
+import { dirForEdit, loadConfig, readConfig } from '../lib/config.ts';
+import { readState } from '../lib/state.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 
 export type StatusOpts = Global & { all?: boolean; json?: boolean };
