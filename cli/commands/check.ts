@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig } from '../lib/config.ts';
+import { dirForEdit, loadConfig, repoOf } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
 
@@ -12,7 +12,8 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
   const dir = dirForEdit(repo, o.dir);
   const file = path.join(dir, 'review.html');
   if (!fs.existsSync(file)) fail(`no review.html in ${dir}`);
-  const prov = makeProvider(repo!, loadConfig(dir, repo!)); // null with only --dir: rr-5qv
+  const r = repoOf(dir, repo);
+  const prov = makeProvider(r, loadConfig(dir, r));
   const known = readState(dir).links ?? {};
   const html = fs.readFileSync(file, 'utf8');
   let { results, links } = checkLinks(html, prov, o.accept ? {} : known);

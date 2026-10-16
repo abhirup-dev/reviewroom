@@ -35,7 +35,8 @@ schema/               JSON schema of state.json (the contract between UI, CLI an
 skills/reviewroom/   the skill agents use to run reviews (entry point + references)
 templates/            review.html scaffold
 examples/             demo review + script that creates the demo git repo
-scripts/              build (Bun), smoke test, static demo builder
+scripts/              build (Bun), static demo builder
+e2e/                  end-to-end tests (`bun run smoke`): the built CLI under Node against the demo repo
 ```
 
 ## Contracts (change deliberately, update the skill when you do)
@@ -72,7 +73,7 @@ of them are `devDependencies`; the published package has no runtime dependencies
 ```bash
 bun run setup         # bun install --frozen-lockfile, build, put `reviewroom` on PATH (bun link)
 bun run dev           # rebuild on change
-bun run check         # typecheck, lint (oxlint, knip, jscpd, ASCII), tests, end-to-end smoke test: run before committing
+bun run check         # typecheck, lint (oxlint, knip, jscpd, ASCII), tests, end-to-end tests: run before committing
 bun run demo          # demo repo + live review on localhost
 bun run demo-page     # self-contained demo HTML in .demo/
 ```

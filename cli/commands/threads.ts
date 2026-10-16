@@ -7,7 +7,8 @@ import { anchorText, githubContext } from '../../src/shared/feedback.ts';
 import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/core/types.ts';
-import type { Op } from '../../src/shared/schema.ts';
+import { issueText, type Op } from '../../src/shared/schema.ts';
+import { z } from 'zod';
 
 function findThread(s: ReviewState, id: string) {
   if (id.startsWith('gh_')) fail(`${id} is a GitHub thread: only the reviewer posts there. Link it with rr:thread/${id} in review.html or your reply instead.`);
@@ -43,12 +44,13 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
 }
 
 // Agent replies as ops: `reply <thread> "<md>"`, or `reply --json <file|->` with [{thread, body, resolve?}].
-type ReplyItem = { thread?: unknown; body?: unknown; resolve?: unknown };
-function replyOps(s: ReviewState, items: ReplyItem[]) {
-  return items.flatMap((it, i) => {
-    if (typeof it?.thread !== 'string' || typeof it.body !== 'string' || !it.body.trim()) fail(`reply ${i}: needs "thread" and a non-empty "body"`);
+const Replies = z.array(z.object({ thread: z.string(), body: z.string().trim().min(1), resolve: z.boolean().optional() })).min(1);
+function replyOps(s: ReviewState, input: unknown) {
+  const r = Replies.safeParse(input);
+  if (!r.success) fail(`replies are a non-empty array of {thread, body, resolve?}: ${issueText(r.error)}`);
+  return r.data.flatMap((it) => {
     const t = findThread(s, it.thread);
-    const ops: Op[] = [{ op: 'addMessage', threadId: t.id, id: uid('m_'), body: it.body.trim(), author: 'agent' }];
+    const ops: Op[] = [{ op: 'addMessage', threadId: t.id, id: uid('m_'), body: it.body, author: 'agent' }];
     if (it.resolve) ops.push({ op: 'setThreadStatus', threadId: t.id, status: 'resolved' });
     return ops;
   });
@@ -56,7 +58,7 @@ function replyOps(s: ReviewState, items: ReplyItem[]) {
 
 export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: boolean; json?: string | true }, [thread, body]: string[]) {
   const dir = dirForEdit(repo, o.dir);
-  let items: ReplyItem[];
+  let items: unknown;
   if (o.json) {
     // `--json file`, `--json -`, or `--json` alone (stdin); cac may leave the file as the first argument
     const src = typeof o.json === 'string' ? o.json : (thread ?? '-');
@@ -65,7 +67,6 @@ export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: bo
     } catch (e) {
       fail(`--json: ${(e as Error).message}`);
     }
-    if (!Array.isArray(items) || !items.length) fail('--json expects a non-empty array of {thread, body, resolve?}');
   } else if (!thread) fail('missing thread id');
   else if (o.resolve && body === undefined && !o.file) {
     // `reply <thread> --resolve` without a body: resolve only
@@ -75,7 +76,7 @@ export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: bo
   } else items = [{ thread, body: readBody(o.file, body), resolve: o.resolve }];
   const ops = replyOps(readState(dir), items);
   await commitOps(dir, ops);
-  if (o.json) console.log(`replied to ${items.length} thread(s)`);
+  if (o.json) console.log(`replied to ${ops.filter((x) => x.op === 'addMessage').length} thread(s)`);
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
 }
 

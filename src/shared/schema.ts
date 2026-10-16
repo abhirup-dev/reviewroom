@@ -88,6 +88,8 @@ export const GitHubAction = z.discriminatedUnion('action', [
 export type GitHubAction = z.infer<typeof GitHubAction>;
 
 /** Every change to the state, applied by applyOp in src/shared/ops.ts. `at` defaults to now. */
+/** POST /api/finish is this op without `op`. */
+export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional() });
 export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('createThread'), id: nonEmpty, anchor: Anchor, msgId: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
   z.object({ op: z.literal('addMessage'), threadId: nonEmpty, id: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
@@ -98,7 +100,7 @@ export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setPin'), ref: nonEmpty, pinned: z.boolean() }),
   z.object({ op: z.literal('setCheck'), id: nonEmpty, value: CheckValue }),
   z.object({ op: z.literal('setLinks'), links: z.record(z.string(), z.string()) }),
-  z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional() }),
+  FinishRound,
   z.object({ op: z.literal('markDelivered'), round: int, at: z.string().optional() }),
 ]);
 
@@ -112,7 +114,7 @@ export type StoredState = z.infer<typeof StoredState>;
 export type Op = z.infer<typeof Op>;
 
 /** Zod's issues as one line: `path: message; ...`. */
-export const issueText = (e: z.ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
+export const issueText = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
 
 /** schema/state.schema.json, generated (scripts/schema.ts writes it; a test fails when the committed file is stale). */
 export const stateJsonSchema = () => ({

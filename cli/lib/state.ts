@@ -3,11 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { takeLock, releaseLock } from './lock.ts';
-import type { Op, ReviewState } from '../../src/core/types.ts';
+import { emptyState, type Op, type ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
 
-const emptyState = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: new Date().toISOString() }], threads: [], viewed: {}, pins: [] });
 export const statePath = (dir: string) => path.join(dir, 'state.json');
 
 /** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
