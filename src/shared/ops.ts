@@ -14,8 +14,8 @@ export type OpErrorCode = keyof typeof STATUS;
 /** An error for whoever asked: the server answers with `status` and the message, the CLI prints the message and exits 1. */
 export class ReviewroomError extends Error {
   status: number;
-  constructor(message: string, status = 400) {
-    super(message);
+  constructor(message: string, status = 400, options?: ErrorOptions) {
+    super(message, options);
     this.status = status;
   }
 }

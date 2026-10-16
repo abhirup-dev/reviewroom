@@ -8,14 +8,16 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Octokit } from '@octokit/core';
 import { paginateGraphQL } from '@octokit/plugin-paginate-graphql';
-import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestReview, PullRequestReviewComment, Query } from '@octokit/graphql-schema';
+import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestReview, PullRequestReviewComment, Query, Mutation } from '@octokit/graphql-schema';
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorOf } from '../../src/shared/refs.ts';
 import type { Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
-import type { Anchor, CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
+import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
+import { GitHubAction, issueText } from '../../src/shared/schema.ts';
+import { fail } from './args.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.
 type Connection<T> = { nodes?: Maybe<Maybe<T>[]> } | null | undefined;
@@ -71,14 +73,14 @@ function client(cwd: string, host: string) {
 }
 
 /** GraphQL as gh's user; `paginate` follows the one connection with `pageInfo` (variable `$cursor`). Rejects with GitHub's own error text. */
-export async function gql<T extends object = any>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}, { paginate = false } = {}): Promise<T> {
+export async function gql<T extends object>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}, { paginate = false } = {}): Promise<T> {
   const c = await client(cwd, host);
   try {
     return await (paginate ? c.graphql.paginate<T>(query, variables) : c.graphql<T>(query, variables));
   } catch (err) {
     const e = err as Error & { status?: number; errors?: { message: string }[] }; // Octokit's RequestError / GraphqlResponseError
     if (e.status === 401) clients.delete(host); // token revoked or rotated: ask gh again next time
-    throw new Error(e.errors?.length ? e.errors.map((x) => x.message).join('; ') : e.message, { cause: err });
+    throw new ReviewroomError(e.errors?.length ? e.errors.map((x) => x.message).join('; ') : e.message, 502, { cause: err });
   }
 }
 
@@ -187,7 +189,7 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
   });
 }
 
-const M: Record<string, string | undefined> = {
+const M = {
   startReview: 'mutation($pr: ID!, $commit: GitObjectID) { addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit}) { pullRequestReview { id } } }',
   thread: 'mutation($review: ID!, $path: String!, $line: Int!, $side: DiffSide!, $startLine: Int, $startSide: DiffSide, $body: String!) { addPullRequestReviewThread(input: {pullRequestReviewId: $review, path: $path, line: $line, side: $side, startLine: $startLine, startSide: $startSide, body: $body}) { thread { id } } }',
   reply: 'mutation($thread: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $thread, body: $body}) { comment { id } } }',
@@ -202,20 +204,13 @@ const M: Record<string, string | undefined> = {
   submit: 'mutation($review: ID!, $event: PullRequestReviewEvent!, $body: String) { submitPullRequestReview(input: {pullRequestReviewId: $review, event: $event, body: $body}) { clientMutationId } }',
   review: 'mutation($pr: ID!, $commit: GitObjectID, $event: PullRequestReviewEvent!, $body: String) { addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit, event: $event, body: $body}) { clientMutationId } }',
   discard: 'mutation($review: ID!) { deletePullRequestReview(input: {pullRequestReviewId: $review}) { clientMutationId } }',
-};
+} as const;
+
+const EVENT = { comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as const;
+type Live = Snapshot & { ok: true; pr: string; headSha: string };
+const live = (s: Snapshot | null): s is Live => !!s?.ok && !!s.pr && !!s.headSha;
 
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
-/** POST /api/github body. Untrusted: perform() checks every field it uses. */
-export interface GitHubAction {
-  action: string;
-  body?: unknown;
-  thread?: string;
-  message?: string;
-  anchor?: Anchor;
-  resolved?: boolean;
-  event?: string;
-}
-
 export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; dir: string; cfg: ReviewConfig; prov: Provider; onChange?: (snap: Snapshot) => void }) {
   const target = prTarget(cfg);
   const localHead = /^[0-9a-f]{40}$/.test(prov.head) ? prov.head : null;
@@ -242,72 +237,58 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       return snap;
     })());
 
-  // a failed action may still have changed something (a half-made review): refetch either way
-  const act = (a: GitHubAction) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
-  async function perform(a: GitHubAction) {
+  // a failed action may still have changed something (a half-made review): refetch either way.
+  // Right after a review is deleted GitHub briefly fails the PR query: retry once a second later.
+  const after = () => refresh().then((s) => (s.error ? new Promise<Snapshot>((r) => setTimeout(() => r(refresh()), 1000)) : s));
+  const act = (input: unknown) => perform(input).then(after, async (e) => { await after(); throw e; });
+  async function perform(input: unknown) {
+    const parsed = GitHubAction.safeParse(input); // the request body: untrusted
+    if (!parsed.success) throw new ReviewroomError(issueText(parsed.error), 400);
+    const a = parsed.data;
     if (!target) throw new ReviewroomError('this review is not about a GitHub pull request', 400);
-    if (!snap?.ok) await refresh();
-    if (!snap?.ok) throw new ReviewroomError(snap?.error || 'GitHub is not reachable', 502);
-    // snap is re-read live below (a refresh may land between awaits); the checks above guarantee it
-    const run = (name: string, vars: Record<string, unknown>) => gql(repo, target.host, M[name]!, vars).catch((e) => Promise.reject(new ReviewroomError(e.message, 502)));
-    const body = () => {
-      if (typeof a.body !== 'string' || !a.body.trim()) throw new ReviewroomError('body must be a non-empty string', 400);
-      return toGitHubMarkdown(a.body.trim(), target, { base: prov.base, head: localHead || snap!.headSha! });
-    };
-    const threadNode = () => snap!.threads.find((t) => t.id === a.thread)?.gh!.node || Promise.reject(new ReviewroomError(`no GitHub thread ${a.thread}`, 404));
-    const msg = () => (snap!.threads.flatMap((t) => t.messages).find((m) => m.id === a.message) as (Message & { gh: GitHubComment }) | undefined) || (() => { throw new ReviewroomError(`no GitHub comment ${a.message}`, 404); })();
+    const s = live(snap) ? snap : await refresh();
+    if (!live(s)) throw new ReviewroomError(s.error || 'GitHub is not reachable', 502);
+    const run = (query: string, vars: Record<string, unknown>) => gql<Mutation>(repo, target.host, query, vars);
+    const md = (body: string) => toGitHubMarkdown(body, target, { base: prov.base, head: localHead || s.headSha });
+    const thread = (id: string) => s.threads.find((t) => t.id === id)?.gh?.node ?? fail(`no GitHub thread ${id}`, 404);
+    const comment = (id: string) => s.threads.flatMap((t) => t.messages).find((m) => m.id === id)?.gh ?? fail(`no GitHub comment ${id}`, 404);
     switch (a.action) {
       case 'comment': {
         // a new line comment: a draft in the viewer's pending review (started on the commit being reviewed)
         const an = a.anchor;
-        if (an?.kind !== 'code' || !Number.isInteger(an.start) || !Number.isInteger(an.end)) throw new ReviewroomError('GitHub comments need a code line range', 400);
-        const text = body();
-        const started = !snap.pending;
-        const review = snap.pending?.id ?? (await run('startReview', { pr: snap.pr, commit: localHead })).addPullRequestReview.pullRequestReview.id;
+        const review = s.pending?.id ?? (await run(M.startReview, { pr: s.pr, commit: localHead })).addPullRequestReview?.pullRequestReview?.id;
         const side = an.rev === 'base' ? 'LEFT' : 'RIGHT';
         const multi = an.start < an.end;
-        const r = await run('thread', { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: text });
+        const r = await run(M.thread, { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: md(a.body) });
         // GitHub answers a line outside the diff with no thread and no error
         if (!r.addPullRequestReviewThread?.thread) {
-          if (started) await run('discard', { review }).catch(() => {});
-          throw new ReviewroomError(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one`, 422);
+          if (!s.pending) await run(M.discard, { review }).catch(() => {});
+          fail(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one`, 422);
         }
-        break;
+        return;
       }
       case 'reply':
-        await run('reply', { thread: await threadNode(), body: body() });
-        break;
+        return void (await run(M.reply, { thread: thread(a.thread), body: md(a.body) }));
       case 'conversation':
-        await run('comment', { pr: snap.pr, body: body() });
-        break;
+        return void (await run(M.comment, { pr: s.pr, body: md(a.body) }));
       case 'edit': {
-        const m = msg();
-        if (!m.gh.canEdit || !M['edit:' + m.gh.kind]) throw new ReviewroomError('you cannot edit that comment', 403);
-        await run('edit:' + m.gh.kind, { id: m.gh.node, body: body() });
-        break;
+        const c = comment(a.message);
+        if (!c.canEdit) fail('you cannot edit that comment', 403);
+        return void (await run(M[`edit:${c.kind}`], { id: c.node, body: md(a.body) }));
       }
       case 'delete': {
-        const m = msg();
-        if (!m.gh.canDelete || !M['delete:' + m.gh.kind]) throw new ReviewroomError('you cannot delete that comment', 403);
-        await run('delete:' + m.gh.kind, { id: m.gh.node });
-        break;
+        const c = comment(a.message);
+        if (!c.canDelete || c.kind === 'review-body') fail('you cannot delete that comment', 403);
+        return void (await run(M[`delete:${c.kind}`], { id: c.node }));
       }
       case 'resolve':
-        await run(a.resolved ? 'resolve' : 'unresolve', { thread: await threadNode() });
-        break;
+        return void (await run(a.resolved ? M.resolve : M.unresolve, { thread: thread(a.thread) }));
       case 'submit': {
-        const event = ({ comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as Record<string, string | undefined>)[a.event!];
-        if (!event) throw new ReviewroomError('event must be comment, approve or request_changes', 400);
-        const text = typeof a.body === 'string' && a.body.trim() ? body() : null;
-        if (snap.pending) await run('submit', { review: snap.pending.id, event, body: text });
-        else await run('review', { pr: snap.pr, commit: localHead, event, body: text });
-        break;
+        const vars = { event: EVENT[a.event], body: a.body?.trim() ? md(a.body.trim()) : null };
+        return void (await (s.pending ? run(M.submit, { review: s.pending.id, ...vars }) : run(M.review, { pr: s.pr, commit: localHead, ...vars })));
       }
       case 'discard':
-        if (snap.pending) await run('discard', { review: snap.pending.id });
-        break;
-      default:
-        throw new ReviewroomError(`unknown action ${JSON.stringify(a.action)}`, 400);
+        if (s.pending) await run(M.discard, { review: s.pending.id });
     }
   }
 

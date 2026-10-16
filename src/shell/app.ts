@@ -13,6 +13,7 @@ import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op
 import { applyOp } from '../shared/ops';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
+import type { GitHubAction } from '../shared/schema';
 
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';
@@ -346,7 +347,7 @@ export class ReviewApp {
     return m ? this.github!.threads.find((t) => t.messages.some((x) => x.id === 'gh_' + m[1]))?.id : undefined;
   }
   /** One GitHub action (see cli/lib/github.ts); false (with a toast) if GitHub refused it. */
-  async githubAct(action: Record<string, unknown>): Promise<boolean> {
+  async githubAct(action: GitHubAction): Promise<boolean> {
     try {
       this.setGitHub(await this.backend.githubAct!(action));
       return true;
