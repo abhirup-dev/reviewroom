@@ -48,6 +48,7 @@
     "@octokit/core": "^7.0.8",
     "@octokit/graphql-schema": "^15.26.1",
     "@octokit/plugin-paginate-graphql": "^6.0.0",
+    "@octokit/plugin-retry": "^8.1.1",
     "@pierre/diffs": "^1.5.2",
     "@types/bun": "^1.4.3",
     "@types/jsdom": "^30.0.0",
