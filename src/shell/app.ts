@@ -412,7 +412,9 @@ export class ReviewApp {
   showPanel(id: string) {
     const p = this.dock?.getPanel(id);
     if (p) {
-      p.api.setActive();
+      // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it)
+      if (p.api.isVisible) p.group.api.setActive();
+      else p.api.setActive();
       return true;
     }
     return false;
