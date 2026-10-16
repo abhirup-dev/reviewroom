@@ -539,8 +539,9 @@ rr-embed {
 
 /* menu */
 .rr-menu {
-  position: fixed;
-  z-index: 1100;
+  inset: auto;
+  margin: 0;
+  overflow: visible;
   min-width: 220px;
   padding: 4px;
   background: var(--rr-panel);
