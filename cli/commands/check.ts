@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { type Global, die } from '../lib/args.ts';
+import { type Global, fail } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig, readState, commitOps } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
@@ -10,7 +10,7 @@ import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
 export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean; accept?: boolean; json?: boolean }) {
   const dir = dirForEdit(repo, o.dir);
   const file = path.join(dir, 'review.html');
-  if (!fs.existsSync(file)) die(`no review.html in ${dir}`);
+  if (!fs.existsSync(file)) fail(`no review.html in ${dir}`);
   const prov = makeProvider(repo!, loadConfig(dir, repo!)); // null with only --dir: rr-5qv
   const known = readState(dir).links ?? {};
   const html = fs.readFileSync(file, 'utf8');
