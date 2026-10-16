@@ -4,6 +4,7 @@ import { h, icon, relTime, copyText } from '../core/dom';
 import { loadRaw } from '../core/store';
 import { renderMarkdown } from '../core/markdown';
 import { formatRef, parseRef, refIcon } from '../core/refs';
+import { anchorRef } from '../shared/refs';
 import { keyLabel } from '../core/commands';
 import type { Anchor, Thread } from '../core/types';
 import { definePanel } from '../shell/layout';
@@ -232,7 +233,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       tb(icon('link', 14), 'Link to a section, file, line, symbol or thread (or type [[)', () => linkPicker()),
       tb(icon('expand', 14), 'Embed a live preview of a section, code range or thread', () => linkPicker(true)),
       sel
-        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : app.anchorRef({ ...sel.anchor, quote: undefined } as any)!))
+        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : anchorRef({ ...sel.anchor, quote: undefined } as any)!))
         : null,
     ),
     ed,
@@ -255,7 +256,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
 async function anchorContext(app: ReviewApp, a: Anchor, quote?: string): Promise<HTMLElement | null> {
   if (a.kind === 'general') return null;
   if (a.kind === 'doc' && a.quote) return h('blockquote', { class: 'rr-quote' }, a.quote.exact);
-  const ref = app.anchorRef(a);
+  const ref = anchorRef(a);
   if (!ref) return null;
   const body = await renderPreview(app, ref, { compact: true });
   return h('div', { class: 'rr-anchor-ctx' }, body, quote && a.kind === 'doc' && !body.textContent ? h('blockquote', { class: 'rr-quote' }, quote) : null);
@@ -278,8 +279,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     return b;
   };
   const header = (t: Thread | undefined, anchor: Anchor) => {
-    const ref = app.anchorRef(anchor);
-    const bare = ref && app.anchorRef({ ...anchor, quote: undefined } as Anchor);
+    const ref = anchorRef(anchor);
+    const bare = ref && anchorRef({ ...anchor, quote: undefined } as Anchor);
     const r = ref ? parseRef(ref) : null;
     return h(
       'header',

@@ -4,6 +4,7 @@
 // Used by the server (on start and whenever review.html changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
+import { parseRef } from '../../src/shared/refs.ts';
 
 export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
 export interface LinkResult {
@@ -26,18 +27,6 @@ const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1'
 export const extractLinks = (html: string) => [...new Set((html.match(LINK) ?? []).map((l) => l.replace(/[.,;:]+$/, '')))];
 const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
-function parse(ref: string) {
-  const [, type, raw] = ref.match(/^rr:(\w+)\/(.*)$/)!;
-  if (type === 'sym') return { type: 'sym' as const, name: decodeURIComponent(raw) };
-  if (type === 'doc') return { type: 'doc' as const, id: decodeURIComponent(raw.split('/')[0]) };
-  let rest = raw, start: number | undefined, end: number | undefined;
-  const m = rest.match(LINES);
-  if (m) (start = +m[1]), (end = +(m[2] || m[1])), (rest = rest.slice(0, m.index));
-  let rev = 'head';
-  const at = rest.lastIndexOf('@');
-  if (at > 0) (rev = rest.slice(at + 1)), (rest = rest.slice(0, at));
-  return { type: type as 'code' | 'file', path: decodeURI(rest), rev, start, end };
-}
 
 /**
  * Check every link in `html` against the code. `known` is the ref → hash map from the last check
@@ -61,10 +50,8 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
   };
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
   for (const ref of extractLinks(html)) {
-    let r;
-    try {
-      r = parse(ref);
-    } catch {
+    const r = parseRef(ref);
+    if (!r || r.type === 'thread' || r.type === 'round') {
       out(ref, 'broken', 'not a valid link');
       continue;
     }

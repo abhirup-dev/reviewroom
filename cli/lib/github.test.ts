@@ -46,6 +46,7 @@ test('rr: links become GitHub links or plain text', () => {
   const t = { host: 'github.com', owner: 'o', name: 'r', number: 7 };
   const out = toGitHubMarkdown('see [x](rr:code/a.go#L3-5), [old](rr:code/a.go@base#L2), [intro](rr:doc/intro), [that](rr:thread/gh_42) and [mine](rr:thread/t3)', t, { base: 'B', head: 'H' });
   expect(out).toBe('see [x](https://github.com/o/r/blob/H/a.go#L3-L5), [old](https://github.com/o/r/blob/B/a.go#L2), intro, [that](https://github.com/o/r/pull/7#discussion_r42) and mine');
+  expect(toGitHubMarkdown('[s](rr:code/my%20dir/a.go#L1)', t, { base: 'B', head: 'H' })).toBe('[s](https://github.com/o/r/blob/H/my%20dir/a.go#L1)');
 });
 
 test('the PR comes from config url, else repo + number', () => {

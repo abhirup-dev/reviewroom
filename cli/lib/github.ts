@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseAnchor } from './state.ts';
+import { anchorOf } from '../../src/shared/refs.ts';
 import type { Provider, ReviewConfig } from './git.ts';
 import type { Anchor, CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 
@@ -216,10 +216,10 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
     // a link to a GitHub thread keeps pointing at it there
     const gh = ref.match(/^rr:thread\/gh_(\d+|conversation)$/);
     if (gh) return `[${label || 'thread'}](${gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
-    const a = parseAnchor(ref);
+    const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
     const sha = a.rev === 'base' ? shas.base : shas.head;
-    return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
+    return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path.split('/').map(encodeURIComponent).join('/')}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
   });
 }
 

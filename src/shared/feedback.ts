@@ -1,6 +1,7 @@
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
 // agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
 import type { Anchor, ReviewState, Thread } from '../core/types';
+import { anchorRef } from './refs';
 
 /** Doc anchors with this target are on the PR's own description (GitHub's text, not review.html). */
 export const PR_DESCRIPTION = 'rr-pr-description';
@@ -33,18 +34,6 @@ export function githubContext(threads: Thread[] = []) {
   return [...lines, ''];
 }
 
-export const anchorRef = (a: Anchor) => {
-  switch (a.kind) {
-    case 'doc':
-      return `rr:doc/${encodeURIComponent(a.target)}${a.path ? '/' + encodeURIComponent(a.path) : ''}`;
-    case 'code':
-      return `rr:code/${a.path}${a.rev === 'base' ? '@base' : ''}#L${a.start}${a.end !== a.start ? '-' + a.end : ''}`;
-    case 'symbol':
-      return `rr:sym/${encodeURIComponent(a.name)}`;
-    default:
-      return '';
-  }
-};
 
 export interface FeedbackOpts {
   kind: 'feedback' | 'approve';

@@ -3,7 +3,8 @@
 import type { DockviewApi } from 'dockview-core';
 import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
-import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
+import { parseRef, refLabel, type Ref } from '../core/refs';
+import { anchorRef } from '../shared/refs';
 import { h, uid } from '../core/dom';
 import { renderMarkdown } from '../core/markdown';
 import { PR_DESCRIPTION } from '../shared/feedback';
@@ -254,22 +255,10 @@ export class ReviewApp {
     if (r.type === 'sym') return r.name;
     return refLabel(r, this.docTitle);
   }
-  anchorRef(a: Anchor): string | null {
-    switch (a.kind) {
-      case 'doc':
-        return formatRef({ type: 'doc', id: a.target, path: a.path });
-      case 'code':
-        return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end });
-      case 'symbol':
-        return formatRef({ type: 'sym', name: a.name });
-      default:
-        return null;
-    }
-  }
   anchorLabel(a: Anchor): string {
     if (a.kind === 'general') return 'General';
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
-    return this.label(this.anchorRef(a)!);
+    return this.label(anchorRef(a)!);
   }
 
   // ------------------------------------------------------------ threads
