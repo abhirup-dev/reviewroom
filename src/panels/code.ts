@@ -1,6 +1,6 @@
-// Code panel: the whole diff as a stack of files (lazy-rendered with @pierre/diffs),
+// Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
-import { FileDiff, File as PierreFile, type DiffLineAnnotation, type FileDiffOptions, type FileDiffRenderProps, type SelectedLineRange } from '@pierre/diffs';
+import { CodeView, parseDiffFromFile, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
@@ -12,20 +12,20 @@ import { popMenu, menuItem, menuLabel } from '../shell/chrome';
 import type { CodeTarget, ReviewApp } from '../shell/app';
 
 type Meta = { threadId: string };
+type Side = 'additions' | 'deletions';
+/** What CodeView hands every callback as its last argument (file or diff item). */
+type Ctx = { item: { id: string } };
 
 /** Blend @pierre/diffs into the panel colours (custom properties cross the shadow boundary). */
 // diff colours come from our --rr-add/--rr-del tokens (so review themes reach the code); dark tints are kept low
 // Pierre tints a changed line's body by mixing that tint into the background again (--mix-*), which washes it out; the mixes keep more of it
 export const PIERRE_CSS = `:host{--rr-diff-mix-light:40%;--rr-diff-mix-dark:10%;--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;--diffs-light-addition-color:var(--rr-add);--diffs-dark-addition-color:var(--rr-add);--diffs-light-deletion-color:var(--rr-del);--diffs-dark-deletion-color:var(--rr-del);--diffs-bg-addition-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)));--diffs-bg-deletion-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)));}[data-line],[data-no-newline]{--mix-light:var(--rr-diff-mix-light);--mix-dark:var(--rr-diff-mix-dark)}`;
-
-interface Block {
-  file: ChangedFile;
-  el: HTMLElement;
-  body: HTMLElement;
-  inst?: FileDiff<Meta>;
-  rendering?: Promise<void>;
-  collapsed: boolean;
-}
+/** Lines a jump landed on glow a few times while the panel sets --rr-pulse (see land()). */
+const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
+/** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */
+const HEADER_HEIGHT = 38;
+/** Stands in for a file whose contents can't be shown (binary, unreadable): the header alone. */
+const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hunks: [], splitLineCount: 0, unifiedLineCount: 0, isPartial: false, deletionLines: [], additionLines: [] });
 
 const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
 
@@ -58,11 +58,16 @@ class CodePanel implements PanelInstance {
   element: HTMLElement;
   private toolbar: HTMLElement;
   private scroller: HTMLElement;
-  private stack: HTMLElement;
-  private blocks = new Map<string, Block>();
-  private io: IntersectionObserver;
+  private empty: HTMLElement;
+  private cv: CodeView<Meta>;
   private mode: 'diff' | 'file' = 'diff';
-  private fileView?: { path: string; side: 'base' | 'head'; rev?: string; inst?: PierreFile<Meta> };
+  /** Diff mode: the files shown, in order, with their parsed diff (null: nothing to show) and collapsed state. */
+  private files = new Map<string, { file: ChangedFile; diff: FileDiffMetadata | null; collapsed: boolean }>();
+  private fileView?: { path: string; side: 'base' | 'head'; rev?: string; text?: string };
+  private ready: Promise<void> = Promise.resolve();
+  private loadToken = 0;
+  private version = 0;
+  private pinToken = 0;
   private lastPointer = { x: 0, y: 0 };
   private offs: (() => void)[] = [];
   private isPrimary: boolean;
@@ -75,29 +80,26 @@ class CodePanel implements PanelInstance {
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
-    this.stack = h('div', { class: 'rr-diff-stack' });
-    this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' }, this.stack);
-    this.element = h('div', { class: 'rr-code-panel' }, this.toolbar, this.scroller);
+    this.empty = h('div', { class: 'rr-empty', hidden: true });
+    this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' });
+    this.element = h('div', { class: 'rr-code-panel' }, this.toolbar, this.empty, this.scroller);
     this.scroller.addEventListener('pointerup', (e) => (this.lastPointer = { x: e.clientX, y: e.clientY }), true);
-    this.io = new IntersectionObserver((entries) => entries.forEach((en) => en.isIntersecting && this.renderBlock((en.target as HTMLElement).dataset.path!)), { root: this.scroller, rootMargin: '900px 0px' });
-    this.scroller.addEventListener('scroll', () => this.trackActive(), { passive: true });
+    this.cv = new CodeView<Meta>(this.options());
+    this.cv.setup(this.scroller);
+    // read the position once CodeView's frame has settled it (mid-jump it rebases its paged scroll)
+    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => this.trackActive()), { passive: true });
 
     this.offs.push(
       app.bus.on('files', () => this.rebuild()),
       app.bus.on('prefs', () => this.refreshOptions(true)),
-      app.bus.on('theme', (t) => {
-        this.blocks.forEach((b) => b.inst?.setThemeType(t));
-        this.fileView?.inst?.setThemeType(t);
-      }),
-      app.bus.on('state', () => this.refreshAnnotations()),
+      app.bus.on('theme', () => this.cv.setOptions(this.options())),
+      app.bus.on('state', () => this.refreshItems()),
       app.bus.on('reveal-code', (t) => {
         if ((t.panel ?? 'code') === this.panelId) void this.reveal(t);
       }),
       app.bus.on('selection', (sel) => {
         // Esc / clearing the selection also clears the highlighted line range
-        if (sel) return;
-        this.blocks.forEach((b) => b.inst?.setSelectedLines(null));
-        this.fileView?.inst?.setSelectedLines(null);
+        if (!sel) this.cv.clearSelectedLines({ notify: false });
       }),
     );
     this.element.addEventListener('rr-code-cmd', (e) => {
@@ -107,7 +109,7 @@ class CodePanel implements PanelInstance {
       else if (c === 'nextFile') this.jumpFile(1);
       else if (c === 'prevFile') this.jumpFile(-1);
     });
-    this.rebuild();
+    void this.rebuild();
     if (this.pin && (params.view === 'base' || params.view === 'head')) queueMicrotask(() => this.openFile(this.pin!, params.view as 'base' | 'head'));
     else if (params.path) queueMicrotask(() => this.reveal({ ...(params as unknown as CodeTarget), panel: this.panelId }));
   }
@@ -187,51 +189,79 @@ class CodePanel implements PanelInstance {
   private setMode(m: 'diff' | 'file') {
     this.mode = m;
     if (m === 'diff') {
-      this.fileView?.inst?.cleanUp();
       this.fileView = undefined;
-      this.rebuild();
+      this.cv.setOptions(this.options());
+      void this.rebuild();
     }
   }
 
-  // ------------------------------------------------------------ diff stack
-  private rebuild() {
-    if (this.mode !== 'diff') return this.renderToolbar();
-    this.blocks.forEach((b) => b.inst?.cleanUp());
-    this.blocks.clear();
-    this.io.disconnect();
+  private showEmpty(text = '') {
+    this.empty.textContent = text;
+    this.empty.hidden = !text;
+  }
+
+  // ------------------------------------------------------------ diff
+  private rebuild(): Promise<void> {
+    if (this.mode !== 'diff') return Promise.resolve(this.renderToolbar());
+    const token = ++this.loadToken;
     const files = this.pin ? this.app.files.filter((f) => f.path === this.pin) : this.app.visibleFiles();
-    this.stack.replaceChildren();
-    if (!files.length) this.stack.append(h('div', { class: 'rr-empty' }, this.app.files.length ? 'All files are hidden by the current filters.' : 'No changes in this range.'));
-    for (const f of files) {
-      const viewed = this.app.state.viewed[f.path] !== undefined;
-      const body = h('div', { class: 'rr-file__body' });
-      const el = h('section', { class: 'rr-file', 'data-path': f.path }, this.fileHeader(f), body);
-      const est = Math.min(2400, 64 + (f.additions + f.deletions + 8) * 20);
-      body.style.minHeight = est + 'px';
-      const b: Block = { file: f, el, body, collapsed: viewed };
-      if (viewed) el.classList.add('is-collapsed');
-      this.blocks.set(f.path, b);
-      this.stack.append(el);
-      this.io.observe(el);
-    }
+    const r = this.app.range;
+    const ws = this.app.prefs.ignoreWhitespace ? { ignoreWhitespace: true } : undefined;
     this.renderToolbar();
+    this.showEmpty(files.length ? '' : this.app.files.length ? 'All files are hidden by the current filters.' : 'No changes in this range.');
+    // every file is read and diffed up front: CodeView lays out all items from their diffs
+    return (this.ready = (async () => {
+      const diffs = await Promise.all(
+        files.map(async (f) => {
+          if (f.binary) return null;
+          const [oldText, newText] = await Promise.all([
+            f.status === 'added' ? null : this.app.read(f.prevPath ?? f.path, r.base),
+            f.status === 'deleted' ? null : this.app.read(f.path, r.head),
+          ]);
+          if (oldText === null && newText === null) return null;
+          return parseDiffFromFile(
+            oldText === null ? null : { name: f.prevPath ?? f.path, contents: oldText, cacheKey: `${r.base}:${f.prevPath ?? f.path}` },
+            newText === null ? null : { name: f.path, contents: newText, cacheKey: `${r.head}:${f.path}` },
+            ws,
+          );
+        }),
+      );
+      if (token !== this.loadToken) return;
+      this.files = new Map(files.map((f, i) => [f.path, { file: f, diff: diffs[i], collapsed: this.app.state.viewed[f.path] !== undefined }]));
+      this.refreshItems();
+    })());
   }
 
-  private fileHeader(f: ChangedFile) {
+  /** Hand CodeView the current items; a new version makes it re-render each (threads, header, collapse). */
+  private refreshItems() {
+    const items: CodeViewItem<Meta>[] = [];
+    const fv = this.fileView;
+    if (this.mode === 'file') {
+      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side), version: ++this.version });
+    } else {
+      for (const [path, f] of this.files) items.push({ id: path, type: 'diff', fileDiff: f.diff ?? NO_DIFF(path), annotations: this.annotations(path), collapsed: f.collapsed, version: ++this.version });
+    }
+    this.cv.setItems(items);
+  }
+
+  private fileHeader(path: string) {
     const app = this.app;
+    const entry = this.files.get(path);
+    if (!entry) return undefined;
+    const f = entry.file;
     const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => {
-      app.setViewed(f.path, cb.checked);
       this.toggleCollapse(f.path, cb.checked);
+      app.setViewed(f.path, cb.checked);
     });
     return h(
       'header',
       {
-        class: 'rr-file__head',
+        class: 'rr-file__head' + (entry.collapsed ? ' is-collapsed' : ''),
         // double-click the bar (not its buttons) to open this file big
         ondblclick: (e: MouseEvent) => !(e.target as Element).closest('button, input, a') && !this.pin && openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
       },
@@ -245,6 +275,7 @@ class CodePanel implements PanelInstance {
         h('strong', null, name),
       ),
       h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
+      entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
@@ -254,20 +285,23 @@ class CodePanel implements PanelInstance {
   }
 
   private toggleCollapse(path: string, force?: boolean) {
-    const b = this.blocks.get(path);
-    if (!b) return;
-    b.collapsed = force ?? !b.collapsed;
-    b.el.classList.toggle('is-collapsed', b.collapsed);
+    const f = this.files.get(path);
+    if (!f) return;
+    f.collapsed = force ?? !f.collapsed;
+    this.refreshItems();
   }
 
-  private diffOptions(path: string): FileDiffOptions<Meta, undefined> {
+  private options(): CodeViewOptions<Meta, undefined> {
     const p = this.app.prefs;
+    const fv = this.fileView;
     const focusCSS =
-      p.focus === 'additions'
+      this.mode === 'file' ? '' : p.focus === 'additions'
         ? `[data-line-type="change-deletion"]{display:none!important}`
         : p.focus === 'deletions'
           ? `[data-line-type="change-addition"]{display:none!important}`
           : '';
+    // a whole file has no sides of its own: its lines are the base or head side of the diff
+    const side = (r: SelectedLineRange): SelectedLineRange => (fv ? { ...r, side: fv.side === 'base' ? 'deletions' : 'additions' } : r);
     return {
       theme: { dark: 'pierre-dark', light: 'pierre-light' },
       themeType: this.app.resolvedTheme(),
@@ -276,18 +310,20 @@ class CodePanel implements PanelInstance {
       lineDiffType: p.lineDiff,
       hunkSeparators: 'line-info',
       expansionLineCount: 20,
-      disableFileHeader: true,
+      stickyHeaders: true,
+      disableFileHeader: this.mode === 'file',
+      itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
       lineHoverHighlight: 'number',
       enableLineSelection: true,
-      enableGutterUtility: true,
-      parseDiffOptions: p.ignoreWhitespace ? { ignoreWhitespace: true } : undefined,
-      unsafeCSS: PIERRE_CSS + focusCSS,
-      onLineSelected: (r) => this.onSelect(path, r),
-      onGutterUtilityClick: (r) => this.onGutter(path, r),
-      renderAnnotation: (a) => {
+      enableGutterUtility: !fv?.rev,
+      unsafeCSS: PIERRE_CSS + PULSE_CSS + focusCSS,
+      renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
+      renderAnnotation: (a: { metadata: Meta }) => {
         const t = this.app.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
+      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => r && !fv?.rev && this.onSelect(ctx.item.id, side(r)),
+      onGutterUtilityClick: (r: SelectedLineRange, ctx: Ctx) => !fv?.rev && this.onGutter(ctx.item.id, side(r)),
     };
   }
 
@@ -305,7 +341,7 @@ class CodePanel implements PanelInstance {
 
   /** Split view: the new line drawn across from an old line, so threads on either side share one row's card instead of two half-width ones. */
   private pairedNewLine(path: string, oldLine: number): number | undefined {
-    const d = this.blocks.get(path)?.inst?.fileDiff;
+    const d = this.files.get(path)?.diff;
     if (!d || this.app.prefs.diffStyle !== 'split') return;
     for (const hunk of d.hunks)
       for (const c of hunk.hunkContent) {
@@ -314,73 +350,17 @@ class CodePanel implements PanelInstance {
       }
   }
 
-  private renderBlock(path: string): Promise<void> {
-    const b = this.blocks.get(path);
-    if (!b) return Promise.resolve();
-    if (b.rendering) return b.rendering;
-    b.rendering = (async () => {
-      const f = b.file;
-      const r = this.app.range;
-      const [oldText, newText] = await Promise.all([
-        f.status === 'added' ? null : this.app.read(f.prevPath ?? f.path, r.base),
-        f.status === 'deleted' ? null : this.app.read(f.path, r.head),
-      ]);
-      if (this.blocks.get(path) !== b) return;
-      b.body.style.minHeight = '';
-      if (f.binary || (oldText === null && newText === null)) {
-        b.body.append(h('div', { class: 'rr-empty' }, f.binary ? 'Binary file' : 'Could not load file contents'));
-        return;
-      }
-      const inst = new FileDiff<Meta>(this.diffOptions(path));
-      inst.render({
-        oldFile: oldText === null ? null : { name: f.prevPath ?? f.path, contents: oldText, cacheKey: `${r.base}:${f.prevPath ?? f.path}` },
-        newFile: newText === null ? null : { name: f.path, contents: newText, cacheKey: `${r.head}:${f.path}` },
-        lineAnnotations: this.annotations(path),
-        containerWrapper: b.body,
-      } as FileDiffRenderProps<Meta>); // one side is non-null (both-null returned above); TS can't see that
-      b.inst = inst;
-      // old-side threads can only be paired with their new line once the diff exists
-      if (this.app.prefs.diffStyle === 'split' && this.app.threads().some((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === 'base')) {
-        inst.setLineAnnotations(this.annotations(path));
-        inst.rerender();
-      }
-    })();
-    return b.rendering;
-  }
-
   private refreshOptions(structural: boolean) {
     this.renderToolbar();
     const p = this.app.prefs;
     const key = `${p.ignoreWhitespace}|${p.lineDiff}|${p.hideTests}|${p.hiddenTypes.join()}`;
     if (structural && key !== this.optionsKey) {
       this.optionsKey = key;
-      if (this.optionsInit) return this.rebuild();
+      if (this.optionsInit) return void this.rebuild();
       this.optionsInit = true;
     }
-    this.blocks.forEach((b, path) => {
-      if (!b.inst) return;
-      b.inst.setOptions(this.diffOptions(path));
-      b.inst.setLineAnnotations(this.annotations(path));
-      b.inst.rerender();
-    });
-    if (this.fileView?.inst) {
-      this.fileView.inst.setOptions({ ...this.fileView.inst.options, overflow: p.wrap ? 'wrap' : 'scroll' });
-      this.fileView.inst.rerender();
-    }
-  }
-
-  private refreshAnnotations() {
-    this.blocks.forEach((b, path) => {
-      if (!b.inst) return;
-      b.inst.setLineAnnotations(this.annotations(path));
-      b.inst.rerender();
-      const head = this.fileHeader(b.file);
-      b.el.querySelector('.rr-file__head')?.replaceWith(head);
-    });
-    if (this.fileView?.inst) {
-      this.fileView.inst.setLineAnnotations(this.fileAnnotations(this.fileView.path, this.fileView.side));
-      this.fileView.inst.rerender();
-    }
+    this.cv.setOptions(this.options());
+    this.refreshItems();
   }
 
   // ------------------------------------------------------------ full file view
@@ -393,40 +373,18 @@ class CodePanel implements PanelInstance {
 
   async openFile(path: string, side: 'base' | 'head', rev?: string, start?: number, end?: number) {
     this.mode = 'file';
-    this.blocks.forEach((b) => b.inst?.cleanUp());
-    this.blocks.clear();
-    this.io.disconnect();
-    this.fileView?.inst?.cleanUp();
-    this.fileView = { path, side, rev };
+    this.loadToken++;
+    const fv = (this.fileView = { path, side, rev } as NonNullable<CodePanel['fileView']>);
     this.renderToolbar();
-    const body = h('div', { class: 'rr-file rr-file--full' });
-    this.stack.replaceChildren(body);
+    this.showEmpty();
+    this.cv.setOptions(this.options());
+    this.cv.setItems([]);
     const text = await this.app.read(path, rev ?? this.app.revFor(side));
-    if (text === null) {
-      body.append(h('div', { class: 'rr-empty' }, `${path} does not exist at ${rev ?? side}.`));
-      return;
-    }
-    const inst = new PierreFile<Meta>({
-      theme: { dark: 'pierre-dark', light: 'pierre-light' },
-      themeType: this.app.resolvedTheme(),
-      overflow: this.app.prefs.wrap ? 'wrap' : 'scroll',
-      lineHoverHighlight: 'number',
-      unsafeCSS: PIERRE_CSS,
-      enableLineSelection: true,
-      enableGutterUtility: !rev,
-      onLineSelected: (r) => r && !rev && this.onSelect(path, { ...r, side: side === 'base' ? 'deletions' : 'additions' }),
-      onGutterUtilityClick: (r) => !rev && this.onGutter(path, { ...r, side: side === 'base' ? 'deletions' : 'additions' }),
-      renderAnnotation: (a) => {
-        const t = this.app.thread(a.metadata.threadId);
-        return t ? threadCard(this.app, t) : undefined;
-      },
-    });
-    inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side), containerWrapper: body });
-    this.fileView.inst = inst;
-    if (start) {
-      inst.setSelectedLines({ start, end: end ?? start }, { notify: false });
-      requestAnimationFrame(() => this.scrollToRow(body, side === 'base' ? 'deletions' : 'additions', start, end ?? start, () => inst.setSelectedLines(null)));
-    }
+    if (this.fileView !== fv) return;
+    if (text === null) return this.showEmpty(`${path} does not exist at ${rev ?? side}.`);
+    fv.text = text;
+    this.refreshItems();
+    if (start) this.land(path, { start, end: end ?? start });
   }
 
   // ------------------------------------------------------------ navigation
@@ -436,170 +394,98 @@ class CodePanel implements PanelInstance {
     const inDiff = this.app.files.some((f) => f.path === t.path);
     if (!inDiff) return this.openFile(t.path, t.side, undefined, t.start, t.end);
     if (this.mode !== 'diff') this.setMode('diff');
-    let b = this.blocks.get(t.path);
-    if (!b) {
+    if (!this.pin && !this.app.visibleFiles().some((f) => f.path === t.path)) {
       // hidden by a filter: lift the filter so the link works
       if (this.app.prefs.hideTests) this.app.setPref('hideTests', false);
       if (this.app.prefs.hiddenTypes.length) this.app.setPref('hiddenTypes', []);
-      this.rebuild();
-      b = this.blocks.get(t.path);
-      if (!b) return;
     }
-    if (b.collapsed) this.toggleCollapse(t.path, false);
-    // render this block and everything above it so offsets are stable
-    const order = [...this.blocks.keys()];
-    await Promise.all(order.slice(0, order.indexOf(t.path) + 1).map((p) => this.renderBlock(p)));
+    // wait for the newest rebuild (lifting a filter or leaving the file view starts one)
+    for (let r = this.ready; ; r = this.ready) if ((await r, r === this.ready)) break;
+    const f = this.files.get(t.path);
+    if (!f) return;
+    if (f.collapsed) this.toggleCollapse(t.path, false);
     this.app.activeFile = t.path;
     this.app.bus.emit('active-file', t.path);
-    const side = t.side === 'base' ? 'deletions' : 'additions';
-    if (t.start && b.inst) unfold(b.inst, side, t.start, t.end ?? t.start);
-    // only the newest jump stays lit; one interrupted before it settled would otherwise keep its highlight
-    if (this.lit && this.lit !== b.inst) this.lit.setSelectedLines(null);
-    this.lit = b.inst;
-    if (t.start) {
-      b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side }, { notify: false });
-    }
-    const block = b;
-    // Files above the target (and the target itself) finish highlighting asynchronously and change
-    // height after we scroll, so keep the target pinned until the layout settles or the user scrolls.
-    this.pinScroll(
-      () => {
-        const row = t.start ? this.rowFor(block.body, side, t.start) : null;
-        if (row) return { top: this.offsetIn(row) - this.scroller.clientHeight * 0.3, row };
-        return { top: block.el.offsetTop - 4, row: null };
-      },
-      () => t.start && this.pulse(block.body, side, t.start, t.end ?? t.start, () => block.inst?.setSelectedLines(null)),
-    );
-  }
-
-  /** Draw the eye to lines just landed on: glow a few times, then let the highlight go. */
-  private pulse(container: HTMLElement, side: 'additions' | 'deletions', start: number, end: number, clear: () => void) {
-    const rows: HTMLElement[] = [];
-    for (let l = start; l <= Math.min(end, start + 80); l++) {
-      const r = this.rowFor(container, side, l);
-      if (r) rows.push(r);
-    }
-    clear();
-    const glow = 'color-mix(in srgb, var(--rr-accent) 26%, transparent)';
-    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const frames = still ? [{ backgroundColor: glow }, { backgroundColor: 'transparent' }] : [0, 1, 2].flatMap(() => [{ backgroundColor: 'transparent' }, { backgroundColor: glow }]).concat({ backgroundColor: 'transparent' });
-    rows.forEach((r) => r.animate?.(frames, { duration: still ? 900 : 3 * 1000, easing: 'ease-in-out' }));
-  }
-
-  private pinToken = 0;
-  private lit?: FileDiff<Meta>;
-  private offsetIn(el: HTMLElement) {
-    return el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
-  }
-  private pinScroll(target: () => { top: number; row: HTMLElement | null }, onLanded?: () => void) {
-    const token = ++this.pinToken;
-    const sc = this.scroller;
-    let cancelled: false | string = false;
-    const cancel = (e: Event) => (cancelled = e.type);
-    const opts = { passive: true } as const;
-    sc.addEventListener('wheel', cancel, opts);
-    sc.addEventListener('pointerdown', cancel, opts);
-    window.addEventListener('keydown', cancel, opts);
-    const done = () => {
-      sc.removeEventListener('wheel', cancel);
-      sc.removeEventListener('pointerdown', cancel);
-      window.removeEventListener('keydown', cancel);
-      // a newer jump owns the highlight now; a click hands it to the user (new selection, or click-away clears it)
-      if (token === this.pinToken && cancelled !== 'pointerdown') onLanded?.();
-    };
-    const t0 = performance.now();
-    let stableFrames = 0;
-    const tick = () => {
-      if (cancelled || token !== this.pinToken) return done();
-      const { top, row } = target();
-      const want = Math.max(0, Math.round(top));
-      if (Math.abs(sc.scrollTop - want) > 2) { sc.scrollTop = want; stableFrames = 0; } else stableFrames++;
-      // settle (then pulse): the row exists and nothing moved for ~10 frames, or give up after 2.5s
-      if ((row && stableFrames > 10) || performance.now() - t0 > 2500) return done();
-      requestAnimationFrame(tick);
-    };
-    tick();
-  }
-
-  private rowFor(container: HTMLElement, side: 'additions' | 'deletions', line: number): HTMLElement | null {
-    const roots: ParentNode[] = [container];
-    container.querySelectorAll('*').forEach((n) => (n as HTMLElement).shadowRoot && roots.push((n as HTMLElement).shadowRoot!));
-    for (const root of roots) {
-      const col = root.querySelector(`[data-${side}]`) ?? root.querySelector('[data-unified]') ?? root;
-      const row = col.querySelector(`[data-line="${line}"]`) as HTMLElement | null;
-      if (row) return row;
-    }
-    return null;
-  }
-
-  private scrollToRow(container: HTMLElement, side: 'additions' | 'deletions', line: number, end: number, clear: () => void) {
-    const row = this.rowFor(container, side, line);
-    if (!row) return false;
-    const top = this.offsetIn(row);
-    this.scroller.scrollTo({ top: Math.max(0, top - this.scroller.clientHeight * 0.3) });
-    this.pulse(container, side, line, end, clear);
-    return true;
-  }
-
-  private changeRows(): HTMLElement[] {
-    const out: HTMLElement[] = [];
-    this.blocks.forEach((b) => {
-      if (!b.inst || b.collapsed) return;
-      b.body.querySelectorAll('*').forEach((n) => {
-        const sr = (n as HTMLElement).shadowRoot;
-        if (!sr) return;
-        const col = sr.querySelector('[data-additions]') ?? sr.querySelector('[data-unified]') ?? sr;
-        let prevChange = false;
-        (col as ParentNode).querySelectorAll('[data-line-type]').forEach((row) => {
-          const isChange = (row.getAttribute('data-line-type') || '').startsWith('change');
-          if (isChange && !prevChange) out.push(row as HTMLElement);
-          prevChange = isChange;
-        });
-      });
+    if (!t.start) return this.cv.scrollTo({ type: 'item', id: t.path, align: 'start' });
+    const side: Side = t.side === 'base' ? 'deletions' : 'additions';
+    const range = { start: t.start, end: t.end ?? t.start, side, endSide: side };
+    this.land(t.path, range);
+    // lines the PR didn't touch sit in folded context: once the file is mounted, unfold around them and land again
+    requestAnimationFrame(() => {
+      const it = this.cv.getRenderedItems().find((x) => x.id === t.path);
+      // CodeView applies the unfold on its next frame; land once it has
+      if (it?.type === 'diff' && f.diff && unfold(it.instance, f.diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => this.land(t.path, range)));
     });
-    return out;
+  }
+
+  /** Scroll the lines to 30% from the top, highlight them, glow a few times, then let the highlight go. */
+  private land(id: string, range: SelectedLineRange) {
+    const token = ++this.pinToken;
+    this.cv.setSelectedLines({ id, range }, { notify: false });
+    this.cv.scrollTo({ type: 'range', id, range, align: 'start', offset: this.scroller.clientHeight * 0.3 });
+    // restart the glow: the animation runs while --rr-pulse names it
+    this.scroller.style.removeProperty('--rr-pulse');
+    requestAnimationFrame(() => token === this.pinToken && this.scroller.style.setProperty('--rr-pulse', 'rr-pulse'));
+    setTimeout(() => {
+      if (token !== this.pinToken) return;
+      this.scroller.style.removeProperty('--rr-pulse');
+      this.cv.clearSelectedLines({ notify: false });
+    }, 3000);
+  }
+
+  /** The first line of every run of changed lines in the files on screen, top to bottom. */
+  private changeStops() {
+    return this.cv.getRenderedItems().flatMap((it) => {
+      if (it.type !== 'diff' || it.item.collapsed) return [];
+      const top = this.cv.getTopForItem(it.id) ?? 0;
+      return it.item.fileDiff.hunks.flatMap((hunk) =>
+        hunk.hunkContent.flatMap((c) => {
+          if (c.type !== 'change') return [];
+          const [lineNumber, side]: [number, Side] = c.additions ? [c.additionLineIndex + 1, 'additions'] : [c.deletionLineIndex + 1, 'deletions'];
+          const pos = it.instance.getLinePosition(lineNumber, side);
+          return pos ? [{ id: it.id, lineNumber, side, top: top + pos.top }] : [];
+        }),
+      );
+    });
   }
 
   jumpChange(dir: 1 | -1) {
-    const rows = this.changeRows();
-    const base = this.scroller.getBoundingClientRect().top;
-    const pos = rows.map((r) => r.getBoundingClientRect().top - base);
-    const cur = this.scroller.clientHeight * 0.3 + 4;
-    const idx = dir > 0 ? pos.findIndex((p) => p > cur + 2) : pos.map((p, i) => [p, i] as const).filter(([p]) => p < cur - 6).pop()?.[1] ?? -1;
-    if (idx >= 0) this.scroller.scrollBy({ top: pos[idx] - cur + 4, behavior: 'smooth' });
+    const offset = this.scroller.clientHeight * 0.3;
+    // where scrollTo puts a line: below the sticky file header, `offset` down
+    const cur = this.cv.getScrollTop() + HEADER_HEIGHT + offset;
+    const stops = this.changeStops();
+    const next = dir > 0 ? stops.find((s) => s.top > cur + 2) : stops.filter((s) => s.top < cur - 6).pop();
+    if (next) this.cv.scrollTo({ type: 'line', id: next.id, lineNumber: next.lineNumber, side: next.side, align: 'start', offset, behavior: 'smooth' });
     else if (dir > 0) this.jumpFile(1);
   }
 
+  /** Index of the file at the top of the view (tops only grow down the list). */
+  private fileAt(slack: number) {
+    const top = this.cv.getScrollTop() + slack;
+    return [...this.files.keys()].findLastIndex((id) => (this.cv.getTopForItem(id) ?? 0) <= top);
+  }
+
   jumpFile(dir: 1 | -1) {
-    const order = [...this.blocks.values()];
-    const top = this.scroller.scrollTop + 8;
-    const cur = order.findIndex((b) => b.el.offsetTop + b.el.offsetHeight > top);
-    const next = order[Math.max(0, Math.min(order.length - 1, cur + dir))];
-    if (next) void this.reveal({ path: next.file.path, side: 'head' });
+    const ids = [...this.files.keys()];
+    const next = ids[Math.max(0, Math.min(ids.length - 1, this.fileAt(8) + dir))];
+    if (next) void this.reveal({ path: next, side: 'head' });
   }
 
   private trackActive() {
     if (this.mode !== 'diff' || !this.isPrimary) return;
-    const top = this.scroller.scrollTop + 40;
-    for (const b of this.blocks.values()) {
-      if (b.el.offsetTop + b.el.offsetHeight > top) {
-        if (this.app.activeFile !== b.file.path) {
-          this.app.activeFile = b.file.path;
-          this.app.bus.emit('active-file', b.file.path);
-        }
-        return;
-      }
+    const path = [...this.files.keys()][Math.max(0, this.fileAt(40))];
+    if (path && this.app.activeFile !== path) {
+      this.app.activeFile = path;
+      this.app.bus.emit('active-file', path);
     }
   }
 
   // ------------------------------------------------------------ selection -> comments
-  private onSelect(path: string, r: SelectedLineRange | null) {
-    if (!r) return;
+  private onSelect(path: string, r: SelectedLineRange) {
     const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];
-    // the user's own selection: a pending jump must not pulse it away, and a jump highlight elsewhere goes
+    // the user's own selection: a pending jump must not glow or clear it
     this.pinToken++;
-    if (this.lit && this.lit !== this.blocks.get(path)?.inst) this.lit.setSelectedLines(null);
-    this.lit = undefined;
+    this.scroller.style.removeProperty('--rr-pulse');
     const side = r.side === 'deletions' ? 'base' : 'head';
     this.app.selection = { kind: 'code', path, side, start, end, ...this.lastPointer };
     this.app.bus.emit('selection', this.app.selection);
@@ -615,21 +501,19 @@ class CodePanel implements PanelInstance {
   }
   dispose() {
     this.offs.forEach((f) => f());
-    this.io.disconnect();
-    this.blocks.forEach((b) => b.inst?.cleanUp());
-    this.fileView?.inst?.cleanUp();
+    this.cv.cleanUp();
   }
 }
 
-/** Lines the PR didn't touch sit in folded context: unfold around them so a link to them shows something. */
-function unfold(inst: FileDiff<Meta>, side: 'additions' | 'deletions', start: number, end: number) {
-  const hunks = inst.fileDiff?.hunks;
-  if (!hunks?.length) return;
+/** Unfold the context around lines the PR didn't touch so a link to them shows something; true if anything opened. */
+function unfold(inst: { revealLine(line: number): boolean }, diff: FileDiffMetadata, side: Side, start: number, end: number) {
+  let opened = false;
   for (const l of new Set([start, end])) {
     // revealLine speaks new-file numbers
-    const n = side === 'additions' ? l : oldToNewLine(hunks, l);
-    if (n) inst.revealLine(n);
+    const n = side === 'additions' ? l : oldToNewLine(diff.hunks, l);
+    if (n && inst.revealLine(n)) opened = true;
   }
+  return opened;
 }
 
 function copy(text: string) {
