@@ -16,7 +16,7 @@ const repo = path.join(tmp, 'repo');
 process.env.REVIEWROOM_HOME = path.join(tmp, 'home'); // children inherit it: keep the session registry out of ~
 const sessions = () => { try { return fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'sessions', f), 'utf8'))); } catch { return []; } };
 const run = (cmd: string, args: string[], opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
-const node = process.execPath;
+const node = Bun.which('node') ?? 'node'; // the CLI's runtime is Node, not the Bun running this script
 const port = String(4900 + Math.floor(Math.random() * 90));
 // raw request so crafted Host / Sec-Fetch-Site / Origin headers reach the server untouched
 const raw = (url: string, headers: Record<string, string> = {}, method = 'GET') =>
