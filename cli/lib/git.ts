@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/core/types.ts';
+import { ReviewroomError } from '../../src/shared/ops.ts';
 
 type GitOpts = { soft?: boolean; encoding?: BufferEncoding };
 export function git(args: string[], cwd: string, opts: GitOpts & { soft: true }): string | null;
@@ -42,7 +43,7 @@ const capPerFile = (hits: SearchHit[], n: number) => {
 export const isRev = (r: unknown): r is string => typeof r === 'string' && /^[\w@][\w./~^@{}+-]*$/.test(r);
 export const checkRev = (r: unknown) => {
   if (isRev(r)) return r;
-  throw Object.assign(new Error(`invalid revision ${JSON.stringify(r)}`), { status: 400 });
+  throw new ReviewroomError(`invalid revision ${JSON.stringify(r)}`);
 };
 export const hasRef = (ref: string, cwd: string) => isRev(ref) && !!git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd, { soft: true });
 export const repoRoot = (from: string) => (git(['rev-parse', '--show-toplevel'], from, { soft: true }) || '').trim() || null;

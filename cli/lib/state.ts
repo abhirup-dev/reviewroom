@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 import { git, defaultBase } from './git.ts';
 import type { Op, ReviewState } from '../../src/core/types.ts';
-import { applyOp, OpError, type OpErrorCode } from '../../src/shared/ops.ts';
+import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
 
 /** The review dir: --dir, else <repo>/.reviewroom/<branch>. For an existing review
@@ -19,7 +19,7 @@ export function resolveDir(repo: string | null, dirFlag: string | undefined, { e
   if (!existing || fs.existsSync(own)) return own;
   const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
-  throw new StateError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
+  throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept
@@ -34,7 +34,7 @@ export function readConfig(dir: string): z.infer<typeof ConfigFile> {
   try {
     return ConfigFile.parse(JSON.parse(fs.readFileSync(configPath(dir), 'utf8')));
   } catch (e) {
-    throw new StateError(`${configPath(dir)} is not valid JSON (${(e as Error).message}); fix or delete it`);
+    throw new ReviewroomError(`${configPath(dir)} is not valid JSON (${(e as Error).message}); fix or delete it`);
   }
 }
 
@@ -49,8 +49,6 @@ export function loadConfig(dir: string, repo: string, o: { base?: string; head?:
 const emptyState = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: new Date().toISOString() }], threads: [], viewed: {}, pins: [] });
 export const statePath = (dir: string) => path.join(dir, 'state.json');
 
-/** A problem the user can fix (no review, a moved-aside state.json): the entry point prints it and exits 1. */
-export class StateError extends Error {}
 /** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
 export function readState(dir: string): ReviewState {
   let raw: string;
@@ -60,7 +58,7 @@ export function readState(dir: string): ReviewState {
     if (e.code !== 'ENOENT') throw e;
     // a moved-aside file means the review isn't empty: stay blocked until it is restored or deleted, never start over
     const aside = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-')) : [];
-    if (aside.length) throw new StateError(`${statePath(dir)} was moved aside as ${aside.join(', ')}. Fix one and move it back as state.json, or delete them all to start the review over.`);
+    if (aside.length) throw new ReviewroomError(`${statePath(dir)} was moved aside as ${aside.join(', ')}. Fix one and move it back as state.json, or delete them all to start the review over.`);
     return emptyState();
   }
   let data: ReviewState;
@@ -78,7 +76,7 @@ function moveAside(dir: string, why: string): never {
   try {
     fs.renameSync(statePath(dir), bad);
   } catch {}
-  throw new StateError(`${statePath(dir)} ${why}; moved it to ${bad}. Fix and move it back, or delete it to start the review over.`);
+  throw new ReviewroomError(`${statePath(dir)} ${why}; moved it to ${bad}. Fix and move it back, or delete it to start the review over.`);
 }
 /** Atomic: unique temp file in the same dir, fsync, rename. */
 export function writeState(dir: string, s: ReviewState) {
@@ -173,7 +171,7 @@ export async function commitOps(dir: string, ops: Op[]): Promise<number | undefi
 export const uid = (p: string) => p + crypto.randomBytes(4).toString('hex');
 
 export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => {
-  if (!repo && !dirFlag) throw new StateError('not inside a git repository (use --dir)');
+  if (!repo && !dirFlag) throw new ReviewroomError('not inside a git repository (use --dir)');
   return resolveDir(repo, dirFlag, { existing: true });
 };
 
