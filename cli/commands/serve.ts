@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, die } from '../lib/args.ts';
 import { ensureExcluded } from '../lib/git.ts';
-import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
+import { resolveDir, loadConfig, configPath, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
 import { undelivered } from '../../src/shared/ops.ts';
 import { type Finished, DIST, PKG, startServer, listen, openBrowser, serverFile, stopServer, register, unregister } from '../lib/server.ts';
 
@@ -33,7 +33,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const portFlag = o.port || (prev ? String(prev.port) : undefined);
   fs.mkdirSync(dir, { recursive: true });
   if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
-  if (!fs.existsSync(path.join(dir, 'config.json')) || o.base || o.head || o.title) fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg, null, 2));
+  if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) die(`missing build at ${DIST} — run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));

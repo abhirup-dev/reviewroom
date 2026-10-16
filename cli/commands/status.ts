@@ -1,8 +1,7 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import type { Global } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, readState } from '../lib/state.ts';
+import { dirForEdit, loadConfig, readConfig, readState } from '../lib/state.ts';
 import { liveServer, stopServer } from '../lib/server.ts';
 
 export type StatusOpts = Global & { all?: boolean; json?: boolean };
@@ -13,7 +12,7 @@ export function cmdStatus(repo: string | null, o: StatusOpts) {
   const open = s.threads.filter((t) => t.status === 'open');
   const waiting = open.filter((t) => t.messages[t.messages.length - 1]?.author === 'you');
   if (o.json) {
-    const cfg = fs.existsSync(path.join(dir, 'config.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')) : {};
+    const cfg = readConfig(dir);
     let base, head;
     try {
       const p = makeProvider(repo!, loadConfig(dir, repo!)); // a null repo throws into the catch

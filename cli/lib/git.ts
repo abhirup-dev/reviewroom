@@ -77,18 +77,8 @@ export function ensureExcluded(repo: string) {
   } catch {}
 }
 
-/** config.json, with --base/--head/--title applied (state.ts loadConfig). */
-export interface ReviewConfig {
-  base: string;
-  head: string;
-  title?: string;
-  repo?: string;
-  number?: number | string;
-  author?: string;
-  url?: string;
-  baseLabel?: string;
-  headLabel?: string;
-}
+import type { ReviewConfig } from './state.ts';
+export type { ReviewConfig };
 export type Provider = ReturnType<typeof makeProvider>;
 
 export function makeProvider(repo: string, cfg: ReviewConfig) {

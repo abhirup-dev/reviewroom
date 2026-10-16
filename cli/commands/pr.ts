@@ -5,7 +5,7 @@ import path from 'node:path';
 import { die } from '../lib/args.ts';
 import { type ReviewConfig, git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { resolveDir, loadConfig } from '../lib/state.ts';
+import { resolveDir, loadConfig, readConfig, configPath } from '../lib/state.ts';
 import { liveServer, stopServer } from '../lib/server.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
@@ -67,9 +67,8 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (o.dir) dir = path.resolve(o.dir);
   fs.mkdirSync(dir, { recursive: true });
   ensureExcluded(repo);
-  const prevCfg = fs.existsSync(path.join(dir, 'config.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')) : {};
-  const full = { ...prevCfg, ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined && v !== null)) };
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(full, null, 2));
+  const full = { ...readConfig(dir), ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined && v !== null)) } as ReviewConfig;
+  fs.writeFileSync(configPath(dir), JSON.stringify(full, null, 2));
   const fresh = scaffold(repo, dir, full, !!o.force);
   const prov = makeProvider(repo, full);
   const files = prov.files(prov.base, prov.head);

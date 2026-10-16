@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { git, defaultBase, type ReviewConfig } from './git.ts';
+import { z } from 'zod';
+import { git, defaultBase } from './git.ts';
 import type { Op, ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
@@ -21,9 +22,24 @@ export function resolveDir(repo: string | null, dirFlag: string | undefined, { e
   throw new StateError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
+// config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept
+const text = z.string().optional().catch(undefined);
+const ConfigFile = z.looseObject({ base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text });
+/** config.json, with --base/--head/--title applied (loadConfig). */
+export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
+export const configPath = (dir: string) => path.join(dir, 'config.json');
+
+export function readConfig(dir: string): z.infer<typeof ConfigFile> {
+  if (!fs.existsSync(configPath(dir))) return {};
+  try {
+    return ConfigFile.parse(JSON.parse(fs.readFileSync(configPath(dir), 'utf8')));
+  } catch (e) {
+    throw new StateError(`${configPath(dir)} is not valid JSON (${(e as Error).message}); fix or delete it`);
+  }
+}
+
 export function loadConfig(dir: string, repo: string, o: { base?: string; head?: string; title?: string } = {}): ReviewConfig {
-  const file = path.join(dir, 'config.json');
-  const cfg: ReviewConfig = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  const cfg = readConfig(dir) as ReviewConfig; // base and head are filled in below
   for (const k of ['base', 'head', 'title'] as const) if (o[k] !== undefined) cfg[k] = o[k];
   cfg.base ||= defaultBase(repo);
   cfg.head ||= 'HEAD';
