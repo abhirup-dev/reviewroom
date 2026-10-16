@@ -86,8 +86,8 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
       if (text && text !== lastReport) console.error(text);
       lastReport = text;
-    } catch (e: any) {
-      console.error(`reviewroom: link check failed: ${e.message}`);
+    } catch (e) {
+      console.error(`reviewroom: link check failed: ${(e as Error).message}`);
     }
   };
   // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.

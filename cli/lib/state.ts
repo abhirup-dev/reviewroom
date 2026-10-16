@@ -54,8 +54,8 @@ export function readState(dir: string): ReviewState {
   let raw: string;
   try {
     raw = fs.readFileSync(statePath(dir), 'utf8');
-  } catch (e: any) {
-    if (e.code !== 'ENOENT') throw e;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     // a moved-aside file means the review isn't empty: stay blocked until it is restored or deleted, never start over
     const aside = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-')) : [];
     if (aside.length) throw new ReviewroomError(`${statePath(dir)} was moved aside as ${aside.join(', ')}. Fix one and move it back as state.json, or delete them all to start the review over.`);
@@ -64,8 +64,8 @@ export function readState(dir: string): ReviewState {
   let data: ReviewState;
   try {
     data = JSON.parse(raw);
-  } catch (e: any) {
-    return moveAside(dir, `is not valid JSON (${e.message})`);
+  } catch (e) {
+    return moveAside(dir, `is not valid JSON (${(e as Error).message})`);
   }
   const checked = StoredState.safeParse(data);
   if (!checked.success) moveAside(dir, `does not match schema/state.schema.json (${issueText(checked.error)})`);
@@ -104,8 +104,8 @@ const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
     return true;
-  } catch (e: any) {
-    return e.code === 'EPERM';
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
   }
 };
 /** Does a reviewroom server with this pid answer on this port? null = no answer in time (busy: git calls are synchronous). */
@@ -113,8 +113,8 @@ export async function answers(pid: number, port: number, timeout = 800): Promise
   try {
     const r = await fetch(`http://127.0.0.1:${port}/favicon.ico`, { signal: AbortSignal.timeout(timeout) });
     return r.headers.get('x-reviewroom-pid') === String(pid);
-  } catch (e: any) {
-    return e.name === 'TimeoutError' ? null : false;
+  } catch (e) {
+    return (e as Error).name === 'TimeoutError' ? null : false;
   }
 }
 /** Take state.lock. Returns null once it is ours, or the {pid, port} of the live server holding it. */
@@ -125,8 +125,8 @@ export async function takeLock(dir: string, port: number | null = null): Promise
     try {
       fs.writeFileSync(lockPath(dir), JSON.stringify({ pid: process.pid, port }), { flag: 'wx' });
       return null;
-    } catch (e: any) {
-      if (e.code !== 'EEXIST') throw e;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     }
     let h: LockHolder | null = null;
     try {
