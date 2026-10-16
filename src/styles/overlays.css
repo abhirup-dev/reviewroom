@@ -391,57 +391,8 @@ rr-embed {
   vertical-align: -3px;
 }
 .rr-snippet {
-  /* every line is as wide as the longest one, so target shading spans the full scroll width */
-  display: grid; /* one auto column: stretches to the card, grows to the longest line */
-  margin: 0;
-  padding: 6px 0;
-  font: 12px/1.6 var(--rr-mono);
-  tab-size: 4;
-  overflow-x: auto;
+  --diffs-font-size: 12px;
   background: var(--rr-panel);
-}
-.rr-snippet__line {
-  display: flex;
-  white-space: pre;
-}
-.rr-snippet__line.is-target {
-  background: var(--rr-flash);
-}
-.rr-snippet__ln {
-  /* line numbers stay put while the code scrolls sideways */
-  position: sticky;
-  left: 0;
-  width: 44px;
-  flex: none;
-  padding-right: 10px;
-  text-align: right;
-  color: var(--rr-faint);
-  background: var(--rr-panel);
-  user-select: none;
-}
-.rr-snippet__line.is-target .rr-snippet__ln {
-  color: var(--rr-accent);
-  background: linear-gradient(var(--rr-flash), var(--rr-flash)), var(--rr-panel);
-  box-shadow: inset 2px 0 0 var(--rr-accent);
-}
-.rr-snippet__code {
-  padding-right: 12px;
-}
-/* between diff hunks */
-.rr-snippet__gap {
-  color: var(--rr-faint);
-  font-style: italic;
-}
-/* syntax colours carry both themes as variables (src/core/highlight.ts) */
-.rr-snippet__code span {
-  color: var(--shiki-light);
-  font-style: var(--shiki-light-font-style);
-  font-weight: var(--shiki-light-font-weight);
-}
-:root[data-rr-theme='dark'] .rr-snippet__code span {
-  color: var(--shiki-dark);
-  font-style: var(--shiki-dark-font-style);
-  font-weight: var(--shiki-dark-font-weight);
 }
 
 /* palette */
@@ -646,14 +597,7 @@ rr-embed {
   overflow: auto;
 }
 .rr-hovercard.is-wrapped .rr-snippet {
-  display: block;
-}
-.rr-hovercard.is-wrapped .rr-snippet__line {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.rr-hovercard.is-wrapped .rr-snippet__ln {
-  position: static;
+  --rr-wrap: pre-wrap;
 }
 
 /* toasts */

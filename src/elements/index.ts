@@ -9,9 +9,8 @@
 //   <rr-flow><rr-node ref="..." state="new">habit.RecentEvents</rr-node>...</rr-flow>   left->right flow, clickable nodes
 //   <rr-callout kind="risk" title="Latency">...</rr-callout>       info | note | risk | question | ok
 //   <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  reviewer sign-off, persisted
-import { File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
+import { FileDiff, File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
-import { highlightLines } from '../core/highlight';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
 import { plainExcerpt, renderMarkdown } from '../core/markdown';
 import type { ReviewApp } from '../shell/app';
@@ -48,49 +47,45 @@ class RRRef extends HTMLElement {
 }
 
 // ------------------------------------------------------------------ snippets
-const MAX_SNIPPET_LINES = 60;
+/** @pierre/diffs options for code in the review: our colours on `surface`, light/dark following the page. */
+function codeOptions(surface = '--rr-panel') {
+  return {
+    theme: { dark: 'pierre-dark', light: 'pierre-light' },
+    themeType: 'system' as const,
+    disableFileHeader: true,
+    overflow: 'scroll' as const,
+    // inherit the page's color-scheme (tokens.css) so pierre's light-dark() colours follow the review theme; --rr-wrap: hover card's wrap toggle
+    unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, `var(${surface})`) + ':host{color-scheme:inherit}[data-line]{white-space:var(--rr-wrap,pre);word-break:break-word}',
+  };
+}
+const range = (start: number, end: number) => ({ startingLine: start - 1, totalLines: end - start + 1, bufferBefore: 0, bufferAfter: 0 });
 
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, opts: { endAt?: number } = {}): Promise<HTMLElement> {
   const rev = app.revOf(r.rev);
   const text = await app.read(r.path, rev);
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
-  const lines = text.split('\n');
-  let spans: [number, number][];
-  let marked = (i: number) => !!r.start && i >= r.start && i <= (r.end ?? r.start);
-  const hunks = !r.start && r.type === 'code' && r.rev === 'head' ? await changedSpans(app, r.path, text) : null;
-  if (hunks?.spans.length) [spans, marked] = [hunks.spans, (i) => hunks.added.has(i)];
-  else if (r.start) spans = [[Math.max(1, r.start - context), Math.min(lines.length, (opts.endAt ?? r.end ?? r.start) + context)]];
-  else spans = [[1, Math.min(lines.length, 25)]];
-  const pre = h('pre', { class: 'rr-snippet' });
-  let shown = 0;
-  for (const [k, [s, e0]] of spans.entries()) {
-    if (shown >= MAX_SNIPPET_LINES) {
-      pre.append(h('span', { class: 'rr-snippet__line rr-snippet__gap' }, h('span', { class: 'rr-snippet__ln' }), h('span', { class: 'rr-snippet__code' }, `${spans.length - k} more changed sections`)));
-      break;
-    }
-    const e = Math.min(e0, s + MAX_SNIPPET_LINES - shown - 1);
-    if (k) pre.append(h('span', { class: 'rr-snippet__line rr-snippet__gap' }, h('span', { class: 'rr-snippet__ln' }, '⋯'), h('span', { class: 'rr-snippet__code' }, ' ')));
-    const coloured = await highlightLines(r.path, lines.slice(s - 1, e).join('\n'));
-    for (let i = s; i <= e; i++) {
-      const code = coloured?.[i - s]?.childNodes.length ? coloured[i - s] : lines[i - 1] || ' ';
-      pre.append(h('span', { class: 'rr-snippet__line' + (marked(i) ? ' is-target' : '') }, h('span', { class: 'rr-snippet__ln' }, String(i)), h('span', { class: 'rr-snippet__code' }, code)));
-    }
-    shown += e - s + 1;
+  const box = h('div', { class: 'rr-snippet' });
+  // a changed file without lines: its hunks
+  const diff = !r.start && r.type === 'code' && r.rev === 'head' ? await changedDiff(app, r.path, text) : null;
+  if (diff?.hunks.length) {
+    new FileDiff({ ...codeOptions(), diffStyle: 'unified', hunkSeparators: 'simple' }).render({ fileDiff: diff, containerWrapper: box });
+    return box;
   }
-  return pre;
+  const lines = text.split('\n').length;
+  const file = new PierreFile(codeOptions());
+  const [s, e] = r.start ? [Math.max(1, r.start - context), Math.min(lines, (opts.endAt ?? r.end ?? r.start) + context)] : [1, Math.min(lines, 25)];
+  file.render({ file: { name: r.path, contents: text }, containerWrapper: box, renderRange: range(s, e) });
+  if (r.start) file.setSelectedLines({ start: r.start, end: r.end ?? r.start }, { notify: false });
+  return box;
 }
 
-/** The diff's hunks for a changed file, as new-side line spans plus the added lines. */
-async function changedSpans(app: ReviewApp, path: string, head: string): Promise<{ spans: [number, number][]; added: Set<number> } | null> {
+/** The diff of a changed file against the base. */
+async function changedDiff(app: ReviewApp, path: string, head: string) {
   const f = app.files.find((x) => x.path === path);
   if (!f || (f.status !== 'modified' && f.status !== 'renamed')) return null;
   const base = await app.read(f.prevPath ?? path, app.revFor('base'));
   if (base === null) return null;
-  const d = parseDiffFromFile({ name: f.prevPath ?? path, contents: base }, { name: path, contents: head });
-  const added = new Set<number>();
-  for (const hk of d.hunks) for (const c of hk.hunkContent) if (c.type === 'change') for (let i = 0; i < c.additions; i++) added.add(c.additionLineIndex + 1 + i);
-  const spans = d.hunks.filter((hk) => hk.additionCount > 0).map((hk): [number, number] => [hk.additionStart, hk.additionStart + hk.additionCount - 1]);
-  return { spans, added };
+  return parseDiffFromFile({ name: f.prevPath ?? path, contents: base }, { name: path, contents: head });
 }
 
 // shortcut: bracket/indent heuristic, not a parser (braces in strings can end it early); swap for a provider symbol range if that lands.
@@ -215,11 +210,8 @@ class RREmbed extends HTMLElement {
 
 // ------------------------------------------------------------------ rr-code
 class RRCode extends HTMLElement {
-  private inst?: PierreFile;
-  private app?: ReviewApp;
-  private off?: () => void;
   connectedCallback() {
-    if (this.dataset.ready) return this.listen(); // re-attached (panel reopened or moved)
+    if (this.dataset.ready) return; // re-attached (panel reopened or moved)
     this.dataset.ready = '1';
     const ref = this.getAttribute('ref');
     const inline = this.textContent || '';
@@ -232,15 +224,13 @@ class RRCode extends HTMLElement {
       let contents = inline.replace(/^\n/, '').replace(/\s+$/, '');
       let name = `snippet.${lang || 'txt'}`;
       let headLabel = title || lang || '';
-      let ranged = false;
+      let renderRange;
       const r = ref ? parseRef(ref) : null;
       if (r && (r.type === 'code' || r.type === 'file')) {
-        const rev = app.revOf(r.rev);
-        const text = (await app.read(r.path, rev)) ?? '';
-        const lines = text.split('\n');
-        contents = lines.slice((r.start ?? 1) - 1, r.end ?? lines.length).join('\n');
+        contents = (await app.read(r.path, app.revOf(r.rev))) ?? '';
         name = r.path;
-        ranged = !!r.start;
+        // the whole file, drawn from start to end with its real line numbers
+        if (r.start) renderRange = range(r.start, r.end ?? contents.split('\n').length);
         headLabel = (title ? title + ' · ' : '') + refLabel(r);
       }
       const head = h(
@@ -251,20 +241,8 @@ class RRCode extends HTMLElement {
       );
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
-      this.inst = new PierreFile({ theme: { dark: 'pierre-dark', light: 'pierre-light' }, themeType: app.resolvedTheme(), disableFileHeader: true, overflow: 'scroll', disableLineNumbers: ranged, unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, 'var(--rr-panel-2)') });
-      this.inst.render({ file: { name, contents, lang: lang }, containerWrapper: body });
-      this.app = app;
-      this.listen();
+      new PierreFile(codeOptions('--rr-panel-2')).render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
     });
-  }
-  private listen() {
-    if (!this.app || !this.inst || this.off) return;
-    this.inst.setThemeType(this.app.resolvedTheme()); // catch up on changes made while detached
-    this.off = this.app.bus.on('theme', (t) => this.inst?.setThemeType(t));
-  }
-  disconnectedCallback() {
-    this.off?.();
-    this.off = undefined;
   }
 }
 
