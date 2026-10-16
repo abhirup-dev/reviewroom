@@ -32,7 +32,7 @@ function headingOf(el: Element): string | null {
   return hd?.textContent ? clip(hd.textContent, 60) : null;
 }
 
-/** e.g. “Proto & storage”, “Table in Proto & storage”, “Callout: Silent degradation”. */
+/** e.g. "Proto & storage", "Table in Proto & storage", "Callout: Silent degradation". */
 export function describeElement(el: Element): string {
   const own = el.getAttribute('data-title') || el.getAttribute('aria-label');
   const head = el.matches('section, [data-rr-section], h1, h2, h3, h4') ? headingOf(el) : null;

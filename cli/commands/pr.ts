@@ -33,7 +33,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (m) {
     const n = m[1];
     const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
-    console.error(`reviewroom: fetching PR #${n}${info ? ` “${info.title}”` : ''} from ${remote}…`);
+    console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
     let ref = `refs/reviewroom/pr-${n}`;
     const fetched = fetchRef(remote, `+refs/pull/${n}/head:${ref}`, repo)
       || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${ref}`, repo));
@@ -59,7 +59,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
     if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
       fetchRef(remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`, repo);
       head = `${remote}/${branch}`;
-      if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called “${branch}”`);
+      if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called "${branch}"`);
     }
     Object.assign(cfg, { base: o.base ?? defaultBase(repo), head, title: o.title });
     dir = path.join(repo, '.reviewroom', branch.replace(/[^\w.-]+/g, '-'));
@@ -72,7 +72,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const fresh = scaffold(repo, dir, full, !!o.force);
   const prov = makeProvider(repo, full);
   const files = prov.files(prov.base, prov.head);
-  console.error(`reviewroom: ${files.length} files changed · review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded — fill it in)' : ''}`);
+  console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   // serve this dir; --base/--head/--title are in config.json now
   const serveOpts: ServeOpts = { ...o, dir, base: undefined, head: undefined, title: undefined };
 
@@ -87,12 +87,12 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
       const rec = liveServer(dir);
       if (rec) {
         console.log(rec.url);
-        console.error(`reviewroom: server running in the background (pid ${rec.pid}) · stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
+        console.error(`reviewroom: server running in the background (pid ${rec.pid}) | stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
         return process.exit(0);
       }
       await new Promise((r) => setTimeout(r, 100));
     }
-    die(`server did not start — see ${path.join(dir, 'server.log')}`);
+    die(`server did not start - see ${path.join(dir, 'server.log')}`);
   }
   await cmdServe(repo, serveOpts, !!o.wait, dir);
 }

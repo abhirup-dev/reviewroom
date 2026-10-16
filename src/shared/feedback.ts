@@ -10,8 +10,8 @@ export const anchorText = (a: Anchor) => {
   switch (a.kind) {
     case 'doc':
       if (a.target === PR_DESCRIPTION)
-        return `PR description (the author's text on GitHub; you cannot edit it, answer in the thread)${a.path ? ' > ' + a.path : ''}${a.quote ? ` — quote: "${a.quote.exact}"` : ''}`;
-      return `narrative ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` — quote: "${a.quote.exact}"` : ''}`;
+        return `PR description (the author's text on GitHub; you cannot edit it, answer in the thread)${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
+      return `narrative ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
     case 'code':
       return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'})`;
     case 'symbol':
@@ -29,7 +29,7 @@ export function githubContext(threads: Thread[] = []) {
   for (const t of open) {
     const [first, ...rest] = t.messages;
     const where = t.gh?.conversation ? 'PR conversation' : `${anchorText(t.anchor)}${t.gh?.outdated ? ', outdated' : ''}`;
-    lines.push(`- ${t.id} (${where}) @${first.gh?.login}: ${first.body.replace(/<!--[\s\S]*?-->/g, '').trim().split('\n')[0].slice(0, 160)}${rest.length ? ` — ${rest.length} repl${rest.length > 1 ? 'ies' : 'y'}, last by @${rest[rest.length - 1].gh?.login}` : ''}`);
+    lines.push(`- ${t.id} (${where}) @${first.gh?.login}: ${first.body.replace(/<!--[\s\S]*?-->/g, '').trim().split('\n')[0].slice(0, 160)}${rest.length ? ` - ${rest.length} repl${rest.length > 1 ? 'ies' : 'y'}, last by @${rest[rest.length - 1].gh?.login}` : ''}`);
   }
   return [...lines, ''];
 }
@@ -54,33 +54,33 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   if (opts.kind === 'approve') {
     lines.push(`# Review round ${round}: APPROVED`, '');
     if (opts.note) lines.push(opts.note, '');
-    if (open.length) lines.push(`(${open.length} thread(s) still open — list them with \`reviewroom status --threads${at}\`)`);
+    if (open.length) lines.push(`(${open.length} thread(s) still open - list them with \`reviewroom status --threads${at}\`)`);
     return lines.join('\n');
   }
-  lines.push(`# Review feedback — round ${round}`, '');
+  lines.push(`# Review feedback - round ${round}`, '');
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
     `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
     `(leave resolving to the reviewer), change code and/or the narrative (review.html) as needed,`,
     `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom review${at}\` again to start round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
-    `![](rr:…) on its own line embeds a live preview in the thread.`,
+    `![](rr:...) on its own line embeds a live preview in the thread.`,
     '',
   );
   for (const t of touched) {
-    lines.push(`## Thread ${t.id} — ${t.status}`, `Anchor: ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
+    lines.push(`## Thread ${t.id} - ${t.status}`, `Anchor: ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
     const ex = opts.codeExcerpt?.(t.anchor);
     if (ex) lines.push('', '```', ex, '```');
     lines.push('');
     for (const m of t.messages) {
       const isNew = m.round === round && m.author === 'you';
-      lines.push(`**${m.author}** (round ${m.round})${isNew ? ' — NEW' : ''}:`, '', m.body.replace(/^/gm, '> '), '');
+      lines.push(`**${m.author}** (round ${m.round})${isNew ? ' - NEW' : ''}:`, '', m.body.replace(/^/gm, '> '), '');
     }
   }
   lines.push(...githubContext(opts.github));
   const viewed = Object.keys(state.viewed || {}).length;
   const checks = Object.entries(state.checks || {});
-  if (checks.length) lines.push('## Sign-off checklist', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' — NEEDS WORK' : ''}`), '');
+  if (checks.length) lines.push('## Sign-off checklist', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
   lines.push(`_Files marked viewed: ${viewed}. Open threads overall: ${open.length}._`);
   return lines.join('\n');
 }

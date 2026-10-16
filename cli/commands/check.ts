@@ -5,7 +5,7 @@ import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig, readState, commitOps } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes } from '../lib/links.ts';
 
-// Stale-link check of review.html. --fix rewrites links whose code moved ≤5 lines; --accept
+// Stale-link check of review.html. --fix rewrites links whose code moved <=5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.
 export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean; accept?: boolean; json?: boolean }) {
   const dir = dirForEdit(repo, o.dir);

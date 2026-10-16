@@ -87,7 +87,7 @@ class FilesPanel implements PanelInstance {
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h('span', { class: 'rr-file-row__name' }, label),
       ...threadCounts(threads, 'in this file'),
-      h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '−' + f.deletions) : null),
+      h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       viewed ? h('span', { class: 'rr-viewed-mark', title: 'Viewed' }, icon('check', 12)) : null,
     );
   }

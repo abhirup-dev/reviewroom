@@ -1,6 +1,6 @@
 // Code providers: where diffs, file contents and symbol search come from.
 // Order of preference: local CLI server (git on your clone) -> GitHub -> static fixture.
-// Implement CodeProvider to plug in anything else (GitLab, a monorepo index, …).
+// Implement CodeProvider to plug in anything else (GitLab, a monorepo index, ...).
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { applyOp } from '../shared/ops';
 import { loadRaw } from '../core/store';
@@ -261,7 +261,7 @@ export class GitHubProvider implements CodeProvider {
 }
 
 // ------------------------------------------------------------------ static fixture
-// <script type="application/json" id="rr-fixture">{ meta, commits, files, contents: { "<rev>:<path>": "…" } }</script>
+// <script type="application/json" id="rr-fixture">{ meta, commits, files, contents: { "<rev>:<path>": "..." } }</script>
 
 export interface Fixture {
   meta: Partial<ReviewMeta>;

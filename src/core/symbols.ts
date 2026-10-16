@@ -32,7 +32,7 @@ export function declaration(line: string): { name: string; kind: SymbolKind } | 
   return null;
 }
 
-/** The identifier a link's text names: `ps.svc.Parse()` → `Parse`; null for prose. */
+/** The identifier a link's text names: `ps.svc.Parse()` -> `Parse`; null for prose. */
 export function namedIdentifier(text: string): string | null {
   const t = text.trim().replace(/\(\)$/, '');
   const m = /^(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)$/.exec(t);

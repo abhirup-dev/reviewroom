@@ -31,12 +31,12 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
     console.log(JSON.stringify({ round: s.round, threads: list, github }, null, 2));
     return;
   }
-  console.log(`round ${s.round} · ${list.length} ${o.all ? '' : 'open '}thread(s)`);
+  console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
   for (const t of list) {
     const last = t.messages[t.messages.length - 1];
     console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
     for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
-    if (last?.author === 'you') console.log('  → awaiting agent reply');
+    if (last?.author === 'you') console.log('  -> awaiting agent reply');
   }
   if (github.length) console.log('\n' + githubContext(github).join('\n'));
 }
