@@ -44,6 +44,13 @@ test('GitHub threads map onto reviewroom threads and anchors', () => {
   expect(convo.messages.map((m) => m.body)).toEqual(['LGTM overall', '**Approved**']);
 });
 
+test('GitHub may send null nodes, a deleted author (null) and missing connections', () => {
+  const ghost = { ...comment(9, 'x', 'from a deleted account'), author: null };
+  const s = normalize({ ...pr, author: null, reviewThreads: { nodes: [null, thread({}, [ghost as never])] }, comments: null, reviews: { nodes: [null] }, commits: null } as never, 'me', null);
+  expect(s.threads.map((t) => [t.id, t.messages[0].gh.login])).toEqual([['gh_9', 'ghost']]);
+  expect([s.description.login, s.pending, s.ci]).toEqual(['ghost', null, []]);
+});
+
 test('rr: links become GitHub links or plain text', () => {
   const t = { host: 'github.com', owner: 'o', name: 'r', number: 7 };
   const out = toGitHubMarkdown('see [x](rr:code/a.go#L3-5), [old](rr:code/a.go@base#L2), [intro](rr:doc/intro), [that](rr:thread/gh_42) and [mine](rr:thread/t3)', t, { base: 'B', head: 'H' });
