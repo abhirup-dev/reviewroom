@@ -1,6 +1,6 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
 // It owns data (meta, files, threads), preferences, navigation and the dock.
-import type { DockviewApi } from 'dockview-core';
+import type { DockviewApi } from 'dockview';
 import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { parseRef, refLabel, type Ref } from '../core/refs';
@@ -332,7 +332,6 @@ export class ReviewApp {
     this.descDoc.innerHTML = d ? renderMarkdown(d.body.trim() || '_No description._') : '<p class="rr-muted">The description shows for GitHub pull requests.</p>';
     // ids from the author's HTML would collide with the narrative's anchors
     this.descDoc.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
-    this.descDoc.querySelectorAll('a[href]:not([href^="rr:"])').forEach((a) => Object.assign(a, { target: '_blank', rel: 'noopener' }));
   }
   /** The element a doc anchor points at, in the narrative or the PR description. */
   docElement(id: string, path?: string): Element | null {

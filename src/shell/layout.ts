@@ -1,6 +1,6 @@
 // Docking layout. Every region is a dockview panel: drag tabs to split, float,
 // maximise or pop out; the layout is saved per review and presets rebuild it.
-import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IDockviewPanel, type IHeaderActionsRenderer, type CreateComponentOptions, type SerializedDockview } from 'dockview-core';
+import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IDockviewPanel, type IHeaderActionsRenderer, type CreateComponentOptions, type SerializedDockview } from 'dockview';
 import { h, icon } from '../core/dom';
 import { loadRaw, saveLocal } from '../core/store';
 import type { ReviewApp } from './app';
