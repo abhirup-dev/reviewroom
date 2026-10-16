@@ -1,6 +1,6 @@
 // Thread view: used as the centred popup AND as a dockable panel ("thread:<id>").
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
-import { h, icon, relTime, copyText } from '../core/dom';
+import { h, icon, relTime, copyText, backdropCloses } from '../core/dom';
 import { loadRaw } from '../core/store';
 import { renderMarkdown } from '../core/markdown';
 import { formatRef, parseRef, refIcon } from '../core/refs';
@@ -314,9 +314,9 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     const resolving = t.status === 'open';
     // a GitHub resolve that failed returns false: keep the popup up
     if ((await app.setStatus(t.id, resolving ? 'resolved' : 'open')) === false || !resolving || o.docked || !o.onClose) return;
-    const scrim = root.closest('.rr-scrim');
-    scrim?.classList.add('is-leaving');
-    setTimeout(() => scrim?.classList.contains('is-leaving') && o.onClose!(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500);
+    const popup = root.closest('dialog');
+    popup?.classList.add('is-leaving');
+    setTimeout(() => popup?.classList.contains('is-leaving') && o.onClose!(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500);
   };
 
   const messages = (t: Thread) => {
@@ -490,26 +490,20 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 // ------------------------------------------------------------------ popup host
 export function mountThreadPopup(app: ReviewApp) {
   let current: { el: HTMLElement; dispose: () => void } | null = null;
-  let lastFocus: Element | null = null;
   let composing = false;
-  const scrim = h('div', { class: 'rr-scrim', hidden: true });
-  const box = h('div', { class: 'rr-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Comment thread' });
-  scrim.append(box);
-  document.body.append(scrim);
-  const close = () => {
+  // closing (Esc, the backdrop, a button) returns focus to where it was: the dialog does that
+  const box = h('dialog', { class: 'rr-modal', 'aria-label': 'Comment thread', onmousedown: backdropCloses, onclose: () => {
     current?.dispose();
     current = null;
-    scrim.hidden = true;
-    scrim.classList.remove('is-leaving');
-    (lastFocus as HTMLElement | null)?.focus?.();
+    box.classList.remove('is-leaving');
     // the lines a new comment was for stop being highlighted once it's sent or dropped
     if (composing) {
       app.selection = null;
       app.bus.emit('selection', null);
     }
-  };
-  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
-  scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
+  } });
+  document.body.append(box);
+  const close = () => box.close();
   // drag by the header to park it somewhere; it opens centred, then stays where it was put until reload
   let dx = 0, dy = 0;
   box.addEventListener('pointerdown', (e) => {
@@ -543,14 +537,12 @@ export function mountThreadPopup(app: ReviewApp) {
   const open = (o: ThreadViewOpts) => {
     if (o.id && app.dock.getPanel('thread:' + o.id)) return app.showPanel('thread:' + o.id);
     current?.dispose();
-    scrim.classList.remove('is-leaving'); // opened again while fading out
-    lastFocus = document.activeElement;
+    box.classList.remove('is-leaving'); // opened again while fading out
     composing = !o.id;
     current = threadView(app, { ...o, onClose: close, onDock: dock });
     box.replaceChildren(current.el);
-    scrim.hidden = false;
+    if (!box.open) box.showModal();
   };
-  app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
   app.bus.on('open-thread', ({ id }) => open({ id }));
   app.bus.on('compose-thread', ({ anchor, quote, to }) => open({ anchor, quote, to }));
   return { open, close };
