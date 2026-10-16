@@ -146,6 +146,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     // false (GitHub refused it, say): keep the text so nothing typed is lost
     const ok = await Promise.resolve(b.onSubmit(body)).finally(() => (busy = false));
     if (ok === false) return;
+    keepDraft(''); // sending may have destroyed the view, and with it the listener that would clear the draft
     view.dispatch({ changes: { from: 0, to: view.state.doc.length } });
     setMode('write');
   };
@@ -328,6 +329,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
               h('button', {
                 class: 'rr-link-btn',
                 onclick: () => {
+                  if (!body.isConnected) return; // already editing
                   const c = composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() });
                   body.replaceWith(c.el);
                 },
@@ -391,7 +393,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     };
     bar.append(
       gh.canEdit
-        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.replaceWith(composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() }).el) }, 'edit')
+        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.isConnected && body.replaceWith(composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() }).el) }, 'edit')
         : '',
       gh.canDelete ? h('button', { class: 'rr-link-btn', title: 'Delete this comment', onclick: ask }, 'delete') : '',
     );
@@ -403,6 +405,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     const t = o.id ? app.thread(o.id) : undefined;
     const anchor = t?.anchor ?? o.anchor ?? { kind: 'general' };
     if (o.id && !t) {
+      drop(root);
       root.replaceChildren(header(undefined, anchor), h('div', { class: 'rr-empty' }, 'This thread was deleted.'));
       return;
     }
