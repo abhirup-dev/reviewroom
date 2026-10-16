@@ -424,8 +424,7 @@ class CodePanel implements PanelInstance {
     inst.render({ file: { name: path, contents: text }, lineAnnotations: this.fileAnnotations(path, side), containerWrapper: body });
     this.fileView.inst = inst;
     if (start) {
-      this.ownSel = `${path}:${start}:${end ?? start}`;
-      inst.setSelectedLines({ start, end: end ?? start });
+      inst.setSelectedLines({ start, end: end ?? start }, { notify: false });
       requestAnimationFrame(() => this.scrollToRow(body, side === 'base' ? 'deletions' : 'additions', start, end ?? start, () => inst.setSelectedLines(null)));
     }
   }
@@ -458,8 +457,7 @@ class CodePanel implements PanelInstance {
     if (this.lit && this.lit !== b.inst) this.lit.setSelectedLines(null);
     this.lit = b.inst;
     if (t.start) {
-      this.ownSel = `${t.path}:${t.start}:${t.end ?? t.start}`;
-      b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side });
+      b.inst?.setSelectedLines({ start: t.start, end: t.end ?? t.start, side, endSide: side }, { notify: false });
     }
     const block = b;
     // Files above the target (and the target itself) finish highlighting asynchronously and change
@@ -490,8 +488,6 @@ class CodePanel implements PanelInstance {
 
   private pinToken = 0;
   private lit?: FileDiff<Meta>;
-  /** The range a jump highlighted: pierre reports it back through onLineSelected, but nobody selected it. */
-  private ownSel = '';
   private offsetIn(el: HTMLElement) {
     return el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
   }
@@ -600,7 +596,6 @@ class CodePanel implements PanelInstance {
   private onSelect(path: string, r: SelectedLineRange | null) {
     if (!r) return;
     const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];
-    if (this.ownSel === `${path}:${start}:${end}`) return void (this.ownSel = '');
     // the user's own selection: a pending jump must not pulse it away, and a jump highlight elsewhere goes
     this.pinToken++;
     if (this.lit && this.lit !== this.blocks.get(path)?.inst) this.lit.setSelectedLines(null);
