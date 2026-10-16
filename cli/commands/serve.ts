@@ -41,7 +41,8 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
-  const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f) });
+  let seen = false; // a browser tab connected
+  const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
   const port = await listen(server, +(portFlag || 4848));
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
@@ -63,8 +64,6 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   checkNarrative(); // after the lock: it may write state.json
   if (o.open) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
-    let seen = false;
-    server.once('rr-client', () => (seen = true));
     setTimeout(() => !seen && openBrowser(url), 2500);
   }
   if (!blocking) return;
