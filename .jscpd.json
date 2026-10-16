@@ -1,0 +1,18 @@
+{
+  "path": [
+    "src",
+    "cli",
+    "scripts"
+  ],
+  "ignore": [
+    "**/*.test.*"
+  ],
+  "minLines": 6,
+  "minTokens": 60,
+  "reporters": [
+    "console"
+  ],
+  "threshold": 1,
+  "gitignore": true,
+  "absolute": true
+}

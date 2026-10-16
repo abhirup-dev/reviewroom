@@ -5,9 +5,9 @@
 //   <rr-ref ref="rr:code/pkg/x.go#L45-54">Build()</rr-ref>      inline jump chip (hover = preview)
 //   <rr-embed ref="rr:doc/request-path"></rr-embed>              mini preview card of anything linkable
 //   <rr-code ref="rr:code/pkg/x.go@head#L40-60"></rr-code>        highlighted snippet pulled live from the repo
-//   <rr-code lang="sql">SELECT …</rr-code>                        highlighted inline snippet
-//   <rr-flow><rr-node ref="…" state="new">habit.RecentEvents</rr-node>…</rr-flow>   left→right flow, clickable nodes
-//   <rr-callout kind="risk" title="Latency">…</rr-callout>       info | note | risk | question | ok
+//   <rr-code lang="sql">SELECT ...</rr-code>                        highlighted inline snippet
+//   <rr-flow><rr-node ref="..." state="new">habit.RecentEvents</rr-node>...</rr-flow>   left->right flow, clickable nodes
+//   <rr-callout kind="risk" title="Latency">...</rr-callout>       info | note | risk | question | ok
 //   <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  reviewer sign-off, persisted
 import { File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
@@ -250,7 +250,7 @@ class RRCode extends HTMLElement {
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
       this.inst = new PierreFile({ theme: { dark: 'pierre-dark', light: 'pierre-light' }, themeType: app.resolvedTheme(), disableFileHeader: true, overflow: 'scroll', disableLineNumbers: ranged, unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, 'var(--rr-panel-2)') });
-      this.inst.render({ file: { name, contents, lang: lang as any }, containerWrapper: body });
+      this.inst.render({ file: { name, contents, lang: lang }, containerWrapper: body });
       this.app = app;
       this.listen();
     });

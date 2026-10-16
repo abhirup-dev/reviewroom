@@ -22,12 +22,18 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun scripts/build.mjs",
-    "dev": "bun scripts/build.mjs --watch",
-    "typecheck": "tsc --noEmit",
+    "setup": "bun install --frozen-lockfile && bun run build && bun link",
+    "build": "bun scripts/build.ts",
+    "dev": "bun scripts/build.ts --watch",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p cli && tsc --noEmit -p scripts",
+    "lint": "oxlint --type-aware --deny-warnings && knip && jscpd && bun scripts/ascii.ts",
     "test": "bun test",
-    "smoke": "bun scripts/smoke.mjs",
-    "prepack": "bun scripts/build.mjs"
+    "smoke": "bun run build && bun scripts/smoke.ts",
+    "check": "bun run typecheck && bun run lint && bun test && bun run smoke",
+    "schema": "bun scripts/schema.ts",
+    "demo": "bun run build && bash examples/make-demo-repo.sh .demo/mfas && node dist/cli/reviewroom.mjs pr feat/habit-events --repo .demo/mfas --dir examples/habit-events",
+    "demo-page": "bun run build && bash examples/make-demo-repo.sh .demo/mfas && bun scripts/build-demo.ts .demo/mfas main feat/habit-events examples/habit-events .demo/reviewroom-demo.html",
+    "prepack": "bun scripts/build.ts"
   },
   "engines": {
     "node": ">=20"
@@ -37,14 +43,20 @@
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.0",
     "@pierre/diffs": "^1.5.2",
+    "@types/bun": "^1.4.3",
     "@types/node": "^22",
     "cac": "^7.1.0",
     "dockview-core": "^8.4.1",
     "dompurify": "^3.4.16",
     "emoji-picker-element": "1.29.1",
     "emoji-picker-element-data": "1.8.0",
+    "jscpd": "^5.4.1",
+    "knip": "^6.41.0",
     "marked": "^18.1.0",
-    "typescript": "^7.0.2"
+    "oxlint": "^1.88.0",
+    "oxlint-tsgolint": "^7.0.2004",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
   },
   "packageManager": "bun@1.4.2"
 }

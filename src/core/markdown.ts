@@ -1,7 +1,7 @@
 // Markdown for comments and agent replies.
 //   [label](rr:code/pkg/x.go#L45-54)   -> inline chip (<rr-ref>)
 //   ![caption](rr:doc/request-path)    -> mini preview embed (<rr-embed>)
-//   a line that is only `rr:…`          -> embed
+//   a line that is only `rr:...`          -> embed
 // Everything is sanitised: thread bodies come from files anyone can edit.
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -28,7 +28,7 @@ const BARE_EMBED = /^\s*(rr:[^\s]+)\s*$/gm;
 
 export function renderMarkdown(src: string): string {
   const pre = src.replace(BARE_EMBED, (_m, ref) => `![](${ref})`);
-  const html = md.parse(pre, { async: false }) as string;
+  const html = md.parse(pre, { async: false });
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['rr-ref', 'rr-embed'],
     ADD_ATTR: ['ref', 'caption', 'target'],

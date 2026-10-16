@@ -3,13 +3,14 @@
 import type { DockviewApi } from 'dockview-core';
 import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
-import { formatRef, parseRef, refLabel, type Ref } from '../core/refs';
+import { parseRef, refLabel, type Ref } from '../core/refs';
+import { anchorRef } from '../shared/refs';
 import { h, uid } from '../core/dom';
 import { renderMarkdown } from '../core/markdown';
-import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { PR_DESCRIPTION } from '../shared/feedback';
 import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
-import { applyOp } from '../../cli/lib/ops.mjs';
+import { applyOp } from '../shared/ops';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 
@@ -192,7 +193,7 @@ export class ReviewApp {
   /** Open anything addressable. Accepts an rr: string or a parsed Ref. */
   async open(ref: string | Ref) {
     const r = typeof ref === 'string' ? parseRef(ref) : ref;
-    if (!r) return this.toast(`Unknown link: ${ref}`, 'error');
+    if (!r) return this.toast(`Unknown link: ${ref as string}`, 'error'); // a Ref always resolves
     switch (r.type) {
       case 'doc':
         this.bus.emit('reveal-doc', { id: r.id, path: r.path });
@@ -231,7 +232,7 @@ export class ReviewApp {
     return hits;
   }
 
-  /** Human name for a narrative element (section title, or “Table in Proto & storage”). */
+  /** Human name for a narrative element (section title, or "Table in Proto & storage"). */
   describeDoc(id: string, path?: string): string {
     const el = this.docElement(id, path);
     if (id === PR_DESCRIPTION) return path && el ? describeElement(el) + ' in the PR description' : 'PR description';
@@ -254,22 +255,10 @@ export class ReviewApp {
     if (r.type === 'sym') return r.name;
     return refLabel(r, this.docTitle);
   }
-  anchorRef(a: Anchor): string | null {
-    switch (a.kind) {
-      case 'doc':
-        return formatRef({ type: 'doc', id: a.target, path: a.path });
-      case 'code':
-        return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end });
-      case 'symbol':
-        return formatRef({ type: 'sym', name: a.name });
-      default:
-        return null;
-    }
-  }
   anchorLabel(a: Anchor): string {
     if (a.kind === 'general') return 'General';
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
-    return this.label(this.anchorRef(a)!);
+    return this.label(anchorRef(a)!);
   }
 
   // ------------------------------------------------------------ threads
@@ -327,7 +316,7 @@ export class ReviewApp {
     const failed = s.error && s.error !== this.github?.error;
     this.github = s;
     this.renderDescription();
-    if (failed && s.ok !== false) this.toast('GitHub: ' + s.error, 'error');
+    if (failed && s.ok) this.toast('GitHub: ' + s.error, 'error');
     this.bus.emit('state', this.state);
   }
   private renderDescription() {
@@ -356,7 +345,7 @@ export class ReviewApp {
     const m = href.slice(pr.length).match(/^(?:\/[^#]*)?#(?:discussion_r|r|issuecomment-|pullrequestreview-)(\d+)$/);
     return m ? this.github!.threads.find((t) => t.messages.some((x) => x.id === 'gh_' + m[1]))?.id : undefined;
   }
-  /** One GitHub action (see cli/lib/github.mjs); false (with a toast) if GitHub refused it. */
+  /** One GitHub action (see cli/lib/github.ts); false (with a toast) if GitHub refused it. */
   async githubAct(action: Record<string, unknown>): Promise<boolean> {
     try {
       this.setGitHub(await this.backend.githubAct!(action));

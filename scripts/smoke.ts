@@ -1,6 +1,6 @@
-// End-to-end smoke test: demo repo → `reviewroom pr` (detached) → API + bundle respond → state ops,
-// rounds and the agent hand-off → stop → file-only writes (lock, corrupt state).
-// Run with `mise run smoke` (or `bun scripts/smoke.mjs`). Exits non-zero on any failure.
+// End-to-end smoke test: demo repo -> `reviewroom pr` (detached) -> API + bundle respond -> state ops,
+// rounds and the agent hand-off -> stop -> file-only writes (lock, corrupt state).
+// Run with `bun run smoke` (builds first). Exits non-zero on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -13,12 +13,12 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-smoke-'));
 const repo = path.join(tmp, 'repo');
 process.env.REVIEWROOM_HOME = path.join(tmp, 'home'); // children inherit it: keep the session registry out of ~
 const sessions = () => { try { return fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'sessions', f), 'utf8'))); } catch { return []; } };
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+const run = (cmd: string, args: string[], opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 const node = process.execPath;
 const port = String(4900 + Math.floor(Math.random() * 90));
 // raw request so crafted Host / Sec-Fetch-Site / Origin headers reach the server untouched
-const raw = (url, headers = {}, method = 'GET') =>
-  new Promise((resolve, reject) => {
+const raw = (url: string, headers: Record<string, string> = {}, method = 'GET') =>
+  new Promise<number | undefined>((resolve, reject) => {
     const req = http.request(url, { method, headers }, (res) => {
       res.resume();
       res.on('end', () => resolve(res.statusCode));
@@ -27,8 +27,8 @@ const raw = (url, headers = {}, method = 'GET') =>
     req.end(method === 'GET' ? undefined : '{}');
   });
 // async CLI run, for concurrency and blocking `review`
-const cliAsync = (args, input) =>
-  new Promise((resolve) => {
+const cliAsync = (args: string[], input?: string) =>
+  new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const p = spawn(node, [cli, ...args]);
     let stdout = '', stderr = '';
     p.stdout.on('data', (d) => (stdout += d));
@@ -36,13 +36,13 @@ const cliAsync = (args, input) =>
     p.on('exit', (code) => resolve({ code, stdout, stderr }));
     p.stdin.end(input);
   });
-const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const check = (cond, msg) => {
+const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const check = (cond: unknown, msg: string) => {
   if (!cond) {
-    console.error('✗ ' + msg);
+    console.error('FAIL ' + msg);
     process.exitCode = 1;
-  } else console.log('✓ ' + msg);
+  } else console.log('ok ' + msg);
 };
 
 try {
@@ -52,7 +52,7 @@ try {
   const files = await (await fetch(url + 'api/files')).json();
   check(files.length === 5, `diff has ${files.length} files`);
   const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json();
-  check(sym.some((h) => h.kind === 'definition'), 'symbol search finds the definition');
+  check(sym.some((h: any) => h.kind === 'definition'), 'symbol search finds the definition');
   const js = await fetch(url + '_rr/reviewroom.js');
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
@@ -95,7 +95,7 @@ try {
   };
   const [cliReply, codes] = await Promise.all([cliAsync(['reply', 't_one', 'because', ...d]), browserOps()]);
   const s1 = state();
-  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
+  check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m: any) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
   check((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status === 404, 'op on an unknown thread is a 404');
   check((await post(url + 'api/ops', { op: 'finishRound', kind: 'feedback' })).status === 400, 'rounds cannot be finished through /api/ops');
   const second = run(node, [cli, 'comment', 'general', 'fyi', ...d]).trim();
@@ -107,14 +107,14 @@ try {
 
   // ---- finishing a round, nobody waiting: one finish wins, the next `review` hands it over
   const [f1, f2] = await Promise.all([post(url + 'api/finish', { kind: 'feedback', round: 1 }), post(url + 'api/finish', { kind: 'feedback', round: 1 })]);
-  check([f1.status, f2.status].sort().join() === '200,409', `double finish: one wins, the other gets 409 (${f1.status}, ${f2.status})`);
+  check([f1.status, f2.status].sort((a, b) => a - b).join() === '200,409', `double finish: one wins, the other gets 409 (${f1.status}, ${f2.status})`);
   check(state().round === 2 && state().rounds[0].deliveredAt === null, 'round advanced once; feedback not yet delivered');
   const late = await cliAsync(['review', '--no-open', ...d]);
   check(late.code === 0 && late.stdout.includes('t_one') && late.stdout.includes('and?'), 'review prints feedback sent while no agent was waiting');
   check(typeof state().rounds[0].deliveredAt === 'string' && (await fetch(url + 'api/meta')).ok, 'delivery recorded; the running server kept running');
   check(/--dir '[^']*\/\.reviewroom\/feat-habit-events'/.test(late.stdout), 'feedback names the review dir in the commands it asks for'); // git may report the repo via /private/var on macOS
 
-  // ---- bare commands from another branch find the repo's only review; several reviews → ask for --dir
+  // ---- bare commands from another branch find the repo's only review; several reviews -> ask for --dir
   run('git', ['-C', repo, 'checkout', '-q', 'main']);
   check(run(node, [cli, 'status', '--threads', '--all', '--repo', repo]).includes('t_one'), 'bare `threads` on another branch finds the only review');
   fs.mkdirSync(path.join(repo, '.reviewroom', 'other'));
@@ -143,11 +143,11 @@ try {
   // ---- no server: CLI writes take the lock, a dead holder's lock is stale
   fs.writeFileSync(path.join(dir, 'state.lock'), JSON.stringify({ pid: 999999, port: null }));
   const [c1, c2] = await Promise.all([cliAsync(['comment', 'general', 'one', ...d]), cliAsync(['comment', 'general', 'two', ...d])]);
-  const bodies = state().threads.map((t) => t.messages[0].body);
+  const bodies = state().threads.map((t: any) => t.messages[0].body);
   check(c1.code === 0 && c2.code === 0 && bodies.includes('one') && bodies.includes('two') && !fs.existsSync(path.join(dir, 'state.lock')), 'concurrent CLI writes both land (stale lock taken over, then released)');
 
   // ---- stale links: fingerprint, head moves 2 lines, check reports, --fix heals
-  const file = files.find((f) => f.status !== 'deleted').path;
+  const file = files.find((f: any) => f.status !== 'deleted').path;
   const ref = `rr:code/${file}#L3-4`;
   const reviewFile = path.join(dir, 'review.html');
   fs.writeFileSync(reviewFile, `<rr-review><section id="s"><a href="${ref}">x</a> <a href="rr:sym/RecentEvents">y</a> <a href="rr:doc/nope">z</a></section></rr-review>`);
@@ -179,7 +179,7 @@ try {
   const typo = await cliAsync(['status', '--jsn', ...d]);
   check(typo.code === 2 && typo.stderr.includes('--jsn'), 'an unknown flag is an error (exit 2)');
   const rs = await cliAsync(['reply', 't_one', '--resolve', ...d]);
-  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
+  check(rs.code === 0 && JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).threads.find((t: any) => t.id === 't_one').status === 'resolved', 'reply --resolve without a body resolves the thread');
   const local = path.join(tmp, 'local-review');
   const lp = spawn(node, [cli, 'pr', '--base', 'main', '--head', 'feat/habit-events', '--no-open', '--port', String(+port + 3), '--repo', repo, '--dir', local], { stdio: 'ignore' });
   for (let i = 0; i < 50 && !fs.existsSync(path.join(local, 'server.json')); i++) await sleep(100);
@@ -192,8 +192,16 @@ try {
   const bad = await cliAsync(['reply', 't_one', 'x', ...d]);
   const kept = fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-'));
   check(bad.code !== 0 && /not valid JSON/.test(bad.stderr) && kept.length === 1 && fs.readFileSync(path.join(dir, kept[0]), 'utf8').includes('broken') && !fs.existsSync(path.join(dir, 'state.json')), 'corrupt state.json is preserved as .corrupt-* and not overwritten');
+  // ---- so is one that parses but breaks the schema
+  for (const f of kept) fs.rmSync(path.join(dir, f));
+  fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ version: 1, round: 'two', rounds: [], threads: [] }));
+  const wrong = await cliAsync(['reply', 't_one', 'x', ...d]);
+  const aside = fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-'));
+  check(wrong.code !== 0 && /does not match schema.*round/.test(wrong.stderr) && aside.length === 1 && !fs.existsSync(path.join(dir, 'state.json')), 'a state.json that breaks the schema is preserved as .corrupt-* with the reason');
+  const again = await cliAsync(['comment', 'general', 'after', ...d]);
+  check(again.code !== 0 && /moved aside/.test(again.stderr) && !fs.existsSync(path.join(dir, 'state.json')), 'after a state.json is moved aside, writes stay blocked instead of starting an empty review');
 } catch (e) {
-  console.error(e.stderr || e.message);
+  console.error((e as any).stderr || (e as Error).message);
   process.exitCode = 1;
 } finally {
   try {

@@ -71,7 +71,7 @@ export function mountTooltips(app: ReviewApp) {
   document.addEventListener('pointerover', enter, true);
   document.addEventListener('focusin', (e) => (e.target as HTMLElement).matches?.(':focus-visible') && enter(e), true);
   document.addEventListener('pointerout', (e) => {
-    const to = (e as PointerEvent).relatedTarget as Node | null;
+    const to = e.relatedTarget as Node | null;
     if (target && to && target.contains(to)) return;
     if (!to) hide();
   }, true);

@@ -3,7 +3,7 @@
 // Floating a panel in place (layout.ts) is the one mechanism; this maps a link to the panel to float.
 import { formatRef, parseRef, type Ref } from '../core/refs';
 import { openInNewPanel } from '../panels/code';
-import { PR_DESCRIPTION } from '../../cli/lib/feedback.mjs';
+import { PR_DESCRIPTION } from '../shared/feedback';
 import type { ReviewApp } from './app';
 import { floatInPlace, onEscape, passingPanels } from './layout';
 

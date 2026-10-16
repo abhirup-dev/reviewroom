@@ -7,10 +7,68 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseAnchor } from './state.mjs';
+import { anchorOf } from '../../src/shared/refs.ts';
+import type { Provider, ReviewConfig } from './git.ts';
+import type { Anchor, CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
+
+// The parts of GitHub's GraphQL schema that PR_QUERY asks for (field names as in the query).
+type Nodes<T> = { nodes: T[] };
+type GhAuthor = { login: string; avatarUrl: string } | null;
+interface GhComment {
+  id: string;
+  databaseId: number | null;
+  body: string;
+  createdAt: string;
+  url: string;
+  viewerCanUpdate?: boolean;
+  viewerCanDelete?: boolean;
+  author: GhAuthor;
+  state?: string;
+}
+interface GhReviewThread {
+  id: string;
+  isResolved: boolean;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  diffSide: 'LEFT' | 'RIGHT';
+  originalLine: number | null;
+  originalStartLine: number | null;
+  subjectType: 'LINE' | 'FILE';
+  viewerCanResolve: boolean;
+  viewerCanUnresolve: boolean;
+  viewerCanReply: boolean;
+  comments: Nodes<GhComment>;
+}
+interface GhReview extends GhComment {
+  state: string;
+}
+type GhCheck =
+  | { __typename: 'CheckRun'; name: string; status: string; conclusion: string | null; detailsUrl: string | null; checkSuite: { workflowRun: { workflow: { name: string } } | null } | null }
+  | { __typename: 'StatusContext'; context: string; state: string; targetUrl: string | null };
+interface GhCommit {
+  commit: { oid: string; abbreviatedOid: string; messageHeadline: string; committedDate: string; url: string; statusCheckRollup: { contexts: Nodes<GhCheck> } | null };
+}
+export interface GhPullRequest {
+  id: string;
+  url: string;
+  headRefOid: string;
+  body: string | null;
+  createdAt: string;
+  author: GhAuthor;
+  reviewThreads: Nodes<GhReviewThread>;
+  comments: Nodes<GhComment>;
+  reviews: Nodes<GhReview>;
+  commits?: Nodes<GhCommit>;
+}
+type PrQuery = { viewer: { login: string }; repository: { pullRequest: (GhPullRequest & { reviewThreads: { pageInfo: { hasNextPage: boolean; endCursor: string | null } } }) | null } | null };
+export type PrTarget = { host: string; owner: string; name: string; number: number };
+/** What the server keeps and serves: the snapshot plus the PR's node id for mutations. */
+export type Snapshot = GitHubSnapshot & { pr?: string };
+type GitHubThread = Thread & { gh: NonNullable<Thread['gh']>; messages: (Message & { gh: GitHubComment })[] };
 
 /** The last fetched GitHub threads of a review dir (the CLI reads them; only the server fetches). */
-export function cachedThreads(dir) {
+export function cachedThreads(dir: string): Thread[] {
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, 'github.json'), 'utf8')).threads ?? [];
   } catch {
@@ -19,15 +77,18 @@ export function cachedThreads(dir) {
 }
 
 /** Which PR a review is about: from config.url (any GitHub host), else repo + number. */
-export function prTarget(cfg) {
+export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
+  // config.json is hand-editable: a non-string url/repo must mean "no PR", not a crash
+  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   const m = String(cfg.url || '').match(/^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   if (m) return { host: m[1], owner: m[2], name: m[3], number: +m[4] };
+  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   const r = String(cfg.repo || '').match(/^([\w.-]+)\/([\w.-]+)$/);
   return r && cfg.number ? { host: 'github.com', owner: r[1], name: r[2], number: +cfg.number } : null;
 }
 
 /** `gh api graphql`, variables passed as JSON on stdin. Rejects with GitHub's own error text. */
-export function gql(cwd, host, query, variables = {}) {
+export function gql<T = any>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
   return new Promise((resolve, reject) => {
     const p = spawn('gh', ['api', 'graphql', '--hostname', host, '--input', '-'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
@@ -35,10 +96,10 @@ export function gql(cwd, host, query, variables = {}) {
     const timer = setTimeout(() => p.kill(), 30000);
     p.stdout.on('data', (c) => (out += c));
     p.stderr.on('data', (c) => (err += c));
-    p.on('error', (e) => (clearTimeout(timer), reject(new Error(e.code === 'ENOENT' ? 'the GitHub CLI (gh) is not installed' : e.message))));
+    p.on('error', (e: NodeJS.ErrnoException) => (clearTimeout(timer), reject(new Error(e.code === 'ENOENT' ? 'the GitHub CLI (gh) is not installed' : e.message))));
     p.on('close', (code) => {
       clearTimeout(timer);
-      let b = null;
+      let b: { data: T; errors?: { message: string }[] } | null = null;
       try {
         b = JSON.parse(out);
       } catch {}
@@ -77,26 +138,26 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: 
 }`;
 
 /** Fetch everything and normalize. shortcut: conversation comments and reviews stop at 100 each, page them if a PR ever has more. */
-export async function fetchPr(cwd, t, localHead) {
-  let data;
-  const threads = [];
-  let after = null;
+export async function fetchPr(cwd: string, t: PrTarget, localHead: string | null) {
+  let data: PrQuery;
+  const threads: GhReviewThread[] = [];
+  let after: string | null = null;
   do {
-    data = await gql(cwd, t.host, PR_QUERY, { owner: t.owner, name: t.name, number: t.number, after });
+    data = await gql<PrQuery>(cwd, t.host, PR_QUERY, { owner: t.owner, name: t.name, number: t.number, after });
     const pr = data.repository?.pullRequest;
     if (!pr) throw new Error(`PR #${t.number} not found in ${t.owner}/${t.name}`);
     threads.push(...pr.reviewThreads.nodes);
     after = pr.reviewThreads.pageInfo.hasNextPage ? pr.reviewThreads.pageInfo.endCursor : null;
   } while (after);
-  const pr = data.repository.pullRequest;
+  const pr = data.repository!.pullRequest!;
   return normalize({ ...pr, reviewThreads: { nodes: threads } }, data.viewer.login, localHead);
 }
 
-const VERDICT = { APPROVED: '**Approved**', CHANGES_REQUESTED: '**Requested changes**', DISMISSED: '_Review dismissed_' };
+const VERDICT: Record<string, string | undefined> = { APPROVED: '**Approved**', CHANGES_REQUESTED: '**Requested changes**', DISMISSED: '_Review dismissed_' };
 
 /** GitHub's GraphQL shape -> reviewroom threads (ids `gh_<databaseId>`, never stored in state.json). Pure, for tests. */
-export function normalize(pr, viewer, localHead) {
-  const msg = (c, kind) => ({
+export function normalize(pr: GhPullRequest, viewer: string, localHead: string | null) {
+  const msg = (c: GhComment, kind: GitHubComment['kind']): Message & { gh: GitHubComment } => ({
     id: `gh_${c.databaseId}`,
     author: 'github',
     round: 0,
@@ -104,9 +165,9 @@ export function normalize(pr, viewer, localHead) {
     at: c.createdAt,
     gh: { kind, node: c.id, login: c.author?.login ?? 'ghost', avatar: c.author?.avatarUrl, url: c.url, pending: c.state === 'PENDING' || undefined, mine: c.author?.login === viewer, canEdit: !!c.viewerCanUpdate, canDelete: !!c.viewerCanDelete },
   });
-  const threads = pr.reviewThreads.nodes
+  const threads: GitHubThread[] = pr.reviewThreads.nodes
     .filter((t) => t.comments.nodes.length)
-    .map((t) => {
+    .map((t): GitHubThread => {
       const line = t.line ?? t.originalLine ?? 1;
       return {
         id: `gh_${t.comments.nodes[0].databaseId}`,
@@ -115,7 +176,7 @@ export function normalize(pr, viewer, localHead) {
         createdRound: 0,
         messages: t.comments.nodes.map((c) => msg(c, 'review')),
         // no current line: the code moved on (outdated) or the comment is on the whole file
-        gh: { node: t.id, url: t.comments.nodes[0].url, outdated: t.line == null && t.subjectType !== 'FILE', file: t.subjectType === 'FILE', canResolve: !!t.viewerCanResolve, canUnresolve: !!t.viewerCanUnresolve, canReply: !!t.viewerCanReply },
+        gh: { node: t.id, url: t.comments.nodes[0].url, outdated: t.line == null && t.subjectType !== 'FILE', file: t.subjectType === 'FILE', canResolve: t.viewerCanResolve, canUnresolve: t.viewerCanUnresolve, canReply: t.viewerCanReply },
       };
     });
   const reviews = pr.reviews.nodes.filter((r) => r.state !== 'PENDING');
@@ -127,42 +188,42 @@ export function normalize(pr, viewer, localHead) {
     threads.push({ id: 'gh_conversation', title: 'PR conversation', anchor: { kind: 'general' }, status: 'open', createdRound: 0, messages: conversation, gh: { node: pr.id, url: pr.url, conversation: true, canReply: true } });
   const pending = pr.reviews.nodes.find((r) => r.state === 'PENDING');
   const drafts = threads.flatMap((t) => t.messages).filter((m) => m.gh.pending).length;
-  return { ok: true, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, description: { body: pr.body ?? '', login: pr.author?.login ?? 'ghost', avatar: pr.author?.avatarUrl, at: pr.createdAt }, threads, ci: ciOf(pr.commits?.nodes ?? []) };
+  return { ok: true as const, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, description: { body: pr.body ?? '', login: pr.author?.login ?? 'ghost', avatar: pr.author?.avatarUrl, at: pr.createdAt }, threads, ci: ciOf(pr.commits?.nodes ?? []) };
 }
 
-const CHECK = { SUCCESS: 'success', NEUTRAL: 'success', SKIPPED: 'success', PENDING: 'pending', EXPECTED: 'pending' };
+const CHECK: Record<string, CiState | undefined> = { SUCCESS: 'success', NEUTRAL: 'success', SKIPPED: 'success', PENDING: 'pending', EXPECTED: 'pending' };
 
-/** The PR's commits with their checks, newest first: GitHub Actions and any CI that reports a commit status (Jenkins, TeamCity, …). */
-export function ciOf(commits) {
+/** The PR's commits with their checks, newest first: GitHub Actions and any CI that reports a commit status (Jenkins, TeamCity, ...). */
+export function ciOf(commits: GhCommit[]): CiCommit[] {
   return commits
     .map(({ commit: c }) => {
-      const checks = (c.statusCheckRollup?.contexts.nodes ?? []).map((x) =>
+      const checks = (c.statusCheckRollup?.contexts.nodes ?? []).map((x): CiCommit['checks'][number] =>
         x.__typename === 'CheckRun'
-          ? { name: [x.checkSuite?.workflowRun?.workflow.name, x.name].filter(Boolean).join(' / '), state: x.status !== 'COMPLETED' ? 'pending' : (CHECK[x.conclusion] ?? 'failure'), url: x.detailsUrl }
+          ? { name: [x.checkSuite?.workflowRun?.workflow.name, x.name].filter(Boolean).join(' / '), state: x.status !== 'COMPLETED' ? 'pending' : (CHECK[x.conclusion!] ?? 'failure'), url: x.detailsUrl }
           : { name: x.context, state: CHECK[x.state] ?? 'failure', url: x.targetUrl },
       );
       // running wins over failed: the commit isn't done yet
-      const state = !checks.length ? 'none' : checks.some((x) => x.state === 'pending') ? 'pending' : checks.some((x) => x.state === 'failure') ? 'failure' : 'success';
+      const state: CiState = !checks.length ? 'none' : checks.some((x) => x.state === 'pending') ? 'pending' : checks.some((x) => x.state === 'failure') ? 'failure' : 'success';
       return { sha: c.oid, short: c.abbreviatedOid, title: c.messageHeadline, at: c.committedDate, url: c.url, state, checks };
     })
     .reverse();
 }
 
 /** rr: links mean nothing on github.com: code links become blob links at the reviewed commit, the rest plain text. */
-export function toGitHubMarkdown(body, t, shas) {
+export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string; head: string }) {
   const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
-  return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label, ref) => {
+  return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label: string, ref: string) => {
     // a link to a GitHub thread keeps pointing at it there
     const gh = ref.match(/^rr:thread\/gh_(\d+|conversation)$/);
     if (gh) return `[${label || 'thread'}](${gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
-    const a = parseAnchor(ref);
+    const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
     const sha = a.rev === 'base' ? shas.base : shas.head;
-    return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
+    return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path.split('/').map(encodeURIComponent).join('/')}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
   });
 }
 
-const M = {
+const M: Record<string, string | undefined> = {
   startReview: 'mutation($pr: ID!, $commit: GitObjectID) { addPullRequestReview(input: {pullRequestId: $pr, commitOID: $commit}) { pullRequestReview { id } } }',
   thread: 'mutation($review: ID!, $path: String!, $line: Int!, $side: DiffSide!, $startLine: Int, $startSide: DiffSide, $body: String!) { addPullRequestReviewThread(input: {pullRequestReviewId: $review, path: $path, line: $line, side: $side, startLine: $startLine, startSide: $startSide, body: $body}) { thread { id } } }',
   reply: 'mutation($thread: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $thread, body: $body}) { comment { id } } }',
@@ -180,30 +241,42 @@ const M = {
 };
 
 class GitHubError extends Error {
-  constructor(message, status = 502) {
+  status: number;
+  constructor(message: string, status = 502) {
     super(message);
     this.status = status;
   }
 }
 
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
-export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
+/** POST /api/github body. Untrusted: perform() checks every field it uses. */
+export interface GitHubAction {
+  action: string;
+  body?: unknown;
+  thread?: string;
+  message?: string;
+  anchor?: Anchor;
+  resolved?: boolean;
+  event?: string;
+}
+
+export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; dir: string; cfg: ReviewConfig; prov: Provider; onChange?: (snap: Snapshot) => void }) {
   const target = prTarget(cfg);
   const localHead = /^[0-9a-f]{40}$/.test(prov.head) ? prov.head : null;
   const file = path.join(dir, 'github.json');
-  let snap = null;
-  let inflight = null;
+  let snap: Snapshot | null = null;
+  let inflight: Promise<Snapshot> | null = null;
   try {
     snap = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {}
 
-  const refresh = () =>
+  const refresh = (): Promise<Snapshot> =>
     (inflight ??= (async () => {
       try {
         if (!target) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
         snap = { ...(await fetchPr(repo, target, localHead)), at: new Date().toISOString() };
         fs.writeFileSync(file, JSON.stringify(snap, null, 2));
-      } catch (e) {
+      } catch (e: any) {
         // keep showing the last good threads; say why they may be old
         snap = { ...(snap?.ok ? snap : { ok: false, threads: [] }), error: e.message };
       } finally {
@@ -214,18 +287,19 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
     })());
 
   // a failed action may still have changed something (a half-made review): refetch either way
-  const act = (a) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
-  async function perform(a) {
+  const act = (a: GitHubAction) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
+  async function perform(a: GitHubAction) {
     if (!target) throw new GitHubError('this review is not about a GitHub pull request', 400);
     if (!snap?.ok) await refresh();
     if (!snap?.ok) throw new GitHubError(snap?.error || 'GitHub is not reachable');
-    const run = (name, vars) => gql(repo, target.host, M[name], vars).catch((e) => Promise.reject(new GitHubError(e.message)));
+    // snap is re-read live below (a refresh may land between awaits); the checks above guarantee it
+    const run = (name: string, vars: Record<string, unknown>) => gql(repo, target.host, M[name]!, vars).catch((e) => Promise.reject(new GitHubError(e.message)));
     const body = () => {
       if (typeof a.body !== 'string' || !a.body.trim()) throw new GitHubError('body must be a non-empty string', 400);
-      return toGitHubMarkdown(a.body.trim(), target, { base: prov.base, head: localHead || snap.headSha });
+      return toGitHubMarkdown(a.body.trim(), target, { base: prov.base, head: localHead || snap!.headSha! });
     };
-    const threadNode = () => snap.threads.find((t) => t.id === a.thread)?.gh.node || Promise.reject(new GitHubError(`no GitHub thread ${a.thread}`, 404));
-    const msg = () => snap.threads.flatMap((t) => t.messages).find((m) => m.id === a.message) || (() => { throw new GitHubError(`no GitHub comment ${a.message}`, 404); })();
+    const threadNode = () => snap!.threads.find((t) => t.id === a.thread)?.gh!.node || Promise.reject(new GitHubError(`no GitHub thread ${a.thread}`, 404));
+    const msg = () => (snap!.threads.flatMap((t) => t.messages).find((m) => m.id === a.message) as (Message & { gh: GitHubComment }) | undefined) || (() => { throw new GitHubError(`no GitHub comment ${a.message}`, 404); })();
     switch (a.action) {
       case 'comment': {
         // a new line comment: a draft in the viewer's pending review (started on the commit being reviewed)
@@ -266,7 +340,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }) {
         await run(a.resolved ? 'resolve' : 'unresolve', { thread: await threadNode() });
         break;
       case 'submit': {
-        const event = { comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' }[a.event];
+        const event = ({ comment: 'COMMENT', approve: 'APPROVE', request_changes: 'REQUEST_CHANGES' } as Record<string, string | undefined>)[a.event!];
         if (!event) throw new GitHubError('event must be comment, approve or request_changes', 400);
         const text = typeof a.body === 'string' && a.body.trim() ? body() : null;
         if (snap.pending) await run('submit', { review: snap.pending.id, event, body: text });

@@ -4,6 +4,7 @@ import { h, icon, relTime, copyText } from '../core/dom';
 import { loadRaw } from '../core/store';
 import { renderMarkdown } from '../core/markdown';
 import { formatRef, parseRef, refIcon } from '../core/refs';
+import { anchorRef } from '../shared/refs';
 import { keyLabel } from '../core/commands';
 import type { Anchor, Thread } from '../core/types';
 import { definePanel } from '../shell/layout';
@@ -11,7 +12,7 @@ import type { ReviewApp } from '../shell/app';
 import { renderPreview } from '../elements';
 import { popMenu } from '../shell/chrome';
 
-// shipped next to the bundle by scripts/build.mjs; a page without it (the static demo) shows the picker's own error
+// shipped next to the bundle by scripts/build.ts; a page without it (the static demo) shows the picker's own error
 const EMOJI_DATA = new URL('./emoji.json', import.meta.url).href;
 
 export interface ThreadViewOpts {
@@ -21,7 +22,7 @@ export interface ThreadViewOpts {
   /** New comment that can go either way: the send button ⌘↵ uses. */
   to?: 'agent' | 'github';
   docked?: boolean;
-  onClose?(): void;
+  onClose?: () => void;
   onDock?(id: string): void;
   onUndock?(id: string): void;
 }
@@ -33,8 +34,8 @@ export type SendButton = { label: string; title?: string; off?: string; main?: b
 export function composer(app: ReviewApp, opts: { placeholder: string; buttons: SendButton[]; initial?: string; autofocus?: boolean; draftKey?: string; onCancel?(): void }) {
   const buttons = opts.buttons;
   const main = buttons.find((b) => b.main && !b.off) ?? buttons.find((b) => !b.off) ?? buttons[0];
-  // A plain contenteditable where links are atomic chips. People see “request_builder.go:51–53”,
-  // never `[…](rr:code/…)`; the markdown with rr: links exists only in what gets saved for the agent.
+  // A plain contenteditable where links are atomic chips. People see "request_builder.go:51-53",
+  // never `[...](rr:code/...)`; the markdown with rr: links exists only in what gets saved for the agent.
   const ed = h('div', { class: 'rr-composer__input', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': opts.placeholder, 'data-placeholder': opts.placeholder, spellcheck: 'true' });
   const preview = h('div', { class: 'rr-composer__preview rr-prose', hidden: true });
   let saved: Range | null = null;
@@ -72,7 +73,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   const serialize = (): string => {
     let out = '';
     const walk = (n: Node, top: boolean) => {
-      if (n.nodeType === 3) out += (n as Text).data.replace(/ /g, ' ');
+      if (n.nodeType === 3) out += (n as Text).data.replace(/\u00a0/g, ' ');
       else if (n instanceof HTMLElement) {
         if (n.dataset.ref) {
           const lab = (n.dataset.label || '').replace(/[[\]]/g, '');
@@ -96,7 +97,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     for (const m of md.matchAll(re)) {
       text(md.slice(last, m.index));
       ed.append(chip(m[3], m[2] || app.label(m[3]), !!m[1]));
-      last = m.index! + m[0].length;
+      last = m.index + m[0].length;
     }
     text(md.slice(last));
   };
@@ -115,7 +116,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     sel.addRange(r);
     remember();
   };
-  const insertRef = (ref: string, embed = false) => insertNodes(...(embed ? [h('br')] : []), chip(ref, app.label(ref), embed), document.createTextNode(' '));
+  const insertRef = (ref: string, embed = false) => insertNodes(...(embed ? [h('br')] : []), chip(ref, app.label(ref), embed), document.createTextNode('\u00a0'));
   const insertText = (t: string) => {
     restore();
     document.execCommand('insertText', false, t);
@@ -154,7 +155,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
     const { Picker } = await import('emoji-picker-element');
     const picker = new Picker({ dataSource: EMOJI_DATA });
     picker.classList.add(app.resolvedTheme(), 'rr-emoji-picker');
-    const close = popMenu(btn, () => [picker as unknown as HTMLElement]);
+    const close = popMenu(btn, () => [picker]);
     picker.addEventListener('emoji-click', (e) => {
       close();
       if (e.detail.unicode) insertText(e.detail.unicode);
@@ -181,19 +182,19 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   ed.addEventListener('input', () => {
     if (!ed.textContent && !ed.querySelector('[data-ref]')) ed.replaceChildren(); // keep :empty placeholder working
     remember();
-    // “[[” opens the link picker
+    // "[[" opens the link picker
     const sel = document.getSelection();
     const node = sel?.anchorNode;
     if (node?.nodeType === 3 && (node as Text).data.slice(0, sel!.anchorOffset).endsWith('[[')) {
       const t = node as Text;
       t.deleteData(sel!.anchorOffset - 2, 2);
-      linkPicker();
+      void linkPicker();
     }
   });
   ed.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
-      submit();
+      void submit();
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       opts.onCancel?.();
@@ -210,7 +211,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
   });
   ed.addEventListener('click', (e) => {
     const c = (e.target as Element).closest('[data-ref]') as HTMLElement | null;
-    if (c && (e.metaKey || e.ctrlKey)) app.open(c.dataset.ref!);
+    if (c && (e.metaKey || e.ctrlKey)) void app.open(c.dataset.ref!);
   });
 
   const sel = app.selection;
@@ -232,7 +233,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       tb(icon('link', 14), 'Link to a section, file, line, symbol or thread (or type [[)', () => linkPicker()),
       tb(icon('expand', 14), 'Embed a live preview of a section, code range or thread', () => linkPicker(true)),
       sel
-        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : app.anchorRef({ ...sel.anchor, quote: undefined } as any)!))
+        ? tb(icon('target', 14), 'Link what you have selected', () => insertRef(sel.kind === 'code' ? formatRef({ type: 'code', path: sel.path, rev: sel.side, start: sel.start, end: sel.end }) : anchorRef({ ...sel.anchor, quote: undefined } as any)!))
         : null,
     ),
     ed,
@@ -255,14 +256,14 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
 async function anchorContext(app: ReviewApp, a: Anchor, quote?: string): Promise<HTMLElement | null> {
   if (a.kind === 'general') return null;
   if (a.kind === 'doc' && a.quote) return h('blockquote', { class: 'rr-quote' }, a.quote.exact);
-  const ref = app.anchorRef(a);
+  const ref = anchorRef(a);
   if (!ref) return null;
   const body = await renderPreview(app, ref, { compact: true });
   return h('div', { class: 'rr-anchor-ctx' }, body, quote && a.kind === 'doc' && !body.textContent ? h('blockquote', { class: 'rr-quote' }, quote) : null);
 }
 
 // ------------------------------------------------------------------ the view
-export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose(): void } {
+export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose: () => void } {
   const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') + (o.id ? '' : ' is-new') });
   let off: (() => void) | undefined;
   let lastCount = -1;
@@ -278,8 +279,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     return b;
   };
   const header = (t: Thread | undefined, anchor: Anchor) => {
-    const ref = app.anchorRef(anchor);
-    const bare = ref && app.anchorRef({ ...anchor, quote: undefined } as Anchor);
+    const ref = anchorRef(anchor);
+    const bare = ref && anchorRef({ ...anchor, quote: undefined } as Anchor);
     const r = ref ? parseRef(ref) : null;
     return h(
       'header',
@@ -462,7 +463,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     }
   };
   const anchor = (o.id ? app.thread(o.id)?.anchor : o.anchor) ?? { kind: 'general' as const };
-  anchorContext(app, anchor, o.quote).then((ctx) => ctx && ctxHost.replaceChildren(ctx));
+  void anchorContext(app, anchor, o.quote).then((ctx) => ctx && ctxHost.replaceChildren(ctx));
   render();
   off = app.bus.on('state', () => {
     // don't clobber an in-progress draft: only re-render the message list
@@ -482,7 +483,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 
 // ------------------------------------------------------------------ popup host
 export function mountThreadPopup(app: ReviewApp) {
-  let current: { el: HTMLElement; dispose(): void } | null = null;
+  let current: { el: HTMLElement; dispose: () => void } | null = null;
   let lastFocus: Element | null = null;
   let composing = false;
   const scrim = h('div', { class: 'rr-scrim', hidden: true });
