@@ -79,6 +79,30 @@ export function ensureExcluded(repo: string) {
 
 import type { ReviewConfig } from './state.ts';
 export type { ReviewConfig };
+const STATUS: Record<string, ChangedFile['status'] | undefined> = { A: 'added', D: 'deleted', R: 'renamed' };
+/** `git diff -M -z --numstat` and `--name-status` of the same range → changed files (status from the latter). */
+export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {
+  const status = new Map<string, ChangedFile['status']>();
+  const ns = nameStatus.split('\0');
+  for (let i = 0; i < ns.length; i++) {
+    const st = ns[i];
+    if (!st) continue;
+    const p1 = ns[++i];
+    const p2 = /^[RC]/.test(st) ? ns[++i] : null; // renames and copies list old, then new
+    status.set(p2 || p1, STATUS[st[0]] ?? 'modified');
+  }
+  const files: ChangedFile[] = [];
+  const parts = numstat.split('\0');
+  for (let i = 0; i < parts.length; i++) {
+    if (!parts[i]) continue;
+    const [a, d, name] = parts[i].split('\t');
+    const prev = name === '' ? parts[++i] : undefined; // a rename: old and new path follow as their own fields
+    const file = name === '' ? parts[++i] : name;
+    files.push({ path: file, prevPath: prev, additions: a === '-' ? 0 : +a, deletions: d === '-' ? 0 : +d, binary: a === '-', status: status.get(file) ?? (prev ? 'renamed' : 'modified') });
+  }
+  return files;
+}
+
 export type Provider = ReturnType<typeof makeProvider>;
 
 export function makeProvider(repo: string, cfg: ReviewConfig) {
@@ -114,29 +138,7 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
     },
     files(b: string, h: string): ChangedFile[] {
       const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
-      const num = git(['diff', '--numstat', '-M', '-z', '--end-of-options', ...range], repo);
-      const files: ChangedFile[] = [];
-      const parts = num.split('\0');
-      for (let i = 0; i < parts.length; i++) {
-        const p = parts[i];
-        if (!p) continue;
-        const [a, d, name] = p.split('\t');
-        let file: string, prev: string | undefined;
-        if (name === '') {
-          prev = parts[++i];
-          file = parts[++i];
-        } else file = name;
-        files.push({ path: file, prevPath: prev, additions: a === '-' ? 0 : +a, deletions: d === '-' ? 0 : +d, binary: a === '-', status: prev ? 'renamed' : 'modified' });
-      }
-      const ns = git(['diff', '--name-status', '-M', '-z', '--end-of-options', ...range], repo).split('\0');
-      for (let i = 0; i < ns.length; i++) {
-        const st = ns[i];
-        if (!st) continue;
-        const p1 = ns[++i];
-        const p2 = st.startsWith('R') || st.startsWith('C') ? ns[++i] : null;
-        const f = files.find((x) => x.path === (p2 || p1));
-        if (f) f.status = st[0] === 'A' ? 'added' : st[0] === 'D' ? 'deleted' : st[0] === 'R' ? 'renamed' : 'modified';
-      }
+      const files = parseDiff(git(['diff', '--numstat', '-M', '-z', '--end-of-options', ...range], repo), git(['diff', '--name-status', '-M', '-z', '--end-of-options', ...range], repo));
       if (isWT(h)) {
         const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter((p) => p && !p.startsWith('.reviewroom/'));
         for (const p of untracked) {
