@@ -16,7 +16,7 @@ import type { Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
-import { GitHubAction, issueText } from '../../src/shared/schema.ts';
+import type { GitHubAction } from '../../src/shared/schema.ts';
 import { fail } from './args.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.
@@ -240,11 +240,8 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
   // a failed action may still have changed something (a half-made review): refetch either way.
   // Right after a review is deleted GitHub briefly fails the PR query: retry once a second later.
   const after = () => refresh().then((s) => (s.error ? new Promise<Snapshot>((r) => setTimeout(() => r(refresh()), 1000)) : s));
-  const act = (input: unknown) => perform(input).then(after, async (e) => { await after(); throw e; });
-  async function perform(input: unknown) {
-    const parsed = GitHubAction.safeParse(input); // the request body: untrusted
-    if (!parsed.success) throw new ReviewroomError(issueText(parsed.error), 400);
-    const a = parsed.data;
+  const act = (a: GitHubAction) => perform(a).then(after, async (e) => { await after(); throw e; });
+  async function perform(a: GitHubAction) {
     if (!target) throw new ReviewroomError('this review is not about a GitHub pull request', 400);
     const s = live(snap) ? snap : await refresh();
     if (!live(s)) throw new ReviewroomError(s.error || 'GitHub is not reachable', 502);

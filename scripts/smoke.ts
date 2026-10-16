@@ -39,6 +39,7 @@ const cliAsync = (args: string[], input?: string) =>
     p.stdin.end(input);
   });
 const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const op = (url: string, o: object) => post(url + 'api/ops', { ops: [o] });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const check = (cond: unknown, msg: string) => {
   if (!cond) {
@@ -78,7 +79,11 @@ try {
   fs.mkdirSync(leak, { recursive: true });
   fs.writeFileSync(path.join(leak, 'secret.txt'), 'secret');
   const trav = await fetch(url + '..%2ffeat-habit-events-leak%2fsecret.txt');
-  check(trav.status === 403, `static route stays inside the review dir (${trav.status})`);
+  check(trav.status === 404, `static route stays inside the review dir (${trav.status})`);
+  const hidden = await Promise.all(['state.json', 'STATE.JSON', 'state%2Ejson', 'state.lock', '%E0'].map((f) => fetch(url + f).then((r) => r.status)));
+  check(hidden.every((c) => c === 404), `state files are not served, a bad escape is a 404 (${hidden.join()})`);
+  const badJson = await fetch(url + 'api/ops', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' });
+  check(badJson.status === 400 && (await badJson.json()).code === 'bad_op', 'a body that is not JSON is a 400');
   fs.writeFileSync(path.join(repo, '.reviewroom', 'feat-habit-events', 'fig #1?.txt'), 'fig');
   const fig = await fetch(url + encodeURIComponent('fig #1?.txt'));
   check(fig.ok && (await fig.text()) === 'fig', `static file with # and ? in its name is served (${fig.status})`);
@@ -88,19 +93,19 @@ try {
   const state = () => JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'));
   const d = ['--repo', repo, '--dir', dir];
   check(JSON.parse(fs.readFileSync(path.join(dir, 'state.lock'), 'utf8')).port === +port, 'server holds state.lock');
-  await post(url + 'api/ops', { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
+  await op(url, { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
   // a CLI reply racing a stream of browser ops (spanning the CLI's whole run): everything must land
   const browserOps = async () => {
     const codes = [];
-    for (let i = 0; i < 20; i++) codes.push((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_one', id: 'm_b' + i, body: i ? 'b' + i : 'and?', author: 'you' })).status);
-    codes.push((await post(url + 'api/ops', { op: 'setViewed', path: 'x.go', viewed: true })).status);
+    for (let i = 0; i < 20; i++) codes.push((await op(url, { op: 'addMessage', threadId: 't_one', id: 'm_b' + i, body: i ? 'b' + i : 'and?', author: 'you' })).status);
+    codes.push((await op(url, { op: 'setViewed', path: 'x.go', viewed: true })).status);
     return codes;
   };
   const [cliReply, codes] = await Promise.all([cliAsync(['reply', 't_one', 'because', ...d]), browserOps()]);
   const s1 = state();
   check(cliReply.code === 0 && codes.every((c) => c === 200) && s1.threads[0].messages.length === 22 && s1.threads[0].messages.some((m: StoredMessage) => m.body === 'because') && s1.viewed['x.go'] === 1, 'concurrent CLI reply and browser ops all survive');
-  check((await post(url + 'api/ops', { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status === 404, 'op on an unknown thread is a 404');
-  check((await post(url + 'api/ops', { op: 'finishRound', kind: 'feedback' })).status === 400, 'rounds cannot be finished through /api/ops');
+  check((await op(url, { op: 'addMessage', threadId: 't_nope', id: 'm', body: 'x', author: 'you' })).status === 404, 'op on an unknown thread is a 404');
+  check((await op(url, { op: 'finishRound', kind: 'feedback' })).status === 400, 'rounds cannot be finished through /api/ops');
   const second = run(node, [cli, 'comment', 'general', 'fyi', ...d]).trim();
   const bulk = await cliAsync(['reply', '--json', '-', ...d], JSON.stringify([{ thread: 't_one', body: 'bulk one' }, { thread: second, body: 'bulk two', resolve: true }]));
   const s2 = state();
@@ -134,9 +139,9 @@ try {
   const url2 = `http://127.0.0.1:${port2}/`;
   const waiting = cliAsync(['review', '--no-open', '--port', port2, ...d]);
   for (let i = 0; i < 50 && !(await fetch(url2 + 'api/meta').then((r) => r.ok, () => false)); i++) await sleep(100);
-  await post(url2 + 'api/ops', { op: 'createThread', id: 't_loop', anchor: { kind: 'code', path: 'x.go', rev: 'head', start: 1, end: 2 }, msgId: 'm_l1', body: 'rename this', author: 'you' });
+  await op(url2, { op: 'createThread', id: 't_loop', anchor: { kind: 'code', path: 'x.go', rev: 'head', start: 1, end: 2 }, msgId: 'm_l1', body: 'rename this', author: 'you' });
   run(node, [cli, 'reply', 't_loop', 'renamed', ...d]);
-  await post(url2 + 'api/ops', { op: 'addMessage', threadId: 't_loop', id: 'm_l3', body: 'thanks, one more', author: 'you' });
+  await op(url2, { op: 'addMessage', threadId: 't_loop', id: 'm_l3', body: 'thanks, one more', author: 'you' });
   await post(url2 + 'api/finish', { kind: 'feedback', round: 2 }); // the next check fails if this did
   const loop = await waiting;
   check(loop.code === 0 && loop.stdout.includes('t_loop') && loop.stdout.includes('renamed') && loop.stdout.includes('thanks, one more'), 'blocked review prints the round with the agent reply in it');

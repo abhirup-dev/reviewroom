@@ -15,7 +15,11 @@ import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
 import { Hono, type Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+import { FinishRound, GitHubAction, issueText } from '../../src/shared/schema.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { createAdaptorServer } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -86,14 +90,11 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
   };
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
-  // untrusted: applyOp (Zod) or the handler checks every field it uses
-  const readJson = async <T = unknown>(c: Context): Promise<T> => {
-    try {
-      return JSON.parse((await c.req.text()) || '{}') as T;
-    } catch {
-      throw new OpError('bad_op', 'request body is not JSON');
-    }
-  };
+  // request bodies are untrusted: a bad one is a 400 shaped like an OpError's
+  const body = <T extends z.ZodType>(schema: T) =>
+    zValidator('json', schema, (r, c) => {
+      if (!r.success) return json(c, { error: issueText(r.error), code: 'bad_op' }, 400);
+    });
   // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.
   const commit = (ops: Op[]) => {
     let s = readState(dir);
@@ -137,6 +138,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   });
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
+    if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
     if (!(e instanceof OpError)) console.error(`reviewroom: ${c.req.method} ${c.req.path}: ${e.message}`);
     const op = e instanceof OpError ? e : undefined;
     return json(c, { error: e.message, code: op?.code, index: op?.index }, e instanceof ReviewroomError ? e.status : 500);
@@ -178,23 +180,22 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     const round = s.rounds.find((r) => r.n === s.round);
     return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
   });
-  app.post('/api/ops', async (c) => {
-    const b = await readJson<Op & { ops?: Op[] }>(c);
-    const ops: Op[] = Array.isArray(b.ops) ? b.ops : [b];
+  // each op is checked by applyOp, which also tells the client which one failed (index)
+  app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
+    const ops = c.req.valid('json').ops as Op[];
     if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
   });
   app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
   app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
-  app.put('/api/layout', async (c) => {
-    const b = await readJson<{ grid?: unknown; panels?: unknown } | null>(c);
-    if (!b || typeof b !== 'object' || !b.grid || !b.panels) throw new OpError('bad_op', 'not a dockview layout');
+  // a dockview layout, kept whole (loose: unknown keys stay)
+  app.put('/api/layout', body(z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) })), (c) => {
     fs.mkdirSync(path.dirname(layoutFile()), { recursive: true });
-    fs.writeFileSync(layoutFile(), JSON.stringify(b));
+    fs.writeFileSync(layoutFile(), JSON.stringify(c.req.valid('json')));
     return json(c, { ok: true });
   });
   app.get('/api/github', async (c) => json(c, await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
-  app.post('/api/github', async (c) => json(c, await github.act(await readJson(c))));
+  app.post('/api/github', body(GitHubAction), async (c) => json(c, await github.act(c.req.valid('json'))));
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
@@ -207,8 +208,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
       clients.delete(stream);
     }),
   );
-  app.post('/api/finish', async (c) => {
-    const { kind, note, round } = await readJson<Extract<Op, { op: 'finishRound' }>>(c);
+  app.post('/api/finish', body(FinishRound.omit({ op: true, at: true })), (c) => {
+    const { kind, note, round } = c.req.valid('json');
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
@@ -224,16 +225,16 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     return res;
   });
   app.get('/api/rounds/:n{[0-9]+}/review.html', serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
-  // anything else: static files next to review.html (images, extra css/js the agent wrote)
+  // anything else: static files next to review.html (images, extra css/js the agent wrote). serveStatic refuses
+  // `..`, `//` and `\`; it decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F),
+  // so `a%231.png` finds `a#1.png`. The review's own state files are never served ('\0' is a path nothing has).
   app.get(
     '*',
-    async (c, next) => {
-      const f = path.resolve(dir, '.' + decodeURIComponent(c.req.path));
-      if (!f.startsWith(dir + path.sep) || /^\.?state\.(json|lock)/.test(path.basename(f))) return json(c, {}, 403);
-      await next();
-    },
-    // serveStatic decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F), so `a%231.png` finds `a#1.png`
-    serveStatic({ root: dir, allowPercentInPath: true, rewriteRequestPath: (p) => p.replace(/%(23|24|26|2B|2C|3A|3B|3D|3F|40)/gi, decodeURIComponent) }),
+    serveStatic({
+      root: dir,
+      allowPercentInPath: true,
+      rewriteRequestPath: (p) => (/(^|\/)\.?state\.(json|lock)[^/]*$/i.test(p) ? '\0' : p.replace(/%(23|24|26|2B|2C|3A|3B|3D|3F|40)/gi, decodeURIComponent)),
+    }),
   );
 
   const server = createAdaptorServer({ fetch: app.fetch, overrideGlobalObjects: false }) as http.Server;
