@@ -4,6 +4,7 @@
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { applyOp } from '../shared/ops';
 import { loadRaw } from '../core/store';
+import type { GitHubAction } from '../shared/schema';
 
 export interface CodeProvider {
   readonly name: string;
@@ -37,7 +38,7 @@ export interface StateBackend {
   /** The PR's GitHub threads (cached by the server unless refresh). */
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */
-  githubAct?(action: Record<string, unknown>): Promise<GitHubSnapshot>;
+  githubAct?(action: GitHubAction): Promise<GitHubSnapshot>;
 }
 export interface BackendEvents {
   state(s: ReviewState): void;
@@ -218,7 +219,7 @@ export class ServerState implements StateBackend {
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }
-  async githubAct(action: Record<string, unknown>) {
+  async githubAct(action: GitHubAction) {
     const r = await fetch(`${this.api}/github`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(b.error || `${r.status} ${r.statusText}`);

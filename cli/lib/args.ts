@@ -5,8 +5,8 @@ export interface Global {
   dir?: string;
 }
 /** For commands: an error the entry point prints (exit 1); throwing keeps commands testable. */
-export function fail(message: string): never {
-  throw new ReviewroomError(message);
+export function fail(message: string, status?: number): never {
+  throw new ReviewroomError(message, status);
 }
 
 export function die(msg: string, code = 1): never {

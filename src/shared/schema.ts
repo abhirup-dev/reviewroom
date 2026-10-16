@@ -12,6 +12,7 @@ const dateTime = z.string().meta({ format: 'date-time' });
 
 export const TextQuote = z.object({ exact: z.string(), prefix: z.string().optional(), suffix: z.string().optional() });
 
+const CodeAnchor = z.object({ kind: z.literal('code'), path: z.string(), rev: z.enum(['base', 'head']), start: int, end: int });
 export const Anchor = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('doc'),
@@ -19,7 +20,7 @@ export const Anchor = z.discriminatedUnion('kind', [
     path: z.string().optional().describe('CSS path below the target for blocks without an id'),
     quote: TextQuote.optional(),
   }),
-  z.object({ kind: z.literal('code'), path: z.string(), rev: z.enum(['base', 'head']), start: int, end: int }),
+  CodeAnchor,
   z.object({ kind: z.literal('symbol'), name: z.string() }),
   z.object({ kind: z.literal('general') }),
 ]);
@@ -71,6 +72,20 @@ export const StoredState = z.object({
     .optional()
     .describe('narrative rr: link -> fingerprint when first seen: hash of the lines for a line range, "definition" for a symbol (stale-link check)'),
 });
+
+const ghBody = z.string().trim().min(1, 'body must be a non-empty string');
+/** POST /api/github: the reviewer acting on the PR's own GitHub threads (cli/lib/github.ts carries it out). */
+export const GitHubAction = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('comment'), anchor: CodeAnchor, body: ghBody }),
+  z.object({ action: z.literal('reply'), thread: z.string(), body: ghBody }),
+  z.object({ action: z.literal('conversation'), body: ghBody }),
+  z.object({ action: z.literal('edit'), message: z.string(), body: ghBody }),
+  z.object({ action: z.literal('delete'), message: z.string() }),
+  z.object({ action: z.literal('resolve'), thread: z.string(), resolved: z.boolean() }),
+  z.object({ action: z.literal('submit'), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().optional() }),
+  z.object({ action: z.literal('discard') }),
+]);
+export type GitHubAction = z.infer<typeof GitHubAction>;
 
 /** Every change to the state, applied by applyOp in src/shared/ops.ts. `at` defaults to now. */
 export const Op = z.discriminatedUnion('op', [

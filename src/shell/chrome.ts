@@ -6,6 +6,7 @@ import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
 import { applyPreset, canUndoLayout, ensurePanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
+import type { GitHubAction } from '../shared/schema';
 
 // ---------------------------------------------------------------- tiny menu
 export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTMLElement | null)[]) {
@@ -96,7 +97,7 @@ export function submitReviewDialog(app: ReviewApp) {
     app.escapers = app.escapers.filter((f) => f !== esc);
   };
   app.escapers.push(esc);
-  const go = async (action: Record<string, unknown>, done: string) => {
+  const go = async (action: GitHubAction, done: string) => {
     const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
     if (buttons.some((b) => b.disabled)) return;
     buttons.forEach((b) => (b.disabled = true));
@@ -105,7 +106,7 @@ export function submitReviewDialog(app: ReviewApp) {
       app.toast(done);
     } else buttons.forEach((b) => (b.disabled = false));
   };
-  const submit = (event: string, done: string) => go({ action: 'submit', event, body: note.value }, done);
+  const submit = (event: Extract<GitHubAction, { action: 'submit' }>['event'], done: string) => go({ action: 'submit', event, body: note.value }, done);
   const box = h(
     'div',
     { class: 'rr-modal rr-modal--narrow', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Submit review on GitHub' },
