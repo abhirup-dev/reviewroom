@@ -254,7 +254,13 @@ export function mountHoverCards(app: ReviewApp) {
     }, 220);
   });
   document.addEventListener('mousedown', (e) => !card.contains(e.target as Node) && hide());
-  app.escapers.push(() => (card.matches(':popover-open') ? (hide(), true) : false));
+  // capture: Esc closes the card before the dialog it may sit over
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !card.matches(':popover-open')) return;
+    hide();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
   const place = (t: Element) => void placeNear(t, card, 'bottom-start', 8, 10);
 }
 

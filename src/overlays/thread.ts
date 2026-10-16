@@ -197,6 +197,7 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       void submit();
     } else if (e.key === 'Escape') {
       e.stopPropagation();
+      if (opts.onCancel) e.preventDefault(); // cancel the edit, not the dialog around it
       opts.onCancel?.();
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
