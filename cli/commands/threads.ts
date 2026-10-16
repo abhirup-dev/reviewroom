@@ -1,6 +1,6 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
-import { type Opts, die } from '../lib/args.ts';
+import { type Global, die } from '../lib/args.ts';
 import { dirForEdit, readState, commitOps, uid } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/shared/feedback.ts';
 import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
@@ -19,15 +19,16 @@ function findThread(s: ReviewState, id: string) {
   if (!t) die(`no thread ${id}`);
   return t;
 }
-function readBody(o: Opts, pos: string[]) {
+type BodyOpts = Global & { file?: string };
+function readBody(o: BodyOpts, pos: string[]) {
   let b = pos.shift();
-  if (typeof o.file === 'string') b = fs.readFileSync(o.file, 'utf8');
+  if (o.file) b = fs.readFileSync(o.file, 'utf8');
   else if (b === '-' || (!b && !process.stdin.isTTY)) b = fs.readFileSync(0, 'utf8');
   if (!b?.trim()) die('missing message body');
   return b.trim();
 }
 
-export function cmdThreads(repo: string | null, o: Opts) {
+export function cmdThreads(repo: string | null, o: Global & { all?: boolean; json?: boolean }) {
   const dir = dirForEdit(repo, o.dir);
   const s = readState(dir);
   const list = s.threads.filter((t) => o.all || t.status === 'open');
@@ -58,7 +59,7 @@ function replyOps(s: ReviewState, items: ReplyItem[]) {
   });
 }
 
-export async function cmdReply(repo: string | null, o: Opts, pos: string[]) {
+export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: boolean; json?: string | true }, pos: string[]) {
   const dir = dirForEdit(repo, o.dir);
   let items: ReplyItem[];
   if (o.json) {
@@ -81,7 +82,7 @@ export async function cmdReply(repo: string | null, o: Opts, pos: string[]) {
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
 }
 
-export async function cmdComment(repo: string | null, o: Opts, pos: string[]) {
+export async function cmdComment(repo: string | null, o: BodyOpts, pos: string[]) {
   const dir = dirForEdit(repo, o.dir);
   const ref = pos.shift() || die('missing rr: ref (or "general")');
   const id = uid('t_');

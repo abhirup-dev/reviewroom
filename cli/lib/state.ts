@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { type Opts, die } from './args.ts';
+import { die } from './args.ts';
 import { git, defaultBase, type ReviewConfig } from './git.ts';
 import type { Op, ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, type OpErrorCode } from '../../src/shared/ops.ts';
@@ -22,10 +22,10 @@ export function resolveDir(repo: string | null, dirFlag: string | undefined, { e
   die(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
-export function loadConfig(dir: string, repo: string, o: Opts): ReviewConfig {
+export function loadConfig(dir: string, repo: string, o: { base?: string; head?: string; title?: string } = {}): ReviewConfig {
   const file = path.join(dir, 'config.json');
   const cfg: ReviewConfig = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-  for (const k of ['base', 'head', 'title'] as const) if (typeof o[k] === 'string') cfg[k] = o[k];
+  for (const k of ['base', 'head', 'title'] as const) if (o[k] !== undefined) cfg[k] = o[k];
   cfg.base ||= defaultBase(repo);
   cfg.head ||= 'HEAD';
   return cfg;

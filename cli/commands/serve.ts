@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { type Opts, die } from '../lib/args.ts';
+import { type Global, die } from '../lib/args.ts';
 import { ensureExcluded } from '../lib/git.ts';
 import { resolveDir, loadConfig, readState, takeLock, releaseLock, commitOps } from '../lib/state.ts';
 import { undelivered } from '../../src/shared/ops.ts';
@@ -21,7 +21,9 @@ async function deliverPending(dir: string) {
   return rounds.length > 0;
 }
 
-export async function cmdServe(repo: string | null, o: Opts, blocking: boolean, dir?: string) {
+export type ServeOpts = Global & { base?: string; head?: string; title?: string; port?: string; open: boolean; forever?: boolean };
+
+export async function cmdServe(repo: string | null, o: ServeOpts, blocking: boolean, dir?: string) {
   if (!repo) die('not inside a git repository (use --repo <path>)');
   dir ??= resolveDir(repo, o.dir, { existing: true });
   const cfg = loadConfig(dir, repo, o);
@@ -55,7 +57,7 @@ export async function cmdServe(repo: string | null, o: Opts, blocking: boolean, 
   const s = readState(dir);
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} · round ${s.round} · ${url}`);
   checkNarrative(); // after the lock: it may write state.json
-  if (!o['no-open']) {
+  if (o.open) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
     let seen = false;
     server.once('rr-client', () => (seen = true));

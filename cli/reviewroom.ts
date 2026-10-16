@@ -9,12 +9,12 @@
 //   rounds/<n>/            snapshot of review.html + feedback.md for every finished round
 import path from 'node:path';
 import { cac } from 'cac';
-import { type Opts, die } from './lib/args.ts';
+import { die } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
-import { cmdPr } from './commands/pr.ts';
-import { cmdServe } from './commands/serve.ts';
+import { cmdPr, type PrOpts } from './commands/pr.ts';
+import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
-import { cmdStatus, cmdStop } from './commands/status.ts';
+import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck } from './commands/check.ts';
 import { OpError } from '../src/shared/ops.ts';
 import { StateError } from './lib/state.ts';
@@ -24,19 +24,16 @@ cli
   .option('--repo <path>', 'Git repo to review (default: the repo of the cwd)')
   .option('--dir <path>', 'Review dir (default: <repo>/.reviewroom/<branch>; `status --json` prints it)');
 
-// Hand cac's result to the commands as the flags they were typed as: kebab-case, `--no-x` as no-x,
-// values as strings (cac turns "42" into 42).
-const run = (fn: (repo: string | null, o: Opts, pos: string[]) => unknown) => async (...args: unknown[]) => {
-  const opts = args.pop() as Record<string, unknown>;
-  const flags: Record<string, string | true> = {};
-  for (const [k, v] of Object.entries(opts)) {
-    if (k === '--') continue;
-    const key = k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
-    if (v === false) flags['no-' + key] = true;
-    else flags[key] = v === true ? true : String(v);
+// cac's options, except that text stays text (cac turns "42" into 42) and a repeated flag keeps its last value
+const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => async (...args: unknown[]) => {
+  const o = args.pop() as Record<string, unknown>;
+  for (const [k, v] of Object.entries(o)) {
+    const last: unknown = Array.isArray(v) ? v.at(-1) : v;
+    if (typeof last === 'object' && k !== '--') die(`unknown option \`--${k}.…\`; see \`reviewroom --help\``, 2); // cac nests --a.b as an object
+    o[k] = typeof last === 'number' ? String(last) : last;
   }
   const pos = args.filter((a) => a !== undefined) as string[];
-  await fn(repoRoot(flags.repo ? path.resolve(flags.repo as string) : process.cwd()), flags, pos);
+  await fn(repoRoot(typeof o.repo === 'string' ? path.resolve(o.repo) : process.cwd()), o as O, pos);
 };
 
 cli
@@ -53,21 +50,21 @@ cli
   .option('--no-open', 'Do not open the browser')
   .example('  reviewroom pr 4821 --wait')
   .example('  reviewroom pr --head worktree --wait')
-  .action(run((repo, o, pos) => cmdPr(repo, o, pos[0])));
+  .action(run<PrOpts>((repo, o, pos) => cmdPr(repo, o, pos[0])));
 
 cli
   .command('review', 'Serve and block until the reviewer sends feedback or approves; print it')
   .option('--forever', 'Keep serving; never wait for a round (for a long-running session)')
   .option('--port <n>', 'Port (default: the previous one, else 4848)')
   .option('--no-open', 'Do not open the browser')
-  .action(run((repo, o) => cmdServe(repo, o, !o.forever)));
+  .action(run<ServeOpts>((repo, o) => cmdServe(repo, o, !o.forever)));
 
 cli
   .command('status', 'Round, threads, threads awaiting your reply')
   .option('--threads', 'List the open threads with their messages')
   .option('--all', 'With --threads: include resolved threads')
   .option('--json', 'Machine-readable: paths, URL, shas (and threads with --threads)')
-  .action(run((repo, o) => (o.threads ? cmdThreads(repo, o) : cmdStatus(repo, o))));
+  .action(run<StatusOpts & { threads?: boolean }>((repo, o) => (o.threads ? cmdThreads(repo, o) : cmdStatus(repo, o))));
 
 cli
   .command('reply [thread] [body]', 'Answer a thread as the agent ("-" = body from stdin)')
