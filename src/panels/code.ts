@@ -1,6 +1,6 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
-import { CodeView, parseDiffFromFile, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
+import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
@@ -66,6 +66,7 @@ class CodePanel implements PanelInstance {
   private fileView?: { path: string; side: 'base' | 'head'; rev?: string; text?: string };
   private ready: Promise<void> = Promise.resolve();
   private loadToken = 0;
+  private rangeKey = '';
   private version = 0;
   private pinToken = 0;
   private lastPointer = { x: 0, y: 0 };
@@ -209,11 +210,23 @@ class CodePanel implements PanelInstance {
     const ws = this.app.prefs.ignoreWhitespace ? { ignoreWhitespace: true } : undefined;
     this.renderToolbar();
     this.showEmpty(files.length ? '' : this.app.files.length ? 'All files are hidden by the current filters.' : 'No changes in this range.');
-    // every file is read and diffed up front: CodeView lays out all items from their diffs
+    // a new range: drop the old one's lines rather than leave them clickable while the new one loads
+    const key = `${r.base}..${r.head}`;
+    if (key !== this.rangeKey) {
+      this.rangeKey = key;
+      this.files = new Map();
+      this.cv.setItems([]);
+    }
+    // CodeView lays out every item from its diff: from the range's patch where the provider has one (loadDiffFiles reads
+    // a file when its context is expanded), else from both sides read up front
     return (this.ready = (async () => {
+      const patch = await this.app.provider.patch?.(r, !!ws).catch(() => null);
+      const parsed = new Map((patch ? parsePatchFiles(patch, `${key}${ws ? ':ws' : ''}`) : []).flatMap((p) => p.files).map((d) => [d.name, d]));
       const diffs = await Promise.all(
         files.map(async (f) => {
           if (f.binary) return null;
+          const fromPatch = parsed.get(f.path);
+          if (fromPatch) return fromPatch;
           const [oldText, newText] = await Promise.all([
             f.status === 'added' ? null : this.app.read(f.prevPath ?? f.path, r.base),
             f.status === 'deleted' ? null : this.app.read(f.path, r.head),
@@ -324,6 +337,12 @@ class CodePanel implements PanelInstance {
       },
       onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => r && !fv?.rev && this.onSelect(ctx.item.id, side(r)),
       onGutterUtilityClick: (r: SelectedLineRange, ctx: Ctx) => !fv?.rev && this.onGutter(ctx.item.id, side(r)),
+      loadDiffFiles: async (d: FileDiffMetadata) => {
+        const { base, head } = this.app.range;
+        const old = this.files.get(d.name)?.file.prevPath ?? d.name; // our file list knows renames GitHub's hunks don't say
+        const [o, n] = await Promise.all([this.app.read(old, base), this.app.read(d.name, head)]);
+        return { oldFile: { name: old, contents: o ?? '', cacheKey: `${base}:${old}` }, newFile: { name: d.name, contents: n ?? '', cacheKey: `${head}:${d.name}` } };
+      },
     };
   }
 
@@ -354,12 +373,12 @@ class CodePanel implements PanelInstance {
     this.renderToolbar();
     const p = this.app.prefs;
     const key = `${p.ignoreWhitespace}|${p.lineDiff}|${p.hideTests}|${p.hiddenTypes.join()}`;
+    this.cv.setOptions(this.options());
     if (structural && key !== this.optionsKey) {
       this.optionsKey = key;
       if (this.optionsInit) return void this.rebuild();
       this.optionsInit = true;
     }
-    this.cv.setOptions(this.options());
     this.refreshItems();
   }
 
@@ -414,7 +433,12 @@ class CodePanel implements PanelInstance {
     requestAnimationFrame(() => {
       const it = this.cv.getRenderedItems().find((x) => x.id === t.path);
       // CodeView applies the unfold on its next frame; land once it has
-      if (it?.type === 'diff' && f.diff && unfold(it.instance, f.diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => this.land(t.path, range)));
+      if (it?.type !== 'diff' || !f.diff) return;
+      const diff = f.diff;
+      // a file from the patch knows only its hunks: load it before unfolding (revealLine refuses partial diffs)
+      void (diff.isPartial ? it.instance.prepareForEditing().catch(() => {}) : Promise.resolve()).then(() => {
+        if (unfold(it.instance, diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => this.land(t.path, range)));
+      });
     });
   }
 
@@ -456,7 +480,8 @@ class CodePanel implements PanelInstance {
     const stops = this.changeStops();
     const next = dir > 0 ? stops.find((s) => s.top > cur + 2) : stops.filter((s) => s.top < cur - 6).pop();
     if (next) this.cv.scrollTo({ type: 'line', id: next.id, lineNumber: next.lineNumber, side: next.side, align: 'start', offset, behavior: 'smooth' });
-    else if (dir > 0) this.jumpFile(1);
+    // past the files on screen (CodeView only mounts those near the viewport)
+    else this.jumpFile(dir);
   }
 
   /** Index of the file at the top of the view (tops only grow down the list). */

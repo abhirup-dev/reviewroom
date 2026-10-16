@@ -153,6 +153,11 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
       }
       return files.filter((f) => !f.path.startsWith('.reviewroom/'));
     },
+    /** The range's diff for the client to render from; prefixes and colour pinned against the user's git config. */
+    patch(b: string, h: string, ws: boolean): string {
+      const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
+      return git(['-c', 'core.quotePath=false', 'diff', '-M', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', ...(ws ? ['-w'] : []), '--end-of-options', ...range, '--', '.', ':!.reviewroom'], repo);
+    },
     read(rev: string, p: string): string | null {
       if (isWT(rev)) {
         let full;
