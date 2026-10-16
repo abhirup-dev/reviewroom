@@ -1,6 +1,6 @@
 // End-to-end smoke test: demo repo -> `reviewroom pr` (detached) -> API + bundle respond -> state ops,
 // rounds and the agent hand-off -> stop -> file-only writes (lock, corrupt state).
-// Run with `mise run smoke` (or `bun scripts/smoke.ts`). Exits non-zero on any failure.
+// Run with `bun run smoke` (builds first). Exits non-zero on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';

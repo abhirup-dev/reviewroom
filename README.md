@@ -31,7 +31,7 @@ and point your agent at [`skills/reviewroom/`](skills/reviewroom/SKILL.md):
 reviewroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the browser
 ```
 
-Contributing to reviewroom itself (`mise run setup`, `mise run demo`): [AGENTS.md](AGENTS.md).
+Contributing to reviewroom itself (`bun run setup`, `bun run demo`): [AGENTS.md](AGENTS.md).
 
 ## The review loop
 
