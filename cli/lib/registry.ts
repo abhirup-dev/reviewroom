@@ -1,7 +1,7 @@
 // Running servers: <dir>/server.json (so `review`/`stop` find one) and ~/.reviewroom/sessions/<pid>.json.
 import fs from 'node:fs';
 import path from 'node:path';
-import { answers } from './state.ts';
+import { answers } from './lock.ts';
 import { registryDir } from './paths.ts';
 
 /** server.json, written by `serve`. */

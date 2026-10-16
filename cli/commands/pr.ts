@@ -3,9 +3,9 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from '../lib/args.ts';
-import { type ReviewConfig, git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
+import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { resolveDir, loadConfig, readConfig, configPath } from '../lib/state.ts';
+import { type ReviewConfig, resolveDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
