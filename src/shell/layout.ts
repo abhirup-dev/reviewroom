@@ -168,8 +168,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   // double-click a tab: float it in place, or put a floated one back
   host.addEventListener('dblclick', (e) => {
     const tab = (e.target as Element).closest('.dv-tab');
-    const group = tab && api.groups.find((g) => g.element.contains(tab));
-    const p = group?.panels[[...tab!.parentElement!.querySelectorAll(':scope > .dv-tab')].indexOf(tab!)];
+    const p = tab && api.panels.find((x) => tab.contains(x.view.tab.element));
     if (!p || (e.target as Element).closest('.dv-default-tab-action')) return;
     if (p.group.api.location.type !== 'floating') floatInPlace(app, p.id);
     else if (api.getPanel('slot:' + p.id)) putBack(app, p.id);
@@ -180,7 +179,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement): DockviewApi {
       host.querySelectorAll('.dv-default-tab-action:not([data-tip])').forEach((el) => ((el as HTMLElement).dataset.tip = 'Close panel (reopen it from the layout menu)')),
     );
   api.onDidAddPanel(labelTabs);
-  api.onDidLayoutFromJSON?.(labelTabs);
+  api.onDidLayoutFromJSON(labelTabs);
   const saved = loadRaw(layoutKey(app));
   let restored = false;
   if (saved) {

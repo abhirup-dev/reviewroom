@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Octokit } from '@octokit/core';
 import { paginateGraphQL } from '@octokit/plugin-paginate-graphql';
+import { retry } from '@octokit/plugin-retry';
 import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestReview, PullRequestReviewComment, Query, Mutation } from '@octokit/graphql-schema';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +17,7 @@ import type { Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
-import { GitHubAction, issueText } from '../../src/shared/schema.ts';
+import type { GitHubAction } from '../../src/shared/schema.ts';
 import { fail } from './args.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.
@@ -48,7 +49,7 @@ export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
 }
 
 const execFileP = promisify(execFile);
-const GH = Octokit.plugin(paginateGraphQL);
+const GH = Octokit.plugin(paginateGraphQL, retry);
 const clients = new Map<string, Promise<InstanceType<typeof GH>>>();
 // github.com and GHE.com (Enterprise Cloud) serve the API on api.<host>; GitHub Enterprise Server on <host>/api/v3
 const apiUrl = (host: string) => (host === 'github.com' || host.endsWith('.ghe.com') ? `https://api.${host}` : `https://${host}/api/v3`);
@@ -58,7 +59,8 @@ function client(cwd: string, host: string) {
   if (!c) {
     c = execFileP('gh', ['auth', 'token', '--hostname', host], { cwd, timeout: 10_000 }).then(
       ({ stdout }) => {
-        const gh = new GH({ auth: stdout.trim(), baseUrl: apiUrl(host) });
+        // one retry a second later: GitHub's 5xx and "Something went wrong" (e.g. the PR query right after a review is deleted)
+        const gh = new GH({ auth: stdout.trim(), baseUrl: apiUrl(host), retry: { retries: 1 } });
         gh.hook.before('request', (o) => void (o.request = { ...o.request, signal: AbortSignal.timeout(30_000) })); // per request, also per page
         return gh;
       },
@@ -76,6 +78,7 @@ function client(cwd: string, host: string) {
 export async function gql<T extends object>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}, { paginate = false } = {}): Promise<T> {
   try {
     const c = await client(cwd, host); // a failed `gh auth token` is a GitHub problem too (502)
+    if (query.startsWith('mutation')) variables = { ...variables, request: { retries: 0 } }; // never twice: it may have landed
     return await (paginate ? c.graphql.paginate<T>(query, variables) : c.graphql<T>(query, variables));
   } catch (err) {
     const e = err as Error & { status?: number; errors?: { message: string }[] }; // Octokit's RequestError / GraphqlResponseError
@@ -237,14 +240,9 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       return snap;
     })());
 
-  // a failed action may still have changed something (a half-made review): refetch either way.
-  // Right after a review is deleted GitHub briefly fails the PR query: retry once a second later.
-  const after = () => refresh().then((s) => (s.error ? new Promise<Snapshot>((r) => setTimeout(() => r(refresh()), 1000)) : s));
-  const act = (input: unknown) => perform(input).then(after, async (e) => { await after(); throw e; });
-  async function perform(input: unknown) {
-    const parsed = GitHubAction.safeParse(input); // the request body: untrusted
-    if (!parsed.success) throw new ReviewroomError(issueText(parsed.error), 400);
-    const a = parsed.data;
+  // a failed action may still have changed something (a half-made review): refetch either way
+  const act = (a: GitHubAction) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
+  async function perform(a: GitHubAction) {
     if (!target) throw new ReviewroomError('this review is not about a GitHub pull request', 400);
     const s = live(snap) ? snap : await refresh();
     if (!live(s)) throw new ReviewroomError(s.error || 'GitHub is not reachable', 502);

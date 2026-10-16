@@ -32,9 +32,9 @@ export async function takeLock(dir: string, port: number | null = null): Promise
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     }
-    let h: LockHolder | null = null;
+    let h: LockHolder | null = null, raw = '';
     try {
-      h = JSON.parse(fs.readFileSync(lockPath(dir), 'utf8'));
+      h = JSON.parse((raw = fs.readFileSync(lockPath(dir), 'utf8')));
     } catch {}
     if (h?.pid === process.pid) return null;
     let busy = h ? alive(h.pid) && !h.port : true; // a CLI mid-write, or a holder still writing the file
@@ -43,12 +43,27 @@ export async function takeLock(dir: string, port: number | null = null): Promise
       if (up) return h;
       busy = up === null; // a busy server is not a dead one
     }
-    if (busy && i < 60) {
-      await new Promise((r) => setTimeout(r, 50));
-      continue;
-    }
-    fs.rmSync(lockPath(dir), { force: true }); // stale: holder died, or a server that no longer answers
+    if ((busy && i < 60) || !clearStale(dir, raw)) await new Promise((r) => setTimeout(r, 50));
   }
+}
+/** Delete a stale lock (holder died, or a server that no longer answers), if it still is the one we saw. One taker
+ *  at a time: two CLIs that both saw it dead would otherwise both delete, the later one deleting the earlier one's new lock. */
+function clearStale(dir: string, raw: string) {
+  const claim = lockPath(dir) + '.takeover';
+  try {
+    fs.writeFileSync(claim, String(process.pid), { flag: 'wx' });
+  } catch {
+    // a taker that died mid-takeover
+    if (Date.now() - (fs.statSync(claim, { throwIfNoEntry: false })?.mtimeMs ?? Date.now()) > 5000) fs.rmSync(claim, { force: true });
+    return false;
+  }
+  try {
+    if (fs.readFileSync(lockPath(dir), 'utf8') === raw) fs.rmSync(lockPath(dir));
+  } catch {
+  } finally {
+    fs.rmSync(claim, { force: true });
+  }
+  return true;
 }
 export function releaseLock(dir: string) {
   try {

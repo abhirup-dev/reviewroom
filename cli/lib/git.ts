@@ -16,7 +16,7 @@ export function git(args: string[], cwd: string, opts: GitOpts = {}): string | n
   } catch (e) {
     if (opts.soft) return null;
     const { stderr, message } = e as Error & { stderr?: Buffer | string }; // execFileSync's error
-    throw new Error(`git ${args.join(' ')}: ${(stderr || message).toString().trim()}`, { cause: e });
+    throw new ReviewroomError(`git ${args.join(' ')}: ${(stderr || message).toString().trim()}`, 500, { cause: e }); // the CLI prints one line, not a stack
   }
 }
 // Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.
