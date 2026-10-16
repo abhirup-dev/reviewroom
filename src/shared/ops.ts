@@ -71,7 +71,6 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
       thread(s, op.threadId).status = op.status;
       break;
     case 'setViewed':
-      s.viewed ??= {};
       if (op.viewed) s.viewed[op.path] = s.round;
       else delete s.viewed[op.path];
       break;

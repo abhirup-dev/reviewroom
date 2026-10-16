@@ -4,7 +4,7 @@
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { applyOp } from '../shared/ops';
 import { loadRaw } from '../core/store';
-import type { GitHubAction } from '../shared/schema';
+import { StoredState, type GitHubAction } from '../shared/schema';
 
 export interface CodeProvider {
   readonly name: string;
@@ -308,7 +308,8 @@ export class BrowserState implements StateBackend {
   async load() {
     try {
       const raw = localStorage.getItem(LS_KEY(this.id));
-      if (raw) return JSON.parse(raw);
+      const v: unknown = raw && JSON.parse(raw);
+      if (StoredState.safeParse(v).success) return v as ReviewState; // a copy that breaks the schema starts over from the seed
     } catch {
       /* ignore */
     }
