@@ -95,7 +95,7 @@ export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {
   const parts = numstat.split('\0');
   for (let i = 0; i < parts.length; i++) {
     if (!parts[i]) continue;
-    const [a, d, name] = parts[i].split('\t');
+    const [, a, d, name] = /^([^\t]*)\t([^\t]*)\t(.*)$/s.exec(parts[i])!; // a path may itself contain tabs
     const prev = name === '' ? parts[++i] : undefined; // a rename: old and new path follow as their own fields
     const file = name === '' ? parts[++i] : name;
     files.push({ path: file, prevPath: prev, additions: a === '-' ? 0 : +a, deletions: d === '-' ? 0 : +d, binary: a === '-', status: status.get(file) ?? (prev ? 'renamed' : 'modified') });
