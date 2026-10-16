@@ -49,16 +49,16 @@ try {
   run('bash', [path.join(root, 'examples', 'make-demo-repo.sh'), repo]);
   const url = run(node, [cli, 'pr', 'feat/habit-events', '--repo', repo, '--detach', '--no-open', '--port', port]).trim();
   check(url.startsWith('http://127.0.0.1:'), `server up at ${url}`);
-  const files = await (await fetch(url + 'api/files')).json() as any;
+  const files = await (await fetch(url + 'api/files')).json();
   check(files.length === 5, `diff has ${files.length} files`);
-  const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json() as any;
+  const sym = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/habit-events')).json();
   check(sym.some((h: any) => h.kind === 'definition'), 'symbol search finds the definition');
   const js = await fetch(url + '_rr/reviewroom.js');
   check(js.ok, 'client bundle is served');
   const page = await (await fetch(url)).text();
   check(page.includes('<rr-review>'), 'review page is scaffolded');
   check(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-habit-events')), 'a running server is listed in the per-user session registry');
-  const sum = await (await fetch(url + 'api/summary')).json() as any;
+  const sum = await (await fetch(url + 'api/summary')).json();
   check(sum.round === 1 && sum.threads === 0 && typeof sum.browserClients === 'number', 'summary gives round and counts without thread text');
 
   // security regressions
@@ -85,7 +85,7 @@ try {
   const d = ['--repo', repo, '--dir', dir];
   check(JSON.parse(fs.readFileSync(path.join(dir, 'state.lock'), 'utf8')).port === +port, 'server holds state.lock');
   const created = await post(url + 'api/ops', { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
-  check(created.ok && ((await created.json()) as any).rev >= 1, 'browser op creates a thread');
+  check(created.ok && (await created.json()).rev >= 1, 'browser op creates a thread');
   // a CLI reply racing a stream of browser ops (spanning the CLI's whole run): everything must land
   const browserOps = async () => {
     const codes = [];

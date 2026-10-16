@@ -1,9 +1,6 @@
 {
-  // Build and test scripts run on Bun: Bun + Node types, no DOM. Only type-checked.
-  "compilerOptions": {
-    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
-    "lib": ["ES2023"], "types": ["bun"], "strict": true, "skipLibCheck": true,
-    "noEmit": true, "isolatedModules": true, "allowImportingTsExtensions": true
-  },
-  "include": ["."]
+  // Everything Bun runs directly: build/smoke scripts and the tests. Only type-checked.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["bun"], "allowImportingTsExtensions": true },
+  "include": [".", "../src/**/*.test.ts", "../cli/**/*.test.ts"]
 }
