@@ -344,7 +344,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
                   bar.style.opacity = '1'; // actions show on hover only; keep the question up
                   bar.replaceChildren(
                     h('span', { class: 'rr-muted' }, 'Delete the whole thread?'),
-                    h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => app.deleteMessage(t.id, m.id) }, 'delete'),
+                    h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => (app.deleteMessage(t.id, m.id), o.onClose?.()) }, 'delete'),
                     h('button', { class: 'rr-link-btn', title: 'Keep the thread', onclick: () => render() }, 'keep'),
                   );
                 },
