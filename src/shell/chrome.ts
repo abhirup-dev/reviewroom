@@ -1,141 +1,129 @@
 // Top bar: identity, rounds, search, picker, layout, theme, send feedback.
-import { h, icon, copyText, relTime } from '../core/dom';
+import { h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/dom';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
 import { applyPreset, canUndoLayout, ensurePanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
+import type { GitHubAction } from '../shared/schema';
 
 // ---------------------------------------------------------------- tiny menu
 export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTMLElement | null)[]) {
-  document.querySelectorAll('.rr-menu').forEach((m) => m.remove());
-  const menu = h('div', { class: 'rr-menu', role: 'menu' });
-  const close = () => {
-    menu.remove();
-    document.removeEventListener('mousedown', outside, true);
-    anchor.setAttribute('aria-expanded', 'false');
-  };
-  const outside = (e: Event) => !menu.contains(e.target as Node) && !anchor.contains(e.target as Node) && close();
+  document.querySelectorAll<HTMLElement>('.rr-menu').forEach((m) => m.hidePopover());
+  // a popover: click-away and Esc close it; it's removed once closed
+  const menu = h('div', { class: 'rr-menu', role: 'menu', popover: 'auto', onkeydown: arrows, ontoggle: (e: ToggleEvent) => {
+    anchor.setAttribute('aria-expanded', String(e.newState === 'open'));
+    if (e.newState === 'closed') menu.remove();
+  } });
+  const close = () => menu.hidePopover();
   menu.append(...(build(close).filter(Boolean) as HTMLElement[]));
-  document.body.append(menu);
-  const r = anchor.getBoundingClientRect();
-  const m = menu.getBoundingClientRect();
-  // below if it fits, else above (menus near the bottom of a dialog), else as low as stays on screen
-  const below = r.bottom + 6, above = r.top - 6 - m.height;
-  const top = below + m.height <= window.innerHeight - 8 ? below : above >= 8 ? above : Math.max(8, window.innerHeight - 8 - m.height);
-  Object.assign(menu.style, { top: top + 'px', left: Math.max(8, Math.min(window.innerWidth - m.width - 8, r.right - m.width)) + 'px' });
-  anchor.setAttribute('aria-expanded', 'true');
-  setTimeout(() => document.addEventListener('mousedown', outside, true));
-  menu.addEventListener('keydown', (e) => e.key === 'Escape' && close());
+  (anchor.closest('dialog') ?? document.body).append(menu); // outside an open modal dialog it would be inert
+  menu.showPopover();
+  void placeNear(anchor, menu, 'bottom-end', 6, 8);
   (menu.querySelector('button') as HTMLElement | null)?.focus();
   return close;
+}
+/** Up/Down/Home/End between a menu's items. */
+function arrows(e: KeyboardEvent) {
+  const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role=menuitem]:not(:disabled)')];
+  const i = items.indexOf(document.activeElement as HTMLElement);
+  const to = ({ ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: -1 } as Record<string, number>)[e.key];
+  if (to === undefined || !items.length) return;
+  e.preventDefault();
+  items.at(to % items.length)?.focus();
 }
 export const menuItem = (label: string | Node, fn: () => void, opts: { hint?: string; checked?: boolean; icon?: Parameters<typeof icon>[0] } = {}) =>
   h('button', { class: 'rr-menu__item', role: 'menuitem', onclick: fn }, h('span', { class: 'rr-menu__check' }, opts.checked ? icon('check', 12) : opts.icon ? icon(opts.icon, 14) : ''), h('span', { class: 'rr-menu__label' }, label), opts.hint ? h('span', { class: 'rr-menu__hint' }, opts.hint) : null);
 export const menuLabel = (t: string) => h('div', { class: 'rr-menu__label-row' }, t);
 
-// ---------------------------------------------------------------- send dialog
-export function sendDialog(app: ReviewApp) {
-  const pending = app.pendingFeedback();
-  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
-  const scrim = h('div', { class: 'rr-scrim' });
-  const esc = () => (close(), true);
-  const close = () => {
-    scrim.remove();
-    app.escapers = app.escapers.filter((f) => f !== esc);
-  };
-  app.escapers.push(esc);
-  const go = async (kind: 'feedback' | 'approve') => {
-    const n = app.state.round;
-    const text = note.value.trim() || undefined;
-    // one finish at a time: a double click must not end two rounds
+// ---------------------------------------------------------------- send dialogs
+/** A narrow modal dialog (title, close button, body, footer), removed once closed; `note` gets the focus.
+ *  `act` wraps a footer action: one at a time (a double click must not do it twice), closing when it returns true. */
+type Act = (fn: () => Promise<boolean>) => () => Promise<void>;
+function noteDialog(label: string, title: string, note: HTMLElement, content: (act: Act, close: () => void) => [body: (HTMLElement | null)[], foot: HTMLElement[]]) {
+  const close = () => box.close();
+  const act: Act = (fn) => async () => {
     const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
     if (buttons.some((b) => b.disabled)) return;
     buttons.forEach((b) => (b.disabled = true));
+    if (await fn()) close();
+    else buttons.forEach((b) => (b.disabled = false));
+  };
+  const [body, foot] = content(act, close);
+  const box = h(
+    'dialog',
+    { class: 'rr-modal rr-modal--narrow', 'aria-label': label, onmousedown: backdropCloses, onclose: () => box.remove() },
+    h('header', { class: 'rr-thread__head' }, h('strong', null, title), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
+    h('div', { class: 'rr-send__body' }, ...body),
+    h('footer', { class: 'rr-composer__foot' }, ...foot),
+  );
+  document.body.append(box);
+  box.showModal();
+  note.focus();
+}
+
+export function sendDialog(app: ReviewApp) {
+  const pending = app.pendingFeedback();
+  const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
+  const go = (kind: 'feedback' | 'approve') => async () => {
+    const n = app.state.round;
+    const text = note.value.trim() || undefined;
     if (app.backend.finish) {
       const res = await app.backend.finish(kind, text, n).catch((e) => ({ ok: false, message: String(e) }));
       if (!res.ok) {
-        buttons.forEach((b) => (b.disabled = false));
-        return app.toast('Failed: ' + (res.message ?? 'unknown'), 'error');
+        app.toast('Failed: ' + (res.message ?? 'unknown'), 'error');
+        return false;
       }
-      close();
       app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
       app.root.classList.add('is-waiting');
     } else {
       await copyText(feedbackMarkdown(app.state, { kind, note: text }));
       app.apply({ op: 'finishRound', kind, note: text, round: n });
-      close();
       app.toast('Feedback copied — paste it to your agent');
     }
+    return true;
   };
-  const box = h(
-    'div',
-    { class: 'rr-modal rr-modal--narrow', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Finish round' },
-    h('header', { class: 'rr-thread__head' }, h('strong', null, `Finish round ${app.state.round}`), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
-    h(
-      'div',
-      { class: 'rr-send__body' },
-      h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
-      h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
-      note,
-      app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
-    ),
-    h('footer', { class: 'rr-composer__foot' }, h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => go('approve') }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: () => go('feedback') }, icon('send', 12), 'Send feedback')),
+  noteDialog(
+    'Finish round',
+    `Finish round ${app.state.round}`,
+    note,
+    (act, close) => [
+      [
+        h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
+        h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
+        note,
+        app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
+      ],
+      [h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(go('approve')) }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: act(go('feedback')) }, icon('send', 12), 'Send feedback')],
+    ],
   );
-  scrim.append(box);
-  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
-  scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
-  document.body.append(scrim);
-  note.focus();
 }
 
 // ---------------------------------------------------------------- submit GitHub review
 export function submitReviewDialog(app: ReviewApp) {
   const drafts = app.github?.pending?.drafts ?? 0;
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' });
-  const scrim = h('div', { class: 'rr-scrim' });
-  const esc = () => (close(), true);
-  const close = () => {
-    scrim.remove();
-    app.escapers = app.escapers.filter((f) => f !== esc);
-  };
-  app.escapers.push(esc);
-  const go = async (action: Record<string, unknown>, done: string) => {
-    const buttons = [...box.querySelectorAll<HTMLButtonElement>('footer button')];
-    if (buttons.some((b) => b.disabled)) return;
-    buttons.forEach((b) => (b.disabled = true));
-    if (await app.githubAct(action)) {
-      close();
-      app.toast(done);
-    } else buttons.forEach((b) => (b.disabled = false));
-  };
-  const submit = (event: string, done: string) => go({ action: 'submit', event, body: note.value }, done);
-  const box = h(
-    'div',
-    { class: 'rr-modal rr-modal--narrow', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Submit review on GitHub' },
-    h('header', { class: 'rr-thread__head' }, h('strong', null, 'Submit your review on GitHub'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', onclick: close }, icon('close', 14))),
-    h(
-      'div',
-      { class: 'rr-send__body' },
-      h('p', { class: 'rr-muted' }, drafts ? `${plural(drafts, 'draft comment')} will be posted with it, visible to everyone on the PR.` : 'No draft comments: this posts just the summary and your verdict.'),
-      note,
-      drafts ? h('button', { class: 'rr-link-btn', title: 'Delete every draft comment in this review', onclick: () => go({ action: 'discard' }, 'Drafts discarded') }, 'Discard all drafts') : null,
-    ),
-    h(
-      'footer',
-      { class: 'rr-composer__foot' },
-      h('button', { class: 'rr-btn rr-btn--ghost', title: 'Ask for changes before this can merge', onclick: () => submit('request_changes', 'Review submitted: changes requested') }, 'Request changes'),
-      h('button', { class: 'rr-btn rr-btn--ghost', onclick: () => submit('approve', 'Review submitted: approved') }, icon('check', 12), 'Approve'),
-      h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-btn rr-btn--primary', title: 'Post your comments without approving or blocking', onclick: () => submit('comment', 'Review submitted') }, icon('send', 12), 'Comment'),
-    ),
+  const go = (done: string, action: () => GitHubAction) => async () => (await app.githubAct(action())) && (app.toast(done), true);
+  const submit = (event: Extract<GitHubAction, { action: 'submit' }>['event'], done: string) => go(done, () => ({ action: 'submit', event, body: note.value }));
+  noteDialog(
+    'Submit review on GitHub',
+    'Submit your review on GitHub',
+    note,
+    (act) => [
+      [
+        h('p', { class: 'rr-muted' }, drafts ? `${plural(drafts, 'draft comment')} will be posted with it, visible to everyone on the PR.` : 'No draft comments: this posts just the summary and your verdict.'),
+        note,
+        drafts ? h('button', { class: 'rr-link-btn', title: 'Delete every draft comment in this review', onclick: act(go('Drafts discarded', () => ({ action: 'discard' }))) }, 'Discard all drafts') : null,
+      ],
+      [
+        h('button', { class: 'rr-btn rr-btn--ghost', title: 'Ask for changes before this can merge', onclick: act(submit('request_changes', 'Review submitted: changes requested')) }, 'Request changes'),
+        h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(submit('approve', 'Review submitted: approved')) }, icon('check', 12), 'Approve'),
+        h('span', { class: 'rr-toolbar__spacer' }),
+        h('button', { class: 'rr-btn rr-btn--primary', title: 'Post your comments without approving or blocking', onclick: act(submit('comment', 'Review submitted')) }, icon('send', 12), 'Comment'),
+      ],
+    ],
   );
-  scrim.append(box);
-  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
-  scrim.addEventListener('keydown', (e) => e.key === 'Escape' && close());
-  document.body.append(scrim);
-  note.focus();
 }
 
 /** GitHub status + the Agent/Team switch: shown only for reviews of a GitHub PR. */
@@ -245,7 +233,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
       h(
         'div',
         { class: 'rr-header__actions' },
-        h('button', { class: 'rr-search-btn', onclick: () => (app as any).openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
+        h('button', { class: 'rr-search-btn', onclick: () => app.openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         ...githubControls(app),
         app.teamMode ? null : roundBtn,
         h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),

@@ -1,5 +1,6 @@
 // Command palette (⌘K), click-away selection release, link hover previews, toasts.
-import { h, icon, debounce, fuzzyScore } from '../core/dom';
+import { single } from 'fuzzysort';
+import { h, icon, debounce, placeNear, backdropCloses } from '../core/dom';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
@@ -23,9 +24,9 @@ export function mountPalette(app: ReviewApp) {
   const input = h('input', { class: 'rr-palette__input', placeholder: '', 'aria-label': 'Command palette', autocomplete: 'off', spellcheck: 'false' });
   const list = h('div', { class: 'rr-palette__list', role: 'listbox' });
   const hint = h('div', { class: 'rr-palette__hint' });
-  const box = h('div', { class: 'rr-palette', role: 'dialog', 'aria-label': 'Command palette' }, input, list, hint);
-  const scrim = h('div', { class: 'rr-scrim rr-scrim--top', hidden: true }, box);
-  document.body.append(scrim);
+  // Esc and the backdrop close it too, without a pick
+  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, input, list, hint);
+  document.body.append(box);
   let items: Item[] = [];
   let sel = 0;
   let pick: ((ref: string | null) => void) | null = null;
@@ -33,14 +34,11 @@ export function mountPalette(app: ReviewApp) {
   let reqId = 0;
 
   const close = (result: string | null = null) => {
-    scrim.hidden = true;
-    if (pick) {
-      const p = pick;
-      pick = null;
-      p(result);
-    }
+    const p = pick;
+    pick = null;
+    box.close();
+    p?.(result);
   };
-  scrim.addEventListener('mousedown', (e) => e.target === scrim && close());
 
   const sections = () =>
     app.doc
@@ -52,8 +50,8 @@ export function mountPalette(app: ReviewApp) {
     const mode = q[0];
     const text = /^[>#/@]/.test(q) ? q.slice(1).trim() : q.trim();
     const add = (it: Omit<Item, 'score'>, hay: string) => {
-      const s = fuzzyScore(text, hay);
-      if (s >= 0) out.push({ ...it, score: s });
+      const s = text ? single(text, hay)?.score : 1; // 0..1, higher is better
+      if (s !== undefined) out.push({ ...it, score: s });
     };
     if (q.trim().startsWith('rr:') && parseRef(q.trim())) {
       const ref = q.trim();
@@ -139,31 +137,38 @@ export function mountPalette(app: ReviewApp) {
 
   input.addEventListener('input', () => {
     sel = 0;
-    if (/^[#/]/.test(input.value)) void searchRemote(input.value);
+    if (/^[#/]/.test(input.value)) searchRemote(input.value);
     paint();
   });
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) (sel = Math.min(items.length - 1, sel + 1)), paint(), e.preventDefault();
-    else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) (sel = Math.max(0, sel - 1)), paint(), e.preventDefault();
-    else if (e.key === 'Enter') (choose(sel), e.preventDefault());
-    else if (e.key === 'Escape') (close(), e.preventDefault(), e.stopPropagation());
+    if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
+      sel = Math.min(items.length - 1, sel + 1);
+      paint();
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
+      sel = Math.max(0, sel - 1);
+      paint();
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      choose(sel);
+      e.preventDefault();
+    }
   });
 
   const open = (initial = '') => {
     remote = [];
     input.value = initial;
     input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : 'Jump to a file, section, thread or command…';
-    scrim.hidden = false;
+    if (!box.open) box.showModal();
     paint();
-    if (/^[#/]/.test(initial)) void searchRemote(initial);
+    if (/^[#/]/.test(initial)) searchRemote(initial);
     requestAnimationFrame(() => {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
     });
   };
-  app.escapers.push(() => (scrim.hidden ? false : (close(), true)));
-  (app as any).openPalette = open;
-  (app as any).pickRef = () =>
+  app.openPalette = open;
+  app.pickRef = () =>
     new Promise<string | null>((resolve) => {
       pick = resolve;
       open();
@@ -176,7 +181,7 @@ export function mountSelectionRelease(app: ReviewApp) {
   // a click anywhere else lets go of the selection, as Esc does; clicks on line numbers or the gutter + make
   // (or extend) a new one, and clicks inside popups and menus belong to them
   const keeps = (n: EventTarget) =>
-    n instanceof Element && (n.matches('.rr-scrim, .rr-menu') || ['data-column-number', 'data-selected-line', 'data-utility-button', 'data-gutter-utility-slot'].some((a) => n.hasAttribute(a)));
+    n instanceof Element && (n.matches('dialog, .rr-menu') || ['data-column-number', 'data-selected-line', 'data-utility-button', 'data-gutter-utility-slot'].some((a) => n.hasAttribute(a)));
   document.addEventListener(
     'pointerdown',
     (e) => {
@@ -191,10 +196,10 @@ export function mountSelectionRelease(app: ReviewApp) {
 
 // ================================================================ hover previews
 export function mountHoverCards(app: ReviewApp) {
-  const card = h('div', { class: 'rr-hovercard', hidden: true, role: 'dialog', 'aria-label': 'Preview' });
+  const card = h('div', { class: 'rr-hovercard', popover: 'manual', role: 'dialog', 'aria-label': 'Preview' });
   document.body.append(card);
   let wrapped = false; // remembered across previews
-  const hide = () => ((card.hidden = true), (current = null), clearTimeout(timer));
+  const hide = () => (card.hidePopover(), (current = null), clearTimeout(timer));
   let timer: ReturnType<typeof setTimeout> | undefined;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let current: Element | null = null;
@@ -225,7 +230,10 @@ export function mountHoverCards(app: ReviewApp) {
       );
       card.style.width = '';
       card.classList.toggle('is-wrapped', wrapped);
-      card.hidden = false;
+      // in the top layer, over any open modal; inside the link's dialog if it's in one (outside it, it'd be inert)
+      const host = t.closest('dialog') ?? document.body;
+      if (card.parentElement !== host) host.append(card);
+      card.showPopover();
       place(t);
       const body = await renderPreview(app, ref, { compact: true });
       if (current !== t) return;
@@ -241,30 +249,31 @@ export function mountHoverCards(app: ReviewApp) {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
       if (card.matches(':hover') || current?.matches(':hover')) return;
-      card.hidden = true;
+      card.hidePopover();
       current = null;
     }, 220);
   });
   document.addEventListener('mousedown', (e) => !card.contains(e.target as Node) && hide());
-  app.escapers.push(() => (card.hidden ? false : (hide(), true)));
-  function place(t: Element) {
-    const r = t.getBoundingClientRect();
-    const c = card.getBoundingClientRect();
-    const below = r.bottom + c.height + 12 < window.innerHeight;
-    Object.assign(card.style, {
-      left: Math.min(window.innerWidth - c.width - 10, Math.max(10, r.left)) + 'px',
-      top: (below ? r.bottom + 8 : Math.max(10, r.top - c.height - 8)) + 'px',
-    });
-  }
+  // capture: Esc closes the card before the dialog it may sit over
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !card.matches(':popover-open')) return;
+    hide();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  const place = (t: Element) => void placeNear(t, card, 'bottom-start', 8, 10);
 }
 
 // ================================================================ toasts
 export function mountToasts(app: ReviewApp) {
-  const host = h('div', { class: 'rr-toasts', 'aria-live': 'polite' });
+  const host = h('div', { class: 'rr-toasts', 'aria-live': 'polite', popover: 'manual' });
   document.body.append(host);
   app.bus.on('toast', ({ text, kind }) => {
     const t = h('div', { class: 'rr-toast' + (kind === 'error' ? ' rr-toast--error' : '') }, text);
     host.append(t);
+    // shown again so it stacks over any modal dialog opened since
+    host.hidePopover();
+    host.showPopover();
     setTimeout(() => t.classList.add('is-out'), 2600);
     setTimeout(() => t.remove(), 3000);
   });

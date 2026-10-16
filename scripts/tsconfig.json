@@ -1,6 +1,6 @@
 {
-  // Everything Bun runs directly: build/smoke scripts and the tests. Only type-checked.
+  // Everything Bun runs directly: build scripts, unit and end-to-end tests. Only type-checked.
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["bun"], "allowImportingTsExtensions": true },
-  "include": [".", "../src/**/*.test.ts", "../cli/**/*.test.ts"]
+  "include": [".", "../e2e", "../src/**/*.test.ts", "../cli/**/*.test.ts"]
 }
