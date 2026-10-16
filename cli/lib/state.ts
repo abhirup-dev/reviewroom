@@ -1,10 +1,10 @@
-// Review dir, config.json, state.json (read, atomic write, lock, ops) and rr: anchors.
+// Review dir, config.json, state.json (read, atomic write, lock, ops).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { type Opts, die } from './args.ts';
-import { git, defaultBase, type ReviewConfig } from './git.ts';
-import type { Anchor, Op, ReviewState } from '../../src/core/types.ts';
+import { z } from 'zod';
+import { git, defaultBase } from './git.ts';
+import type { Op, ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
 
@@ -19,13 +19,28 @@ export function resolveDir(repo: string | null, dirFlag: string | undefined, { e
   if (!existing || fs.existsSync(own)) return own;
   const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
-  die(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
+  throw new StateError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} — pass --dir` : `no review in ${root} — run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
-export function loadConfig(dir: string, repo: string, o: Opts): ReviewConfig {
-  const file = path.join(dir, 'config.json');
-  const cfg: ReviewConfig = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-  for (const k of ['base', 'head', 'title'] as const) if (typeof o[k] === 'string') cfg[k] = o[k];
+// config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept
+const text = z.string().optional().catch(undefined);
+const ConfigFile = z.looseObject({ base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text });
+/** config.json, with --base/--head/--title applied (loadConfig). */
+export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
+export const configPath = (dir: string) => path.join(dir, 'config.json');
+
+export function readConfig(dir: string): z.infer<typeof ConfigFile> {
+  if (!fs.existsSync(configPath(dir))) return {};
+  try {
+    return ConfigFile.parse(JSON.parse(fs.readFileSync(configPath(dir), 'utf8')));
+  } catch (e) {
+    throw new StateError(`${configPath(dir)} is not valid JSON (${(e as Error).message}); fix or delete it`);
+  }
+}
+
+export function loadConfig(dir: string, repo: string, o: { base?: string; head?: string; title?: string } = {}): ReviewConfig {
+  const cfg = readConfig(dir) as ReviewConfig; // base and head are filled in below
+  for (const k of ['base', 'head', 'title'] as const) if (o[k] !== undefined) cfg[k] = o[k];
   cfg.base ||= defaultBase(repo);
   cfg.head ||= 'HEAD';
   return cfg;
@@ -34,6 +49,7 @@ export function loadConfig(dir: string, repo: string, o: Opts): ReviewConfig {
 const emptyState = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: new Date().toISOString() }], threads: [], viewed: {}, pins: [] });
 export const statePath = (dir: string) => path.join(dir, 'state.json');
 
+/** A problem the user can fix (no review, a moved-aside state.json): the entry point prints it and exits 1. */
 export class StateError extends Error {}
 /** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
 export function readState(dir: string): ReviewState {
@@ -157,27 +173,8 @@ export async function commitOps(dir: string, ops: Op[]): Promise<number | undefi
 export const uid = (p: string) => p + crypto.randomBytes(4).toString('hex');
 
 export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => {
-  if (!repo && !dirFlag) die('not inside a git repository (use --dir)');
+  if (!repo && !dirFlag) throw new StateError('not inside a git repository (use --dir)');
   return resolveDir(repo, dirFlag, { existing: true });
 };
 
 
-export function parseAnchor(ref: string): Anchor {
-  const m = ref.match(/^rr:(\w+)\/(.*)$/);
-  if (!m) return { kind: 'general' };
-  const [, type, rest] = m;
-  if (type === 'doc') {
-    const [id, ...p] = rest.split('/');
-    return { kind: 'doc', target: decodeURIComponent(id), path: p.length ? decodeURIComponent(p.join('/')) : undefined };
-  }
-  if (type === 'code') {
-    const lm = rest.match(/#L(\d+)(?:-L?(\d+))?$/);
-    let p = lm ? rest.slice(0, lm.index) : rest;
-    let rev = 'head';
-    const at = p.lastIndexOf('@');
-    if (at > 0) (rev = p.slice(at + 1)), (p = p.slice(0, at));
-    return { kind: 'code', path: p, rev: rev === 'base' ? 'base' : 'head', start: lm ? +lm[1] : 1, end: lm ? +(lm[2] || lm[1]) : 1 };
-  }
-  if (type === 'sym') return { kind: 'symbol', name: decodeURIComponent(rest) };
-  return { kind: 'general' };
-}
