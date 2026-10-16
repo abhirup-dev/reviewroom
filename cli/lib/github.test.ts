@@ -1,11 +1,12 @@
 import { expect, test } from 'bun:test';
-import { ciOf, normalize, prTarget, toGitHubMarkdown, type GhPullRequest } from './github.ts';
+import type { PullRequest } from '@octokit/graphql-schema';
+import { ciOf, normalize, prTarget, toGitHubMarkdown } from './github.ts';
 
 const author = (login: string) => ({ login, avatarUrl: `https://avatars.example/${login}` });
 const comment = (databaseId: number, login: string, body: string, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
 const thread = (over: object, comments: ReturnType<typeof comment>[]) => ({ id: 'T' + comments[0].databaseId, isResolved: false, path: 'a.go', line: 12, startLine: 10, diffSide: 'RIGHT', startDiffSide: 'RIGHT', originalLine: 9, originalStartLine: 8, subjectType: 'LINE', viewerCanResolve: true, viewerCanUnresolve: false, viewerCanReply: true, comments: { nodes: comments }, ...over });
 // fixtures shaped like GitHub's JSON (plain strings where the types have unions)
-const pr: GhPullRequest = {
+const pr: PullRequest = {
   id: 'PR1',
   body: 'Adds the thing.',
   createdAt: '2026-10-01T00:00:00Z',
