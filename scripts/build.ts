@@ -8,12 +8,7 @@ const at = (p: string) => root + p;
 
 const styles = ['tokens', 'shell', 'panels', 'overlays', 'content', 'dockview'];
 
-// dockview only ships its stylesheet inside its UMD bundle; lift it out so it can be themed (and ordered first).
-function dockviewCss() {
-  const line = readFileSync(at('node_modules/dockview-core/dist/dockview-core.js'), 'utf8').split('\n').find((l) => l.includes('s.textContent = ".dv-'));
-  if (!line) throw new Error('dockview stylesheet not found in dockview-core.js: the extraction in scripts/build.ts needs updating');
-  return JSON.parse(line.slice(line.indexOf('"'), line.lastIndexOf('"') + 1));
-}
+const dockviewCss = () => readFileSync(at('node_modules/dockview/dist/styles/dockview.css'), 'utf8');
 
 // Fonts ship with the tool (latin, variable) so typography never depends on the network.
 // [family, package, file, style]
