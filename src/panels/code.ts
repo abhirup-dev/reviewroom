@@ -430,16 +430,15 @@ class CodePanel implements PanelInstance {
     const range = { start: t.start, end: t.end ?? t.start, side, endSide: side };
     this.land(t.path, range);
     // lines the PR didn't touch sit in folded context: once the file is mounted, unfold around them and land again
-    requestAnimationFrame(() => {
+    const reveal = (loaded = false) => {
       const it = this.cv.getRenderedItems().find((x) => x.id === t.path);
-      // CodeView applies the unfold on its next frame; land once it has
       if (it?.type !== 'diff' || !f.diff) return;
-      const diff = f.diff;
-      // a file from the patch knows only its hunks: load it before unfolding (revealLine refuses partial diffs)
-      void (diff.isPartial ? it.instance.prepareForEditing().catch(() => {}) : Promise.resolve()).then(() => {
-        if (unfold(it.instance, diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => this.land(t.path, range)));
-      });
-    });
+      // a file from the patch knows only its hunks: load it, then look again (revealLine refuses partial diffs)
+      if (f.diff.isPartial && !loaded) return void it.instance.prepareForEditing().catch(() => {}).then(() => requestAnimationFrame(() => reveal(true)));
+      // CodeView applies the unfold on its next frame; land once it has
+      if (unfold(it.instance, f.diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => this.land(t.path, range)));
+    };
+    requestAnimationFrame(() => reveal());
   }
 
   /** Scroll the lines to 30% from the top, highlight them, glow a few times, then let the highlight go. */
