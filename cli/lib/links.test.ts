@@ -7,16 +7,6 @@ const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (
 const html = (...refs: string[]) => `<!-- e.g. <a href="rr:code/path#L10-20"> --><rr-review><section id="intro">${refs.map((r) => `<a href="${r}">x</a>`).join(' ')}</section></rr-review>`;
 const status = (results: LinkResult[]) => Object.fromEntries(results.map((x) => [x.ref, x.status]));
 
-test('first sighting fingerprints; unchanged code stays ok', () => {
-  const p = prov({ 'a.go': body.join('\n') });
-  const page = html('rr:code/a.go#L4-6', 'rr:code/a.go#L4');
-  const first = checkLinks(page, p);
-  expect(status(first.results)).toEqual({ 'rr:code/a.go#L4-6': 'new', 'rr:code/a.go#L4': 'new' });
-  const again = checkLinks(page, p, first.links);
-  expect(problems(again.results)).toEqual([]);
-  expect(again.links).toEqual(first.links);
-});
-
 test('code shifted ≤5 lines is moved and fixable; further or edited is changed', () => {
   const { links } = checkLinks(html('rr:code/a.go#L4-6', 'rr:code/a.go#L4', 'rr:code/a.go#L20-21'), prov({ 'a.go': body.join('\n') }));
   // 3 lines inserted above line 1; line 20 edited

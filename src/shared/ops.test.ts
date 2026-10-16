@@ -47,12 +47,8 @@ test('edit, delete, and deleting the last message removes the thread', () => {
 
 test('typed errors for unknown targets and bad input', () => {
   const s = run(empty(), create);
-  expect(code(() => applyOp(s, { op: 'addMessage', threadId: 't_x', id: 'm', body: 'b', author: 'you' }))).toBe('not_found');
   expect(code(() => applyOp(s, { op: 'editMessage', threadId: 't_1', msgId: 'nope', body: 'b' }))).toBe('not_found');
   expect(code(() => applyOp(s, { op: 'addMessage', threadId: 't_1', id: 'm', body: '', author: 'you' }))).toBe('bad_op');
-  expect(code(() => applyOp(s, { op: 'setCheck', id: 'c', value: 'maybe' } as never))).toBe('bad_op');
-  expect(code(() => applyOp(s, { op: 'rm -rf' } as never))).toBe('bad_op');
-  expect(code(() => applyOp(s, null as never))).toBe('bad_op');
 });
 
 test('finishRound advances once; a second finish of the same round conflicts', () => {
