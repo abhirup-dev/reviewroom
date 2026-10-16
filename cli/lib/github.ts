@@ -74,8 +74,8 @@ function client(cwd: string, host: string) {
 
 /** GraphQL as gh's user; `paginate` follows the one connection with `pageInfo` (variable `$cursor`). Rejects with GitHub's own error text. */
 export async function gql<T extends object>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}, { paginate = false } = {}): Promise<T> {
-  const c = await client(cwd, host);
   try {
+    const c = await client(cwd, host); // a failed `gh auth token` is a GitHub problem too (502)
     return await (paginate ? c.graphql.paginate<T>(query, variables) : c.graphql<T>(query, variables));
   } catch (err) {
     const e = err as Error & { status?: number; errors?: { message: string }[] }; // Octokit's RequestError / GraphqlResponseError
@@ -273,12 +273,12 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
         return void (await run(M.comment, { pr: s.pr, body: md(a.body) }));
       case 'edit': {
         const c = comment(a.message);
-        if (!c.canEdit) fail('you cannot edit that comment', 403);
+        if (!c.canEdit || !Object.hasOwn(M, `edit:${c.kind}`)) fail('you cannot edit that comment', 403); // github.json is a cache: check the kind
         return void (await run(M[`edit:${c.kind}`], { id: c.node, body: md(a.body) }));
       }
       case 'delete': {
         const c = comment(a.message);
-        if (!c.canDelete || c.kind === 'review-body') fail('you cannot delete that comment', 403);
+        if (!c.canDelete || c.kind === 'review-body' || !Object.hasOwn(M, `delete:${c.kind}`)) fail('you cannot delete that comment', 403);
         return void (await run(M[`delete:${c.kind}`], { id: c.node }));
       }
       case 'resolve':
