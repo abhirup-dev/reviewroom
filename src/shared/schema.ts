@@ -12,6 +12,7 @@ const dateTime = z.string().meta({ format: 'date-time' });
 
 export const TextQuote = z.object({ exact: z.string(), prefix: z.string().optional(), suffix: z.string().optional() });
 
+const CodeAnchor = z.object({ kind: z.literal('code'), path: z.string(), rev: z.enum(['base', 'head']), start: int, end: int });
 export const Anchor = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('doc'),
@@ -19,7 +20,7 @@ export const Anchor = z.discriminatedUnion('kind', [
     path: z.string().optional().describe('CSS path below the target for blocks without an id'),
     quote: TextQuote.optional(),
   }),
-  z.object({ kind: z.literal('code'), path: z.string(), rev: z.enum(['base', 'head']), start: int, end: int }),
+  CodeAnchor,
   z.object({ kind: z.literal('symbol'), name: z.string() }),
   z.object({ kind: z.literal('general') }),
 ]);
@@ -72,7 +73,23 @@ export const StoredState = z.object({
     .describe('narrative rr: link -> fingerprint when first seen: hash of the lines for a line range, "definition" for a symbol (stale-link check)'),
 });
 
+const ghBody = z.string().trim().min(1, 'body must be a non-empty string');
+/** POST /api/github: the reviewer acting on the PR's own GitHub threads (cli/lib/github.ts carries it out). */
+export const GitHubAction = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('comment'), anchor: CodeAnchor, body: ghBody }),
+  z.object({ action: z.literal('reply'), thread: z.string(), body: ghBody }),
+  z.object({ action: z.literal('conversation'), body: ghBody }),
+  z.object({ action: z.literal('edit'), message: z.string(), body: ghBody }),
+  z.object({ action: z.literal('delete'), message: z.string() }),
+  z.object({ action: z.literal('resolve'), thread: z.string(), resolved: z.boolean() }),
+  z.object({ action: z.literal('submit'), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().optional() }),
+  z.object({ action: z.literal('discard') }),
+]);
+export type GitHubAction = z.infer<typeof GitHubAction>;
+
 /** Every change to the state, applied by applyOp in src/shared/ops.ts. `at` defaults to now. */
+/** POST /api/finish is this op without `op`. */
+export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional() });
 export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('createThread'), id: nonEmpty, anchor: Anchor, msgId: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
   z.object({ op: z.literal('addMessage'), threadId: nonEmpty, id: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
@@ -83,7 +100,7 @@ export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setPin'), ref: nonEmpty, pinned: z.boolean() }),
   z.object({ op: z.literal('setCheck'), id: nonEmpty, value: CheckValue }),
   z.object({ op: z.literal('setLinks'), links: z.record(z.string(), z.string()) }),
-  z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional() }),
+  FinishRound,
   z.object({ op: z.literal('markDelivered'), round: int, at: z.string().optional() }),
 ]);
 
@@ -97,7 +114,7 @@ export type StoredState = z.infer<typeof StoredState>;
 export type Op = z.infer<typeof Op>;
 
 /** Zod's issues as one line: `path: message; ...`. */
-export const issueText = (e: z.ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
+export const issueText = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
 
 /** schema/state.schema.json, generated (scripts/schema.ts writes it; a test fails when the committed file is stale). */
 export const stateJsonSchema = () => ({

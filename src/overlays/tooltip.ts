@@ -3,7 +3,7 @@
 // Any element with `title` or `data-tip` gets a styled tooltip; `data-keys="mod+k"` adds a
 // shortcut hint. Native `title` is migrated to `data-tip` on first hover so the browser's own
 // slow, unstyled tooltip never doubles up. Works inside shadow DOM and for keyboard focus.
-import { h } from '../core/dom';
+import { h, placeNear } from '../core/dom';
 import { keyLabel } from '../core/commands';
 import type { ReviewApp } from '../shell/app';
 
@@ -15,7 +15,8 @@ export function tip(el: HTMLElement, text: string, keys?: string) {
 }
 
 export function mountTooltips(app: ReviewApp) {
-  const box = h('div', { class: 'rr-tooltip', role: 'tooltip', hidden: true });
+  const box = h('div', { class: 'rr-tooltip', role: 'tooltip', popover: 'manual' }); // a popover: over modal dialogs too
+  const shown = () => box.matches(':popover-open');
   document.body.append(box);
   let target: HTMLElement | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -43,19 +44,13 @@ export function mountTooltips(app: ReviewApp) {
     const text = el.dataset.tip!;
     const keys = el.dataset.keys;
     box.replaceChildren(h('span', null, text), ...(keys ? keys.split(',').map((k) => h('kbd', null, keyLabel(k.trim()))) : []));
-    box.hidden = false;
-    const r = el.getBoundingClientRect();
-    const b = box.getBoundingClientRect();
-    const above = r.top - b.height - 8 > 4;
-    const left = Math.min(window.innerWidth - b.width - 6, Math.max(6, r.left + r.width / 2 - b.width / 2));
-    box.style.left = left + 'px';
-    box.style.top = (above ? r.top - b.height - 8 : r.bottom + 8) + 'px';
-    box.dataset.side = above ? 'top' : 'bottom';
+    box.showPopover();
+    void placeNear(el, box, 'top', 8, 6);
   };
   const hide = () => {
     clearTimeout(timer);
-    if (!box.hidden) warmUntil = Date.now() + 400;
-    box.hidden = true;
+    if (shown()) warmUntil = Date.now() + 400;
+    box.hidePopover();
     target = null;
   };
 
@@ -66,7 +61,7 @@ export function mountTooltips(app: ReviewApp) {
     if (!el) return hide();
     target = el;
     // the first tooltip waits; moving between controls right after shows instantly
-    timer = setTimeout(() => target === el && el.isConnected && show(el), Date.now() < warmUntil || !box.hidden ? 60 : 480);
+    timer = setTimeout(() => target === el && el.isConnected && show(el), Date.now() < warmUntil || shown() ? 60 : 480);
   };
   document.addEventListener('pointerover', enter, true);
   document.addEventListener('focusin', (e) => (e.target as HTMLElement).matches?.(':focus-visible') && enter(e), true);
@@ -79,5 +74,5 @@ export function mountTooltips(app: ReviewApp) {
   document.addEventListener('pointerdown', hide, true);
   document.addEventListener('scroll', hide, true);
   document.addEventListener('keydown', (e) => e.key === 'Escape' && hide(), true);
-  app.escapers.push(() => (box.hidden ? false : (hide(), true)));
+  app.escapers.push(() => (shown() ? (hide(), true) : false));
 }

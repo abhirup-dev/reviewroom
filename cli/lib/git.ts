@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/core/types.ts';
+import { ReviewroomError } from '../../src/shared/ops.ts';
+import type { ReviewConfig } from './config.ts';
 
 type GitOpts = { soft?: boolean; encoding?: BufferEncoding };
 export function git(args: string[], cwd: string, opts: GitOpts & { soft: true }): string | null;
@@ -11,9 +13,10 @@ export function git(args: string[], cwd: string, opts?: GitOpts): string | null;
 export function git(args: string[], cwd: string, opts: GitOpts = {}): string | null {
   try {
     return execFileSync('git', args, { cwd, encoding: opts.encoding ?? 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (e: any) {
+  } catch (e) {
     if (opts.soft) return null;
-    throw new Error(`git ${args.join(' ')}: ${(e.stderr || e.message).toString().trim()}`, { cause: e });
+    const { stderr, message } = e as Error & { stderr?: Buffer | string }; // execFileSync's error
+    throw new ReviewroomError(`git ${args.join(' ')}: ${(stderr || message).toString().trim()}`, 500, { cause: e }); // the CLI prints one line, not a stack
   }
 }
 // Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.
@@ -42,7 +45,7 @@ const capPerFile = (hits: SearchHit[], n: number) => {
 export const isRev = (r: unknown): r is string => typeof r === 'string' && /^[\w@][\w./~^@{}+-]*$/.test(r);
 export const checkRev = (r: unknown) => {
   if (isRev(r)) return r;
-  throw Object.assign(new Error(`invalid revision ${JSON.stringify(r)}`), { status: 400 });
+  throw new ReviewroomError(`invalid revision ${JSON.stringify(r)}`);
 };
 export const hasRef = (ref: string, cwd: string) => isRev(ref) && !!git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], cwd, { soft: true });
 export const repoRoot = (from: string) => (git(['rev-parse', '--show-toplevel'], from, { soft: true }) || '').trim() || null;
@@ -77,8 +80,6 @@ export function ensureExcluded(repo: string) {
   } catch {}
 }
 
-import type { ReviewConfig } from './state.ts';
-export type { ReviewConfig };
 const STATUS: Record<string, ChangedFile['status'] | undefined> = { A: 'added', D: 'deleted', R: 'renamed' };
 /** `git diff -M -z --numstat` and `--name-status` of the same range -> changed files (status from the latter). */
 export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {

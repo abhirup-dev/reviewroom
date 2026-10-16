@@ -1,27 +1,45 @@
 /* Overlays: modal thread, composer, palette, menus, selection toolbar, hover cards, toasts. */
-.rr-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: var(--rr-scrim);
-  display: grid;
-  place-items: center;
-  padding: 4vh 16px;
-  animation: rr-fade 0.12s ease-out;
+/* modal <dialog>s (thread popup, send, palette); the top layer stacks them, the backdrop dims the page */
+.rr-modal,
+.rr-palette {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-panel);
+  color: var(--rr-ink);
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius-lg);
+  box-shadow: var(--rr-shadow-lg);
+  overflow: hidden;
 }
-.rr-scrim[hidden] {
+.rr-modal:not([open]),
+.rr-palette:not([open]) {
   display: none;
 }
+.rr-modal::backdrop,
+.rr-palette::backdrop {
+  background: var(--rr-scrim);
+  animation: rr-fade 0.12s ease-out;
+}
 /* resolved from the popup: it fades away on its own */
-.rr-scrim.is-leaving {
+.rr-modal.is-leaving,
+.rr-modal.is-leaving::backdrop {
   opacity: 0;
   transition: opacity 0.35s ease-in 0.15s;
   pointer-events: none;
 }
-.rr-scrim--top {
-  z-index: 1080;
-  place-items: start center;
-  padding-top: 12vh;
+/* popovers placed by script (menus, tooltip, hover card, toasts): not the browser's centred box */
+.rr-menu,
+.rr-tooltip,
+.rr-hovercard,
+.rr-toasts {
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  overflow: visible;
 }
 @keyframes rr-fade {
   from {
@@ -31,14 +49,6 @@
 .rr-modal {
   width: min(780px, 100%);
   max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--rr-panel);
-  color: var(--rr-ink);
-  border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-lg);
-  box-shadow: var(--rr-shadow-lg);
-  overflow: hidden;
   font: var(--rr-text) / 1.45 var(--rr-font);
   animation: rr-pop 0.14s ease-out;
 }
@@ -446,16 +456,9 @@ rr-embed {
 
 /* palette */
 .rr-palette {
+  margin-top: 12vh;
   width: min(680px, 100%);
   max-height: 64vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--rr-panel);
-  color: var(--rr-ink);
-  border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-lg);
-  box-shadow: var(--rr-shadow-lg);
-  overflow: hidden;
   font: var(--rr-text) / 1.4 var(--rr-font);
   animation: rr-pop 0.12s ease-out;
 }
@@ -539,8 +542,6 @@ rr-embed {
 
 /* menu */
 .rr-menu {
-  position: fixed;
-  z-index: 1100;
   min-width: 220px;
   padding: 4px;
   background: var(--rr-panel);
@@ -599,8 +600,6 @@ rr-embed {
 
 /* hover card */
 .rr-hovercard {
-  position: fixed;
-  z-index: 1060;
   width: min(460px, 90vw);
   max-width: calc(100vw - 20px);
   background: var(--rr-panel);
@@ -610,9 +609,6 @@ rr-embed {
   box-shadow: var(--rr-shadow);
   overflow: hidden;
   font: var(--rr-text) / 1.4 var(--rr-font);
-}
-.rr-hovercard[hidden] {
-  display: none;
 }
 .rr-hovercard__head {
   display: flex;
@@ -658,11 +654,9 @@ rr-embed {
 
 /* toasts */
 .rr-toasts {
-  position: fixed;
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1200;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -706,8 +700,7 @@ rr-embed {
 
 /* tooltips */
 .rr-tooltip {
-  position: fixed;
-  z-index: 1300;
+  width: max-content; /* measured where it was last shown; don't let that spot's wrapping change its width */
   max-width: 300px;
   display: flex;
   align-items: center;
@@ -722,7 +715,7 @@ rr-embed {
   pointer-events: none;
   animation: rr-fade 0.1s ease-out;
 }
-.rr-tooltip[hidden] {
+.rr-tooltip:not(:popover-open) {
   display: none;
 }
 .rr-tooltip kbd {
@@ -732,40 +725,52 @@ rr-embed {
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-tooltip,
-  .rr-scrim,
   .rr-modal,
-  .rr-palette {
+  .rr-modal::backdrop,
+  .rr-palette,
+  .rr-palette::backdrop {
     animation: none;
   }
-  .rr-scrim.is-leaving {
+  .rr-modal.is-leaving,
+  .rr-modal.is-leaving::backdrop {
     transition: none;
   }
 }
 
-/* rich composer: contenteditable with atomic link chips */
+/* composer: CodeMirror, rr: links drawn as atomic chips */
 div.rr-composer__input {
   max-height: 320px;
   overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  padding: 0;
   cursor: text;
-  outline: none;
 }
-div.rr-composer__input:focus {
+div.rr-composer__input:focus-within {
   border-color: var(--rr-accent);
   box-shadow: 0 0 0 3px var(--rr-accent-soft);
 }
-div.rr-composer__input:empty::before {
-  content: attr(data-placeholder);
+div.rr-composer__input .cm-editor {
+  outline: none;
+}
+div.rr-composer__input .cm-scroller {
+  font: inherit;
+  line-height: inherit;
+}
+div.rr-composer__input .cm-content {
+  min-height: 70px;
+  padding: 8px 10px;
+  caret-color: var(--rr-ink);
+}
+div.rr-composer__input .cm-line {
+  padding: 0;
+}
+div.rr-composer__input .cm-placeholder {
   color: var(--rr-faint);
-  pointer-events: none;
 }
 .rr-chip--token {
   height: 21px;
   margin: 0 1px;
   vertical-align: 1px;
   font-size: 12px;
-  user-select: all;
   cursor: default;
 }
 .rr-chip--token.is-embed {

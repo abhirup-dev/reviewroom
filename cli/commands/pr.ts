@@ -2,11 +2,11 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { die } from '../lib/args.ts';
-import { type ReviewConfig, git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
+import { fail } from '../lib/args.ts';
+import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { resolveDir, loadConfig, readConfig, configPath } from '../lib/state.ts';
-import { liveServer, stopServer } from '../lib/server.ts';
+import { type ReviewConfig, resolveDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
+import { liveServer, stopServer } from '../lib/registry.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
@@ -36,14 +36,14 @@ function prTarget(repo: string, o: PrOpts, n: string): Target {
   if (!fetched) {
     // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
     const local = [head, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
-    if (!local) die(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
+    if (!local) fail(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
     console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
     head = local;
   }
   const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
   if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
-  if (!base) die(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
+  if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
   const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
   return { dir: path.join(repo, '.reviewroom', `pr-${n}`), cfg };
 }
@@ -54,7 +54,7 @@ function branchTarget(repo: string, o: PrOpts, branch: string): Target {
   if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
     fetchRef(o.remote, `+refs/heads/${branch}:refs/remotes/${o.remote}/${branch}`, repo);
     head = `${o.remote}/${branch}`;
-    if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) die(`no branch or PR called "${branch}"`);
+    if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) fail(`no branch or PR called "${branch}"`);
   }
   return { dir: path.join(repo, '.reviewroom', branch.replace(/[^\w.-]+/g, '-')), cfg: { base: o.base ?? defaultBase(repo), head, title: o.title } };
 }
@@ -66,7 +66,7 @@ function localTarget(repo: string, o: PrOpts): Target {
 }
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
-  if (!repo) die('not inside a git repository (cd into the project, or pass --repo <path>)');
+  if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
   const t = n ? prTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
   const dir = o.dir ? path.resolve(o.dir) : t.dir;
@@ -96,5 +96,5 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
     }
     await new Promise((r) => setTimeout(r, 100));
   }
-  die(`server did not start - see ${path.join(dir, 'server.log')}`);
+  fail(`server did not start - see ${path.join(dir, 'server.log')}`);
 }

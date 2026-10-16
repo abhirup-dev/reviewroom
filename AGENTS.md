@@ -19,8 +19,9 @@ comment threads and feedback rounds between reviewer and agent. Two halves:
 ```
 cli/reviewroom.ts    entry: usage text + dispatch to commands/
 cli/commands/         one module per command group: pr, serve (review), threads (status --threads, reply, comment), status (status, stop), check
-cli/lib/              git.ts (validated git layer), server.ts (HTTP API, origin guards, SSE), state.ts,
-                      github.ts (PR threads via gh), scaffold.ts, args.ts, links.ts (stale-link check)
+cli/lib/              git.ts (validated git layer), server.ts (HTTP API, origin guards, SSE), state.ts (state.json + ops), config.ts (review dir, config.json), lock.ts,
+                      registry.ts (server.json, ~/.reviewroom/sessions), paths.ts, github.ts (PR threads via Octokit, as the gh user),
+                      scaffold.ts, args.ts, links.ts (stale-link check)
 src/index.ts          boot(), the window.rr API for review authors, command/shortcut registry
 src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
 src/shared/           used by both the client and the CLI (no DOM, no Node): schema (state.json + ops, Zod), ops (the reducer), feedback
@@ -34,7 +35,8 @@ schema/               JSON schema of state.json (the contract between UI, CLI an
 skills/reviewroom/   the skill agents use to run reviews (entry point + references)
 templates/            review.html scaffold
 examples/             demo review + script that creates the demo git repo
-scripts/              build (Bun), smoke test, static demo builder
+scripts/              build (Bun), static demo builder
+e2e/                  end-to-end tests (`bun run smoke`): the built CLI under Node against the demo repo
 ```
 
 ## Contracts (change deliberately, update the skill when you do)
@@ -71,7 +73,7 @@ of them are `devDependencies`; the published package has no runtime dependencies
 ```bash
 bun run setup         # bun install --frozen-lockfile, build, put `reviewroom` on PATH (bun link)
 bun run dev           # rebuild on change
-bun run check         # typecheck, lint (oxlint, knip, jscpd, ASCII), tests, end-to-end smoke test: run before committing
+bun run check         # typecheck, lint (oxlint, knip, jscpd, ASCII), tests, end-to-end tests: run before committing
 bun run demo          # demo repo + live review on localhost
 bun run demo-page     # self-contained demo HTML in .demo/
 ```

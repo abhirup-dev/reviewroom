@@ -1,5 +1,6 @@
 // Tiny DOM helpers. No framework on purpose: author content is plain HTML and
 // every shell part is a plain element you can restyle or replace.
+import { computePosition, flip, offset, shift, type Placement } from '@floating-ui/dom';
 import { CLAWD, CLAWD_RESOLVED } from './clawd';
 
 type Child = Node | string | number | null | undefined | false | Child[];
@@ -114,21 +115,24 @@ export function threadCounts(ts: { gh?: unknown }[], where: string) {
   ];
 }
 
-export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number): T {
+export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number): (...a: A) => void {
   let t: ReturnType<typeof setTimeout> | undefined;
-  return ((...a: any[]) => {
+  return (...a: A) => {
     clearTimeout(t);
     t = setTimeout(() => fn(...a), ms);
-  }) as T;
+  };
 }
 
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 
+const rtf = new Intl.RelativeTimeFormat(undefined, { style: 'narrow', numeric: 'auto' });
+/** "just now", "5m ago", "3h ago", "yesterday", "4d ago"; a date after a week. */
 export function relTime(iso: string): string {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return 'just now';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  if (s < 3600) return rtf.format(-Math.floor(s / 60), 'minute');
+  if (s < 86400) return rtf.format(-Math.floor(s / 3600), 'hour');
+  if (s < 7 * 86400) return rtf.format(-Math.floor(s / 86400), 'day');
   return new Date(iso).toLocaleDateString();
 }
 
@@ -144,19 +148,22 @@ export async function copyText(text: string) {
   }
 }
 
-export function fuzzyScore(q: string, s: string): number {
-  if (!q) return 1;
-  q = q.toLowerCase();
-  const t = s.toLowerCase();
-  const idx = t.indexOf(q);
-  if (idx >= 0) return 100 - idx + (idx === 0 || /[/._\s-]/.test(t[idx - 1]) ? 50 : 0);
-  let qi = 0, score = 0, last = -1;
-  for (let i = 0; i < t.length && qi < q.length; i++) {
-    if (t[i] === q[qi]) {
-      score += last === i - 1 ? 3 : 1;
-      last = i;
-      qi++;
-    }
-  }
-  return qi === q.length ? score : -1;
+const placing = new WeakMap<HTMLElement, number>();
+/** Put a position:fixed overlay `gap` px from `ref`, on the other side if it doesn't fit, `pad` px inside the viewport.
+ *  If neither side fits it stays on `placement`'s side, shifted as far as it must. The latest call per overlay wins. */
+export function placeNear(ref: Element, el: HTMLElement, placement: Placement, gap: number, pad: number) {
+  const id = (placing.get(el) ?? 0) + 1;
+  placing.set(el, id);
+  const middleware = [offset(gap), flip({ padding: pad, fallbackStrategy: 'initialPlacement' }), shift({ padding: pad, crossAxis: true })];
+  return computePosition(ref, el, { strategy: 'fixed', placement, middleware }).then(({ x, y }) => {
+    if (placing.get(el) === id) Object.assign(el.style, { left: x + 'px', top: y + 'px' });
+  });
+}
+
+/** mousedown on a modal <dialog>: a press on its backdrop (the dialog itself, not its content) closes it,
+ *  leaving focus where the dialog returned it. */
+export function backdropCloses(e: MouseEvent) {
+  if (e.target !== e.currentTarget) return;
+  e.preventDefault();
+  (e.currentTarget as HTMLDialogElement).close();
 }

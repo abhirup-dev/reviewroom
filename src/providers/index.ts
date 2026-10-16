@@ -4,6 +4,7 @@
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { applyOp } from '../shared/ops';
 import { loadRaw } from '../core/store';
+import { StoredState, type GitHubAction } from '../shared/schema';
 
 export interface CodeProvider {
   readonly name: string;
@@ -37,7 +38,7 @@ export interface StateBackend {
   /** The PR's GitHub threads (cached by the server unless refresh). */
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */
-  githubAct?(action: Record<string, unknown>): Promise<GitHubSnapshot>;
+  githubAct?(action: GitHubAction): Promise<GitHubSnapshot>;
 }
 export interface BackendEvents {
   state(s: ReviewState): void;
@@ -218,7 +219,7 @@ export class ServerState implements StateBackend {
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }
-  async githubAct(action: Record<string, unknown>) {
+  async githubAct(action: GitHubAction) {
     const r = await fetch(`${this.api}/github`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(b.error || `${r.status} ${r.statusText}`);
@@ -230,11 +231,17 @@ export class ServerState implements StateBackend {
 // File contents come from raw.githubusercontent.com (not the REST API), so a
 // review costs ~2 API calls (compare + commits) regardless of PR size.
 
+/** The fields of GitHub's compare response that are read here. */
+type Compare = {
+  commits: { sha: string; commit: { message: string; author: { name?: string; date?: string } | null } }[];
+  files: { filename: string; previous_filename?: string; status: string; additions: number; deletions: number }[];
+};
+
 export class GitHubProvider implements CodeProvider {
   readonly name = 'github';
-  private cmp: any;
+  private cmp?: Compare;
   constructor(private repo: string, private base: string, private head: string, private token?: string) {}
-  private gh(path: string) {
+  private gh(path: string): Promise<Compare> {
     const headers: Record<string, string> = { accept: 'application/vnd.github+json' };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
     return fetch(`https://api.github.com/repos/${this.repo}${path}`, { headers }).then(json);
@@ -247,12 +254,12 @@ export class GitHubProvider implements CodeProvider {
   }
   async commits(): Promise<Commit[]> {
     const c = await this.compare();
-    return c.commits.map((x: any) => ({ sha: x.sha, short: x.sha.slice(0, 7), subject: x.commit.message.split('\n')[0], author: x.commit.author?.name, date: x.commit.author?.date }));
+    return c.commits.map((x) => ({ sha: x.sha, short: x.sha.slice(0, 7), subject: x.commit.message.split('\n')[0], author: x.commit.author?.name, date: x.commit.author?.date }));
   }
   async files(range: DiffRange): Promise<ChangedFile[]> {
     const c = range.base === this.base && range.head === this.head ? await this.compare() : await this.gh(`/compare/${range.base}...${range.head}`);
     const st: Record<string, ChangedFile['status']> = { added: 'added', removed: 'deleted', renamed: 'renamed', modified: 'modified', changed: 'modified' };
-    return c.files.map((f: any) => ({ path: f.filename, prevPath: f.previous_filename, status: st[f.status] ?? 'modified', additions: f.additions, deletions: f.deletions }));
+    return c.files.map((f) => ({ path: f.filename, prevPath: f.previous_filename, status: st[f.status] ?? 'modified', additions: f.additions, deletions: f.deletions }));
   }
   async read(path: string, rev: Rev) {
     const r = await fetch(`https://raw.githubusercontent.com/${this.repo}/${encodeURIComponent(rev)}/${path}`);
@@ -301,7 +308,8 @@ export class BrowserState implements StateBackend {
   async load() {
     try {
       const raw = localStorage.getItem(LS_KEY(this.id));
-      if (raw) return JSON.parse(raw);
+      const v: unknown = raw && JSON.parse(raw);
+      if (StoredState.safeParse(v).success) return v as ReviewState; // a copy that breaks the schema starts over from the seed
     } catch {
       /* ignore */
     }

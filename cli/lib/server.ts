@@ -1,22 +1,28 @@
-// HTTP server: review page, client bundle, JSON API, SSE live updates, and the server.json record.
+// HTTP server: review page, client bundle, JSON API, SSE live updates.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { spawn } from 'node:child_process';
+import open from 'open';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { feedbackMarkdown } from '../../src/shared/feedback.ts';
-import { makeProvider, type Provider, type ReviewConfig } from './git.ts';
+import { makeProvider, type Provider } from './git.ts';
+import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
-import { readState, writeState, answers } from './state.ts';
-import { applyOp, OpError } from '../../src/shared/ops.ts';
+import { readState, writeState } from './state.ts';
+import { DIST, PKG, layoutFile } from './paths.ts';
+import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
-
-export const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-export const DIST = path.join(PKG, 'dist');
+import { Hono, type Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+import { FinishRound, GitHubAction, issueText } from '../../src/shared/schema.ts';
+import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
+import { createAdaptorServer } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
@@ -27,25 +33,15 @@ function excerpt(prov: Provider, anchor: Anchor) {
 }
 
 
-const MIME: Record<string, string | undefined> = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.woff2': 'font/woff2' };
-
 export interface Finished {
   kind: 'feedback' | 'approve';
   md: string;
   round: number;
 }
 
-export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void }) {
-  const prov = makeProvider(repo, cfg);
-  const clients = new Set<http.ServerResponse>();
-  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
-  const reviewFile = path.join(dir, 'review.html');
-  const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
-  const send = (ev: string, data: unknown) => {
-    for (const c of clients) c.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
-  };
-  // The server holds state.lock while it runs and is the only writer of state.json (CLI writes
-  // come in through /api/ops), so only review.html and its assets are watched.
+/** Watch the review dir for review.html and its assets (debounced); `edited` = review.html itself changed.
+ *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
+function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   let t: NodeJS.Timeout | undefined, edited = false;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
@@ -53,30 +49,20 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       edited ||= f === 'review.html';
       clearTimeout(t);
       t = setTimeout(() => {
-        send('review', { hash: hash() });
-        if (edited) (edited = false), checkNarrative();
+        onChange(edited);
+        edited = false;
       }, 150);
     }
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
   watcher.on('error', (e) => console.error(`reviewroom: file watch stopped: ${e.message}`));
+}
 
-  const json = (res: http.ServerResponse, code: number, body: unknown) => {
-    res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    res.end(JSON.stringify(body));
-  };
-  const body = (req: http.IncomingMessage) => new Promise<string>((r) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => r(b)); });
-  // untrusted: applyOp (Zod) or the handler checks every field it uses
-  const readJson = async (req: http.IncomingMessage): Promise<any> => {
-    try {
-      return JSON.parse((await body(req)) || '{}');
-    } catch {
-      throw new OpError('bad_op', 'request body is not JSON');
-    }
-  };
-  // Stale-link check: fingerprint new links, tell the agent (stderr) when the report changes.
+/** Stale-link check of review.html: fingerprint new links, tell the agent (stderr) when the report changes. */
+function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
+  const reviewFile = path.join(dir, 'review.html');
   let lastReport = '';
-  const checkNarrative = () => {
+  return () => {
     try {
       if (!fs.existsSync(reviewFile)) return;
       const known = readState(dir).links ?? {};
@@ -87,10 +73,28 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
       const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
       if (text && text !== lastReport) console.error(text);
       lastReport = text;
-    } catch (e: any) {
-      console.error(`reviewroom: link check failed: ${e.message}`);
+    } catch (e) {
+      console.error(`reviewroom: link check failed: ${(e as Error).message}`);
     }
   };
+}
+
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
+export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
+  const prov = makeProvider(repo, cfg);
+  const clients = new Set<SSEStreamingApi>();
+  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
+  const reviewFile = path.join(dir, 'review.html');
+  const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
+  const send = (event: string, data: unknown) => {
+    for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
+  };
+  const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
+  // request bodies are untrusted: a bad one is a 400 shaped like an OpError's
+  const body = <T extends z.ZodType>(schema: T) =>
+    zValidator('json', schema, (r, c) => {
+      if (!r.success) return json(c, { error: issueText(r.error), code: 'bad_op' }, 400);
+    });
   // Synchronous read-apply-write: requests can't interleave inside it. All-or-nothing per batch.
   const commit = (ops: Op[]) => {
     let s = readState(dir);
@@ -106,120 +110,134 @@ export function startServer({ repo, dir, cfg, onFinish }: { repo: string; dir: s
     send('state', s);
     return s;
   };
-  const serveFile = (res: http.ServerResponse, file: string) => {
-    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: 'not found' });
-    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': file.startsWith(DIST) && !file.endsWith('reviewroom.js') ? 'max-age=3600' : 'no-store' });
-    fs.createReadStream(file).pipe(res);
-  };
+  const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
+  watchNarrative(dir, (edited) => {
+    send('review', { hash: hash() });
+    if (edited) checkNarrative();
+  });
 
   // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
   // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
-  const allowed = (req: http.IncomingMessage, url: URL) => {
+  const allowed = (c: Context) => {
     const port = (server.address() as AddressInfo | null)?.port;
     const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
-    if (!origins.includes(req.headers.host ?? '')) return false;
-    if (!url.pathname.startsWith('/api/')) return true;
-    const site = req.headers['sec-fetch-site'];
+    if (!origins.includes(c.req.header('host') ?? '')) return false;
+    if (!c.req.path.startsWith('/api/')) return true;
+    const site = c.req.header('sec-fetch-site');
     if (site && site !== 'same-origin' && site !== 'none') return false;
-    const origin = req.headers.origin;
-    return req.method === 'GET' || req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
+    const origin = c.req.header('origin');
+    return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
   };
 
-  const server = http.createServer(async (req, res) => {
-    res.setHeader('x-reviewroom-pid', String(process.pid));
-    const url = new URL(req.url!, 'http://x');
-    if (!allowed(req, url)) return json(res, 403, { error: 'forbidden' });
-    const q = Object.fromEntries(url.searchParams);
-    try {
-      if (url.pathname === '/' || url.pathname === '/index.html') {
-        let html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
-        if (!html.includes('/_rr/reviewroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/reviewroom.js"></script>\n</head>');
-        res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-store' });
-        return res.end(html);
-      }
-      if (url.pathname.startsWith('/_rr/')) {
-        const f = path.resolve(DIST, url.pathname.slice(5));
-        if (!f.startsWith(DIST + path.sep)) return json(res, 403, {});
-        return serveFile(res, f);
-      }
-      if (url.pathname === '/favicon.ico') { res.writeHead(204, { 'cache-control': 'max-age=86400' }); return res.end(); }
-      if (url.pathname === '/api/meta') return json(res, 200, prov.meta());
-      if (url.pathname === '/api/commits') return json(res, 200, prov.commits());
-      if (url.pathname === '/api/files') return json(res, 200, prov.files(q.base || prov.base, q.head || prov.head));
-      if (url.pathname === '/api/read') {
-        const text = prov.read(q.rev, q.path);
-        if (text === null) return json(res, 404, { error: 'not found' });
-        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': /^[0-9a-f]{40}$/.test(q.rev) ? 'max-age=86400' : 'no-store' });
-        return res.end(text);
-      }
-      if (url.pathname === '/api/search') return json(res, 200, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
-      if (url.pathname === '/api/tree') return json(res, 200, prov.tree(q.rev || prov.head));
-      if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, readState(dir));
-      // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
-      if (url.pathname === '/api/summary') {
-        const s = readState(dir);
-        const open = s.threads.filter((t) => t.status === 'open');
-        const round = s.rounds.find((r) => r.n === s.round);
-        return json(res, 200, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
-      }
-      if (url.pathname === '/api/ops' && req.method === 'POST') {
-        const b = await readJson(req);
-        const ops: Op[] = Array.isArray(b.ops) ? b.ops : [b];
-        if (ops.some((o: any) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
-        return json(res, 200, { rev: commit(ops).rev });
-      }
-      if (url.pathname === '/api/layout') {
-        const f = layoutFile();
-        if (req.method === 'GET') return json(res, 200, fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null);
-        if (req.method === 'DELETE') return fs.rmSync(f, { force: true }), json(res, 200, { ok: true });
-        if (req.method === 'PUT') {
-          const b = await readJson(req);
-          if (!b || typeof b !== 'object' || !b.grid || !b.panels) throw new OpError('bad_op', 'not a dockview layout');
-          fs.mkdirSync(path.dirname(f), { recursive: true });
-          fs.writeFileSync(f, JSON.stringify(b));
-          return json(res, 200, { ok: true });
-        }
-      }
-      if (url.pathname === '/api/github') {
-        if (req.method === 'GET') return json(res, 200, await (q.refresh ? github.refresh() : github.snapshot()));
-        if (req.method === 'POST') return json(res, 200, await github.act(await readJson(req)));
-      }
-      if (url.pathname === '/api/events') {
-        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-        res.write(`event: hello\ndata: ${JSON.stringify({ hash: hash() })}\n\n`);
-        clients.add(res);
-        const ping = setInterval(() => res.write(': ping\n\n'), 20000);
-        req.on('close', () => (clients.delete(res), clearInterval(ping)));
-        server.emit('rr-client');
-        return;
-      }
-      if (url.pathname === '/api/finish' && req.method === 'POST') {
-        const { kind, note, round } = await readJson(req);
-        const prev = readState(dir);
-        const n = prev.round;
-        const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-        const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads });
-        const rdir = path.join(dir, 'rounds', String(n));
-        fs.mkdirSync(rdir, { recursive: true });
-        if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
-        fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
-        writeState(dir, s);
-        send('state', s);
-        json(res, 200, { ok: true, round: s.round });
-        onFinish?.({ kind, md, round: n });
-        return;
-      }
-      const m = url.pathname.match(/^\/api\/rounds\/(\d+)\/review\.html$/);
-      if (m) return serveFile(res, path.join(dir, 'rounds', m[1], 'review.html'));
-      // anything else: static files next to review.html (images, extra css/js the agent wrote)
-      const f = path.resolve(dir, '.' + decodeURIComponent(url.pathname));
-      if (!f.startsWith(dir + path.sep) || /^\.?state\.(json|lock)/.test(path.basename(f))) return json(res, 403, {});
-      return serveFile(res, f);
-    } catch (e: any) {
-      if (!(e instanceof OpError)) console.error(`reviewroom: ${req.method} ${url.pathname}: ${e.message || e}`);
-      json(res, e.status || 500, { error: String(e.message || e), code: e.code, index: e.index });
-    }
+  const app = new Hono();
+  app.use(async (c, next) => {
+    c.header('x-reviewroom-pid', String(process.pid));
+    c.header('cache-control', 'no-store'); // unless a route says otherwise
+    if (!allowed(c)) return json(c, { error: 'forbidden' }, 403);
+    await next();
   });
+  app.notFound((c) => json(c, { error: 'not found' }, 404));
+  app.onError((e, c) => {
+    if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
+    if (!(e instanceof OpError)) console.error(`reviewroom: ${c.req.method} ${c.req.path}: ${e.message}`);
+    const op = e instanceof OpError ? e : undefined;
+    return json(c, { error: e.message, code: op?.code, index: op?.index }, e instanceof ReviewroomError ? e.status : 500);
+  });
+
+  const page = (c: Context) => {
+    let html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
+    if (!html.includes('/_rr/reviewroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/reviewroom.js"></script>\n</head>');
+    return c.html(html);
+  };
+  app.get('/', page);
+  app.get('/index.html', page);
+  // the client build; reviewroom.js is the entry and changes with every build, its chunks are content-hashed
+  app.get(
+    '/_rr/*',
+    async (c, next) => (c.header('cache-control', c.req.path.endsWith('/reviewroom.js') ? 'no-store' : 'max-age=3600'), next()),
+    serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }),
+  );
+  app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
+  app.get('/api/meta', (c) => json(c, prov.meta()));
+  app.get('/api/commits', (c) => json(c, prov.commits()));
+  app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
+  app.get('/api/read', (c) => {
+    const { rev, path: p } = c.req.query();
+    const text = prov.read(rev, p);
+    if (text === null) return json(c, { error: 'not found' }, 404);
+    return c.text(text, 200, { 'cache-control': /^[0-9a-f]{40}$/.test(rev) ? 'max-age=86400' : 'no-store' });
+  });
+  app.get('/api/search', (c) => {
+    const q = c.req.query();
+    return json(c, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
+  });
+  app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
+  app.get('/api/state', (c) => json(c, readState(dir)));
+  // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
+  app.get('/api/summary', (c) => {
+    const s = readState(dir);
+    const open = s.threads.filter((t) => t.status === 'open');
+    const round = s.rounds.find((r) => r.n === s.round);
+    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
+  });
+  // each op is checked by applyOp, which also tells the client which one failed (index)
+  app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
+    const ops = c.req.valid('json').ops as Op[];
+    if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
+    return json(c, { rev: commit(ops).rev });
+  });
+  app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
+  app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
+  // a dockview layout, kept whole (loose: unknown keys stay)
+  app.put('/api/layout', body(z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) })), (c) => {
+    fs.mkdirSync(path.dirname(layoutFile()), { recursive: true });
+    fs.writeFileSync(layoutFile(), JSON.stringify(c.req.valid('json')));
+    return json(c, { ok: true });
+  });
+  app.get('/api/github', async (c) => json(c, await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
+  app.post('/api/github', body(GitHubAction), async (c) => json(c, await github.act(c.req.valid('json'))));
+  app.get('/api/events', (c) =>
+    // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
+    c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
+      await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash() }) });
+      clients.add(stream);
+      const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
+      onClient?.();
+      await new Promise<void>((r) => stream.onAbort(r));
+      clearInterval(ping);
+      clients.delete(stream);
+    }),
+  );
+  app.post('/api/finish', body(FinishRound.omit({ op: true, at: true })), (c) => {
+    const { kind, note, round } = c.req.valid('json');
+    const prev = readState(dir);
+    const n = prev.round;
+    const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
+    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads });
+    const rdir = path.join(dir, 'rounds', String(n));
+    fs.mkdirSync(rdir, { recursive: true });
+    if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
+    fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
+    writeState(dir, s);
+    send('state', s);
+    const res = json(c, { ok: true, round: s.round });
+    onFinish?.({ kind, md, round: n }); // serve.ts exits 150 ms later, after this response is out
+    return res;
+  });
+  app.get('/api/rounds/:n{[0-9]+}/review.html', serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
+  // anything else: static files next to review.html (images, extra css/js the agent wrote). serveStatic refuses
+  // `..`, `//` and `\`; it decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F),
+  // so `a%231.png` finds `a#1.png`. The review's own state files are never served ('\0' is a path nothing has).
+  app.get(
+    '*',
+    serveStatic({
+      root: dir,
+      allowPercentInPath: true,
+      rewriteRequestPath: (p) => (/(^|\/)\.?state\.(json|lock)[^/]*$/i.test(p) ? '\0' : p.replace(/%(23|24|26|2B|2C|3A|3B|3D|3F|40)/gi, decodeURIComponent)),
+    }),
+  );
+
+  const server = createAdaptorServer({ fetch: app.fetch, overrideGlobalObjects: false }) as http.Server;
   return { server, prov, commit, github, checkNarrative };
 }
 
@@ -234,51 +252,4 @@ export function listen(server: http.Server, port: number) {
   });
 }
 
-export function openBrowser(url: string) {
-  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-  try {
-    spawn(cmd, [url], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref();
-  } catch {}
-}
-
-
-// A running server records itself so `review`/`stop` can find (and take over) it.
-/** server.json, written by `serve`. */
-export type ServerRecord = { pid: number; port: number; url: string; startedAt: string };
-export const serverFile = (dir: string) => path.join(dir, 'server.json');
-export function liveServer(dir: string): ServerRecord | null {
-  try {
-    const rec = JSON.parse(fs.readFileSync(serverFile(dir), 'utf8'));
-    process.kill(rec.pid, 0);
-    return rec;
-  } catch {
-    return null;
-  }
-}
-// Per-user registry of running servers, one <pid>.json each, so other local tools (an annotation hub)
-// can list reviews without knowing which repos have them. Best effort: a failure never stops a review.
-const homeDir = () => process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.reviewroom');
-export const registryDir = () => path.join(homeDir(), 'sessions');
-/** The reviewer's own default panel layout (dockview JSON), shared by every review on this machine. */
-export const layoutFile = () => path.join(homeDir(), 'layout.json');
-export function register(rec: ServerRecord & Record<string, unknown>) {
-  try {
-    fs.mkdirSync(registryDir(), { recursive: true });
-    fs.writeFileSync(path.join(registryDir(), `${rec.pid}.json`), JSON.stringify(rec, null, 2));
-  } catch {}
-}
-export function unregister(pid: number) {
-  try {
-    fs.unlinkSync(path.join(registryDir(), `${pid}.json`));
-  } catch {}
-}
-// server.json can outlive its server and the pid be reused: only signal a pid that our server reports.
-export async function stopServer(dir: string) {
-  const rec = liveServer(dir);
-  if (!rec || rec.pid === process.pid || !(await answers(rec.pid, rec.port, 1500))) return null;
-  try {
-    process.kill(rec.pid, 'SIGTERM');
-  } catch {}
-  for (let i = 0; i < 30 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
-  return rec;
-}
+export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway

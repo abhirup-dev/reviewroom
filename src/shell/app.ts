@@ -1,6 +1,6 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
 // It owns data (meta, files, threads), preferences, navigation and the dock.
-import type { DockviewApi } from 'dockview-core';
+import type { DockviewApi } from 'dockview';
 import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { parseRef, refLabel, type Ref } from '../core/refs';
@@ -13,6 +13,7 @@ import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op
 import { applyOp } from '../shared/ops';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
+import type { GitHubAction } from '../shared/schema';
 
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';
@@ -104,6 +105,9 @@ export class ReviewApp {
   /** Esc handlers for open overlays, newest last; each returns true if it closed something. */
   escapers: (() => boolean)[] = [];
   activeFile = '';
+  /** Set when the palette overlay mounts. */
+  openPalette!: (initial?: string) => void;
+  pickRef!: () => Promise<string | null>;
   private cache = new Map<string, Promise<string | null>>();
 
   constructor(public root: HTMLElement) {
@@ -227,7 +231,7 @@ export class ReviewApp {
       this.bus.emit('reveal-code', { path: pick.path, side: 'head', start: pick.line, end: pick.line, view: inDiff ? 'diff' : 'file' });
     } else {
       this.commands.run('palette.symbols:' + name);
-      (this as any).openPalette?.('#' + name);
+      this.openPalette?.('#' + name);
     }
     return hits;
   }
@@ -328,7 +332,6 @@ export class ReviewApp {
     this.descDoc.innerHTML = d ? renderMarkdown(d.body.trim() || '_No description._') : '<p class="rr-muted">The description shows for GitHub pull requests.</p>';
     // ids from the author's HTML would collide with the narrative's anchors
     this.descDoc.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
-    this.descDoc.querySelectorAll('a[href]:not([href^="rr:"])').forEach((a) => Object.assign(a, { target: '_blank', rel: 'noopener' }));
   }
   /** The element a doc anchor points at, in the narrative or the PR description. */
   docElement(id: string, path?: string): Element | null {
@@ -346,7 +349,7 @@ export class ReviewApp {
     return m ? this.github!.threads.find((t) => t.messages.some((x) => x.id === 'gh_' + m[1]))?.id : undefined;
   }
   /** One GitHub action (see cli/lib/github.ts); false (with a toast) if GitHub refused it. */
-  async githubAct(action: Record<string, unknown>): Promise<boolean> {
+  async githubAct(action: GitHubAction): Promise<boolean> {
     try {
       this.setGitHub(await this.backend.githubAct!(action));
       return true;
