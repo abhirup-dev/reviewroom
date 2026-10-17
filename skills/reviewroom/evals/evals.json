@@ -4,13 +4,13 @@
     {
       "id": 1,
       "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/tardis-feature-service-sdk? Keep the narrative short.",
-      "expected_output": "Runs `reviewroom pr 128 --repo … --wait` in the background with a long timeout, relays the URL from the command's first lines, reads the diff at the head sha, writes a review.html with a lede, a clickable rr-flow delta diagram, linked sections and a checklist of open questions, runs `check --fix`, then waits for the command to exit without asking the reviewer to type anything.",
+      "expected_output": "Runs `reviewroom pr 128 --repo \u2026 --wait` in the background with a long timeout, relays the URL from the command's first lines, reads the diff at the head sha, writes a review.html with a lede, a clickable rr-flow delta diagram, linked sections and a checklist of open questions, runs `check --fix`, then waits for the command to exit without asking the reviewer to type anything.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "I sent my feedback in reviewroom, go through the threads and answer them. For the one about the cache, show me what the keys look like.",
-      "expected_output": "Runs `reviewroom review --dir …` (prints the unread feedback), replies to each thread with `reviewroom reply` without --resolve, adds a data-round section with a key visualisation for the cache question and links/embeds it from the reply, then runs `reviewroom review --dir …` in the background for the next round.",
+      "expected_output": "Runs `reviewroom review --dir \u2026` (prints the unread feedback), replies to each thread with `reviewroom reply` without --resolve, adds a data-round section with a key visualisation for the cache question and links/embeds it from the reply, then runs `reviewroom review --dir \u2026` in the background for the next round.",
       "files": []
     },
     {
@@ -22,31 +22,37 @@
     {
       "id": 4,
       "prompt": "The reviewer asked me to rename the retry helper and move it into its own file. Do it and answer the thread in reviewroom.",
-      "expected_output": "Changes the code, runs `reviewroom check --fix --dir …` and fixes the changed/broken links and the prose around them, replies to the thread linking the new location, does not resolve it, and starts the next round with `reviewroom review` in the background.",
+      "expected_output": "Changes the code, runs `reviewroom check --fix --dir \u2026` and fixes the changed/broken links and the prose around them, replies to the thread linking the new location, does not resolve it, and starts the next round with `reviewroom review` in the background.",
       "files": []
     },
     {
       "id": 5,
       "prompt": "Review my uncommitted changes in reviewroom before I commit.",
-      "expected_output": "Runs `reviewroom pr --head worktree --repo … --wait` in the background and continues with the normal walkthrough workflow.",
+      "expected_output": "Runs `reviewroom pr --head worktree --repo \u2026 --wait` in the background and continues with the normal walkthrough workflow.",
       "files": []
     },
     {
       "id": 6,
       "prompt": "I approved it in reviewroom, we're done.",
-      "expected_output": "Reads the APPROVED feedback, leaves open threads alone, and stops the review (`reviewroom stop --dir …` if a server is still running) without resolving anything.",
+      "expected_output": "Reads the APPROVED feedback, leaves open threads alone, and stops the review (`reviewroom stop --dir \u2026` if a server is still running) without resolving anything.",
       "files": []
     },
     {
       "id": 7,
       "prompt": "In the reviewroom walkthrough for PR 412, point the reviewer at the Build method on the ranker's Builder (there are three Build methods in the repo) and at the existing retry config in pkg/config/retry.go, which the PR doesn't touch.",
-      "expected_output": "Links the method as rr:sym/Builder.Build (or rr:sym/<path>:Build), not a bare rr:sym/Build, and the untouched file as rr:code/pkg/config/retry.go#L… at head, line numbers checked with git show <head>:<path>. Uses empty <rr-ref> chips or <a> with a phrase, never shows a raw rr: string, and runs check --fix.",
+      "expected_output": "Links the method as rr:sym/Builder.Build (or rr:sym/<path>:Build), not a bare rr:sym/Build, and the untouched file as rr:code/pkg/config/retry.go#L\u2026 at head, line numbers checked with git show <head>:<path>. Uses empty <rr-ref> chips or <a> with a phrase, never shows a raw rr: string, and runs check --fix.",
       "files": []
     },
     {
       "id": 8,
       "prompt": "The reviewer asked me to fix the nil check in PR 412. I committed the fix locally. Answer the thread in reviewroom.",
-      "expected_output": "Replies explaining the fix is committed but not in the review's diff (the head is fixed), links the fixed lines as rr:code/<path>@<new sha>#L…, does not resolve the thread, and starts the next round with reviewroom review in the background.",
+      "expected_output": "Replies explaining the fix is committed but not in the review's diff (the head is fixed), links the fixed lines as rr:code/<path>@<new sha>#L\u2026, does not resolve the thread, and starts the next round with reviewroom review in the background.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Give me a guided walkthrough of PR 148 in reviewroom. The description cites a benchmark screenshot; while reading you find it builds on PR 145 and that a review thread made the author drop a bound.",
+      "expected_output": "walkthrough.json opens with a context chapter (no diff code yet) that says what exists today and names the critical file, then one chapter per independent change, then a convergence chapter on the critical file(s) (at least one per five changed files), then a reconciliation that re-reads the whole and points at review.html sections. Chapters are parts of the change, not review categories. The benchmark is quoted and attributed to the description. Nothing about PR 145 or the dropped bound is assumed known: it is either explained in the context chapter with a link or left out; no 'as we saw', 'the earlier version' or 'the fix'. No evaluative language on slides.",
       "files": []
     }
   ]

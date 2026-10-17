@@ -192,7 +192,7 @@ one: `examples/habit-events/walkthrough.json`.
 Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
 from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-flow>`, `<rr-callout>`, `<rr-embed>`; styles,
-scripts, forms, media and `<rr-check>` are stripped (`walkthrough lint` names what was). Aim for one concept per chapter and 2 to 5 slides each.
+scripts, forms, media and `<rr-check>` are stripped (`walkthrough lint` names what was). One concept per chapter; the shape is in `review-craft.md`.
 The commands and the file keep the short name: `reviewroom walkthrough …`, `walkthrough.json`.
 
 - `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
