@@ -23,9 +23,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   parsing.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by other local tools
-  (agent-annotation-hub); `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/shared/layout.ts`
-  like the shipped ones in `src/layouts/` (whose names they can't take); `default-layout.json` names their default.
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
+  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
+  `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/shared/layout.ts` like the shipped ones
+  in `src/layouts/` (whose names they can't take); `default-layout.json` names their default.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 

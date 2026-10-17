@@ -1,5 +1,5 @@
 // Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
-// dist/fonts/, dist/emoji.json, and the CLI with its dependencies bundled in: dist/cli/reviewroom.js. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
+// dist/fonts/, dist/emoji.json, the hub's page (dist/hub.js, dist/hub.css), and the CLI with its dependencies bundled in: dist/cli/reviewroom.js. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
 import type { BunPlugin } from 'bun';
 import { readFileSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 
@@ -25,8 +25,13 @@ type FontSrc = (pkg: string, file: string) => string;
 const fontFaces = (src: FontSrc) =>
   fonts.map(([family, pkg, file, style]) => `@font-face{font-family:'${family}';font-style:${style};font-weight:100 900;font-display:swap;src:url(${src(pkg, file)}) format('woff2');}`).join('\n');
 
+const sheet = (f: string) => `/* ${f}.css */\n` + readFileSync(at(`src/styles/${f}.css`), 'utf8');
+
+/** The hub's page (src/hub/): the shared tokens and controls, without the review's panels. */
+const hubCss = () => [fontFaces((_pkg, file) => `./fonts/${file}`), ...['tokens', 'shell', 'overlays', 'hub'].map(sheet)].join('\n');
+
 /** All client CSS. `fontSrc(pkg, file)` says where each font is served from. */
-export const clientCss = (fontSrc: FontSrc) => [fontFaces(fontSrc), dockviewCss(), ...styles.map((f) => `/* ${f}.css */\n` + readFileSync(at(`src/styles/${f}.css`), 'utf8'))].join('\n');
+export const clientCss = (fontSrc: FontSrc) => [fontFaces(fontSrc), dockviewCss(), ...styles.map(sheet)].join('\n');
 
 /** Bundle the client. The CSS is inlined into the JS (src/styles/bundle.css exists only in the build) and injected at boot. */
 export function clientBuild({ css, plugins = [], ...opts }: { css: string; plugins?: BunPlugin[] } & Omit<Bun.BuildConfig, 'entrypoints' | 'plugins'>) {
@@ -57,9 +62,11 @@ async function build() {
     sourcemap: 'linked',
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
+  writeFileSync(at('dist/hub.css'), hubCss());
+  const hub = await Bun.build({ entrypoints: [at('src/hub/index.ts')], format: 'esm', target: 'browser', minify: true, outdir: at('dist'), naming: 'hub.[ext]' });
   // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
   const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'bun', format: 'esm', outdir: at('dist/cli'), naming: '[name].js' });
-  for (const r of [res, cli]) {
+  for (const r of [res, hub, cli]) {
     if (r.success) continue;
     for (const log of r.logs) console.error(log);
     throw new Error('build failed');
