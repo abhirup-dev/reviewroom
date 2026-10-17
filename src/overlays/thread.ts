@@ -9,10 +9,12 @@ import { formatRef, parseRef, refIcon } from '../core/refs';
 import { anchorRef } from '../shared/refs';
 import { keyLabel } from '../core/commands';
 import type { Anchor, Thread } from '../core/types';
-import { definePanel } from '../shell/layout';
+import { closePanel, definePanel, dockThread } from '../shell/layout';
 import type { ReviewApp } from '../shell/app';
 import { renderPreview } from '../elements';
 import { popMenu } from '../shell/chrome';
+import { createActor, fromPromise } from 'xstate';
+import { threadMachine, type ThreadTarget } from '../flows/thread';
 
 // shipped next to the bundle by scripts/build.ts; a page without it (the static demo) shows the picker's own error
 const EMOJI_DATA = new URL('./emoji.json', import.meta.url).href;
@@ -27,6 +29,10 @@ export interface ThreadViewOpts {
   onClose?: () => void;
   onDock?(id: string): void;
   onUndock?(id: string): void;
+  /** Send the new comment; false: not sent, keep the text. */
+  onCreate?(body: string, toGitHub: boolean): Promise<boolean | void>;
+  /** Resolve from here: the host runs it, then lets the popup go. */
+  onResolve?(): void;
 }
 
 // ------------------------------------------------------------------ composer
@@ -224,7 +230,8 @@ export function composer(app: ReviewApp, opts: { placeholder: string; buttons: S
       { class: 'rr-composer__foot' },
       h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link · ', h('kbd', null, keyLabel('mod+enter')), buttons.length > 1 ? ' ' + main.label : ' send'),
       h('span', { class: 'rr-toolbar__spacer' }),
-      opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', onclick: () => opts.onCancel!() }, 'Cancel') : null,
+      // Cancel throws the draft away; Esc, the backdrop and the close button keep it
+      opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', title: 'Discard this draft', onclick: () => (keepDraft(''), opts.onCancel!()) }, 'Cancel') : null,
       // aria-disabled, not disabled: a disabled button gets no hover, so its tooltip would never show
       ...buttons.map((b) => h('button', { class: 'rr-btn' + (b.to === 'agent' ? ' rr-btn--send rr-btn--agent' : b.to ? ' rr-btn--send' : b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => submit(b) }, b.icon ? icon('send', 12) : null, b.label)),
     ),
@@ -293,14 +300,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     );
   };
 
-  const resolve = async (t: Thread) => {
-    const resolving = t.status === 'open';
-    // a GitHub resolve that failed returns false: keep the popup up
-    if ((await app.setStatus(t.id, resolving ? 'resolved' : 'open')) === false || !resolving || o.docked || !o.onClose) return;
-    const popup = root.closest('dialog');
-    popup?.classList.add('is-leaving');
-    setTimeout(() => popup?.classList.contains('is-leaving') && o.onClose!(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500);
-  };
+  const resolve = (t: Thread) => (t.status === 'open' && o.onResolve ? o.onResolve() : app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open'));
 
   const messages = (t: Thread) => {
     const list = h('div', { class: 'rr-thread__msgs' });
@@ -416,23 +416,9 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       : t ? ['Reply…', 'Reply']
       : ['Comment for the agent' + (app.commentTargets(anchor).length > 1 ? ', or on the PR…' : '…'), null];
     if (t?.gh && !t.gh.canReply) root.classList.add('is-readonly');
-    const create = async (body: string, gh: boolean) => {
-      const nt = app.createThread(anchor, body, 'you', gh);
-      if (nt instanceof Promise) {
-        const ok = await nt;
-        if (ok) {
-          app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub');
-          o.onClose?.();
-        }
-        return ok;
-      }
-      if (!nt) return false;
-      o.id = nt.id;
-      render();
-    };
     const buttons = t
       ? [{ label: replyLabel!, icon: true, onSubmit: (body: string) => app.reply(t.id, body) }]
-      : app.commentTargets(anchor).map((b) => ({ ...b, icon: true, main: o.to === b.to, onSubmit: (body: string) => create(body, b.to === 'github') }));
+      : app.commentTargets(anchor).map((b) => ({ ...b, icon: true, main: o.to === b.to, onSubmit: (body: string) => o.onCreate?.(body, b.to === 'github') }));
     const c = composer(app, {
       placeholder,
       buttons,
@@ -478,21 +464,56 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 
 // ------------------------------------------------------------------ popup host
 export function mountThreadPopup(app: ReviewApp) {
-  let current: { el: HTMLElement; dispose: () => void } | null = null;
-  let composing = false;
+  /** the latest first-comment request */
+  let sending: Promise<string | boolean> | null = null;
+  const flow = createActor(
+    threadMachine.provide({
+      actions: {
+        clearSelection: () => {
+          app.selection = null;
+          app.bus.emit('selection', null);
+        },
+      },
+      actors: {
+        create: fromPromise(({ input: { anchor, body, toGitHub } }) =>
+          (sending = (async () => {
+            const nt = app.createThread(anchor, body, 'you', toGitHub);
+            if (!(nt instanceof Promise)) return nt?.id ?? false;
+            const ok = await nt;
+            if (ok) app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub');
+            return ok;
+          })()),
+        ),
+        // a GitHub resolve that failed returns false: keep the popup up
+        resolve: fromPromise(async ({ input }) => (await app.setStatus(input.id, 'resolved')) !== false),
+      },
+      delays: { leave: () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500) },
+    }),
+  );
   // closing (Esc, the backdrop, a button) returns focus to where it was: the dialog does that
-  const box = h('dialog', { class: 'rr-modal', 'aria-label': 'Comment thread', onmousedown: backdropCloses, onclose: () => {
+  const box = h('dialog', { class: 'rr-modal', 'aria-label': 'Comment thread', onmousedown: backdropCloses, onclose: () => flow.send({ type: 'close' }) });
+  document.body.append(box);
+  const close = () => flow.send({ type: 'close' });
+  let current: { el: HTMLElement; dispose: () => void } | null = null;
+  let shown: ThreadTarget | null = null;
+  // the composer keeps its text (and its saved draft) unless the comment went out, even if the popup has moved on
+  const send = async (body: string, toGitHub: boolean) => {
+    const before = sending;
+    flow.send({ type: 'submit', body, toGitHub });
+    // no new request: the popup wasn't composing, so nothing went out
+    return sending && sending !== before ? (await sending) !== false : false;
+  };
+  flow.subscribe((s) => {
+    box.classList.toggle('is-leaving', s.matches('leaving'));
+    if (s.context.view === shown) return;
     current?.dispose();
     current = null;
-    box.classList.remove('is-leaving');
-    // the lines a new comment was for stop being highlighted once it's sent or dropped
-    if (composing) {
-      app.selection = null;
-      app.bus.emit('selection', null);
-    }
-  } });
-  document.body.append(box);
-  const close = () => box.close();
+    shown = s.context.view;
+    if (!shown) return box.close();
+    current = threadView(app, { ...shown, onClose: close, onDock: dock, onCreate: send, onResolve: () => flow.send({ type: 'resolve' }) });
+    box.replaceChildren(current.el);
+    if (!box.open) box.showModal();
+  });
   // drag by the header to park it somewhere; it opens centred, then stays where it was put until reload
   let dx = 0, dy = 0;
   box.addEventListener('pointerdown', (e) => {
@@ -512,29 +533,12 @@ export function mountThreadPopup(app: ReviewApp) {
   });
   const dock = (id: string) => {
     close();
-    const pid = 'thread:' + id;
-    if (!app.dock.getPanel(pid)) {
-      // dock beside the narrative (or stack with other docked threads)
-      const other = app.dock.panels.find((p) => p.id.startsWith('thread:'));
-      const near = other ?? app.dock.getPanel('narrative') ?? app.dock.activePanel;
-      const t = app.thread(id)!;
-      app.dock.addPanel({ id: pid, component: 'thread', title: t.title ?? app.anchorLabel(t.anchor), params: { id }, position: near ? { referencePanel: near.id, direction: other ? 'within' : 'right' } : undefined });
-      if (!other) app.dock.getPanel(pid)?.group.api.setSize({ width: 420 });
-    }
-    app.showPanel(pid);
+    const t = app.thread(id)!;
+    dockThread(app, id, t.title ?? app.anchorLabel(t.anchor));
   };
-  const open = (o: ThreadViewOpts) => {
-    if (o.id && app.dock.getPanel('thread:' + o.id)) return app.showPanel('thread:' + o.id);
-    current?.dispose();
-    box.classList.remove('is-leaving'); // opened again while fading out
-    composing = !o.id;
-    current = threadView(app, { ...o, onClose: close, onDock: dock });
-    box.replaceChildren(current.el);
-    if (!box.open) box.showModal();
-  };
-  app.bus.on('open-thread', ({ id }) => open({ id }));
-  app.bus.on('compose-thread', ({ anchor, quote, to }) => open({ anchor, quote, to }));
-  return { open, close };
+  flow.start();
+  app.bus.on('open-thread', ({ id }) => (app.showPanel('thread:' + id) || flow.send({ type: 'open', id })));
+  app.bus.on('compose-thread', ({ anchor, quote, to }) => flow.send({ type: 'compose', anchor, quote, to }));
 }
 
 definePanel({
@@ -547,7 +551,7 @@ definePanel({
       id: params.id as string,
       docked: true,
       onUndock: (id) => {
-        app.dock.getPanel(panelId)?.api.close();
+        closePanel(app, panelId);
         app.bus.emit('open-thread', { id });
       },
     });

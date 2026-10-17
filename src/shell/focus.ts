@@ -5,17 +5,17 @@ import { formatRef, parseRef, type Ref } from '../core/refs';
 import { openInNewPanel } from '../panels/code';
 import { PR_DESCRIPTION } from '../shared/feedback';
 import type { ReviewApp } from './app';
-import { floatInPlace, onEscape, passingPanels } from './layout';
+import { closePanel, findPanel, floatInPlace, onEscape, passingPanels } from './layout';
 
 /** A file's code in its own centred window; Esc closes it. */
 function openFileCentered(app: ReviewApp, path: string, at?: { side: 'base' | 'head'; start?: number; end?: number }) {
   // already pinned in the layout: float that one, its spot kept
-  const pinned = !at && app.dock.panels.find((p) => p.id.startsWith('code:') && p.params?.pin === path);
-  if (pinned) return floatInPlace(app, pinned.id);
+  const pinned = !at && findPanel(app, (id, params) => id.startsWith('code:') && params?.pin === path);
+  if (pinned) return floatInPlace(app, pinned);
   const inDiff = app.files.some((f) => f.path === path);
   const id = openInNewPanel(app, path, inDiff ? 'diff' : at?.side === 'base' ? 'base' : 'head', 'center', undefined, at && inDiff ? { path, ...at } : undefined);
   passingPanels.add(id);
-  onEscape(app, id, () => app.dock.getPanel(id)?.api.close());
+  onEscape(app, id, () => closePanel(app, id));
 }
 
 /** Double-click on a file, section or pin: show it big in the middle of the layout. */

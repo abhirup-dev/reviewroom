@@ -6,7 +6,7 @@ import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import { oldToNewLine } from '../core/hunks';
 import type { ChangedFile, Thread } from '../core/types';
-import { centerBox, definePanel, floatBox, type PanelInstance } from '../shell/layout';
+import { addPanelAt, definePanel, setPanelTitle, type PanelInstance, type Placement } from '../shell/layout';
 import { openCentered } from '../shell/focus';
 import { popMenu, menuItem, menuLabel } from '../shell/chrome';
 import type { CodeTarget, ReviewApp } from '../shell/app';
@@ -136,7 +136,7 @@ class CodePanel implements PanelInstance {
           h('button', { class: view === 'head' ? 'is-on' : '', disabled: f?.status === 'deleted', title: 'Whole file after the change', onclick: () => this.openFile(this.pin!, 'head') }, 'After'),
         ),
       );
-      this.app.dock?.getPanel(this.panelId)?.api.setTitle(`${this.pin.split('/').pop()} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`);
+      setPanelTitle(this.app, this.panelId, `${this.pin.split('/').pop()} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`);
     } else if (this.mode === 'file' && this.fileView) {
       const fv = this.fileView;
       left.push(
@@ -547,16 +547,12 @@ function copy(text: string) {
 
 let counter = 1;
 export type PopoutView = 'diff' | 'base' | 'head';
-export type Placement = 'right' | 'below' | 'float' | 'center';
 
 /** Open one file in its own code panel: as a diff (optionally at some lines), or the whole file before/after the change. */
 export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: Placement = 'right', near?: string, at?: CodeTarget) {
   const id = `code:${++counter}`;
   const name = path.split('/').pop()!;
-  const ref = (near && app.dock.getPanel(near)) || app.dock.getPanel('code') || app.dock.activePanel;
-  const base = { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } };
-  if (placement === 'float' || placement === 'center') app.dock.addPanel({ ...base, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
-  else app.dock.addPanel({ ...base, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined });
+  addPanelAt(app, { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } }, placement, near);
   return id;
 }
 

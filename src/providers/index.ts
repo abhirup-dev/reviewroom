@@ -2,9 +2,10 @@
 // Order of preference: local CLI server (git on your clone) -> GitHub -> static fixture.
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, ...).
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
-import { applyOp } from '../shared/ops';
 import { loadRaw } from '../core/store';
 import { StoredState, type GitHubAction } from '../shared/schema';
+import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
+import { roundStatus, syncMachine, unsent } from '../flows/sync';
 
 export interface CodeProvider {
   readonly name: string;
@@ -46,12 +47,20 @@ export interface BackendEvents {
   state(s: ReviewState): void;
   review(): void;
   error(text: string): void;
+  /** Some changes failed to save and are being retried (true), or all are saved again (false). */
+  unsaved?(on: boolean): void;
+  /** The round is with the agent, approved, or the server is gone while reviewing (null: none of these). */
+  status?(s: 'waiting' | 'approved' | 'offline' | null): void;
+  /** The agent is back with round `round`. */
+  ready?(round: number): void;
   github?(s: GitHubSnapshot): void;
 }
 
 const json = async (r: Response) => {
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText} ${r.url}`);
-  return r.json();
+  if (r.ok) return r.json();
+  // the reviewroom server says why in {error} (a state.json moved aside, say); GitHub in {message}
+  const b = await r.json().catch(() => null);
+  throw new Error(b?.error ?? b?.message ?? `${r.status} ${r.statusText} ${r.url}`);
 };
 
 // ------------------------------------------------------------------ local (CLI)
@@ -96,119 +105,81 @@ export class LocalProvider implements CodeProvider {
   }
 }
 
-// The server is the only writer of state.json. The browser applies ops optimistically and sends them
-// in order; what it shows is the last state the server broadcast plus the ops not yet in it.
+// Saving and live updates are src/flows/sync.ts; this is its fetch/EventSource side.
 export class ServerState implements StateBackend {
   readonly kind = 'server';
-  private base!: ReviewState;
-  /** Applied locally, not yet in `base`. ackRev: stored by the server at that rev. */
-  private queue: { op: Op; ackRev?: number }[] = [];
-  private running: Promise<void> | null = null;
-  private retry: ReturnType<typeof setTimeout> | undefined;
-  private warned = false;
-  private on?: BackendEvents;
+  private sync?: ActorRefFrom<typeof syncMachine>;
   constructor(private api = '/api') {
-    addEventListener('beforeunload', (e) => this.queue.some((q) => !q.ackRev) && e.preventDefault());
+    addEventListener('beforeunload', (e) => this.sync && unsent(this.sync.getSnapshot().context) && e.preventDefault());
   }
   private fetchState(): Promise<ReviewState> {
     return fetch(`${this.api}/state`).then(json);
   }
   async load() {
-    return (this.base = await this.fetchState());
+    const base = await this.fetchState();
+    const api = this.api;
+    this.sync = createActor(
+      syncMachine.provide({
+        actors: {
+          post: fromPromise(async ({ input, signal }) => {
+            const r = await fetch(`${api}/ops`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops: input.ops }), signal });
+            const b = await r.json().catch(() => ({}));
+            if (r.ok) return { rev: b.rev };
+            if (r.status < 500 && typeof b.index === 'number') return { rejected: b.index, error: b.error };
+            throw new Error(b.error ?? `${r.status} ${r.statusText}`);
+          }),
+          fetchState: fromPromise(() => this.fetchState()),
+          stream: fromCallback(({ sendBack }) => {
+            const es = new EventSource(`${api}/events`);
+            es.addEventListener('hello', (e) => sendBack({ type: 'hello', ...JSON.parse(e.data) }));
+            es.addEventListener('state', (e) => sendBack({ type: 'state', state: JSON.parse(e.data) }));
+            es.addEventListener('review', () => sendBack({ type: 'review' }));
+            es.addEventListener('github', (e) => sendBack({ type: 'github', snapshot: JSON.parse(e.data) }));
+            es.onerror = () => sendBack({ type: 'down' });
+            return () => es.close();
+          }),
+        },
+      }),
+      { input: { base } },
+    ).start();
+    return base;
   }
   apply(op: Op) {
-    this.queue.push({ op });
-    void this.pump();
-  }
-  private view() {
-    // ops are idempotent, so one that already reached `base` re-applies as a no-op
-    return this.queue.reduce((s, q) => {
-      try {
-        return applyOp(s, q.op);
-      } catch {
-        return s; // can't apply any more; the server rejects it and pump() drops it
-      }
-    }, this.base);
-  }
-  private receive(s: ReviewState) {
-    if ((s.rev ?? 0) < (this.base.rev ?? 0)) return; // older than what we already have
-    this.base = s;
-    this.settle();
-    this.on?.state(this.view());
-  }
-  private settle() {
-    this.queue = this.queue.filter((q) => !(q.ackRev && q.ackRev <= (this.base.rev ?? 0)));
-  }
-  private pump() {
-    return (this.running ??= this.drain());
-  }
-  private async drain() {
-    await Promise.resolve(); // let pump() store the promise before anything below can clear it
-    try {
-      for (;;) {
-        const batch = this.queue.filter((q) => !q.ackRev);
-        if (!batch.length) return;
-        let r: Response;
-        try {
-          r = await fetch(`${this.api}/ops`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops: batch.map((q) => q.op) }) });
-        } catch {
-          return this.stalled();
-        }
-        const b = await r.json().catch(() => ({}));
-        if (r.ok) {
-          batch.forEach((q) => (q.ackRev = b.rev));
-          this.warned = false;
-          this.settle();
-        } else if (r.status < 500 && typeof b.index === 'number') {
-          // that op can never apply (e.g. its thread is gone): drop it so the rest still save
-          this.queue = this.queue.filter((q) => q !== batch[b.index]);
-          this.on?.error('Not saved: ' + b.error);
-          this.on?.state(this.view());
-        } else return this.stalled(b.error);
-      }
-    } finally {
-      this.running = null;
-    }
-  }
-  private stalled(why?: string) {
-    if (!this.warned) this.on?.error(`Not saved yet${why ? ` (${why})` : ': the reviewroom server is not answering'}. Retrying.`);
-    this.warned = true;
-    clearTimeout(this.retry);
-    this.retry = setTimeout(() => this.pump(), 3000);
+    this.sync!.send({ type: 'op', op });
   }
   async flush() {
-    while (this.running) await this.running;
-    await this.pump();
-    return !this.queue.some((q) => !q.ackRev);
+    const sync = this.sync!;
+    sync.send({ type: 'flush' }); // stalled: try now rather than at the next retry
+    const s = await waitFor(sync, (s) => !s.hasTag('sending'));
+    return !unsent(s.context);
   }
   subscribe(on: BackendEvents) {
-    this.on = on;
-    let hash: string | null = null;
-    const connect = () => {
-      const es = new EventSource(`${this.api}/events`);
-      es.addEventListener('hello', async (e) => {
-        const h = JSON.parse(e.data).hash;
-        // reconnected to a new `reviewroom review` run: pick up whatever the agent changed meanwhile
-        if (hash !== null && h !== hash) return on.review();
-        if (hash !== null) this.receive(await this.fetchState());
-        hash = h;
-        void this.pump();
-      });
-      es.addEventListener('state', (e) => this.receive(JSON.parse(e.data)));
-      es.addEventListener('review', () => on.review());
-      es.addEventListener('github', (e) => on.github?.(JSON.parse(e.data)));
-      es.onerror = () => {
-        es.close();
-        setTimeout(connect, 2000);
-      };
-    };
-    connect();
+    const sync = this.sync!;
+    sync.on('state', (e) => on.state(e.state));
+    sync.on('error', (e) => on.error(e.text));
+    sync.on('github', (e) => on.github?.(e.snapshot));
+    sync.on('reload', () => on.review());
+    let unsaved = false;
+    let status: 'waiting' | 'approved' | 'offline' | null = null;
+    sync.subscribe((s) => {
+      if ((s.context.failures > 0 && unsent(s.context)) !== unsaved) on.unsaved?.((unsaved = !unsaved));
+      if (s.hasTag('catchingUp')) return;
+      // offline: it was live once and isn't now
+      const now = roundStatus(s.context) ?? (s.context.hash !== null && !s.hasTag('live') ? 'offline' : null);
+      if (now === status) return;
+      if (status === 'waiting' && now === null) on.ready?.(s.context.base.round);
+      on.status?.((status = now));
+    });
+    sync.send({ type: 'connect' });
   }
   async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number) {
     if (!(await this.flush())) return { ok: false, message: 'some changes are not saved yet' };
     const r = await fetch(`${this.api}/finish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, note, round }) });
     const b = await r.json().catch(() => ({}));
-    return r.ok ? { ok: true } : { ok: false, message: b.error || `${r.status} ${r.statusText}` };
+    if (!r.ok) return { ok: false, message: b.error || `${r.status} ${r.statusText}` };
+    // the finish broadcast may have been missed, and this run of the server stops right after: take the state from the answer
+    if (b.state) this.sync!.send({ type: 'state', state: b.state });
+    return { ok: true };
   }
   async snapshot(n: number) {
     const r = await fetch(`${this.api}/rounds/${n}/review.html`);

@@ -4,7 +4,7 @@ import { h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/d
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
-import { applyPreset, canUndoLayout, ensurePanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
+import { applyPreset, canUndoLayout, closePanel, ensurePanel, hasPanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 import type { GitHubAction } from '../shared/schema';
 
@@ -76,7 +76,6 @@ export function sendDialog(app: ReviewApp) {
         return false;
       }
       app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
-      app.root.classList.add('is-waiting');
     } else {
       await copyText(feedbackMarkdown(app.state, { kind, note: text }));
       app.apply({ op: 'finishRound', kind, note: text, round: n });
@@ -208,7 +207,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
         menuLabel('Panels'),
         ...panelDefs()
           .filter((d) => !d.onDemand)
-          .map((d) => menuItem(d.title, () => (close(), app.dock.getPanel(d.id) ? app.dock.getPanel(d.id)!.api.close() : ensurePanel(app, d.id)), { checked: !!app.dock.getPanel(d.id) })),
+          .map((d) => menuItem(d.title, () => (close(), hasPanel(app, d.id) ? closePanel(app, d.id) : ensurePanel(app, d.id)), { checked: hasPanel(app, d.id) })),
       ]);
     bar.replaceChildren(
       h(
@@ -233,6 +232,10 @@ export function buildHeader(app: ReviewApp): HTMLElement {
       h(
         'div',
         { class: 'rr-header__actions' },
+        h('span', { class: 'rr-round-status rr-round-status--waiting', title: 'Your feedback went to the agent. The next round opens here when it is back' }, 'Waiting for the agent…'),
+        h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
+        h('span', { class: 'rr-pill rr-pill--draft rr-round-status rr-round-status--offline', title: 'The reviewroom server stopped. Changes stay in this tab and are saved when it is back' }, 'Disconnected'),
+        h('span', { class: 'rr-pill rr-pill--draft rr-unsaved', title: 'The reviewroom server has not stored your latest changes. Reviewroom keeps retrying; keep this tab open' }, 'Not saved yet'),
         h('button', { class: 'rr-search-btn', onclick: () => app.openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         ...githubControls(app),
         app.teamMode ? null : roundBtn,

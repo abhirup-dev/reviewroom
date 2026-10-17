@@ -146,18 +146,16 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
 
   app.backend.subscribe?.({
     state: (s) => {
-      const newRound = s.round !== app.state.round;
       app.state = s;
-      if (newRound) {
-        app.root.classList.remove('is-waiting');
-        app.toast(`Round ${s.round} is ready.`);
-      }
       app.bus.emit('state', s);
     },
     error: (text) => app.toast(text, 'error'),
+    unsaved: (on) => app.root.classList.toggle('is-unsaved', on),
+    status: (s) => (['waiting', 'approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
+    ready: (round) => app.toast(`Round ${round} is ready.`),
     github: (s) => app.setGitHub(s),
-    review: async () => {
-      await app.backend.flush?.(); // don't drop unsent changes with the page
+    // the backend has let a save in flight finish first
+    review: () => {
       sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
       location.reload();
     },
