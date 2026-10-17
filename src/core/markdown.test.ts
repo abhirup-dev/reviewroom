@@ -29,6 +29,10 @@ test('proseRemoved names what the walkthrough sanitizer takes out, once each', (
   expect(proseRemoved('<p>fine <a href="rr:code/a.go#L1">a</a></p>')).toEqual([]);
 });
 
+test('walkthrough prose keeps a flow diagram\'s direction', () => {
+  expect(sanitizeProse('<rr-flow direction="column"><rr-node>a</rr-node></rr-flow>')).toBe('<rr-flow direction="column"><rr-node>a</rr-node></rr-flow>');
+});
+
 test('walkthrough prose is display-only: no styles, forms, media, svg or script URLs', () => {
   const html = '<p style="position:fixed">a <a href="javascript:x()">j</a> <a href="rr:code/a.go#L1">r</a></p><form><input></form><img src="https://e.vil/x.png"><svg><script>1</script></svg><rr-flow><rr-node state="new" ref="data:x">n</rr-node></rr-flow>';
   expect(sanitizeProse(html)).toBe('<p>a <a target="_blank" rel="noopener">j</a> <a href="rr:code/a.go#L1">r</a></p><rr-flow><rr-node state="new">n</rr-node></rr-flow>');

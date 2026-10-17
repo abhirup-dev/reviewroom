@@ -7,6 +7,7 @@ import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/s
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
 import { findingReport, lintTour, type Finding } from '../lib/tour-lint.ts';
+import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
 
 type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[] };
@@ -42,7 +43,8 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   return { tour: value, results, bad: locate(problems(results), value), healed, notes };
 }
 
-export const schemaReport = (issues: string[]) => `walkthrough.json does not match schema/walkthrough.schema.json:\n  ${issues.join('\n  ')}`;
+export const WALKTHROUGH_SCHEMA = path.join(PKG, 'schema', 'walkthrough.schema.json');
+export const schemaReport = (issues: string[]) => `walkthrough.json does not match ${WALKTHROUGH_SCHEMA}:\n  ${issues.join('\n  ')}`;
 
 // Stale-link check of review.html and walkthrough.json. --fix rewrites links whose code moved <=5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.

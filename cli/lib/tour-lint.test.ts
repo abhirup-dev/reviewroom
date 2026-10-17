@@ -19,7 +19,7 @@ const checks = (o = {}) => lintTour(w, changed, (n) => (n === 'Thing' ? 'pkg/sym
 test('unshown files: big source warns (largest first), small and tests are mentioned; symbols, binaries count as shown or skip', () => {
   const [big, rest] = checks().filter((f) => f.check === 'unshown-file');
   expect(big).toMatchObject({ level: 'warn', message: '1 changed file(s) no slide shows: pkg/b.go (+30 -0)' });
-  expect(rest).toMatchObject({ level: 'info', message: 'also not shown (small or tests): pkg/c.go (+3 -0), pkg/a_test.go (+50 -0)' });
+  expect(rest).toMatchObject({ level: 'info', message: 'also not shown (small, tests, generated, lock or doc files): pkg/c.go (+3 -0), pkg/a_test.go (+50 -0)' });
 });
 
 test('pacing, empty pane, and the estimates rendering replaces', () => {
@@ -37,7 +37,7 @@ test('the report groups by place, the whole walkthrough first, then in walkthrou
 test('a link in an HTML comment shows nothing; Python test_ files are tests; unknown places report last', () => {
   const v: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [step('s1', 'rr:code/x.go#L1', '<!-- rr:code/pkg/b.go#L1 -->')] }] };
   const fs = lintTour(v, [file('x.go', 20), file('pkg/b.go', 20), file('pkg/test_svc.py', 20)], () => undefined);
-  expect(fs.map((f) => f.message)).toEqual(['1 changed file(s) no slide shows: pkg/b.go (+20 -0)', 'also not shown (small or tests): pkg/test_svc.py (+20 -0)']);
+  expect(fs.map((f) => f.message)).toEqual(['1 changed file(s) no slide shows: pkg/b.go (+20 -0)', 'also not shown (small, tests, generated, lock or doc files): pkg/test_svc.py (+20 -0)']);
   const r = findingReport([{ check: 'x', level: 'info', where: 'gone/s9', message: 'm', fix: 'f' }, ...fs], v);
   expect(r.split('\n').filter((l) => l.startsWith('['))).toEqual(['[guided walkthrough]', '[gone/s9]']);
 });
@@ -52,9 +52,29 @@ test('judge: one finding per problem across viewports; the lead is named when it
   ]);
   const by = (check: string) => fs.filter((f) => f.check === check);
   expect(by('overflow')).toEqual([expect.objectContaining({ where: 'c/s1', message: 'the narration needs scrolling (1280x800: 80px more than the 600px it has; 1440x900: 20px more than the 700px it has)', fix: expect.stringContaining('The chapter lead takes 50%') })]);
-  expect(by('hidden-lines')[0].message).toContain('(1280x800: 2 of 5)');
+  expect(by('hidden-lines')[0]).toMatchObject({ message: expect.stringContaining('(1280x800: 2 of 5, 3 fit)'), fix: expect.stringContaining('rr:code/a.go#L1-3') });
   expect(by('no-code').map((f) => f.message)).toEqual(['rr:sym/Gone shows a preview card, not code (1280x800: preview)']);
   expect(by('short-chunk').map((f) => f.where)).toEqual(['c/s2']);
   expect(by('stripped').map((f) => f.where)).toEqual(['c']);
   expect(by('page-error').map((f) => f.message)).toEqual(['boom (1280x800: console)']);
+});
+
+test('lock, generated and doc files are only mentioned; the line budget depends on how many refs stack', () => {
+  const lint = (steps: ReturnType<typeof step>[], files: ChangedFile[] = []) => lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps }] }, files, () => undefined);
+  const skipped = ['bun.lock', 'go.sum', 'README.md', 'api/x.pb.go', 'pkg/types_generated.ts', 'ui/x.gen.ts', 'dist/a.js'].map((p) => file(p, 50));
+  expect(lint([step('s1', 'rr:code/x.go#L1')], skipped).map((f) => f.level)).toEqual(['info']);
+  const wide = (steps: ReturnType<typeof step>[]) => lint(steps).map((f) => `${f.check} ${f.message}`);
+  expect(wide([step('s1', 'rr:code/x.go#L1-25')])).toEqual([]);
+  expect(wide([step('s1', 'rr:code/x.go#L1-26')])).toEqual(['wide-range rr:code/x.go#L1-26 highlights 26 lines']);
+  expect(wide([step('s1', ['rr:code/x.go#L1-11', 'rr:code/y.go#L1-10'])])).toEqual(['wide-range rr:code/x.go#L1-11 highlights 11 lines']);
+  expect(wide([step('s1', ['rr:code/x.go#L1', 'rr:code/y.go#L1', 'rr:code/z.go#L1'])])).toEqual(['short-chunk 3 refs stacked']);
+});
+
+test('judge: a step without its own ref does not repeat the pane findings of the step before', () => {
+  const audit: StepAudit = { left: { visible: 600, content: 600, lead: 0 }, chunks: [{ ref: 'rr:code/a.go#L1-50', code: true, lines: 50, visible: 30, hidden: 20 }], wide: [], stripped: { lead: [], text: [] }, settled: true };
+  const fs = judge([
+    { viewport: 'v', chapter: 'c', step: 's1', audit, errors: [] },
+    { viewport: 'v', chapter: 'c', step: 's2', audit, errors: [], ownRef: false },
+  ]);
+  expect(fs.map((f) => f.where)).toEqual(['c/s1']);
 });
