@@ -4,12 +4,12 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Layout
 
-- `cli/` (Node, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
+- `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, state, GitHub (Octokit, as the `gh` user).
 - `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
   `shared/` is used by the CLI too (no DOM, no Node): Zod schema, op reducer, `rr:` grammar, feedback text.
   `flows/` holds the XState machines (thread popup, server sync); views subscribe.
-- `e2e/`: the built CLI under Node against the demo repo. `examples/`: demo review and demo repo script.
+- `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
 
 ## Contracts (change deliberately, update the skill when you do)
 
@@ -34,7 +34,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Working on it
 
-Bun installs, builds and tests; Node (>= 20) only runs the built CLI. Libraries are bundled into `dist/` (not
+Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bundled into `dist/` (not
 committed), so all are `devDependencies`.
 
 ```bash

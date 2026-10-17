@@ -18,13 +18,13 @@ docking panels, contents, a file tree, symbol search, anchored comment threads, 
 
 ## Quick start
 
-In Claude Code (installs the skill and puts `reviewroom` on the agent's PATH):
+The CLI runs on [Bun](https://bun.sh) (>= 1.3.12). In Claude Code (installs the skill and puts `reviewroom` on the agent's PATH):
 
 ```
 /plugin install reviewroom --marketplace abhirup-dev/reviewroom
 ```
 
-Then ask for a review: *"review PR 4821 in reviewroom"*. Without Claude Code, `npm i -g reviewroom`
+Then ask for a review: *"review PR 4821 in reviewroom"*. Without Claude Code, `bun add -g reviewroom`
 and point your agent at [`skills/reviewroom/`](skills/reviewroom/SKILL.md):
 
 ```bash
@@ -112,7 +112,7 @@ src/
   overlays/           thread popup/panel + composer, palette, hover previews, toasts
   elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
   styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
-cli/                  CLI (TypeScript, bundled for Node): server + round commands
+cli/                  CLI (TypeScript, bundled for Bun): server + round commands
 templates/            review.html scaffold
 schema/               JSON schema for state.json (generated from src/shared/schema.ts)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)

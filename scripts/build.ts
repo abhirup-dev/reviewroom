@@ -1,5 +1,5 @@
 // Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
-// dist/fonts/, dist/emoji.json, and the CLI with its dependencies bundled in: dist/cli/reviewroom.mjs. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
+// dist/fonts/, dist/emoji.json, and the CLI with its dependencies bundled in: dist/cli/reviewroom.js. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
 import type { BunPlugin } from 'bun';
 import { readFileSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 
@@ -58,13 +58,13 @@ async function build() {
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
   // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
-  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'node', format: 'esm', outdir: at('dist/cli'), naming: '[name].mjs' });
+  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'bun', format: 'esm', outdir: at('dist/cli'), naming: '[name].js' });
   for (const r of [res, cli]) {
     if (r.success) continue;
     for (const log of r.logs) console.error(log);
     throw new Error('build failed');
   }
-  chmodSync(at('dist/cli/reviewroom.mjs'), 0o755);
+  chmodSync(at('dist/cli/reviewroom.js'), 0o755);
   console.log(`built dist/ in ${Math.round(performance.now() - t)}ms`);
 }
 
