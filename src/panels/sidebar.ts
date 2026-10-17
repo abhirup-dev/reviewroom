@@ -10,7 +10,6 @@ import { definePanel, type PanelInstance } from '../shell/layout';
 import { popMenu, menuItem, menuLabel } from '../shell/chrome';
 import { fileType, isTestFile, reviewOrder, type ReviewApp } from '../shell/app';
 
-const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
 const TYPE_LABEL: Record<string, string> = { go: 'Go', ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', py: 'Python', proto: 'Protobuf', sql: 'SQL', md: 'Markdown', yaml: 'YAML', yml: 'YAML', json: 'JSON', java: 'Java', kt: 'Kotlin', rs: 'Rust', sh: 'Shell', css: 'CSS', html: 'HTML' };
 
 // ======================================================================= Files
@@ -61,10 +60,10 @@ class FilesPanel implements PanelInstance {
     );
     const viewed = app.files.filter((f) => app.state.viewed[f.path] !== undefined).length;
     this.head.replaceChildren(
+      h('div', { class: 'rr-progress', title: `${viewed} of ${app.files.length} files viewed` }, h('div', { class: 'rr-progress__bar', style: `width:${app.files.length ? (viewed / app.files.length) * 100 : 0}%` }), h('span', null, `${viewed}/${app.files.length} viewed`)),
       ...(ranges.length > 1 ? [select] : []),
       h('div', { class: 'rr-side-row' }, search, seg),
       chips,
-      h('div', { class: 'rr-progress', title: `${viewed} of ${app.files.length} files viewed` }, h('div', { class: 'rr-progress__bar', style: `width:${app.files.length ? (viewed / app.files.length) * 100 : 0}%` }), h('span', null, `${viewed}/${app.files.length} viewed`)),
     );
     this.renderList();
   }
@@ -76,19 +75,17 @@ class FilesPanel implements PanelInstance {
     return h(
       'button',
       {
-        class: 'rr-file-row' + (viewed ? ' is-viewed' : '') + (f.path === app.activeFile ? ' is-active' : ''),
+        class: 'rr-file-row' + (viewed ? ' is-viewed' : '') + (f.status === 'added' || f.status === 'deleted' ? ' is-' + f.status : '') + (f.path === app.activeFile ? ' is-active' : ''),
         role: 'treeitem',
         'data-path': f.path,
         style: `--depth:${depth}`,
-        title: f.path + ' (double-click to open it big)',
+        title: f.path + (viewed ? ' · viewed' : '') + ' (double-click to open it big)',
         onclick: () => app.bus.emit('reveal-code', { path: f.path, side: f.status === 'deleted' ? 'base' : 'head' }),
         ondblclick: () => openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
       },
-      h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
+      h('span', { class: 'rr-file-row__threads' }, ...threadCounts(threads, 'in this file')),
       h('span', { class: 'rr-file-row__name' }, label),
-      ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
-      viewed ? h('span', { class: 'rr-viewed-mark', title: 'Viewed' }, icon('check', 12)) : null,
     );
   }
 
@@ -160,6 +157,7 @@ class FilesPanel implements PanelInstance {
     }
     if (!out.length) out.push(h('div', { class: 'rr-empty' }, q ? 'No files match.' : 'No files.'));
     if (hidden) out.push(h('button', { class: 'rr-link-btn rr-hidden-note', onclick: () => (app.setPref('hiddenTypes', []), app.setPref('hideTests', false)) }, `${hidden} file${hidden > 1 ? 's' : ''} hidden by filters · show all`));
+    this.list.classList.toggle('is-tree', app.prefs.fileGroup === 'tree');
     this.list.replaceChildren(...out);
   }
 
@@ -239,16 +237,16 @@ class TocPanel implements PanelInstance {
       ...([
       heads.length ? h('div', { class: 'rr-group-label' }, 'Description') : null,
       ...heads,
-      heads.length || pins.length ? h('div', { class: 'rr-group-label' }, 'Review') : null,
+      heads.length || pins.length ? h('div', { class: 'rr-group-label' }, 'Walkthrough') : null,
       ...items,
       pins.length ? h('div', { class: 'rr-group-label' }, 'Pinned', h('span', null, String(pins.length))) : null,
       ...pins.map((ref) => {
-        const r = parseRef(ref);
         return h(
           'div',
           { class: 'rr-toc-item rr-toc-item--pin' },
-          h('button', { class: 'rr-toc-item__title rr-link-btn', title: 'Open (double-click to open it big)', onclick: () => app.open(ref), ondblclick: () => openCentered(app, ref) }, h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : ''), app.label(ref)),
-          h('button', { class: 'rr-icon-btn', 'aria-label': 'Unpin', title: 'Unpin', onclick: () => app.togglePin(ref) }, icon('close', 12)),
+          // unpins on a double-click (one stray click shouldn't), or Enter/Space from the keyboard (detail 0)
+          h('button', { class: 'rr-pin-btn', 'aria-label': 'Unpin', title: 'Double-click to unpin', onclick: (e: MouseEvent) => e.detail === 0 && app.togglePin(ref), ondblclick: () => app.togglePin(ref) }, icon('pin', 12)),
+          h('button', { class: 'rr-toc-item__title rr-link-btn', title: 'Open (double-click to open it big)', onclick: () => app.open(ref), ondblclick: () => openCentered(app, ref) }, app.label(ref)),
         );
       }),
       ].filter(Boolean) as HTMLElement[]),

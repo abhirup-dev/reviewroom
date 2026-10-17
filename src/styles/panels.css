@@ -177,13 +177,13 @@
   display: none;
 }
 .rr-filter-chip {
-  height: 22px;
-  padding: 0 8px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: var(--rr-radius-sm);
   border: 1px dashed var(--rr-line-strong);
   background: transparent;
   color: var(--rr-faint);
-  font: 500 var(--rr-text-xs) / 1 var(--rr-mono);
+  font: 500 10.5px / 1 var(--rr-mono);
   cursor: pointer;
   text-decoration: line-through;
 }
@@ -261,6 +261,35 @@
   background: var(--rr-active);
   color: var(--rr-ink);
 }
+.rr-file-row.is-deleted .rr-file-row__name {
+  text-decoration: line-through;
+}
+/* new and deleted files get a faint wash of the diff colours */
+.rr-file-row.is-added:not(:hover, .is-active) {
+  background: color-mix(in srgb, var(--rr-add) 8%, transparent);
+}
+.rr-file-row.is-deleted:not(:hover, .is-active) {
+  background: color-mix(in srgb, var(--rr-del) 8%, transparent);
+}
+/* tree: file names line up with sibling folder names (past the chevron), and faint guides mark each level */
+.rr-files.is-tree .rr-file-row {
+  --pad: calc(24px + var(--depth, 0) * 14px);
+}
+.rr-files.is-tree .rr-dir-row {
+  position: relative;
+}
+.rr-files.is-tree :is(.rr-file-row, .rr-dir-row)::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 12px;
+  width: calc(var(--depth, 0) * 14px);
+  background: repeating-linear-gradient(to right, color-mix(in srgb, var(--rr-line) 70%, transparent) 0 1px, transparent 1px 14px);
+  pointer-events: none;
+}
+/* the innermost guide would run through the badge */
+.rr-files.is-tree .rr-file-row:has(.rr-count-chip)::before {
+  width: calc((var(--depth, 0) - 1) * 14px);
+}
 .rr-file-row.is-viewed .rr-file-row__name {
   color: var(--rr-faint);
 }
@@ -273,9 +302,22 @@
   font-family: var(--rr-mono);
   font-size: 12px;
 }
-.rr-viewed-mark {
-  color: var(--rr-ok);
+/* thread badges sit in the gutter left of the name (--pad is where the name starts), so names never shift */
+.rr-file-row {
+  --pad: calc(6px + var(--depth, 0) * 14px);
+  position: relative;
+  padding-left: var(--pad);
+}
+.rr-files:not(.is-tree):has(.rr-count-chip) .rr-file-row {
+  --pad: 38px;
+}
+.rr-file-row__threads {
+  position: absolute;
+  top: 50%;
+  right: calc(100% - var(--pad) + 4px);
+  transform: translateY(-50%);
   display: inline-flex;
+  gap: 4px;
 }
 .rr-dir-row {
   color: var(--rr-muted);
@@ -292,13 +334,13 @@
   margin: 10px 8px;
   font-size: var(--rr-text-sm);
 }
-/* contents: section titles wrap to two lines instead of truncating; sub-sections hang off a guide line */
+/* contents: section titles wrap to two lines instead of truncating, indented under their group label; sub-sections hang off a guide line */
 .rr-toc {
   padding-top: 8px;
 }
 .rr-toc-item {
   align-items: flex-start;
-  padding: 5px 8px;
+  padding: 5px 8px 5px 22px;
   font: 400 13px/1.4 var(--rr-font);
 }
 .rr-toc-item__title {
@@ -316,12 +358,11 @@
   margin-top: 1px;
 }
 .rr-toc-item.is-active {
-  box-shadow: inset 2px 0 0 var(--rr-ink);
   font-weight: 500;
 }
 .rr-toc-item--sub {
-  width: calc(100% - 14px);
-  margin-left: 14px;
+  width: calc(100% - 22px);
+  margin-left: 22px;
   padding: 4px 8px;
   min-height: 24px;
   border-left: 1px solid var(--rr-line-strong);
@@ -334,7 +375,20 @@
 }
 .rr-toc-item--pin .rr-link-btn {
   color: var(--rr-ink-2);
-  justify-content: flex-start;
+  text-align: left;
+}
+.rr-pin-btn {
+  display: inline-flex;
+  flex: none;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  cursor: pointer;
+}
+.rr-pin-btn:hover {
+  color: var(--rr-ink);
 }
 .rr-thread-item {
   display: flex;
