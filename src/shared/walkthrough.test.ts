@@ -10,7 +10,7 @@ const valid = () => ({
 });
 const issues = (w: unknown) => {
   const r = parseWalkthrough(JSON.stringify(w));
-  return r.ok ? null : r.issues;
+  return r.ok ? null : r.issues.join('; ');
 };
 
 test('the demo walkthrough parses', () => {
@@ -36,8 +36,10 @@ test('invalid documents fail with a one-line issue', () => {
   const r = valid();
   r.chapters[0].steps[0].ref = 'pkg/x.go';
   expect(issues(r)).toContain('chapters.0.steps.0.ref');
-  r.chapters[0].steps[0].ref = 'rr:thread/t1';
-  expect(issues(r)).toContain('chapters.0.steps.0.ref');
+  for (const bad of ['rr:thread/t1', 'rr:code/x.go#L0', 'rr:code/x.go#L20-10', 'rr:code/#L1', 'rr:sym/']) {
+    r.chapters[0].steps[0].ref = bad;
+    expect(issues(r)).toContain('chapters.0.steps.0.ref');
+  }
 
   expect(issues({ ...valid(), version: 2 })).toContain('version');
   expect(issues({ ...valid(), chapters: [] })).toContain('chapters');

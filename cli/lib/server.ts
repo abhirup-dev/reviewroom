@@ -20,6 +20,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { FinishRound, GitHubAction, issueText } from '../../src/shared/schema.ts';
+import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { createAdaptorServer } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -39,13 +40,13 @@ export interface Finished {
   round: number;
 }
 
-/** Watch the review dir for review.html and its assets (debounced); `edited` = review.html itself changed.
+/** Watch the review dir for review.html, walkthrough.json and assets (debounced); `edited` = review.html itself changed.
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
 function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   let t: NodeJS.Timeout | undefined, edited = false;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
-    if (f === 'review.html' || (f && /\.(css|js|svg|png)$/.test(f))) {
+    if (f === 'review.html' || f === 'walkthrough.json' || (f && /\.(css|js|svg|png)$/.test(f))) {
       edited ||= f === 'review.html';
       clearTimeout(t);
       t = setTimeout(() => {
@@ -187,6 +188,12 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     const ops = c.req.valid('json').ops as Op[];
     if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
+  });
+  app.get('/api/walkthrough', (c) => {
+    const file = path.join(dir, 'walkthrough.json');
+    if (!fs.existsSync(file)) return json(c, { error: 'no walkthrough.json' }, 404);
+    const r = parseWalkthrough(fs.readFileSync(file, 'utf8'));
+    return r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
   });
   app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
   app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));

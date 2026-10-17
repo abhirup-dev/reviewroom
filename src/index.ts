@@ -100,6 +100,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
   const fixture = readJSON('#rr-fixture') as Fixture | null;
   const seedState = readJSON('#rr-state') as ReviewState | null;
+  const seedTour = readJSON('#rr-walkthrough') ?? undefined;
   const review = root.querySelector('rr-review') as HTMLElement | null;
   const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No <rr-review> content yet.'));
   doc.remove();
@@ -118,7 +119,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.id ||= [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
-    app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined);
+    app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined, seedTour);
     app.state = { ...emptyState(), ...(await app.backend.load()) };
     app.defaultLayout = (await app.backend.defaultLayout?.().catch(() => null)) ?? null;
     app.viewRound = app.state.round;

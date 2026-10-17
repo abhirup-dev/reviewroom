@@ -4,6 +4,7 @@
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { loadRaw } from '../core/store';
 import { StoredState, type GitHubAction } from '../shared/schema';
+import { parseWalkthrough, type Walkthrough } from '../shared/walkthrough';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import { roundStatus, syncMachine, unsent } from '../flows/sync';
 
@@ -42,7 +43,10 @@ export interface StateBackend {
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */
   githubAct?(action: GitHubAction): Promise<GitHubSnapshot>;
+  /** The review's walkthrough.json: null when there is none, `{ issues }` when it breaks the schema. */
+  walkthrough?(): Promise<WalkthroughLoad>;
 }
+export type WalkthroughLoad = Walkthrough | { issues: string[] } | null;
 export interface BackendEvents {
   state(s: ReviewState): void;
   review(): void;
@@ -193,6 +197,10 @@ export class ServerState implements StateBackend {
     const r = await fetch(`${this.api}/layout`, layout ? { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout) } : { method: 'DELETE' });
     return r.ok;
   }
+  async walkthrough(): Promise<WalkthroughLoad> {
+    const r = await fetch(`${this.api}/walkthrough`);
+    return r.status === 404 ? null : r.ok || r.status === 422 ? r.json() : { issues: [`${r.status} ${r.statusText}`] };
+  }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }
@@ -295,7 +303,13 @@ const LS_KEY = (id: string) => `reviewroom:state:${id}`;
 
 export class BrowserState implements StateBackend {
   readonly kind = 'browser';
-  constructor(private id: string, private seed?: ReviewState) {}
+  constructor(private id: string, private seed?: ReviewState, private tour?: unknown) {}
+  // embedded in the page as #rr-walkthrough (the static demo does)
+  async walkthrough(): Promise<WalkthroughLoad> {
+    if (this.tour === undefined) return null;
+    const r = parseWalkthrough(JSON.stringify(this.tour));
+    return r.ok ? r.value : { issues: r.issues };
+  }
   async load() {
     try {
       const raw = localStorage.getItem(LS_KEY(this.id));

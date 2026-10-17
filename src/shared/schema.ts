@@ -113,8 +113,10 @@ export type Round = z.infer<typeof Round>;
 export type StoredState = z.infer<typeof StoredState>;
 export type Op = z.infer<typeof Op>;
 
+/** Zod's issues as `path: message` lines. */
+export const issueList = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`);
 /** Zod's issues as one line: `path: message; ...`. */
-export const issueText = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
+export const issueText = (e: z.core.$ZodError) => issueList(e).join('; ');
 
 /** schema/state.schema.json, generated (scripts/schema.ts writes it; a test fails when the committed file is stale). */
 export const stateJsonSchema = () => ({
