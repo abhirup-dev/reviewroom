@@ -79,3 +79,9 @@ test('heads: set on the open round only; a finished round keeps what it showed',
   expect(code(() => applyOp(sent, { op: 'setHeads', round: 1, heads: {} }))).toBe('conflict');
   expect(code(() => applyOp(sent, { op: 'setHeads', round: 9, heads: {} }))).toBe('not_found');
 });
+
+test('viewed in one layer of a stack is not viewed in another, nor in the whole stack', () => {
+  const s = applyOp(empty(), { op: 'setViewed', path: 'a.go', viewed: true, pr: 366 });
+  expect(s.viewed).toEqual({ '366:a.go': 1 });
+  expect(applyOp(s, { op: 'setViewed', path: 'a.go', viewed: false, pr: 366 }).viewed).toEqual({});
+});

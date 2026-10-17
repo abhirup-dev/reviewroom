@@ -467,8 +467,12 @@ export class ReviewApp {
   togglePin(ref: string) {
     this.apply({ op: 'setPin', ref, pinned: !this.state.pins.includes(ref) });
   }
+  /** Marked viewed in the active range: per layer of a stack (a commit in a layer counts as the layer), else per path. */
+  isViewed(path: string) {
+    return this.state.viewed[this.range?.pr ? `${this.range.pr}:${path}` : path] !== undefined;
+  }
   setViewed(path: string, viewed: boolean) {
-    this.apply({ op: 'setViewed', path, viewed });
+    this.apply({ op: 'setViewed', path, viewed, ...(this.range.pr && { pr: this.range.pr }) });
   }
   /** Threads with reviewer messages added in the current round (what "Send feedback" will deliver). */
   pendingFeedback() {

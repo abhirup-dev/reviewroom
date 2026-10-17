@@ -262,7 +262,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'diff.prev', title: 'Previous change', group: 'Code', keys: ['k'], scope: 'code', run: codeCmd('prev') },
     { id: 'diff.nextFile', title: 'Next file', group: 'Code', keys: ['] f', 'shift+j'], scope: 'code', run: codeCmd('nextFile') },
     { id: 'diff.prevFile', title: 'Previous file', group: 'Code', keys: ['[ f', 'shift+k'], scope: 'code', run: codeCmd('prevFile') },
-    { id: 'diff.viewed', title: 'Mark current file viewed', group: 'Code', keys: ['v'], scope: 'code', run: () => app.activeFile && app.setViewed(app.activeFile, app.state.viewed[app.activeFile] === undefined) },
+    { id: 'diff.viewed', title: 'Mark current file viewed', group: 'Code', keys: ['v'], scope: 'code', run: () => app.activeFile && app.setViewed(app.activeFile, !app.isViewed(app.activeFile)) },
     { id: 'files.tests', title: 'Toggle test files', group: 'Files', run: () => app.setPref('hideTests', !app.prefs.hideTests) },
     { id: 'doc.next', title: 'Next section', group: 'Narrative', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
     { id: 'doc.prev', title: 'Previous section', group: 'Narrative', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },

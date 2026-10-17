@@ -276,7 +276,7 @@ class CodePanel implements PanelInstance {
         }),
       );
       if (token !== this.loadToken) return;
-      this.files = new Map(files.map((f, i) => [f.path, { file: f, diff: diffs[i], collapsed: this.app.state.viewed[f.path] !== undefined }]));
+      this.files = new Map(files.map((f, i) => [f.path, { file: f, diff: diffs[i], collapsed: this.app.isViewed(f.path) }]));
       this.refreshItems();
     })());
   }
@@ -299,7 +299,7 @@ class CodePanel implements PanelInstance {
     if (!entry) return undefined;
     const f = entry.file;
     const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open' && app.codeShows(t.anchor));
-    const viewed = app.state.viewed[f.path] !== undefined;
+    const viewed = app.isViewed(f.path);
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });

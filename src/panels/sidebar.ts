@@ -58,7 +58,7 @@ class FilesPanel implements PanelInstance {
       }),
       hasTests ? h('button', { class: 'rr-filter-chip' + (p.hideTests ? '' : ' is-on'), 'aria-pressed': String(!p.hideTests), title: p.hideTests ? 'Show tests' : 'Hide tests', onclick: () => app.setPref('hideTests', !p.hideTests) }, 'tests') : null,
     );
-    const viewed = app.files.filter((f) => app.state.viewed[f.path] !== undefined).length;
+    const viewed = app.files.filter((f) => app.isViewed(f.path)).length;
     this.head.replaceChildren(
       h('div', { class: 'rr-progress', title: `${viewed} of ${app.files.length} files viewed` }, h('div', { class: 'rr-progress__bar', style: `width:${app.files.length ? (viewed / app.files.length) * 100 : 0}%` }), h('span', null, `${viewed}/${app.files.length} viewed`)),
       ...(ranges.length > 1 ? [select] : []),
@@ -71,7 +71,7 @@ class FilesPanel implements PanelInstance {
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
     const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path && app.codeShows(t.anchor));
-    const viewed = app.state.viewed[f.path] !== undefined;
+    const viewed = app.isViewed(f.path);
     return h(
       'button',
       {

@@ -70,10 +70,13 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
     case 'setThreadStatus':
       thread(s, op.threadId).status = op.status;
       break;
-    case 'setViewed':
-      if (op.viewed) s.viewed[op.path] = s.round;
-      else delete s.viewed[op.path];
+    case 'setViewed': {
+      // in a stack, a file is viewed per layer: the next PR may change it again
+      const key = op.pr ? `${op.pr}:${op.path}` : op.path;
+      if (op.viewed) s.viewed[key] = s.round;
+      else delete s.viewed[key];
       break;
+    }
     case 'setPin':
       s.pins = (s.pins ?? []).filter((p) => p !== op.ref);
       if (op.pinned) s.pins.push(op.ref);

@@ -288,7 +288,7 @@
     },
     "viewed": {
       "default": {},
-      "description": "path -> round it was marked viewed",
+      "description": "path (or `<pr>:<path>` for one layer of a stack of PRs) -> round it was marked viewed",
       "type": "object",
       "propertyNames": {
         "type": "string"

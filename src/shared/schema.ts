@@ -78,7 +78,7 @@ export const StoredState = z.object({
   round: int.min(1).describe('Current round. Agent replies are tagged with it.'),
   rounds: z.array(Round),
   threads: z.array(StoredThread),
-  viewed: z.record(z.string(), int).default({}).describe('path -> round it was marked viewed'),
+  viewed: z.record(z.string(), int).default({}).describe('path (or `<pr>:<path>` for one layer of a stack of PRs) -> round it was marked viewed'),
   pins: z.array(z.string()).default([]),
   checks: z.record(z.string(), CheckValue).optional(),
   links: z
@@ -110,7 +110,7 @@ export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('editMessage'), threadId: nonEmpty, msgId: nonEmpty, body: nonEmpty }),
   z.object({ op: z.literal('deleteMessage'), threadId: z.string(), msgId: z.string() }),
   z.object({ op: z.literal('setThreadStatus'), threadId: nonEmpty, status: z.enum(['open', 'resolved']) }),
-  z.object({ op: z.literal('setViewed'), path: nonEmpty, viewed: z.boolean() }),
+  z.object({ op: z.literal('setViewed'), path: nonEmpty, viewed: z.boolean(), pr: int.positive().optional().describe('A stack PR: viewed in its layer only (key `<pr>:<path>`)') }),
   z.object({ op: z.literal('setPin'), ref: nonEmpty, pinned: z.boolean() }),
   z.object({ op: z.literal('setCheck'), id: nonEmpty, value: CheckValue }),
   z.object({ op: z.literal('setLinks'), links: z.record(z.string(), z.string()) }),
