@@ -31,6 +31,7 @@ struct Session {
     pid: u32,
     port: u16,
     url: String,
+    #[serde(default)] // hub.json has none
     repo: String,
     title: Option<String>,
     number: Option<serde_json::Value>,
@@ -70,7 +71,15 @@ struct State {
     /// tabs whose page was unloaded to free memory; focusing one loads it again
     asleep: Mutex<HashSet<String>>,
     reviews_menu: Mutex<Option<Submenu<Wry>>>,
+    /// the live hub (`reviewroom hub`): every running review on one page, in the HUB tab
+    hub: Mutex<Option<Session>>,
+    /// when the app last tried to start a hub
+    hub_started: Mutex<Option<Instant>>,
+    /// All Reviews was asked for while no hub answered: show its tab once one does
+    hub_wanted: Mutex<bool>,
 }
+
+const HUB: &str = "hub";
 
 // A page costs 95-300 MB (its own WebKit process); one left in the background this long is unloaded.
 // REVIEWROOM_IDLE_SECS overrides it, for trying it out.
@@ -86,8 +95,7 @@ fn wake(app: &AppHandle, label: &str) {
     if !st.asleep.lock().unwrap().remove(label) {
         return;
     }
-    let s = st.sessions.lock().unwrap().iter().find(|(l, _)| l == label).map(|(_, s)| s.clone());
-    if let (Some(w), Some(s)) = (app.get_window(label), s) {
+    if let (Some(w), Some(s)) = (app.get_window(label), session_of(app, label)) {
         if page(app, label).is_none() {
             let _ = attach(&w, &s);
         }
@@ -128,11 +136,51 @@ fn save_settings(app: &AppHandle, s: &Settings) {
     let _ = fs::write(&p, serde_json::to_vec_pretty(s).unwrap_or_default());
 }
 
-fn sessions_dir() -> PathBuf {
+fn session_of(app: &AppHandle, label: &str) -> Option<Session> {
+    let st = app.state::<State>();
+    if label == HUB {
+        return st.hub.lock().unwrap().clone();
+    }
+    let sessions = st.sessions.lock().unwrap();
+    sessions.iter().find(|(l, _)| l == label).map(|(_, s)| s.clone())
+}
+
+fn home() -> PathBuf {
     std::env::var_os("REVIEWROOM_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".reviewroom"))
-        .join("sessions")
+}
+
+fn sessions_dir() -> PathBuf {
+    home().join("sessions")
+}
+
+fn read_hub() -> Option<Session> {
+    let mut s: Session = serde_json::from_slice(&fs::read(home().join("hub.json")).ok()?).ok()?;
+    s.title = Some("All Reviews".into());
+    answers(&s).then_some(s)
+}
+
+// The app's PATH has neither `reviewroom` nor `bun`: the user's interactive shell has both.
+// At most every 30 s, whoever asks: a hub that will not start must not pile up shells.
+fn start_hub(app: &AppHandle) {
+    {
+        let st = app.state::<State>();
+        let mut last = st.hub_started.lock().unwrap();
+        if last.is_some_and(|t| t.elapsed() < Duration::from_secs(30)) {
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let child = std::process::Command::new(shell)
+        .args(["-ilc", "reviewroom hub --detach --no-open"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    if let Ok(mut c) = child {
+        thread::spawn(move || c.wait()); // reap it
+    }
 }
 
 // Keyed by port, not pid: a restarted round takes over its review's port, and the open tab reconnects.
@@ -173,6 +221,7 @@ fn title(s: &Session) -> String {
         Some(n) => format!(" #{n}"),
     };
     match &s.title {
+        Some(t) if repo.is_empty() => t.clone(),
         Some(t) => format!("{repo}{num} \u{b7} {t}"),
         None => format!("{repo}{num}"),
     }
@@ -190,6 +239,25 @@ fn is_own(url: &Url, port: u16) -> bool {
 fn open_external(url: &Url) {
     if matches!(url.scheme(), "http" | "https" | "mailto") {
         let _ = std::process::Command::new("open").arg(url.as_str()).spawn();
+    }
+}
+
+// The hub's links: a running review opens in its tab here; anything else (Crit, Plannotator, the hub's
+// "Open in browser", which marks its URL with #rr-browser) goes to the browser.
+fn route(app: &AppHandle, u: &Url) {
+    let mut u = u.clone();
+    if u.fragment() == Some("rr-browser") {
+        u.set_fragment(None);
+        return open_external(&u);
+    }
+    let label = format!("review-{}", u.port().unwrap_or(0));
+    match session_of(app, &label).filter(|s| u.host_str() == Some("127.0.0.1") && u.port() == Some(s.port)) {
+        // after the hub's own event: building a window inside a web view's callback deadlocks
+        Some(s) => {
+            let app = app.clone();
+            after_event(move || drop(open_review(&app, &label, &s, true)));
+        }
+        None => open_external(&u),
     }
 }
 
@@ -246,13 +314,19 @@ fn attach(w: &Window, s: &Session) -> tauri::Result<()> {
     let Ok(url) = s.url.parse::<Url>() else { return Ok(()) };
     let port = s.port;
     let n = PAGES.fetch_add(1, Ordering::Relaxed);
-    let b = WebviewBuilder::new(format!("{}-page-{n}", w.label()), WebviewUrl::External(url))
+    let (app, hub) = (w.app_handle().clone(), w.label() == HUB);
+    let out = move |u: &Url| if hub { route(&app, u) } else { open_external(u) };
+    let out2 = out.clone();
+    let mut b = WebviewBuilder::new(format!("{}-page-{n}", w.label()), WebviewUrl::External(url))
         .auto_resize()
-        .on_navigation(move |u| is_own(u, port) || (open_external(u), false).1)
-        .on_new_window(|u, _| {
-            open_external(&u);
+        .on_navigation(move |u| is_own(u, port) || (out(u), false).1)
+        .on_new_window(move |u, _| {
+            out2(&u);
             NewWindowResponse::Deny
         });
+    if hub {
+        b = b.initialization_script("window.reviewroomApp = true"); // the hub page adds "Open in browser"
+    }
     let p = w.add_child(b, PhysicalPosition::new(0, 0), w.inner_size()?)?;
     let zoom = w.app_handle().state::<State>().zoom.lock().unwrap().get(w.label()).copied();
     if let Some(z) = zoom {
@@ -261,7 +335,19 @@ fn attach(w: &Window, s: &Session) -> tauri::Result<()> {
     Ok(())
 }
 
-/// The Dock icon and File > Reopen Closed Reviews: every running review meant for the app gets its tab back.
+/// Reviews > All Reviews and the Dock icon: the hub's tab, opened again if closed (once the hub runs).
+fn show_hub(app: &AppHandle) {
+    let hub = app.state::<State>().hub.lock().unwrap().clone();
+    match hub {
+        Some(h) => drop(open_review(app, HUB, &h, true)),
+        None => {
+            *app.state::<State>().hub_wanted.lock().unwrap() = true;
+            start_hub(app);
+        }
+    }
+}
+
+/// File > Reopen Closed Reviews: every running review meant for the app gets its tab back.
 fn reopen_closed(app: &AppHandle) {
     let sessions = app.state::<State>().sessions.lock().unwrap().clone();
     for (label, s) in sessions.iter().filter(|(l, s)| s.open.as_deref() == Some("app") && app.get_window(l).is_none()) {
@@ -282,25 +368,58 @@ fn selected(w: &Window) -> bool {
 }
 
 
+/// Keeps the hub running and its tab open: the tab opens first, with each new hub, and again from the menu
+/// (Reviews > All Reviews) if closed; a hub restarted on another port reloads it.
+fn follow_hub(app: &AppHandle) {
+    let hub = read_hub();
+    let st = app.state::<State>();
+    let prev = std::mem::replace(&mut *st.hub.lock().unwrap(), hub.clone());
+    let Some(hub) = hub else { return start_hub(app) };
+    let wanted = std::mem::take(&mut *st.hub_wanted.lock().unwrap());
+    if prev.as_ref() == Some(&hub) && !wanted {
+        return;
+    }
+    let new = st.opened.lock().unwrap().insert(hub.pid);
+    let app2 = app.clone();
+    // after the current event: replacing a shown page redraws the window
+    after_event(move || {
+        match app2.get_window(HUB) {
+            Some(w) if wanted && prev.as_ref() == Some(&hub) => bring_forward(w),
+            // the old hub is gone: show the new one in the same tab
+            Some(w) => {
+                if let Some(p) = page(&app2, HUB) {
+                    let _ = p.close();
+                }
+                let _ = attach(&w, &hub);
+            }
+            None if new || wanted => drop(open_review(&app2, HUB, &hub, wanted)), // focus only when asked for
+            None => {}
+        }
+        menu::refresh(&app2);
+    });
+}
+
 /// Opens a tab for each new review that asked for the app (unless turned off in Settings), closes it once its
 /// server is gone, and keeps the Reviews menu in step.
 fn follow(app: AppHandle) {
     let mut missing: HashMap<String, Instant> = HashMap::new();
     let mut startup = true; // reviews already running at launch get their tabs without taking focus
     loop {
+        follow_hub(&app);
         let mut live: Vec<_> = read_sessions().into_iter().collect();
         live.sort_by_key(|(_, s)| s.port);
         let st = app.state::<State>();
         let settings = *st.settings.lock().unwrap();
         for (label, s) in &live {
             missing.remove(label);
+            let new = st.opened.lock().unwrap().insert(s.pid);
             // restarted with --browser: the review now belongs in the browser, which opens once this tab is gone
-            if s.open.as_deref() == Some("browser") {
+            // (only on a new server: a --browser review opened here from the hub or the menu stays)
+            if new && s.open.as_deref() == Some("browser") {
                 if let Some(w) = app.get_window(label) {
                     let _ = w.close();
                 }
             }
-            let new = st.opened.lock().unwrap().insert(s.pid);
             if new && settings.auto_open && s.open.as_deref() == Some("app") && app.get_window(label).is_none() {
                 let (app2, label, s) = (app.clone(), label.clone(), s.clone());
                 let _ = app.run_on_main_thread(move || {
@@ -312,7 +431,7 @@ fn follow(app: AppHandle) {
         }
         // grace period: a new round restarts the server on the same port
         for (label, w) in app.windows() {
-            if live.iter().any(|(l, _)| *l == label) {
+            if label == HUB || live.iter().any(|(l, _)| *l == label) {
                 continue;
             }
             if missing.entry(label.clone()).or_insert_with(Instant::now).elapsed() > Duration::from_secs(5) {
@@ -370,7 +489,7 @@ fn main() {
         .run(|app, event| match event {
             // stay in the Dock with no reviews open: the next review opens a window
             RunEvent::ExitRequested { code: None, api, .. } => api.prevent_exit(),
-            RunEvent::Reopen { has_visible_windows: false, .. } => reopen_closed(app),
+            RunEvent::Reopen { has_visible_windows: false, .. } => show_hub(app),
             _ => {}
         });
 }

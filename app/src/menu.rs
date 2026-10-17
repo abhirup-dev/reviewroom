@@ -5,7 +5,7 @@ use tauri::{
     AppHandle, Manager, Url, Window,
 };
 
-use crate::{bring_forward, open_external, open_review, page, reopen_closed, save_settings, title, State};
+use crate::{bring_forward, open_external, open_review, page, reopen_closed, save_settings, session_of, show_hub, title, State, HUB};
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let sep = || PredefinedMenuItem::separator(app);
@@ -103,6 +103,8 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
     for it in menu.items()? {
         menu.remove(&it)?;
     }
+    let hub = CheckMenuItem::with_id(app, "hub", "All Reviews", true, shown.as_deref() == Some(HUB), Some("CmdOrCtrl+Shift+H"))?;
+    menu.append_items(&[&hub, &PredefinedMenuItem::separator(app)?])?;
     if sessions.is_empty() {
         menu.append(&MenuItem::new(app, "No Running Reviews", false, None::<&str>)?)?;
     }
@@ -129,10 +131,14 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
 pub fn handle(app: &AppHandle, e: MenuEvent) {
     let st = app.state::<State>();
     let id = e.id().as_ref();
-    let session = |label: &str| st.sessions.lock().unwrap().iter().find(|(l, _)| l == label).map(|(_, s)| s.clone());
+    let session = |label: &str| session_of(app, label);
     let cur = current(app);
     match id {
         "reopen" => reopen_closed(app),
+        "hub" => {
+            show_hub(app);
+            refresh(app); // the click toggled its check mark
+        }
         "browser" | "github" => {
             let s = cur.as_ref().and_then(|w| session(w.label()));
             let url = s.and_then(|s| if id == "browser" { Some(s.url) } else { s.pr_url });

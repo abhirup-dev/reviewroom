@@ -133,6 +133,7 @@ function visible(): SessionInfo[] {
 }
 const chosen = () => visible().filter((s) => selected.has(s.id));
 const open = (s: SessionInfo) => s.url && window.open(s.url, '_blank', 'noopener');
+const inApp = 'reviewroomApp' in window; // set by the macOS app (app/src/main.rs)
 
 // ------------------------------------------------------------ rendering
 function row(s: SessionInfo) {
@@ -162,6 +163,8 @@ function row(s: SessionInfo) {
         'div',
         { class: 'rr-hub__actions' },
           s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: 'Open', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : h('span', { class: 'rr-icon-btn', title: s.urlNote ?? 'No safe URL' }, '–'),
+        // in the macOS app, Open shows a review in its tab there; #rr-browser tells the app to hand it to the browser
+        inApp && s.url && s.tool === 'reviewroom' ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
         h('button', { class: 'rr-icon-btn', title: 'Close session…', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
       ),
     ),
