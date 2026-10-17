@@ -1,7 +1,7 @@
 {
-  // The CLI runs on Node: Node types, no DOM. Bun bundles it (scripts/build.ts), so this only type-checks.
+  // The CLI runs on Bun: Bun types (they include Node's), no DOM. Bun bundles it (scripts/build.ts), so this only type-checks.
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "lib": ["ES2023"], "types": ["node"], "erasableSyntaxOnly": true, "allowImportingTsExtensions": true },
+  "compilerOptions": { "lib": ["ES2023"], "types": ["bun"], "erasableSyntaxOnly": true, "allowImportingTsExtensions": true },
   "include": ["."],
   "exclude": ["**/*.test.*"]
 }
