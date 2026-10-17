@@ -25,7 +25,7 @@ describe('a round finished while no agent waits', () => {
     expect((await fetch(url + 'api/meta')).ok).toBe(true);
   });
   // git may report the repo via /private/var on macOS
-  test('feedback names the review dir in the commands it asks for', () => expect(late.stdout).toMatch(/--dir '[^']*\/\.reviewroom\/feat-habit-events'/));
+  test('feedback names the review dir in the commands it asks for', () => expect(late.stdout).toMatch(/--dir '[^']*\/reviews\/repo\/feat-habit-events'/));
 });
 
 describe('the blocking round loop', () => {

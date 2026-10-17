@@ -41,7 +41,7 @@ Contributing to reviewroom itself (`bun run setup`, `bun run demo`): [AGENTS.md]
    (`reviewroom reply <id> "…"`), adds `data-round="2"` sections for bigger answers, changes code,
    and runs `reviewroom review` again. Your open tab reconnects and shows round 2.
 
-Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`):
+Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`:
 `review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
 `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
 

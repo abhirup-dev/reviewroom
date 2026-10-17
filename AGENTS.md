@@ -19,8 +19,9 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   parsing.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by other local tools
-  (agent-annotation-hub); `layout.json` is the reviewer's default panel layout.
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/<owner>-<repo>/<branch>/` holds every review (nothing is written
+  into the reviewed repo); `sessions/<pid>.json` per running server, read by other local tools (agent-annotation-hub);
+  `layout.json` is the reviewer's default panel layout.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 
