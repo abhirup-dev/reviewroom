@@ -56,6 +56,35 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
 // GitHub threads whose code moved on (outdated) or that are about the whole file have no line here
 const onLine = (t: Thread) => !t.gh?.outdated && !t.gh?.file;
 
+const seg = (items: [string, string, boolean, () => void, string?][]) =>
+  h('div', { class: 'rr-seg', role: 'group' }, ...items.map(([label, title, on, fn, keys]) => h('button', { class: on ? 'is-on' : '', title, 'data-keys': keys, 'aria-pressed': String(on), onclick: fn }, label)));
+const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string, keys?: string) =>
+  h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'data-keys': keys, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
+
+/** How diffs are drawn (prefs: every code panel follows them). A code panel's toolbar has them; the walkthrough pane
+ *  shows one set for all its files. */
+export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): (HTMLElement | null)[] {
+  const p = app.prefs;
+  return [
+    mode === 'diff'
+      ? seg([
+          ['Split', 'Side-by-side: old on the left, new on the right', p.diffStyle === 'split', () => app.setPref('diffStyle', 'split'), 's'],
+          ['Unified', 'One column: removed lines above the lines that replace them', p.diffStyle === 'unified', () => app.setPref('diffStyle', 'unified'), 's'],
+        ])
+      : null,
+    mode === 'diff'
+      ? seg([
+          ['All', 'Show added and removed lines', p.focus === 'all', () => app.setPref('focus', 'all')],
+          ['+', 'Focus on new code: hide removed lines', p.focus === 'additions', () => app.setPref('focus', 'additions'), '+'],
+          ['\u2212', 'Focus on old code: hide added lines', p.focus === 'deletions', () => app.setPref('focus', 'deletions'), '-'],
+        ])
+      : null,
+    mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
+    tog('wrap', 'Wrap long lines instead of scrolling sideways', p.wrap, () => app.setPref('wrap', !p.wrap), undefined, 'w'),
+    mode === 'diff' ? tog('thread', 'Show comment threads inside the diff, under the lines they are on', p.inlineThreads, () => app.setPref('inlineThreads', !p.inlineThreads)) : null,
+  ];
+}
+
 class CodePanel implements PanelInstance {
   element: HTMLElement;
   private toolbar: HTMLElement;
@@ -79,6 +108,8 @@ class CodePanel implements PanelInstance {
   private optionsInit = false;
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
+  /** Embedded: the walkthrough's name for this chunk, first in the toolbar (its own path label is left out). */
+  private head?: HTMLElement;
   /** Reveals (src/flows/reveal.ts): a new one cancels the last one's wait, unfold and glow. */
   private revealer: Actor<typeof revealMachine>;
 
@@ -86,6 +117,7 @@ class CodePanel implements PanelInstance {
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
+    this.head = params.head as HTMLElement | undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
     this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' });
@@ -140,17 +172,12 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ toolbar
   private renderToolbar() {
-    const p = this.app.prefs;
-    const seg = (items: [string, string, boolean, () => void, string?][]) =>
-      h('div', { class: 'rr-seg', role: 'group' }, ...items.map(([label, title, on, fn, keys]) => h('button', { class: on ? 'is-on' : '', title, 'data-keys': keys, 'aria-pressed': String(on), onclick: fn }, label)));
-    const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string, keys?: string) =>
-      h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'data-keys': keys, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
-    const left: (HTMLElement | null)[] = [];
+    const left: (HTMLElement | null)[] = [this.embedded ? (this.head ?? null) : null];
     if (this.pin) {
       const f = this.app.files.find((x) => x.path === this.pin);
       const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
       left.push(
-        h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()),
+        this.embedded ? null : h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()),
         h(
           'div',
           { class: 'rr-seg', role: 'group', 'aria-label': 'View' },
@@ -187,23 +214,9 @@ class CodePanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-toolbar__group' },
-        this.mode === 'diff'
-          ? seg([
-              ['Split', 'Side-by-side: old on the left, new on the right', p.diffStyle === 'split', () => this.app.setPref('diffStyle', 'split'), 's'],
-              ['Unified', 'One column: removed lines above the lines that replace them', p.diffStyle === 'unified', () => this.app.setPref('diffStyle', 'unified'), 's'],
-            ])
-          : null,
-        this.mode === 'diff'
-          ? seg([
-              ['All', 'Show added and removed lines', p.focus === 'all', () => this.app.setPref('focus', 'all')],
-              ['+', 'Focus on new code: hide removed lines', p.focus === 'additions', () => this.app.setPref('focus', 'additions'), '+'],
-              ['\u2212', 'Focus on old code: hide added lines', p.focus === 'deletions', () => this.app.setPref('focus', 'deletions'), '-'],
-            ])
-          : null,
-        this.mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => this.app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
-        tog('wrap', 'Wrap long lines instead of scrolling sideways', p.wrap, () => this.app.setPref('wrap', !p.wrap), undefined, 'w'),
-        this.mode === 'diff' ? tog('thread', 'Show comment threads inside the diff, under the lines they are on', p.inlineThreads, () => this.app.setPref('inlineThreads', !p.inlineThreads)) : null,
-        this.mode === 'diff'
+        // the walkthrough pane has one set of these for all its files
+        ...(this.embedded ? [] : displayTools(this.app, this.mode)),
+        this.mode === 'diff' && !this.embedded
           ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
           : null,
       ),

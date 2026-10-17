@@ -1,7 +1,8 @@
 // The walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
 // paused. walkthroughMachine and its paneMachine child (src/flows/walkthrough.ts) own every state and transition;
 // this file renders snapshots and implements the pane's actions (resolve links, fade, mount, glide, unmount).
-// A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack. Prose is the
+// A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack, under one set of
+// display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { h, icon } from '../core/dom';
@@ -12,6 +13,7 @@ import { current, deepLink, paneMachine, target, walkthroughMachine, type CodeAt
 import type { ReviewApp } from '../shell/app';
 import { menuItem, popMenu } from '../shell/chrome';
 import { panelDefs, type PanelInstance } from '../shell/layout';
+import { displayTools } from '../panels/code';
 import { stepRefs, type StepAudit, type Walkthrough } from '../shared/walkthrough';
 import { measure, settle } from './walkthrough-audit';
 
@@ -26,6 +28,11 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
+  // the display toggles, once for every chunk (prefs: each panel follows them); hidden when no code is shown
+  const tools = h('div', { class: 'rr-toolbar rr-tour__tools', hidden: true });
+  let toolsMode: 'diff' | 'file' = 'diff';
+  const paintTools = () => tools.replaceChildren(h('div', { class: 'rr-toolbar__spacer' }), h('div', { class: 'rr-toolbar__group' }, ...displayTools(app, toolsMode)));
+  app.bus.on('prefs', paintTools);
   /** per chunk on screen: its code panel (null: a preview) and its header (stacked only) */
   let views: { panel: PanelInstance | null; id: string; head: HTMLElement | null }[] = [];
   const dispose = () => {
@@ -43,24 +50,28 @@ export function mountWalkthrough(app: ReviewApp) {
     const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
     return d ? { path: d.path, side: 'head', start: d.line, end: d.line, view: app.files.some((f) => f.path === d.path) ? 'diff' : 'file' } : null;
   }
-  // stacked: a header names the chunk; clicking it shows only that one
+  // a header names the chunk (in its code panel's toolbar); stacked, clicking it shows only that one
   const nameHead = (head: HTMLElement, ref: string) => {
     const r = parseRef(ref);
     head.replaceChildren(...(r ? [refIcon(r)] : []), h('span', null, app.label(ref)));
-    head.onclick = () => actor.send({ type: 'focus', refs: [ref] });
+    if (head instanceof HTMLButtonElement) head.onclick = () => actor.send({ type: 'focus', refs: [ref] });
   };
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
     const id = `code:tour-${++panes}`;
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true }, id) : null;
+    const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : slot.code ? h('span', { class: 'rr-tour__chunk-head' }) : null;
+    if (head) nameHead(head, slot.ref);
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
-    const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
-    if (head) nameHead(head, slot.ref);
     views.push({ panel, id, head });
-    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : '') }, head, body);
+    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : '') }, panel ? null : head, body);
   };
   const mount = (s: PaneShown) => {
     dispose();
+    const code = s.kind === 'refs' ? s.slots.flatMap((x) => (x.code ? [x.code] : [])) : [];
+    tools.hidden = !code.length;
+    toolsMode = code.some((c) => c.view === 'diff') ? 'diff' : 'file';
+    paintTools();
     if (s.kind === 'refs') pane.replaceChildren(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
     else if (s.kind === 'diagram') {
       const flow = h('div', { class: 'rr-tour__diagram rr-prose' });
@@ -81,7 +92,7 @@ export function mountWalkthrough(app: ReviewApp) {
           if (views[i]?.head) nameHead(views[i].head, s.ref);
           if (s.code) app.bus.emit('reveal-code', { ...s.code, panel: views[i].id });
         }),
-      unmount: () => (dispose(), pane.replaceChildren()),
+      unmount: () => (dispose(), pane.replaceChildren(), (tools.hidden = true)),
     },
   });
   const actor = createActor(walkthroughMachine.provide({ actors: { pane: pane$ } })).start();
@@ -124,7 +135,7 @@ export function mountWalkthrough(app: ReviewApp) {
     actor.send({ type: 'pause' });
     if (ref) void app.open(ref);
   });
-  const right = h('div', { class: 'rr-tour__right' }, pane);
+  const right = h('div', { class: 'rr-tour__right' }, tools, pane);
   const prev = btn('chevron', 'Previous slide', () => actor.send({ type: 'prev' }), '←');
   prev.classList.add('rr-tour__flip');
   const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
