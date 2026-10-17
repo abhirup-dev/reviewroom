@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
 import { parseRef } from '../../src/shared/refs.ts';
+import type { Walkthrough } from '../../src/shared/walkthrough.ts';
 
 export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
 export interface LinkResult {
@@ -20,7 +21,7 @@ export interface LinkResult {
 export type Links = Record<string, string>;
 
 const DRIFT = 5; // a block that moved further than this is reported for the agent to fix, not healed
-const LINK = /rr:(?:code|file|sym|doc)\/[^\s"'<>`)]+/g;
+const LINK = /rr:(?:code|file|sym|doc|tour)\/[^\s"'<>`)]+/g;
 const LINES = /#L(\d+)(?:-L?(\d+))?$/;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1').update(lines.slice(s - 1, e).join('\n')).digest('hex').slice(0, 16);
@@ -32,11 +33,11 @@ export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 /**
  * Check every link in `html`, and in `extra` (walkthrough.json's prose and refs: tourText), against the code. `known` is the ref -> hash map from the last check
- * (state.json `links`); the returned `links` is the new one (links no longer in the narrative drop out).
+ * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the narrative drop out).
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
-export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '') {
+export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '', tour: Walkthrough | null = null) {
   html = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
@@ -53,8 +54,14 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
   for (const ref of extractLinks(html + '\n' + uncomment(extra))) {
     const r = parseRef(ref);
-    if (!r || r.type === 'thread' || r.type === 'round' || r.type === 'tour') {
+    if (!r || r.type === 'thread' || r.type === 'round') {
       out(ref, 'broken', 'not a valid link');
+      continue;
+    }
+    if (r.type === 'tour') {
+      if (!tour) out(ref, 'broken', 'no walkthrough.json');
+      else if (!tour.chapters.some((c) => c.id === r.chapter && c.steps.some((s) => s.id === r.step))) out(ref, 'broken', 'no such chapter/step in walkthrough.json');
+      else out(ref, 'ok');
       continue;
     }
     if (r.type === 'doc') {

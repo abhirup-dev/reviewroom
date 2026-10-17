@@ -70,7 +70,10 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       // the current head, not the one this server started on: `check` must fingerprint the same code
       const w = readWalkthrough(dir);
       const tour = w?.ok ? tourText(w.value) : '';
-      const { results, links } = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour);
+      const checked = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour, w?.ok ? w.value : null);
+      const { results } = checked;
+      // a walkthrough.json that is broken for now hides its links: keep their fingerprints, or fixing it re-baselines moved code
+      const links = w && !w.ok ? { ...known, ...checked.links } : checked.links;
       if (JSON.stringify(links) !== JSON.stringify(known)) commit([{ op: 'setLinks', links }]);
       const bad = problems(results);
       const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html or walkthrough.json; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
@@ -117,6 +120,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     for (const f of [reviewFile, walkthroughPath(dir)]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
     return h.digest('hex').slice(0, 12);
   };
+  const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
   const send = (event: string, data: unknown) => {
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
   };
@@ -190,10 +194,10 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     return json(c, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
-  app.get('/api/state', (c) => json(c, readState(dir)));
+  app.get('/api/state', (c) => json(c, read()));
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {
-    const s = readState(dir);
+    const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = s.rounds.find((r) => r.n === s.round);
     return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });

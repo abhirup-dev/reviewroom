@@ -33,30 +33,39 @@ export async function withServer<T>(repo: string | null, dir: string, fn: (url: 
 // a ResizeObserver loop notice is the browser's, harmless, and not the author's
 const CATCH = `addEventListener('error', (e) => e.message.startsWith('ResizeObserver loop') || console.error(e.message)); addEventListener('unhandledrejection', (e) => console.error('unhandled rejection: ' + (e.reason?.message ?? e.reason)));`;
 
+/** `p`, or a rejection after `ms` (unref'd, so a stuck browser call can't keep the process up either). */
+const within = <T>(p: Promise<T>, ms: number, what: string) => {
+  let t: Timer;
+  return Promise.race([p, new Promise<never>((_, no) => void (t = setTimeout(() => no(new Error(`${what} timed out after ${ms / 1000} s`)), ms).unref()))]).finally(() => clearTimeout(t));
+};
+
 export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit>; errors(): string[]; screenshot(): Promise<Blob>; close(): Promise<void> };
 
 /** The review page at `url` in a browser at `vp` (`scale`: device pixels per CSS px), once its walkthrough can be measured. */
 export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Page> {
   const errors: string[] = []; // console errors since the last errors()
   const capture = (type: string, ...args: unknown[]) => void (type === 'error' && errors.push(args.map(String).join(' ')));
-  let view: Bun.WebView;
+  let view: Bun.WebView | undefined;
   let engine: Page['engine'] = 'chrome';
   try {
     view = new Bun.WebView({ ...vp, backend: { type: 'chrome', url: false }, console: capture });
-    await view.navigate('about:blank'); // the protocol session exists from the first navigation
+    await within(view.navigate('about:blank'), 30_000, 'starting the browser'); // the protocol session exists from the first navigation
     // the window's frame takes height from the viewport; pin it to exactly what was asked
-    await view.cdp('Emulation.setDeviceMetricsOverride', { ...vp, deviceScaleFactor: scale, mobile: false });
+    await within(view.cdp('Emulation.setDeviceMetricsOverride', { ...vp, deviceScaleFactor: scale, mobile: false }), 10_000, 'sizing the browser');
   } catch (e) {
+    try {
+      view?.close();
+    } catch {}
     if (process.platform !== 'darwin') fail(`no browser to render in: install Chrome or Chromium (or set BUN_CHROME_PATH). ${(e as Error).message}`);
     view = new Bun.WebView({ ...vp, backend: 'webkit', console: capture });
     engine = 'webkit';
   }
   try {
     // uncaught errors reach the console too (Chrome; WebKit reports console.error only)
-    if (engine === 'chrome') await view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH });
+    if (engine === 'chrome') await within(view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH }), 10_000, 'preparing the page');
     // load waits for every image and script: a stalled one must not stall us; the app may be up before it
     await Promise.race([view.navigate(url), new Promise((r) => setTimeout(r, 20_000).unref())]); // unref: the timer must not keep the process up
-    const started = await view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`);
+    const started = await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`), 25_000, 'waiting for the page');
     if (!started) fail(`the review page did not start in 20 s (review.html must wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
   } catch (e) {
     view.close();
@@ -64,9 +73,9 @@ export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Pa
   }
   return {
     engine,
-    audit: (...at) => view.evaluate(`window.rr.auditWalkthrough(...${JSON.stringify(at)})`) as Promise<StepAudit>,
+    audit: (...at) => within(view.evaluate(`window.rr.auditWalkthrough(...${JSON.stringify(at)})`), 30_000, 'measuring the slide') as Promise<StepAudit>,
     errors: () => errors.splice(0),
-    screenshot: () => view.screenshot({ format: 'png' }),
+    screenshot: () => within(view.screenshot({ format: 'png' }), 30_000, 'the screenshot'),
     close: async () => view.close(),
   };
 }
