@@ -11,7 +11,7 @@ export const PR_DESCRIPTION = 'rr-pr-description';
 export const plain = (html: string) => html.replace(/<\/?(p|div|li|br|h\d|ul|ol|tr|td|rr-flow|rr-node)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
 /** Where a tour anchor sits in the walkthrough: chapter and step indices, -1 when gone. */
-export const tourPosition = (a: { chapter: string; step: string }, w?: Walkthrough | null) => {
+const tourPosition = (a: { chapter: string; step: string }, w?: Walkthrough | null) => {
   const c = w?.chapters.findIndex((ch) => ch.id === a.chapter) ?? -1;
   return [c, c < 0 ? -1 : w!.chapters[c].steps.findIndex((s) => s.id === a.step)] as const;
 };

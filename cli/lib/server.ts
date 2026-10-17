@@ -57,7 +57,7 @@ function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   return watcher;
 }
 
-/** Stale-link check of review.html: fingerprint new links, tell the agent (stderr) when the report changes. */
+/** Stale-link check of review.html and walkthrough.json: fingerprint new links, tell the agent (stderr) when the report changes. */
 function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
   const reviewFile = path.join(dir, 'review.html');
   let lastReport = '';
@@ -119,10 +119,13 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     return s;
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
-  const watcher = watchNarrative(dir, (edited) => {
-    send('review', { hash: hash() });
-    if (edited) checkNarrative();
-  });
+  // read-only: no live reload, and no link check that would write state.json
+  const watcher = readOnly
+    ? null
+    : watchNarrative(dir, (edited) => {
+        send('review', { hash: hash() });
+        if (edited) checkNarrative();
+      });
 
   // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
   // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
@@ -260,7 +263,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   );
 
   // for a server that ends before its process does (`walkthrough lint`): the watch would keep the process alive
-  const close = () => watcher.close();
+  const close = () => watcher?.close();
   return { app, prov, commit, github, checkNarrative, close };
 }
 

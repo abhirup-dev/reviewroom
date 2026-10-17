@@ -1,8 +1,6 @@
 // The walkthrough.json contract: a chaptered tour of a PR the client plays over the workbench. Defined once
 // here; the server, `reviewroom check`, `pr`, `walkthrough publish` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
-//
-// Stacked PRs (not built): a chapter may later carry `pr: <n>` and refs may later take `@pr:<n>`.
 import { z } from 'zod';
 import { parseRef } from './refs';
 import { issueList } from './schema';
@@ -36,7 +34,7 @@ export const Step = z.object({
 /** A step's pane links as a list (`ref` may be one link or several). */
 export const stepRefs = (s: Pick<Step, 'ref'>): string[] => (s.ref === undefined ? [] : [s.ref].flat());
 
-export const Chapter = z
+const Chapter = z
   .object({
     id,
     title: nonEmpty,
@@ -54,7 +52,6 @@ export const Walkthrough = z
   .superRefine((w, ctx) => unique(w.chapters.map((c) => c.id), 'chapter', ctx, (i) => ['chapters', i, 'id']));
 
 export type Step = z.infer<typeof Step>;
-export type Chapter = z.infer<typeof Chapter>;
 export type Walkthrough = z.infer<typeof Walkthrough>;
 
 export type Parsed = { ok: true; value: Walkthrough } | { ok: false; issues: string[] };
@@ -87,8 +84,6 @@ export type ChunkAudit = { ref: string; code: boolean; lines: number; visible: n
 export type StepAudit = {
   /** the narration's visible and full height, and the chapter lead's height */
   left: { visible: number; content: number; lead: number };
-  /** what the code pane shows */
-  pane: 'refs' | 'diagram' | 'empty';
   chunks: ChunkAudit[];
   /** content wider than its box (sideways scrolling): 'narration', 'diagram', or a tag inside the narration */
   wide: string[];

@@ -65,8 +65,8 @@ export function parseRef(input: string): Ref | null {
       case 'round':
         return { type: 'round', n: +rest };
       case 'tour': {
-        const [chapter, step] = rest.split('/').map(decodeURIComponent);
-        return chapter && step ? { type: 'tour', chapter, step } : null;
+        const [chapter, step, ...more] = rest.split('/').map(decodeURIComponent);
+        return chapter && step && !more.length ? { type: 'tour', chapter, step } : null;
       }
     }
   } catch {
@@ -119,7 +119,7 @@ export function anchorOf(ref: string): Anchor {
     case 'doc':
       return { kind: 'doc', target: r.id, path: r.path };
     case 'code':
-      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? 1 };
+      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1 };
     case 'sym':
       return { kind: 'symbol', name: r.name };
     case 'tour':

@@ -12,7 +12,7 @@
 import { assign, fromPromise, setup } from 'xstate';
 import type { CodeTarget } from '../shell/app';
 
-export type RevealEvent = { type: 'reveal'; target: CodeTarget } | { type: 'select' };
+type RevealEvent = { type: 'reveal'; target: CodeTarget } | { type: 'select' };
 /** What `prepare` found: lines to highlight, or nothing to (the view only scrolled, or the file is not there). */
 export type Prepared = 'lines' | 'nothing';
 

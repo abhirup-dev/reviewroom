@@ -19,25 +19,25 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (tour && !tour.ok) return { issues: tour.issues };
   const file = path.join(dir, 'review.html');
   const tourFile = walkthroughPath(dir);
-  const tourRaw = tour ? fs.readFileSync(tourFile, 'utf8') : '';
+  const value = tour?.ok ? tour.value : null; // past the schema check, a walkthrough that is there is valid
+  const tourRaw = value ? fs.readFileSync(tourFile, 'utf8') : '';
   const r = repoOf(dir, repo);
   const raw = makeProvider(r, loadConfig(dir, r));
   const found = new Map<string, ReturnType<typeof raw.search>>(); // the link check and the notes resolve the same symbols
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, tour?.ok ? tourText(tour.value) : '');
+  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourText(value) : '');
   let fixed = html, fixedTour = tourRaw;
   if (o.fix && results.some((x) => x.status === 'moved')) {
-    if (tour) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below
+    if (value) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below
     ({ html: fixed, links } = applyFixes(html, results, links));
   }
   if (fixed !== html) fs.writeFileSync(file, fixed);
   if (fixedTour !== tourRaw) fs.writeFileSync(tourFile, fixedTour);
   const healed = fixed !== html || fixedTour !== tourRaw;
-  if (healed) ({ results, links } = checkLinks(fixed, prov, links, tour?.ok ? tourText(JSON.parse(fixedTour)) : ''));
+  if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : ''));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
-  const value = tour?.ok ? tour.value : null;
   const notes = value && o.notes !== false ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
   return { tour: value, results, bad: locate(problems(results), value), healed, notes };
 }

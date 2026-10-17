@@ -50,7 +50,6 @@ function chunk(el: Element | undefined, pane: HTMLElement, ref: string, lines: n
 /** Measure the step on screen. `shown`: what the pane shows (paneMachine's context). */
 export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLElement }, shown: PaneShown | null, stripped: StepAudit['stripped'], settled: boolean): StepAudit {
   const { left, lead, pane } = els;
-  const kind = shown?.kind ?? 'empty';
   const slots = shown?.kind === 'refs' ? shown.slots : [];
   const wider = (e: Element) => e.scrollWidth > e.clientWidth + 1;
   const wide = [
@@ -60,7 +59,6 @@ export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLE
   ];
   return {
     left: { visible: left.clientHeight, content: left.scrollHeight, lead: lead.hidden ? 0 : lead.offsetHeight },
-    pane: kind,
     chunks: slots.map((s, i) => chunk(pane.children[i], pane, s.ref, s.code?.start ? (s.code.end ?? s.code.start) - s.code.start + 1 : 0)),
     wide: [...new Set(wide)],
     stripped,

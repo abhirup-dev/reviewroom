@@ -20,3 +20,9 @@ test('anchors: the CLI stores what the browser would', () => {
   for (const s of ['rr:doc/intro/p', 'rr:code/my%20file.go@base#L3-5', 'rr:sym/Build', 'rr:tour/why/s2']) expect(anchorRef(anchorOf(s))).toBe(s);
   expect(anchorRef({ kind: 'general' })).toBeNull();
 });
+
+test('anchorOf: a one-line code link ends where it starts; a tour link has exactly a chapter and a step', () => {
+  expect(anchorOf('rr:code/a.go#L12')).toMatchObject({ kind: 'code', start: 12, end: 12 });
+  expect(anchorOf('rr:code/a.go#L3-9')).toMatchObject({ start: 3, end: 9 });
+  expect(anchorOf('rr:tour/a/b/c')).toEqual({ kind: 'general' });
+});

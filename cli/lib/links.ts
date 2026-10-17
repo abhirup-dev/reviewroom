@@ -1,7 +1,7 @@
 // Stale-link check for the rr: links in review.html and walkthrough.json. A link with a line range is fingerprinted (a hash
 // of the lines it points at) the first time it is seen, a symbol link by having a definition; later
 // checks compare against the current code.
-// Used by the server (on start and whenever review.html changes) and by `reviewroom check`.
+// Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
 import { parseRef } from '../../src/shared/refs.ts';

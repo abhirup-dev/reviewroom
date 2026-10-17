@@ -13,7 +13,7 @@ import { findingReport, judge, type Finding, type Measured } from '../lib/tour-l
 import { openPage, parseViewports, vpName, withServer } from '../lib/render.ts';
 import { runCheck, schemaReport } from './check.ts';
 
-export const COMMENT_LIMIT = 65_536; // GitHub's maximum comment body
+const COMMENT_LIMIT = 65_536; // GitHub's maximum comment body
 
 /** The comment body: the block plus a line for people reading the PR on GitHub. */
 export function publishBody(w: Walkthrough, pr?: number) {

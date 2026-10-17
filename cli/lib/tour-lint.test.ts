@@ -43,7 +43,7 @@ test('a link in an HTML comment shows nothing; Python test_ files are tests; unk
 });
 
 test('judge: one finding per problem across viewports; the lead is named when it is the cause; only code links need code', () => {
-  const a = (o: Partial<StepAudit> = {}): StepAudit => ({ left: { visible: 600, content: 600, lead: 0 }, pane: 'refs', chunks: [], wide: [], stripped: { lead: [], text: [] }, settled: true, ...o });
+  const a = (o: Partial<StepAudit> = {}): StepAudit => ({ left: { visible: 600, content: 600, lead: 0 }, chunks: [], wide: [], stripped: { lead: [], text: [] }, settled: true, ...o });
   const chunk = (ref: string, o = {}) => ({ ref, code: true, lines: 5, visible: 30, hidden: 0, ...o });
   const fs = judge([
     { viewport: '1280x800', chapter: 'c', step: 's1', audit: a({ left: { visible: 600, content: 680, lead: 300 }, chunks: [chunk('rr:code/a.go#L1-5', { hidden: 2 })] }), errors: [] },

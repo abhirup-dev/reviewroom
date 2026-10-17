@@ -199,7 +199,10 @@ export class ServerState implements StateBackend {
   }
   async walkthrough(): Promise<WalkthroughLoad> {
     const r = await fetch(`${this.api}/walkthrough`);
-    return r.status === 404 ? null : r.ok || r.status === 422 ? r.json() : { issues: [`${r.status} ${r.statusText}`] };
+    if (r.status === 404) return null;
+    if (r.ok || r.status === 422) return r.json();
+    throw new Error(`walkthrough.json: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
+
   }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);

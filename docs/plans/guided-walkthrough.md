@@ -20,7 +20,7 @@ Plannotator has "Guided Review" (ordered sections with summaries next to live di
 | Comments | "Comment on this step" opens the usual composer, anchor `{ kind: 'tour', chapter, step }`. Thread lives in the Threads panel and the feedback round; the step shows a badge. Threads do not render inside the slide |
 | Autoplay | Not in v1. The machine leaves room (a `playing.auto` substate later) |
 | Sharing | Fenced ` ```reviewroom-walkthrough ` block in a PR comment or description. `reviewroom pr` pulls it; `reviewroom walkthrough publish` posts it |
-| Validation | `reviewroom check` validates the schema and every ref (step `ref` and links in prose) with the existing stale-link machinery. Deep link `/?walkthrough=<chapter>/<step>` lets any screenshot tool capture a step |
+| Validation | `reviewroom check` validates the schema and every ref (step `ref` and links in prose) with the existing stale-link machinery. `reviewroom walkthrough lint` plays every step in a headless browser and reports what does not fit the screen; `reviewroom walkthrough shot <chapter>/<step>` renders one step on demand. Deep link `/?walkthrough=<chapter>/<step>` opens the player at a step |
 | Stacked PRs | Out of scope. Reserve: a chapter may later carry `pr: <n>`; refs may later take `@pr:<n>`. Do not build |
 | Libraries | XState (already in), @pierre/diffs CodeView (already in). No new dependencies |
 | Fidelity | CSS transitions only (fade/slide on step change, highlight glide within a file). No animation DSL |
@@ -104,7 +104,7 @@ Comment ──▶ createThread { anchor: { kind:'tour', chapter, step } } ──
 - Navigation: Prev/Next buttons, ← → keys (not while typing in the composer), chapter menu from the chapter title, chapter arrows, progress ticks. Crossing a chapter edge swaps the lead with a fade.
 - Right pane: `code`/`file` refs render the file's diff (or whole file for `rr:file`) with the ref's lines highlighted; same file → scroll + highlight glide, different file → fade swap. Reuse the code panel's CodeView setup (`src/panels/code.ts`, see `openInNewPanel` for a second instance); do not write a second diff renderer. Links inside step text that point at code retarget the right pane without changing the step.
 - Pause: player scales into a pill "▶ Resume · <chapter> · n/m" bottom-right with a thin progress bar; scrim gone; workbench fully interactive. Resume restores the same step. Close returns to the workbench; the header button reopens at chapter 1 step 1 (or the last step within the session, implementer's choice, keep it simple).
-- Comment: composer inside the left pane, anchored to the current step, same `composer()` from `src/overlays/thread.ts` with the agent send button. After sending, the step divider shows a badge with the thread count; the progress tick gets a dot.
+- Comment: a Comment button in the left pane opens the usual composer (`app.compose`) anchored to the current step; a slide that draws real discussion is expanded in the narrative with the slide embedded (`<rr-embed ref="rr:tour/…">`). After sending, the step divider shows a badge with the thread count; the progress tick gets a dot.
 - Missing walkthrough: no header button; `rr.walkthrough()` shows a toast "No walkthrough for this review".
 - Invalid walkthrough (422): header button present but disabled with the first issue as its tooltip, so the author sees it in the UI as well as in `check`.
 
@@ -139,7 +139,7 @@ Beads IDs follow the numbering: epic `rr-d96.1` holds `rr-d96.1.1` (1.1), `rr-d9
 
 ## Out of scope for v1
 
-Autoplay, stacked PRs, per-step screenshot tooling (the deep link is the hook; `rr-fa0` covers preview), animation beyond CSS transitions, threads rendered inside the slide, editing the walkthrough from the UI.
+Autoplay, stacked PRs, animation beyond CSS transitions, threads rendered inside the slide, editing the walkthrough from the UI.
 
 ## Verification for the whole feature
 

@@ -8,8 +8,6 @@
 //                        landing fades in, whichever way it was reached, and waits until every code chunk's
 //                        panel says its lines are on screen (`landed`, src/flows/reveal.ts), or gives up (`late`)
 //                        a new `show` in any state starts over; the stale lookup or fade is cancelled with its state
-//
-// Autoplay, later, is an open.auto substate.
 import { assign, fromPromise, sendTo, setup } from 'xstate';
 import { stepRefs, type Walkthrough } from '../shared/walkthrough';
 
@@ -26,13 +24,13 @@ export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'diagram'; htm
 
 /** `pending`: code chunks whose panel has not landed yet; `late`: landing timed out (what is on screen may still move) */
 type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean };
-export type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' } | { type: 'landed' };
+type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' } | { type: 'landed' };
 
 /** Every code chunk's panel lands once per step (its reveal, or a glide's). */
 const toLand = (s: PaneShown | null) => (s?.kind === 'refs' ? s.slots.filter((x) => x.code).length : 0);
 
 /** Same files in the same order: the views stay, only their highlights move. */
-export const sameLayout = (a: PaneShown | null, b: PaneShown | null) =>
+const sameLayout = (a: PaneShown | null, b: PaneShown | null) =>
   a?.kind === 'refs' && b?.kind === 'refs' && a.slots.length === b.slots.length && a.slots.every((s, i) => !!s.code && s.code.path === b.slots[i].code?.path && s.code.view === b.slots[i].code?.view);
 
 // a show from any state starts over at resolving; from resolving itself it re-enters, which stops the stale lookup
@@ -102,7 +100,7 @@ export const paneMachine = setup({
 
 type Ctx = { doc: Walkthrough | null; chapter: number; step: number };
 
-export type WalkthroughEvent =
+type WalkthroughEvent =
   | { type: 'load'; doc: Walkthrough | null }
   /** by ids; unknown or missing ids start at the first chapter / step */
   | { type: 'open'; chapter?: string; step?: string }
