@@ -25,7 +25,7 @@ async function deliverPending(dir: string) {
   return rounds.length > 0;
 }
 
-export type ServeOpts = Global & { base?: string; head?: string; title?: string; port?: string; open: boolean; forever?: boolean };
+export type ServeOpts = Global & { base?: string; head?: string; title?: string; port?: string; open: boolean; browser?: boolean; forever?: boolean };
 
 export async function cmdServe(repo: string | null, o: ServeOpts, blocking: boolean) {
   if (!repo) fail('not inside a git repository (use --repo <path>)');
@@ -40,7 +40,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
-  let seen = false; // a browser tab connected
+  let seen = false; // a page (browser or app tab) connected
   const { app, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
   const server = listen(app, +(portFlag || 4848));
   const port = server.port!;
@@ -65,7 +65,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   checkNarrative(); // after the lock: it may write state.json
   if (o.open) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
-    setTimeout(() => !seen && openBrowser(url), 2500);
+    setTimeout(() => !seen && openBrowser(url, !o.browser), 2500);
   }
   if (!blocking) return;
   const res = await done;

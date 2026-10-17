@@ -23,7 +23,7 @@
     "README.md"
   ],
   "scripts": {
-    "setup": "bun install --frozen-lockfile && bun run build && bun link",
+    "setup": "bun install --frozen-lockfile && bun run build && bun link && bun scripts/app-install.ts",
     "build": "bun scripts/build.ts",
     "dev": "bun scripts/build.ts --watch",
     "typecheck": "tsc --noEmit && tsc --noEmit -p cli && tsc --noEmit -p scripts",
@@ -34,7 +34,10 @@
     "schema": "bun scripts/schema.ts",
     "demo": "bun run build && bash examples/make-demo-repo.sh .demo/mfas && bun dist/cli/reviewroom.js pr feat/habit-events --repo .demo/mfas --dir examples/habit-events",
     "demo-page": "bun run build && bash examples/make-demo-repo.sh .demo/mfas && bun scripts/build-demo.ts .demo/mfas main feat/habit-events examples/habit-events .demo/reviewroom-demo.html",
-    "prepack": "bun scripts/build.ts"
+    "app": "cd app && tauri dev",
+    "app-build": "cd app && tauri build",
+    "prepack": "bun scripts/build.ts",
+    "app-install": "bun scripts/app-install.ts"
   },
   "engines": {
     "bun": ">=1.3.12"
@@ -54,6 +57,7 @@
     "@octokit/plugin-paginate-graphql": "^6.0.0",
     "@octokit/plugin-retry": "^8.1.1",
     "@pierre/diffs": "^1.5.2",
+    "@tauri-apps/cli": "^2.12.3",
     "@types/bun": "^1.4.3",
     "@types/jsdom": "^30.0.0",
     "cac": "^7.1.0",
