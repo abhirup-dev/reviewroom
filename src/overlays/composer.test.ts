@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
 
 const w = new JSDOM('', { url: 'http://localhost/', pretendToBeVisual: true }).window;
-Object.assign(globalThis, { window: w, document: w.document, navigator: w.navigator, localStorage: w.localStorage, customElements: w.customElements, HTMLElement: w.HTMLElement, Node: w.Node, MutationObserver: w.MutationObserver, getComputedStyle: w.getComputedStyle, requestAnimationFrame: () => 0 });
+Object.assign(globalThis, { window: w, Window: w.Window, document: w.document, navigator: w.navigator, localStorage: w.localStorage, customElements: w.customElements, HTMLElement: w.HTMLElement, Node: w.Node, MutationObserver: w.MutationObserver, getComputedStyle: w.getComputedStyle, requestAnimationFrame: () => 0 });
 const { composer } = await import('./thread.ts');
 
 /** Load `md` into a composer and return what it shows and what it would save. */
