@@ -22,8 +22,9 @@ export const validWalkthrough = (dir: string) => {
   return r?.ok ? r.value : null;
 };
 
-/** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
-export function readState(dir: string): ReviewState {
+/** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently.
+ *  `repair: false` (a read-only reader) never moves anything: the error just says so. */
+export function readState(dir: string, { repair = true } = {}): ReviewState {
   let raw: string;
   try {
     raw = fs.readFileSync(statePath(dir), 'utf8');
@@ -38,13 +39,14 @@ export function readState(dir: string): ReviewState {
   try {
     data = JSON.parse(raw);
   } catch (e) {
-    return moveAside(dir, `is not valid JSON (${(e as Error).message})`);
+    return moveAside(dir, repair, `is not valid JSON (${(e as Error).message})`);
   }
   const checked = StoredState.safeParse(data);
-  if (!checked.success) moveAside(dir, `does not match schema/state.schema.json (${issueText(checked.error)})`);
+  if (!checked.success) moveAside(dir, repair, `does not match schema/state.schema.json (${issueText(checked.error)})`);
   return { ...checked.data, ...data }; // the file as read (keys this version doesn't know survive), plus the schema's defaults (an older file has no pins)
 }
-function moveAside(dir: string, why: string): never {
+function moveAside(dir: string, repair: boolean, why: string): never {
+  if (!repair) throw new ReviewroomError(`${statePath(dir)} ${why}. Fix it or delete it to start the review over.`);
   const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   try {
     fs.renameSync(statePath(dir), bad);

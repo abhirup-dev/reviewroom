@@ -28,7 +28,7 @@ test('code shifted <=5 lines is moved and fixable; further or edited is changed'
 
 test('broken files, symbols and sections; links that left the narrative drop out', () => {
   const p = prov({ 'a.go': body.join('\n') });
-  const { results, links } = checkLinks(html('rr:code/gone.go#L1', 'rr:code/a.go#L29-40', 'rr:sym/Build', 'rr:sym/Nope', 'rr:doc/intro', 'rr:doc/missing', 'rr:file/a.go@abc'), p, { 'rr:code/old.go#L1': 'deadbeef' });
+  const { results, links } = checkLinks(html('rr:code/gone.go#L1', 'rr:code/a.go#L29-40', 'rr:sym/Build', 'rr:sym/Nope', 'rr:doc/intro', 'rr:doc/missing', 'rr:file/a.go@abc', 'rr:tour/missing/nope'), p, { 'rr:code/old.go#L1': 'deadbeef' });
   expect(status(results)).toEqual({
     'rr:code/gone.go#L1': 'broken',
     'rr:code/a.go#L29-40': 'broken',
@@ -37,6 +37,7 @@ test('broken files, symbols and sections; links that left the narrative drop out
     'rr:doc/intro': 'ok',
     'rr:doc/missing': 'broken',
     'rr:file/a.go@abc': 'ok',
+    'rr:tour/missing/nope': 'broken',
   });
   expect(links).toEqual({ 'rr:sym/Build': 'definition' });
 });

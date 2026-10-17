@@ -27,7 +27,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourText(value) : '');
+  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourText(value) : '', value);
   let fixed = html, fixedTour = tourRaw;
   if (o.fix && results.some((x) => x.status === 'moved')) {
     if (value) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below
@@ -36,7 +36,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (fixed !== html) fs.writeFileSync(file, fixed);
   if (fixedTour !== tourRaw) fs.writeFileSync(tourFile, fixedTour);
   const healed = fixed !== html || fixedTour !== tourRaw;
-  if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : ''));
+  if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : '', value));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const notes = value && o.notes !== false ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
   return { tour: value, results, bad: locate(problems(results), value), healed, notes };
@@ -51,7 +51,8 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
   if (!fs.existsSync(path.join(dir, 'review.html'))) fail(`no review.html in ${dir}`);
   const c = await runCheck(repo, dir, o);
   if ('issues' in c) {
-    console.error(schemaReport(c.issues));
+    if (o.json) console.log(JSON.stringify({ links: [], walkthrough: [], schema: c.issues }, null, 2));
+    else console.error(schemaReport(c.issues));
     process.exitCode = 1;
     return;
   }

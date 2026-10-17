@@ -26,7 +26,7 @@ type WalkthroughOpts = Global & { dryRun?: boolean; allowStale?: boolean; viewpo
 
 export async function cmdWalkthrough(repo: string | null, o: WalkthroughOpts, [action, at]: string[]) {
   const actions = { publish, lint, shot };
-  if (!(action in actions)) fail('usage: reviewroom walkthrough publish|lint|shot (see --help)', 2);
+  if (!Object.hasOwn(actions, action)) fail('usage: reviewroom walkthrough publish|lint|shot (see --help)', 2);
   const dir = dirForEdit(repo, o.dir);
   if (!fs.existsSync(walkthroughPath(dir))) fail(`no walkthrough.json in ${dir}`);
   await actions[action as keyof typeof actions](repo, dir, o, at);

@@ -90,7 +90,7 @@ cli
   .command('check', 'Check rr: links in review.html and walkthrough.json against the code (exit 1 while any need attention, or walkthrough.json breaks its schema)')
   .option('--fix', 'Rewrite links whose code moved a few lines')
   .option('--accept', 'Take every link as it is now')
-  .option('--json', 'Print problems as JSON: { links, walkthrough }')
+  .option('--json', 'Print problems as JSON: { links, walkthrough }, plus schema (the issues) when walkthrough.json breaks its schema')
   .action(run(cmdCheck));
 
 cli

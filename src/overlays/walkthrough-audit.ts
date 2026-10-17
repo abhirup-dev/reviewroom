@@ -22,7 +22,7 @@ function highlight(scroller: Element): [number, number] | null {
 /** Wait until the narration stops changing for a few frames: previews in it (<rr-code>, <rr-embed>) fill in when
  *  their code arrives. (The code pane's own landing is paneMachine's `landing` state.) False: still changing after ~4 s. */
 export async function settle(left: HTMLElement): Promise<boolean> {
-  await document.fonts.ready;
+  await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); // a font that never loads must not hang the audit
   let last = '', still = 0;
   for (let i = 0; i < 120 && still < 6; i++) {
     await frame();
