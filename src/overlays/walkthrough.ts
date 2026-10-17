@@ -232,6 +232,7 @@ export function mountWalkthrough(app: ReviewApp) {
     paintThreads();
   });
   app.bus.on('state', paintThreads);
+  app.bus.on('code-landed', ({ panel }) => views.some((v) => v.id === panel) && actor.send({ type: 'landed' }));
 
   // ← → while playing (not while typing or in a menu or dialog); Esc pauses
   document.addEventListener(
@@ -274,10 +275,11 @@ export function mountWalkthrough(app: ReviewApp) {
     }
     actor.send({ type: 'open', chapter, step });
     const want = JSON.stringify(target(ctx()));
-    const shown = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context.shown;
+    // showing: the code has landed (or landing gave up: late)
+    const { shown, late } = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context;
     // the entrance; an author's endless or paused animation would never finish
     await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished)), new Promise((r) => setTimeout(r, 1000))]);
-    const settled = await settle(left, pane, shown?.kind === 'refs' ? shown.slots.map((s) => !!s.code?.start) : []);
+    const settled = (await settle(left)) && !late;
     const { chapter: ch, step: st } = current(ctx());
     return measure({ left, lead, pane }, shown, { lead: proseRemoved(ch.lead ?? ''), text: proseRemoved(st.text) }, settled);
   }

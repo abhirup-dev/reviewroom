@@ -3,9 +3,10 @@
 //
 //   walkthroughMachine   closed ──open──▶ open { playing ⇄ paused } ──close──▶ closed
 //                        while open it runs a paneMachine child and tells it what the current step shows
-//   paneMachine          idle ─show─▶ resolving ─▶ gliding (same files: move the highlights) ─▶ showing
+//   paneMachine          idle ─show─▶ resolving ─▶ gliding (same files: move the highlights) ─▶ landing ─▶ showing
 //                                              └─▶ leaving (fade out) ─▶ entering (mount) ──────────┘
-//                        showing fades in, whichever way it was reached
+//                        landing fades in, whichever way it was reached, and waits until every code chunk's
+//                        panel says its lines are on screen (`landed`, src/flows/reveal.ts), or gives up (`late`)
 //                        a new `show` in any state starts over; the stale lookup or fade is cancelled with its state
 //
 // Autoplay, later, is an open.auto substate.
@@ -23,8 +24,12 @@ export type Slot = { ref: string; code: CodeAt | null };
 /** What the pane shows, resolved. */
 export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'diagram'; html: string } | { kind: 'empty' };
 
-type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null };
-export type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' };
+/** `pending`: code chunks whose panel has not landed yet; `late`: landing timed out (what is on screen may still move) */
+type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean };
+export type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' } | { type: 'landed' };
+
+/** Every code chunk's panel lands once per step (its reveal, or a glide's). */
+const toLand = (s: PaneShown | null) => (s?.kind === 'refs' ? s.slots.filter((x) => x.code).length : 0);
 
 /** Same files in the same order: the views stay, only their highlights move. */
 export const sameLayout = (a: PaneShown | null, b: PaneShown | null) =>
@@ -51,12 +56,14 @@ export const paneMachine = setup({
     /** dispose the views on screen */
     unmount: () => {},
     want: assign({ want: ({ event }) => (event.type === 'show' ? event.want : null) }),
+    /** what is in `next` is now on screen; its chunks are to land */
+    shown: assign(({ context }) => ({ shown: context.next, pending: toLand(context.next), late: false })),
   },
-  guards: { sameLayout: ({ context }) => sameLayout(context.shown, context.next), wanted: ({ context }) => context.want !== null },
-  delays: { fade: 150 },
+  guards: { sameLayout: ({ context }) => sameLayout(context.shown, context.next), wanted: ({ context }) => context.want !== null, landed: ({ context }) => context.pending <= 0 },
+  delays: { fade: 150, land: 4000 },
 }).createMachine({
   id: 'pane',
-  context: ({ input }) => ({ want: input ?? null, next: null, shown: null }),
+  context: ({ input }) => ({ want: input ?? null, next: null, shown: null, pending: 0, late: false }),
   initial: 'starting',
   on: { clear: { target: '.idle', actions: ['unmount', assign({ shown: null, next: null, want: null })] } },
   states: {
@@ -73,15 +80,21 @@ export const paneMachine = setup({
     },
     deciding: { always: [{ guard: 'sameLayout', target: 'gliding' }, { target: 'leaving' }] },
     gliding: {
-      entry: ['glide', assign({ shown: ({ context }) => context.next })],
-      always: 'showing',
+      entry: ['glide', 'shown'],
+      always: 'landing',
     },
     leaving: { entry: 'fadeOut', after: { fade: 'entering' }, on: show },
     entering: {
-      entry: ['mount', assign({ shown: ({ context }) => context.next })],
-      always: 'showing',
+      entry: ['mount', 'shown'],
+      always: 'landing',
     },
-    showing: { entry: 'fadeIn', on: show },
+    landing: {
+      entry: 'fadeIn',
+      always: { guard: 'landed', target: 'showing' },
+      after: { land: { target: 'showing', actions: assign({ late: true }) } },
+      on: { ...show, landed: { actions: assign({ pending: ({ context }) => context.pending - 1 }) } },
+    },
+    showing: { on: show },
   },
 });
 
@@ -101,7 +114,9 @@ export type WalkthroughEvent =
   | { type: 'resume' }
   | { type: 'close' }
   /** show these links in the pane without changing the step (a link in the narration, a chip); none: the step's own */
-  | { type: 'focus'; refs?: string[] };
+  | { type: 'focus'; refs?: string[] }
+  /** a code panel of the pane's has its lines on screen (passed to the pane) */
+  | { type: 'landed' };
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(Math.trunc(n) || 0, max)); // NaN, fractions: still a real index
 const at = (doc: Walkthrough, chapter: number, step: number) => {
@@ -177,7 +192,7 @@ export const walkthroughMachine = setup({
       // a stopped actor runs no exit actions: have the pane dispose its views while it still can
       exit: sendTo('pane', { type: 'clear' }),
       initial: 'playing',
-      on: { ...move, load: [{ guard: 'docless', target: 'closed', actions: 'load' }, { actions: ['load', 'aim'] }], focus: { actions: 'aim' }, close: 'closed' },
+      on: { ...move, load: [{ guard: 'docless', target: 'closed', actions: 'load' }, { actions: ['load', 'aim'] }], focus: { actions: 'aim' }, landed: { actions: sendTo('pane', { type: 'landed' }) }, close: 'closed' },
       states: {
         playing: { on: { open: { actions: ['open', 'aim'] }, pause: 'paused' } },
         paused: { on: { open: { target: 'playing', actions: ['open', 'aim'] }, resume: 'playing' } },

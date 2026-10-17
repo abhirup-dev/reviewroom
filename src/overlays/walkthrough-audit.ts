@@ -19,22 +19,19 @@ function highlight(scroller: Element): [number, number] | null {
   return rows.length ? [Math.min(...rows.map((r) => r.top)), Math.max(...rows.map((r) => r.bottom))] : null;
 }
 
-/** Wait until the highlight of every chunk with lines (`highlighted`, per chunk) is drawn and nothing moves for a
- *  few frames: the code lands after an unfold and a scroll, previews in the narration (<rr-code>, <rr-embed>) fill
- *  in when their code arrives. False: still moving after ~4 s. */
-export async function settle(left: HTMLElement, pane: HTMLElement, highlighted: boolean[]): Promise<boolean> {
+/** Wait until the narration stops changing for a few frames: previews in it (<rr-code>, <rr-embed>) fill in when
+ *  their code arrives. (The code pane's own landing is paneMachine's `landing` state.) False: still changing after ~4 s. */
+export async function settle(left: HTMLElement): Promise<boolean> {
   await document.fonts.ready;
   let last = '', still = 0;
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 120 && still < 6; i++) {
     await frame();
     await frame();
-    const spans = [...pane.children].map((c) => c.querySelector('.rr-code-scroll')).map((s) => s && highlight(s));
-    const now = JSON.stringify([spans, left.scrollHeight, left.scrollWidth]);
+    const now = `${left.scrollHeight} ${left.scrollWidth}`;
     still = now === last ? still + 1 : 0;
     last = now;
-    if (still >= 6 && spans.every((s, j) => !highlighted[j] || s)) return true;
   }
-  return false;
+  return still >= 6;
 }
 
 function chunk(el: Element | undefined, pane: HTMLElement, ref: string, lines: number): ChunkAudit {

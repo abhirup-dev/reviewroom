@@ -102,16 +102,24 @@ test('deep link: ?walkthrough=<chapter>/<step>, either part optional', () => {
 // ------------------------------------------------------------------ the pane
 
 const code = (path: string) => ({ path, side: 'head' as const, view: 'diff' as const });
-/** A pane whose lookups resolve when told to, recording what it rendered. */
-function pane() {
+/** A pane whose lookups resolve when told to, recording what it rendered; its code panels land at once unless `held`. */
+function pane({ held = false } = {}) {
   const log: string[] = [];
   const pending: { want: PaneWant; done: (v: PaneShown) => void }[] = [];
   const shown = (s: PaneShown) => (s.kind === 'refs' ? s.slots.map((x) => x.ref).join('+') : s.kind);
+  // each code chunk's panel reports back once it has landed, a moment after it is mounted or moved
+  const land = (s: PaneShown) => !held && s.kind === 'refs' && s.slots.forEach((x) => x.code && setTimeout(() => a.send({ type: 'landed' })));
   const a = createActor(
     paneMachine.provide({
       actors: { resolve: fromPromise(({ input }: { input: PaneWant }) => new Promise<PaneShown>((done) => pending.push({ want: input, done }))) },
-      actions: { fadeIn: () => log.push('fadeIn'), fadeOut: () => log.push('fadeOut'), mount: ({ context }) => log.push('mount ' + shown(context.next!)), glide: ({ context }) => log.push('glide ' + shown(context.next!)), unmount: () => log.push('unmount') },
-      delays: { fade: 30 },
+      actions: {
+        fadeIn: () => log.push('fadeIn'),
+        fadeOut: () => log.push('fadeOut'),
+        mount: ({ context }) => (log.push('mount ' + shown(context.next!)), land(context.next!)),
+        glide: ({ context }) => (log.push('glide ' + shown(context.next!)), land(context.next!)),
+        unmount: () => log.push('unmount'),
+      },
+      delays: { fade: 30, land: 60 },
     }),
     { input: null },
   ).start();
@@ -182,4 +190,19 @@ test('pane: back to what is on screen during a fade glides and fades back in', a
   settle(2, ['r1'], ['a.go']);
   await waitFor(a, (s) => s.matches('showing'));
   expect(log).toEqual(['fadeOut', 'glide r1', 'fadeIn']);
+});
+
+test('pane: showing waits until every code chunk has landed; a chunk that never lands times out as late', async () => {
+  const p = pane({ held: true });
+  p.a.send({ type: 'show', want: { kind: 'refs', refs: ['r1', 'r2'] } });
+  p.settle(0, ['r1', 'r2'], ['a.go', 'b.go']);
+  await waitFor(p.a, (s) => s.matches('landing'));
+  p.a.send({ type: 'landed' });
+  expect(p.a.getSnapshot().value).toBe('landing');
+  p.a.send({ type: 'landed' });
+  expect(p.a.getSnapshot()).toMatchObject({ value: 'showing', context: { late: false } });
+  p.a.send({ type: 'show', want: { kind: 'refs', refs: ['r3'] } });
+  p.settle(1, ['r3'], ['c.go']);
+  const s = await waitFor(p.a, (x) => x.matches('showing'));
+  expect(s.context.late).toBe(true);
 });

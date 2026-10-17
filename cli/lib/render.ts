@@ -30,7 +30,8 @@ export async function withServer<T>(repo: string | null, dir: string, fn: (url: 
   }
 }
 
-const CATCH = `addEventListener('error', (e) => console.error(e.message)); addEventListener('unhandledrejection', (e) => console.error('unhandled rejection: ' + (e.reason?.message ?? e.reason)));`;
+// a ResizeObserver loop notice is the browser's, harmless, and not the author's
+const CATCH = `addEventListener('error', (e) => e.message.startsWith('ResizeObserver loop') || console.error(e.message)); addEventListener('unhandledrejection', (e) => console.error('unhandled rejection: ' + (e.reason?.message ?? e.reason)));`;
 
 export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit>; errors(): string[]; screenshot(): Promise<Blob>; close(): Promise<void> };
 
@@ -54,7 +55,7 @@ export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Pa
     // uncaught errors reach the console too (Chrome; WebKit reports console.error only)
     if (engine === 'chrome') await view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH });
     // load waits for every image and script: a stalled one must not stall us; the app may be up before it
-    await Promise.race([view.navigate(url), Bun.sleep(20_000)]);
+    await Promise.race([view.navigate(url), new Promise((r) => setTimeout(r, 20_000).unref())]); // unref: the timer must not keep the process up
     const started = await view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`);
     if (!started) fail(`the review page did not start in 20 s (review.html must wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
   } catch (e) {

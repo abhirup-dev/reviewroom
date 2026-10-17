@@ -62,6 +62,8 @@ export interface AppEvents extends Record<string, unknown> {
   range: DiffRange;
   theme: 'light' | 'dark';
   'reveal-code': CodeTarget;
+  /** a code panel finished a reveal: its lines are highlighted and on screen (or there was nothing to highlight) */
+  'code-landed': { panel: string };
   'reveal-doc': { id: string; path?: string; threadId?: string };
   picker: boolean;
   'open-thread': { id: string; focusComposer?: boolean };
