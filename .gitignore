@@ -3,6 +3,9 @@ node_modules/
 .demo/
 *.log
 dist/
+*.tgz
+.DS_Store
+docs/plans/
 examples/*/server.json
 examples/*/state.lock
 examples/*/.state.json.*.tmp
