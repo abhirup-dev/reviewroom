@@ -357,7 +357,9 @@ export class ReviewApp {
     return this.github?.threads.length ? [...this.state.threads, ...this.github.threads] : this.state.threads;
   }
   thread(id: string) {
-    return this.threads().find((t) => t.id === id) ?? this.state.threads.find((t) => t.id.startsWith(id));
+    // a link from before stacks to the PR conversation: the requested PR's, in a stack
+    const old = id === 'gh_conversation' && this.meta.stack ? this.threads().find((t) => t.gh?.conversation && t.pr === +this.meta.number!) : undefined;
+    return old ?? this.threads().find((t) => t.id === id) ?? this.state.threads.find((t) => t.id.startsWith(id));
   }
   /** Team mode: new code and general comments go to GitHub by default instead of the agent. */
   get teamMode() {

@@ -93,6 +93,8 @@ export interface Message extends Omit<StoredMessage, 'author'> {
 
 export interface Thread extends Omit<StoredThread, 'messages'> {
   messages: Message[];
+  /** A GitHub thread of a stack of PRs: the PR it is on */
+  pr?: number;
   /** Set on threads that live on GitHub (ids `gh_...`); they come from /api/github, not state.json. */
   gh?: { node: string; url: string; outdated?: boolean; file?: boolean; conversation?: boolean; canResolve?: boolean; canUnresolve?: boolean; canReply: boolean };
 }
@@ -128,7 +130,12 @@ export interface GitHubSnapshot {
   description?: { body: string; login: string; avatar?: string; at: string };
   /** The PR's commits and their CI checks, newest first. */
   ci?: CiCommit[];
+  /** A stack of PRs: each PR's own part by number (the fields above are the requested PR's; threads hold every PR's). */
+  prs?: Record<number, GitHubPrPart>;
 }
+
+/** One PR of a stack on GitHub: what GitHubSnapshot says of the requested PR, for this one. `pr`: its node id. */
+export type GitHubPrPart = Pick<GitHubSnapshot, 'url' | 'headSha' | 'localHead' | 'stale' | 'pending' | 'description' | 'ci'> & { pr: string };
 
 export type CiState = 'success' | 'failure' | 'pending' | 'none';
 export interface CiCommit {

@@ -15,7 +15,7 @@ import path from 'node:path';
 import { anchorOf } from '../../src/shared/refs.ts';
 import type { Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
-import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
+import type { CiCommit, CiState, GitHubComment, GitHubPrPart, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
 import type { GitHubAction } from '../../src/shared/schema.ts';
 import { fail } from './args.ts';
@@ -89,12 +89,9 @@ export async function gql<T extends object>(cwd: string, host: string, query: st
 
 const AUTHOR = 'author { login avatarUrl }';
 const COMMENT = `id databaseId body createdAt url viewerCanUpdate viewerCanDelete ${AUTHOR}`;
-const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
-  viewer { login }
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      id url headRefOid body createdAt ${AUTHOR}
-      reviewThreads(first: 100, after: $cursor) {
+/** A PR's fields, its review threads paged by `threads` (the connection's arguments). */
+const PR_FIELDS = (threads: string) => `id url headRefOid body createdAt ${AUTHOR}
+      reviewThreads(${threads}) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id isResolved path line startLine diffSide startDiffSide originalLine originalStartLine subjectType
@@ -107,8 +104,20 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor:
         __typename
         ... on CheckRun { name status conclusion detailsUrl checkSuite { workflowRun { workflow { name } } } }
         ... on StatusContext { context state targetUrl }
-      } } } } } }
+      } } } } } }`;
+const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  viewer { login }
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      ${PR_FIELDS('first: 100, after: $cursor')}
     }
+  }
+}`;
+// a stack: the first page of everything of every PR in one request, each PR under its alias
+const STACK_QUERY = (numbers: number[]) => `query($owner: String!, $name: String!) {
+  viewer { login }
+  repository(owner: $owner, name: $name) {
+${numbers.map((n) => `    p${n}: pullRequest(number: ${n}) { ${PR_FIELDS('first: 100')}\n      comments(first: 100) { pageInfo { hasNextPage endCursor } nodes { ${COMMENT} } } }`).join('\n')}
   }
 }`;
 
@@ -126,6 +135,33 @@ export async function fetchPr(cwd: string, t: PrTarget, localHead: string | null
   const pr = data.repository?.pullRequest;
   if (!pr) throw new Error(`PR #${t.number} not found in ${t.owner}/${t.name}`);
   return normalize({ ...pr, comments: conv.repository?.pullRequest?.comments ?? pr.comments }, data.viewer.login, localHead);
+}
+
+/** Every PR of a stack: one request for the first pages of all of them; a PR with more threads or comments than
+ *  that is fetched again on its own (fetchPr, paginated). `heads`: the head each layer is reviewed at. */
+export async function fetchStack(cwd: string, t: PrTarget, numbers: number[], heads: Record<number, string | null>) {
+  const data = await gql<Pick<Query, 'viewer'> & { repository: Record<string, PullRequest | null> }>(cwd, t.host, STACK_QUERY(numbers), { owner: t.owner, name: t.name });
+  const parts = await Promise.all(
+    numbers.map(async (n) => {
+      const pr = data.repository[`p${n}`];
+      if (!pr) throw new Error(`PR #${n} not found in ${t.owner}/${t.name}`);
+      const more = pr.reviewThreads.pageInfo.hasNextPage || pr.comments.pageInfo.hasNextPage;
+      const s = more ? await fetchPr(cwd, { ...t, number: n }, heads[n] ?? null) : normalize(pr, data.viewer.login, heads[n] ?? null);
+      return tagged(s, n);
+    }),
+  );
+  return { viewer: data.viewer.login, parts };
+}
+
+/** A stack PR's threads say which PR they are on (its code anchors: that PR's layer); its conversation is its own. */
+export function tagged(s: ReturnType<typeof normalize>, n: number) {
+  const threads = s.threads.map((t) => ({
+    ...t,
+    pr: n,
+    ...(t.anchor.kind === 'code' && { anchor: { ...t.anchor, pr: n } }),
+    ...(t.gh.conversation && { id: `gh_conversation_${n}`, title: `#${n} conversation` }),
+  }));
+  return { ...s, threads };
 }
 
 const VERDICT: Record<string, string | undefined> = { APPROVED: '**Approved**', CHANGES_REQUESTED: '**Requested changes**', DISMISSED: '_Review dismissed_' };
@@ -190,8 +226,8 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
   const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
   return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label: string, ref: string) => {
     // a link to a GitHub thread keeps pointing at it there
-    const gh = ref.match(/^rr:thread\/gh_(\d+|conversation)$/);
-    if (gh) return `[${label || 'thread'}](${gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
+    const gh = ref.match(/^rr:thread\/gh_(\d+|conversation(?:_(\d+))?)$/);
+    if (gh) return `[${label || 'thread'}](${gh[2] ? pr.replace(/\d+$/, gh[2]) : gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
     const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
     const sha = a.sha ?? (a.rev === 'base' ? shas.base : shas.head);
@@ -231,11 +267,20 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
     snap = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {}
 
+  // a stack: every PR's threads, CI and staleness (each against the head its layer is reviewed at)
+  const numbers = target && cfg.stack ? cfg.stack.prs.map((p) => p.number) : null;
+  const fetchAll = async (t: PrTarget): Promise<Snapshot> => {
+    if (!numbers) return fetchPr(repo, t, localHead);
+    const { viewer, parts } = await fetchStack(repo, t, numbers, Object.fromEntries((prov.layers ?? []).map((l) => [l.number, l.head])));
+    const part = (s: (typeof parts)[number]): GitHubPrPart => ({ url: s.url, pr: s.pr, headSha: s.headSha, localHead: s.localHead, stale: s.stale, pending: s.pending, description: s.description, ci: s.ci });
+    const mine = parts[numbers.indexOf(t.number)] ?? parts.at(-1)!;
+    return { ok: true, viewer, ...part(mine), threads: parts.flatMap((p) => p.threads), prs: Object.fromEntries(numbers.map((n, i) => [n, part(parts[i])])) };
+  };
   const refresh = (): Promise<Snapshot> =>
     (inflight ??= (async () => {
       try {
         if (!target) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
-        snap = { ...(await fetchPr(repo, target, localHead)), at: new Date().toISOString() };
+        snap = { ...(await fetchAll(target)), at: new Date().toISOString() };
         fs.writeFileSync(file, JSON.stringify(snap, null, 2));
       } catch (e) {
         // keep showing the last good threads; say why they may be old
