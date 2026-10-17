@@ -91,3 +91,9 @@ claude plugin install reviewroom@reviewroom
 ```
 
 Running review servers keep their old build until restarted.
+
+## Agent skills
+
+- Issue tracker: Beads (`bd`). See `docs/agents/issue-tracker.md`.
+- Triage labels: the five defaults. See `docs/agents/triage-labels.md`.
+- Domain docs: single-context (`CONTEXT.md`, `docs/adr/`). See `docs/agents/domain.md`.

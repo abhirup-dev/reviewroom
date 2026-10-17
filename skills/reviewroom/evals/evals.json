@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/tardis-feature-service-sdk? Keep the narrative short.",
-      "expected_output": "Runs `reviewroom pr 128 --repo … --wait` in the background with a long timeout, relays the URL from the command's first lines, reads the diff at the head sha, writes a review.html with a lede, a clickable rr-flow delta diagram, linked sections and a sign-off checklist, runs `check --fix`, then waits for the command to exit without asking the user to type anything.",
+      "expected_output": "Runs `reviewroom pr 128 --repo … --wait` in the background with a long timeout, relays the URL from the command's first lines, reads the diff at the head sha, writes a review.html with a lede, a clickable rr-flow delta diagram, linked sections and a checklist of open questions, runs `check --fix`, then waits for the command to exit without asking the reviewer to type anything.",
       "files": []
     },
     {
@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "Review my uncommitted changes in reviewroom before I commit.",
-      "expected_output": "Runs `reviewroom pr --head worktree --repo … --wait` in the background and continues with the normal narrative workflow.",
+      "expected_output": "Runs `reviewroom pr --head worktree --repo … --wait` in the background and continues with the normal walkthrough workflow.",
       "files": []
     },
     {
