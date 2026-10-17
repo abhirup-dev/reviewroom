@@ -6,6 +6,8 @@ dist/
 *.tgz
 .DS_Store
 docs/plans/
+app/target/
+app/gen/
 examples/*/server.json
 examples/*/state.lock
 examples/*/.state.json.*.tmp
