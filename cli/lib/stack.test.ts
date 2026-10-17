@@ -63,6 +63,10 @@ test('retargeted after the PR below merged: the description names it, git ancest
   expect(s!.prs[0].state).toBe('MERGED');
   // the same description, but #148's head is not in #149's history: no stack
   expect(nums(await detectStack({ ...T, number: 149 }, github(prs.slice(0, 3)).q, never))).toBeNull();
+  // a named number GitHub errors on (an issue): skipped, the rest still found
+  const { q } = github([prs[0], { ...prs[1], body: 'Stacked on top of PR #12. Based on #148' }, ...prs.slice(2)]);
+  const issue: Query = (query, vars) => (vars?.number === 12 ? Promise.reject(new Error('Could not resolve to a PullRequest')) : q(query, vars));
+  expect(nums(await detectStack({ ...T, number: 149 }, issue, (a, b) => below.has(`${a}<${b}`)))).toEqual(['body', 148, [148, 149, 151]]);
 });
 
 test('a stack list names several PRs: the nearest one below is the parent', async () => {

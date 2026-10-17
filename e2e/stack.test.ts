@@ -88,4 +88,14 @@ describe('a stacked review', () => {
       expect(JSON.parse(r.stdout).dir).toBe(dir);
     }
   });
+
+  test('pr <n> when GitHub cannot say (no remote here): the stack review is found and kept, not made one PR', async () => {
+    await git('branch', '-f', 'pr-2', 'stack-2');
+    const config = () => JSON.parse(read(dir, 'config.json'));
+    for (const args of [['--repo', repo], d]) {
+      const r = await cli(['pr', '2', '--detach', '--no-open', '--port', '0', ...args]);
+      expect([r.code, config().stack.prs.length, config().head]).toEqual([0, 3, 'stack-3']);
+    }
+    expect(fs.readdirSync(path.dirname(dir))).toEqual(['stack-1']);
+  });
 });

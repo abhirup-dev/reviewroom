@@ -49,7 +49,10 @@ async function prTarget(repo: string, o: PrOpts, n: string): Promise<Target> {
     console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
     head = local;
   }
-  const stack = fetched && o.stack !== false && info?.url ? await stackOf(repo, remote, info.url) : null;
+  const found = o.stack === false ? null : fetched && info?.url ? await stackOf(repo, remote, info.url) : undefined;
+  // could not tell (offline, GitHub failed): keep the stack the review already has, not turn it into one PR's review
+  const kept = found === undefined ? (o.dir ? path.resolve(o.dir) : stackReview(repo, (p) => p.number === +n)) : undefined;
+  const stack = kept ? (readConfig(kept).stack ?? undefined) : found;
   const baseBranch = (o.base ?? stack?.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
   if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
@@ -57,12 +60,12 @@ async function prTarget(repo: string, o: PrOpts, n: string): Promise<Target> {
   const top = stack?.prs.at(-1);
   const cfg = { base, head: top?.head ?? head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: top?.headLabel ?? (info?.headRefName || `PR #${n}`), stack };
   // a stack has one review, whichever of its PRs it was opened from, and keeps it when its id changes (the bottom merged)
-  if (stack) return { dir: stackReview(repo, (p) => stack.prs.some((q) => q.number === p.number)) ?? stackDir(repo, stack.id), cfg };
+  if (stack) return { dir: kept ?? stackReview(repo, (p) => stack.prs.some((q) => q.number === p.number)) ?? stackDir(repo, stack.id), cfg };
   return { dir: branchDir(repo, info?.headRefName || `pr-${n}`), cfg }; // pr-<n> only when gh can't name the branch
 }
 
-/** The stack the PR at `url` is in, its PRs' heads fetched (null: none, or GitHub can't say; the review is the PR alone). */
-async function stackOf(repo: string, remote: string, url: string): Promise<StackConfig | null> {
+/** The stack the PR at `url` is in, its PRs' heads fetched (null: none, the review is the PR alone; undefined: GitHub can't say). */
+async function stackOf(repo: string, remote: string, url: string): Promise<StackConfig | null | undefined> {
   const t = prOf({ url })!;
   const q: Query = (query, vars = {}) => gql(repo, t.host, query, { owner: t.owner, name: t.name, ...vars });
   // a PR the description names is below this one only if its head is in this one's history
@@ -73,7 +76,7 @@ async function stackOf(repo: string, remote: string, url: string): Promise<Stack
     s = await detectStack(t, q, isAncestor);
   } catch (e) {
     console.error(`reviewroom: could not look for a stack of PRs: ${(e as Error).message}`);
-    return null;
+    return undefined;
   }
   if (!s) return null;
   const how = { native: "GitHub's stack", chain: 'their branches', body: 'the PR descriptions' }[s.source];

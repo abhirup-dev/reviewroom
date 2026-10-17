@@ -88,7 +88,8 @@ export async function detectStack(t: PrTarget, q: Query, isAncestor: IsAncestor)
     else {
       const found = named.filter((p) => isAncestor(p.headRefOid, cur.headRefOid, p.number));
       for (const n of bodyCandidates(cur.body ?? '', cur.number).filter((n) => !seen.has(n))) {
-        const p = (await one(n)).pullRequest;
+        // "#12" can be an issue, or a PR we can't see: not a member, not a reason to give up
+        const p = await one(n).then((r) => r.pullRequest, () => null);
         if (p && p.state !== 'CLOSED' && isAncestor(p.headRefOid, cur.headRefOid, p.number)) found.push(p);
       }
       // several named (a stack list): the nearest is the one every other is below
