@@ -112,6 +112,7 @@
     <section id="parallel-sketch" data-round="2">
       <h2>Parallel fetch sketch</h2>
       <p>Added after round 1 (<rr-ref ref="rr:thread/t_seq01">your question on sequencing</rr-ref>). Both calls only need the user id, so they can share an errgroup; habit stays best-effort by swallowing its own error.</p>
+      <rr-embed ref="rr:tour/latency/s1" caption="Where the guided walkthrough showed the two calls in sequence"></rr-embed>
       <rr-code lang="go" title="suggested change">g, gctx := errgroup.WithContext(ctx)
 g.Go(func() error { var err error; feats, err = b.tardis.Fetch(gctx, uid, baseKeys); return err })
 g.Go(func() error {

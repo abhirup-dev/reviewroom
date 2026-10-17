@@ -178,6 +178,27 @@
                 "required": [
                   "kind"
                 ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "tour"
+                  },
+                  "chapter": {
+                    "type": "string"
+                  },
+                  "step": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "chapter",
+                  "step"
+                ],
+                "description": "A slide of the guided walkthrough, walkthrough.json (chapter and step ids)"
               }
             ]
           },

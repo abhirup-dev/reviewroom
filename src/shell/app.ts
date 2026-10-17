@@ -15,6 +15,7 @@ import { applyOp } from '../shared/ops';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 import type { GitHubAction } from '../shared/schema';
+import type { Walkthrough } from '../shared/walkthrough';
 import { showPanel } from './layout';
 
 export interface Prefs {
@@ -62,6 +63,8 @@ export interface AppEvents extends Record<string, unknown> {
   range: DiffRange;
   theme: 'light' | 'dark';
   'reveal-code': CodeTarget;
+  /** a code panel finished a reveal: its lines are highlighted and on screen (or there was nothing to highlight) */
+  'code-landed': { panel: string };
   'reveal-doc': { id: string; path?: string; threadId?: string };
   picker: boolean;
   'open-thread': { id: string; focusComposer?: boolean };
@@ -71,6 +74,10 @@ export interface AppEvents extends Record<string, unknown> {
   'active-section': string;
   'active-file': string;
   'round-view': number;
+  /** play the walkthrough at a step (ids; missing: the first) */
+  'walkthrough-open': { chapter?: string; step?: string };
+  /** walkthrough.json loaded (null: none, or invalid) */
+  walkthrough: Walkthrough | null;
   toast: { text: string; kind?: 'info' | 'error' };
 }
 
@@ -95,6 +102,9 @@ export class ReviewApp {
   prefs: Prefs;
   files: ChangedFile[] = [];
   commits: Commit[] = [];
+  /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
+  walkthrough: Walkthrough | null = null;
+  walkthroughIssues: string[] | null = null;
   range!: DiffRange;
   dock!: DockviewApi;
   /** The narrative root element once mounted (inside the narrative panel). */
@@ -222,6 +232,9 @@ export class ReviewApp {
       case 'round':
         this.bus.emit('round-view', r.n);
         break;
+      case 'tour':
+        this.bus.emit('walkthrough-open', { chapter: r.chapter, step: r.step });
+        break;
     }
   }
 
@@ -260,6 +273,11 @@ export class ReviewApp {
       return t ? 'Thread on ' + this.anchorLabel(t.anchor) : 'Thread';
     }
     if (r.type === 'sym') return r.name;
+    if (r.type === 'tour') {
+      const ch = this.walkthrough?.chapters.find((c) => c.id === r.chapter);
+      const n = ch ? ch.steps.findIndex((s) => s.id === r.step) + 1 : 0;
+      return ch && n ? `Guided walkthrough · ${ch.title} · slide ${n}` : 'Guided walkthrough slide';
+    }
     return refLabel(r, this.docTitle);
   }
   anchorLabel(a: Anchor): string {

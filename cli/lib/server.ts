@@ -7,13 +7,14 @@ import { feedbackMarkdown } from '../../src/shared/feedback.ts';
 import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
-import { readState, writeState } from './state.ts';
+import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
+import { tourText } from './walkthrough.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -38,14 +39,14 @@ export interface Finished {
   round: number;
 }
 
-/** Watch the review dir for review.html and its assets (debounced); `edited` = review.html itself changed.
+/** Watch the review dir for review.html, walkthrough.json and assets (debounced); `edited` = review.html or walkthrough.json changed.
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
 function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   let t: NodeJS.Timeout | undefined, edited = false;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
-    if (f === 'review.html' || (f && /\.(css|js|svg|png)$/.test(f))) {
-      edited ||= f === 'review.html';
+    if (f === 'review.html' || f === 'walkthrough.json' || (f && /\.(css|js|svg|png)$/.test(f))) {
+      edited ||= f === 'review.html' || f === 'walkthrough.json';
       clearTimeout(t);
       t = setTimeout(() => {
         onChange(edited);
@@ -55,9 +56,10 @@ function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
   watcher.on('error', (e) => console.error(`reviewroom: file watch stopped: ${e.message}`));
+  return watcher;
 }
 
-/** Stale-link check of review.html: fingerprint new links, tell the agent (stderr) when the report changes. */
+/** Stale-link check of review.html and walkthrough.json: fingerprint new links, tell the agent (stderr) when the report changes. */
 function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
   const reviewFile = path.join(dir, 'review.html');
   let lastReport = '';
@@ -66,10 +68,15 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       if (!fs.existsSync(reviewFile)) return;
       const known = readState(dir).links ?? {};
       // the current head, not the one this server started on: `check` must fingerprint the same code
-      const { results, links } = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known);
+      const w = readWalkthrough(dir);
+      const tour = w?.ok ? tourText(w.value) : '';
+      const checked = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour, w?.ok ? w.value : null);
+      const { results } = checked;
+      // a walkthrough.json that is broken for now hides its links: keep their fingerprints, or fixing it re-baselines moved code
+      const links = w && !w.ok ? { ...known, ...checked.links } : checked.links;
       if (JSON.stringify(links) !== JSON.stringify(known)) commit([{ op: 'setLinks', links }]);
       const bad = problems(results);
-      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
+      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html or walkthrough.json; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
       if (text && text !== lastReport) console.error(text);
       lastReport = text;
     } catch (e) {
@@ -99,14 +106,21 @@ export const localOnly: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
-type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
-export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
+/** `readOnly`: a server that only shows the review (`walkthrough lint`): no writes, no GitHub calls; it holds no lock. */
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
+export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, 'review.html');
-  const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
+  // what a reconnecting client compares: a change to either file while it was away reloads the page
+  const hash = () => {
+    const h = crypto.createHash('sha1');
+    for (const f of [reviewFile, walkthroughPath(dir)]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
+    return h.digest('hex').slice(0, 12);
+  };
+  const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
   const send = (event: string, data: unknown) => {
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
   };
@@ -132,13 +146,17 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     return s;
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
-  watchNarrative(dir, (edited) => {
-    send('review', { hash: hash() });
-    if (edited) checkNarrative();
-  });
+  // read-only: no live reload, and no link check that would write state.json
+  const watcher = readOnly
+    ? null
+    : watchNarrative(dir, (edited) => {
+        send('review', { hash: hash() });
+        if (edited) checkNarrative();
+      });
 
   const app = new Hono();
   app.use(localOnly);
+  if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
     if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
@@ -176,10 +194,10 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     return json(c, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
-  app.get('/api/state', (c) => json(c, readState(dir)));
+  app.get('/api/state', (c) => json(c, read()));
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {
-    const s = readState(dir);
+    const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = s.rounds.find((r) => r.n === s.round);
     return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
@@ -189,6 +207,10 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     const ops = c.req.valid('json').ops as Op[];
     if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
+  });
+  app.get('/api/walkthrough', (c) => {
+    const r = readWalkthrough(dir);
+    return !r ? json(c, { error: 'no walkthrough.json' }, 404) : r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
   });
   // the hub: every review running on this machine; started on first use
   app.get('/api/hub', async (c) => {
@@ -250,7 +272,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     if (defaultLayout() === id) setDefault(null);
     return json(c, { ok: true });
   });
-  app.get('/api/github', async (c) => json(c, await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
+  app.get('/api/github', async (c) => json(c, readOnly ? (github.cached() ?? { ok: false, threads: [], error: 'not fetched (read-only server)' }) : await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
   app.post('/api/github', body(GitHubAction), async (c) => json(c, await github.act(c.req.valid('json'))));
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
@@ -269,7 +291,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads });
+    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
@@ -301,7 +323,9 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     }),
   );
 
-  return { app, prov, commit, github, checkNarrative };
+  // for a server that ends before its process does (`walkthrough lint`): the watch would keep the process alive
+  const close = () => watcher?.close();
+  return { app, prov, commit, github, checkNarrative, close };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */

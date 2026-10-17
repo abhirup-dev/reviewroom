@@ -12,7 +12,8 @@
 import { FileDiff, File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
-import { plainExcerpt, renderMarkdown } from '../core/markdown';
+import { plainExcerpt, renderMarkdown, sanitizeProse } from '../core/markdown';
+import { stepRefs } from '../shared/walkthrough';
 import type { ReviewApp } from '../shell/app';
 import { PIERRE_CSS } from '../panels/code';
 
@@ -183,7 +184,40 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
     }
     case 'round':
       return h('div', null, `Round ${r.n}`);
+    case 'tour':
+      return slide(app, r, opts);
   }
+}
+
+/** A walkthrough step as a card: where it is, its text, its code (compact: the links only), and a way to play the
+ *  walkthrough from it. A narrative section that expands on a step embeds it like this. */
+async function slide(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: { compact?: boolean }) {
+  // the page may not have loaded walkthrough.json yet
+  const loaded = app.walkthrough ?? (await app.backend.walkthrough?.().catch(() => null));
+  const w = loaded && 'version' in loaded ? loaded : null;
+  const ch = w?.chapters.find((c) => c.id === r.chapter);
+  const i = ch?.steps.findIndex((s) => s.id === r.step) ?? -1;
+  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This guided walkthrough slide no longer exists');
+  const step = ch.steps[i];
+  const text = h('div', { class: 'rr-prose rr-slide__text' });
+  text.innerHTML = sanitizeProse(step.text); // a walkthrough can come from a PR
+  const refs = stepRefs(step);
+  const code = opts.compact
+    ? refs.length ? [h('div', { class: 'rr-slide__refs' }, ...refs.map((x) => h('span', { class: 'rr-slide__ref' }, refIcon(parseRef(x)!), app.label(x))))] : []
+    : await Promise.all(refs.map((x) => renderPreview(app, x, { compact: true })));
+  const title = 'Play the guided walkthrough from this slide';
+  const play = h('button', {
+    class: 'rr-icon-btn',
+    title,
+    'aria-label': title,
+    onclick: (e: MouseEvent) => {
+      // from inside a thread popup: the player opens under the page, not behind the modal
+      (e.currentTarget as Element).closest('dialog')?.close();
+      app.bus.emit('walkthrough-open', { chapter: r.chapter, step: r.step });
+    },
+  }, icon('play', 14));
+  // the play button sits on top: an embed shows a preview's first lines only
+  return h('div', { class: 'rr-slide' }, h('div', { class: 'rr-slide__where' }, h('span', null, `${ch.title} · slide ${i + 1} of ${ch.steps.length}`), play), text, ...code);
 }
 
 class RREmbed extends HTMLElement {
@@ -198,6 +232,15 @@ class RREmbed extends HTMLElement {
     const ref = this.getAttribute('ref') || '';
     const r = parseRef(ref);
     const caption = this.getAttribute('caption');
+    // embeds inside embeds (a slide whose text embeds itself, a section embedding a slide that shows it) stop at a
+    // link: the content can come from a PR
+    let depth = 0;
+    for (let p = this.parentElement?.closest('rr-embed'); p; p = p.parentElement?.closest('rr-embed')) depth++;
+    if (depth >= 2) {
+      this.replaceChildren(h('a', { href: ref }, caption || ref));
+      withApp((app) => !caption && (this.firstElementChild!.textContent = app.label(ref)));
+      return;
+    }
     const body = h('div', { class: 'rr-embed__body' }, h('div', { class: 'rr-skeleton' }));
     const head = h(
       'button',
@@ -223,6 +266,8 @@ class RREmbed extends HTMLElement {
 
 // ------------------------------------------------------------------ rr-code
 class RRCode extends HTMLElement {
+  private file?: InstanceType<typeof PierreFile>;
+  private gen = 0;
   connectedCallback() {
     if (this.dataset.ready) return; // re-attached (panel reopened or moved)
     this.dataset.ready = '1';
@@ -233,7 +278,9 @@ class RRCode extends HTMLElement {
     this.dataset.src = inline;
     this.replaceChildren();
     this.classList.add('rr-code');
+    const gen = ++this.gen;
     withApp(async (app) => {
+      if (gen !== this.gen) return; // left the page before the app was ready (boot detaches the walkthrough)
       let contents = inline.replace(/^\n/, '').replace(/\s+$/, '');
       let name = `snippet.${lang || 'txt'}`;
       let headLabel = title || lang || '';
@@ -241,6 +288,7 @@ class RRCode extends HTMLElement {
       const r = ref ? parseRef(ref) : null;
       if (r && (r.type === 'code' || r.type === 'file')) {
         contents = (await app.read(r.path, app.revOf(r.rev))) ?? '';
+        if (gen !== this.gen) return; // left the page while reading
         name = r.path;
         // the whole file, drawn from start to end with its real line numbers
         if (r.start) renderRange = range(r.start, r.end ?? contents.split('\n').length);
@@ -254,7 +302,19 @@ class RRCode extends HTMLElement {
       );
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
-      new PierreFile(codeOptions('--rr-panel-2')).render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
+      this.file = new PierreFile(codeOptions('--rr-panel-2'));
+      this.file.render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
+    });
+  }
+  disconnectedCallback() {
+    // moved (a panel dragged) is back by the next microtask; gone for good, release pierre and start over if re-added
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      this.gen++;
+      this.file?.cleanUp();
+      this.file = undefined;
+      this.replaceChildren(this.dataset.src ?? '');
+      delete this.dataset.ready;
     });
   }
 }

@@ -53,6 +53,28 @@ export function renderMarkdown(src: string): string {
   });
 }
 
+/** Author HTML from outside this machine (a walkthrough pulled from a PR): display-only. Text formatting, links
+ *  (http(s) or rr:) and the narrative's own elements stay; no styles, forms, media or remote loads, not <rr-check>
+ *  (it changes review state) nor <rr-markdown> (its markdown sanitizer lets images through). */
+export function sanitizeProse(html: string): string {
+  return DOMPurify.sanitize(html, {
+    // body: the parse root DOMPurify wraps the fragment in
+    ALLOWED_TAGS: ['body', 'p', 'br', 'hr', 'span', 'div', 'a', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark', 'small', 'sub', 'sup', 'code', 'kbd', 'pre', 'blockquote', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'details', 'summary'],
+    // listed here (not only as a custom element's) so `ref` is URL-checked too
+    ALLOWED_ATTR: ['href', 'ref', 'title', 'class'],
+    // other allowed attributes are checked as URLs: plain words for these, only http(s)/rr: for href and ref
+    ADD_URI_SAFE_ATTR: ['caption', 'kind', 'lang', 'state'],
+    ALLOWED_URI_REGEXP: /^(?:https?|rr):/i,
+    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title)$/, allowCustomizedBuiltInElements: false },
+  });
+}
+
+/** What `sanitizeProse` takes out of `html`: `<script>`, `onclick on <a>`, … (once each). */
+export function proseRemoved(html: string): string[] {
+  sanitizeProse(html);
+  return [...new Set(DOMPurify.removed.map((r) => ('element' in r ? `<${r.element.nodeName.toLowerCase()}>` : `${r.attribute?.name} on <${r.from.nodeName.toLowerCase()}>`)))];
+}
+
 export function plainExcerpt(src: string, n = 90): string {
   const s = src
     .replace(/<!--[\s\S]*?(-->|$)/g, '')

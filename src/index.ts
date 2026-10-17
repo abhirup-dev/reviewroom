@@ -12,6 +12,7 @@
 import cssText from './styles/bundle.css' with { type: 'text' };
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
+import { anchorOf } from './shared/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
@@ -23,6 +24,7 @@ import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
 import { mountHoverCards, mountPalette, mountSelectionRelease, mountToasts } from './overlays/misc';
 import { mountTooltips, tip } from './overlays/tooltip';
+import { mountWalkthrough } from './overlays/walkthrough';
 import './panels/narrative';
 import './panels/code';
 import './panels/sidebar';
@@ -101,6 +103,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
   const fixture = readJSON('#rr-fixture') as Fixture | null;
   const seedState = readJSON('#rr-state') as ReviewState | null;
+  const seedTour = document.querySelector('#rr-walkthrough')?.textContent ?? undefined;
   const review = root.querySelector('rr-review') as HTMLElement | null;
   const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No <rr-review> content yet.'));
   doc.remove();
@@ -120,7 +123,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.id ||= [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
-    app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined);
+    app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined, seedTour);
     app.state = { ...emptyState(), ...(await app.backend.load()) };
     let saved;
     [saved, lastLayout] = await Promise.all([app.backend.layouts().catch(() => null), app.backend.lastLayout().catch(() => null)]);
@@ -144,6 +147,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountSelectionRelease(app);
   mountHoverCards(app);
   mountThreadPopup(app);
+  const tour = mountWalkthrough(app);
   mountDock(app, dockHost, lastLayout);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
@@ -197,14 +201,16 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   const api = {
     app,
     open: (ref: string) => app.open(ref),
+    /** Play the walkthrough, at a chapter and step (ids) or from the start. */
+    walkthrough: (chapter?: string, step?: string) => app.bus.emit('walkthrough-open', { chapter, step }),
+    /** For `reviewroom walkthrough lint`, not for review authors: measure a step on screen. */
+    auditWalkthrough: tour.audit,
     findSymbol: (name: string) => app.findSymbol(name),
     read: (path: string, rev: Rev = 'head') => app.read(path, rev === 'base' || rev === 'head' ? app.revFor(rev) : rev),
     files: () => app.files,
     search: (q: string, symbol = false) => app.search(q, symbol),
     comment: (ref: string, body?: string) => {
-      const r = parseRef(ref);
-      const anchor =
-        r?.type === 'doc' ? { kind: 'doc' as const, target: r.id, path: r.path } : r?.type === 'code' ? { kind: 'code' as const, path: r.path, rev: r.rev === 'base' ? ('base' as const) : ('head' as const), start: r.start ?? 1, end: r.end ?? r.start ?? 1 } : r?.type === 'sym' ? { kind: 'symbol' as const, name: r.name } : { kind: 'general' as const };
+      const anchor = anchorOf(ref);
       return body ? app.createThread(anchor, body) : app.compose(anchor);
     },
     on: app.bus.on.bind(app.bus),
@@ -240,6 +246,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
+    { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
     { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
