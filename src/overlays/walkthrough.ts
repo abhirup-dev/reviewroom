@@ -258,14 +258,14 @@ export function mountWalkthrough(app: ReviewApp) {
   app.bus.on('state', paintThreads);
   app.bus.on('code-landed', ({ panel }) => views.some((v) => v.id === panel) && actor.send({ type: 'landed' }));
 
-  // ← → while playing (not while typing or in a menu, dialog or popover); Esc pauses. The workbench's own shortcuts
-  // are held meanwhile (mod chords still run: the palette opens above the player)
+  // ← → while playing (not while typing or in a menu or dialog; toasts and tooltips are manual popovers, never in the way);
+  // Esc pauses. The workbench's own shortcuts are held meanwhile (mod chords still run: the palette opens above the player)
   const playing = () => actor.getSnapshot().matches({ open: 'playing' });
   app.commands.held = playing;
   window.addEventListener(
     'keydown',
     (e) => {
-      if (!playing() || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open], :popover-open')) return;
+      if (!playing() || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open], [popover=auto]:popover-open')) return;
       const type = ({ ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'pause' } as const)[e.key as 'ArrowRight'];
       if (type) {
         e.preventDefault();
