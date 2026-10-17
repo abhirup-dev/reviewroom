@@ -11,8 +11,8 @@ import type { Walkthrough } from '../../src/shared/walkthrough.ts';
 type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean };
 
 /** The stale-link check of review.html (missing: '') and walkthrough.json, which must match its schema first
- *  (else only `issues`). Stores the new fingerprints; `fix` rewrites moved links in both files. */
-export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean } = {}): Promise<Checked> {
+ *  (else only `issues`). Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files. */
+export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean; store?: boolean } = {}): Promise<Checked> {
   const tour = readWalkthrough(dir);
   if (tour && !tour.ok) return { issues: tour.issues };
   const file = path.join(dir, 'review.html');
@@ -32,7 +32,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (fixedTour !== tourRaw) fs.writeFileSync(tourFile, fixedTour);
   const healed = fixed !== html || fixedTour !== tourRaw;
   if (healed) ({ results, links } = checkLinks(fixed, prov, links, tour?.ok ? tourText(JSON.parse(fixedTour)) : ''));
-  if (JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
+  if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const value = tour?.ok ? tour.value : null;
   return { tour: value, results, bad: locate(problems(results), value), healed };
 }

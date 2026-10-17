@@ -297,7 +297,8 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
 export const ownMarked = (s: Pick<GitHubSnapshot, 'threads'>, marker: string) =>
   s.threads.find((t) => t.gh?.conversation)?.messages.findLast((m) => m.gh?.kind === 'issue' && m.gh.mine && m.body.includes(marker));
 
-/** Post `body` to the PR conversation, or update the viewer's comment carrying `marker` in place; the comment's URL. */
+/** Post `body` to the PR conversation, or update the viewer's comment carrying `marker` in place; the comment's URL.
+ *  shortcut: sees fetchPr's first 100 conversation comments, so a marked comment past them gets a new one; page them if that bites. */
 export async function upsertComment(cwd: string, t: PrTarget, marker: string, body: string) {
   const s = await fetchPr(cwd, t, null);
   const mine = ownMarked(s, marker);

@@ -20,9 +20,11 @@ export function locate(results: LinkResult[], w: Walkthrough | null) {
   });
 }
 
-/** The walkthrough to pull from a PR: the newest block in its conversation, else in its description. */
+/** The walkthrough to pull from a PR: the newest block in its conversation, else in its description. Only the PR
+ *  author's or the viewer's own comments count: the prose is HTML the reviewer's browser renders. */
 export function pickBlock(s: Pick<GitHubSnapshot, 'description' | 'threads'>) {
-  const conv = s.threads.find((t) => t.gh?.conversation)?.messages ?? [];
+  const author = s.description?.login;
+  const conv = (s.threads.find((t) => t.gh?.conversation)?.messages ?? []).filter((m) => m.gh?.mine || (author && m.gh?.login === author));
   const sources = [...[...conv].reverse().map((m) => ({ body: m.body, from: `PR comment by ${m.gh?.login} (${m.gh?.url})` })), { body: s.description?.body ?? '', from: 'the PR description' }];
   for (const src of sources) {
     const blocks = findBlocks(src.body);

@@ -63,4 +63,7 @@ test('PR blocks: encode round-trips; nested and inline blocks are ignored', () =
   expect(findBlocks(nested)).toEqual([]);
   expect(findBlocks('~~~reviewroom-walkthrough\n{"a":1}\n~~~\n```reviewroom-walkthrough\n{"b":2}\n```')).toEqual(['{"a":1}', '{"b":2}']);
   expect(findBlocks('no block')).toEqual([]);
+  expect(findBlocks('```text`bad\n```reviewroom-walkthrough\n{"c":3}\n```')).toEqual(['{"c":3}']);
+  expect(findBlocks('```reviewroom-walkthrough`bad\n{}\n```')).toEqual([]);
+  expect(findBlocks('```reviewroom-walkthrough\n{"d":4}')).toEqual(['{"d":4}']);
 });

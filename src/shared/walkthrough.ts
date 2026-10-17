@@ -92,13 +92,15 @@ export function findBlocks(md: string): string[] {
   const out: string[] = [];
   let open: { fence: string; body: string[] | null } | null = null;
   for (const line of md.split(/\r?\n/)) {
-    const m = line.match(/^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)/);
+    const m = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (!open) {
-      if (m) open = { fence: m[1], body: m[2] === LANG ? [] : null };
+      // CommonMark: a backtick fence's info string has no backticks (else it is not a fence)
+      if (m && !(m[1][0] === '`' && m[2].includes('`'))) open = { fence: m[1], body: m[2].trim().split(/\s+/)[0] === LANG ? [] : null };
     } else if (m && m[1][0] === open.fence[0] && m[1].length >= open.fence.length && !line.slice(line.indexOf(m[1]) + m[1].length).trim()) {
       if (open.body) out.push(open.body.join('\n'));
       open = null;
     } else open.body?.push(line);
   }
+  if (open?.body) out.push(open.body.join('\n')); // an unclosed fence runs to the end
   return out;
 }
