@@ -103,16 +103,37 @@ export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {
 
 export type Provider = ReturnType<typeof makeProvider>;
 
+/** A stack PR's layer: what it adds on the PR below. `restack`: the PR below was rewritten after this one was pushed,
+ *  so the layer starts where the two still agree. */
+export type Layer = { number: number; base: string; head: string; restack?: true };
+/** A stack's layers, bottom first. A layer's base is the head of the PR below, never a merge-base with the stack's
+ *  base branch (a squash-merged PR below is not in that branch's history); the bottom's is its merge-base with `base`. */
+export function stackLayers(repo: string, base: string, prs: { number: number; head: string }[]): Layer[] {
+  const sha = (ref: string) => git(['rev-parse', checkRev(ref) + '^{commit}'], repo).trim();
+  const mergeBase = (a: string, b: string) => (git(['merge-base', a, b], repo, { soft: true }) || '').trim();
+  let below = '';
+  return prs.map((p) => {
+    const head = sha(p.head);
+    const from = below || mergeBase(sha(base), head) || sha(base);
+    const restack = !!below && git(['merge-base', '--is-ancestor', below, head], repo, { soft: true }) === null;
+    below = head;
+    return { number: p.number, base: restack ? mergeBase(from, head) || from : from, head, ...(restack && { restack: true as const }) };
+  });
+}
+
 export function makeProvider(repo: string, cfg: ReviewConfig) {
   const resolve = (ref: string) => (ref === WORKTREE ? WORKTREE : git(['rev-parse', checkRev(ref)], repo).trim());
   const head = resolve(cfg.head);
   const headCommit = head === WORKTREE ? git(['rev-parse', 'HEAD'], repo).trim() : head;
-  const base = (git(['merge-base', resolve(cfg.base), headCommit], repo, { soft: true }) || resolve(cfg.base)).trim();
+  const layers = cfg.stack ? stackLayers(repo, cfg.base, cfg.stack.prs) : null;
+  // a stack: from the bottom layer's base, so a squash-merged PR below doesn't drag its commits back in
+  const base = layers?.[0].base ?? (git(['merge-base', resolve(cfg.base), headCommit], repo, { soft: true }) || resolve(cfg.base)).trim();
   const isWT = (r: string) => r === WORKTREE;
   const realRepo = fs.realpathSync(repo);
   return {
     base,
     head,
+    layers,
     meta(): Omit<ReviewMeta, 'id'> {
       // Without a PR title, the oldest commit of the range describes the change better than the latest fixup.
       const subject = isWT(head) ? 'Working tree changes'

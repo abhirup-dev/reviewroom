@@ -136,6 +136,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
   const files = prov.files(prov.base, prov.head);
+  for (const l of prov.layers ?? []) if (l.restack) console.error(`reviewroom: PR #${l.number} is not on the current head of the PR below it (a restack is pending); its layer starts where the two still agree`);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force);
 
