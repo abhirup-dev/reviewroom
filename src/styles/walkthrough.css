@@ -30,6 +30,10 @@
   transform-origin: calc(100% - 90px) calc(100% - 20px);
   transition: transform 0.3s ease, opacity 0.25s ease;
 }
+/* it takes focus on open only to hold it inside: no ring around the whole player */
+.rr-tour .rr-tour__player:focus-visible {
+  outline: none;
+}
 .rr-tour[data-mode='paused'] .rr-tour__scrim {
   opacity: 0;
   pointer-events: none;

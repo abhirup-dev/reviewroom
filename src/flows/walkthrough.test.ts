@@ -77,13 +77,13 @@ test('reloading keeps the position where it exists; a removed document closes', 
   expect(where(a)).toEqual(['closed', 1, 0]);
 });
 
-test('the code pane target: own ref, last ref in the chapter, lead diagram, an earlier ref, nothing', () => {
+test('the code pane target: own ref, last ref in the chapter, the lead\'s first diagram, an earlier ref, nothing', () => {
   const d: Walkthrough = {
     version: 1,
     title: 'T',
     chapters: [
       { id: 'a', title: 'A', steps: [{ id: 'a1', text: 'x' }, { id: 'a2', text: 'x', ref: 'rr:code/a.go#L1' }, { id: 'a3', text: 'x' }] },
-      { id: 'b', title: 'B', lead: '<rr-flow><rr-node>n</rr-node></rr-flow>', steps: [{ id: 'b1', text: 'x' }] },
+      { id: 'b', title: 'B', lead: '<p>p</p><rr-flow><rr-node>n</rr-node></rr-flow><p>then</p><rr-flow><rr-node>m</rr-node></rr-flow>', steps: [{ id: 'b1', text: 'x' }] },
       { id: 'c', title: 'C', steps: [{ id: 'c1', text: 'x' }] },
     ],
   };
