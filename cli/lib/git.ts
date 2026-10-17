@@ -61,7 +61,10 @@ export function defaultBase(repo: string) {
 export function remoteName(repo: string) {
   const url = (git(['remote', 'get-url', 'origin'], repo, { soft: true }) || '').trim();
   const m = url.match(/[:/]([^/:]+\/[^/]+?)(\.git)?$/);
-  return m ? m[1] : path.basename(repo);
+  if (m) return m[1];
+  // no remote: the main checkout's name, so every worktree of the repo gets the same one
+  const common = (git(['rev-parse', '--path-format=absolute', '--git-common-dir'], repo, { soft: true }) || '').trim();
+  return path.basename(common ? path.dirname(common) : repo);
 }
 
 export function remoteDefaultBranch(repo: string, remote: string) {
@@ -72,13 +75,6 @@ export function remoteDefaultBranch(repo: string, remote: string) {
 }
 
 
-export function ensureExcluded(repo: string) {
-  const ex = path.join(repo, '.git', 'info', 'exclude');
-  try {
-    const cur = fs.existsSync(ex) ? fs.readFileSync(ex, 'utf8') : '';
-    if (!cur.split('\n').includes('.reviewroom/')) fs.appendFileSync(ex, (cur.endsWith('\n') || !cur ? '' : '\n') + '.reviewroom/\n');
-  } catch {}
-}
 
 const STATUS: Record<string, ChangedFile['status'] | undefined> = { A: 'added', D: 'deleted', R: 'renamed' };
 /** `git diff -M -z --numstat` and `--name-status` of the same range -> changed files (status from the latter). */
@@ -141,7 +137,7 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
       const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
       const files = parseDiff(git(['diff', '--numstat', '-M', '-z', '--end-of-options', ...range], repo), git(['diff', '--name-status', '-M', '-z', '--end-of-options', ...range], repo));
       if (isWT(h)) {
-        const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter((p) => p && !p.startsWith('.reviewroom/'));
+        const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter(Boolean);
         for (const p of untracked) {
           // nested repos are listed as `dir/`
           if (p.endsWith('/') || !fs.statSync(path.join(repo, p)).isFile()) continue;
@@ -151,12 +147,12 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
           files.push({ path: p, additions: binary ? 0 : buf.toString('utf8').split('\n').length, deletions: 0, binary, status: 'added' });
         }
       }
-      return files.filter((f) => !f.path.startsWith('.reviewroom/'));
+      return files;
     },
     /** The range's diff for the client to render from; prefixes and colour pinned against the user's git config. */
     patch(b: string, h: string, ws: boolean): string {
       const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
-      return git(['-c', 'core.quotePath=false', 'diff', '-M', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', ...(ws ? ['-w'] : []), '--end-of-options', ...range, '--', '.', ':!.reviewroom'], repo);
+      return git(['-c', 'core.quotePath=false', 'diff', '-M', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', ...(ws ? ['-w'] : []), '--end-of-options', ...range], repo);
     },
     read(rev: string, p: string): string | null {
       if (isWT(rev)) {
@@ -177,7 +173,7 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
       const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // -z: `[<rev>:]<path>\0<line>\0<text>`, so paths containing `:<n>:` parse correctly
       const grep = (opts: string[], pattern: string, kind: SearchHit['kind']) =>
-        (git(['grep', '-n', '-z', '-I', ...opts, '-e', pattern, ...r, '--', '.', ':!.reviewroom'], repo, { soft: true }) || '')
+        (git(['grep', '-n', '-z', '-I', ...opts, '-e', pattern, ...r], repo, { soft: true }) || '')
           .split('\n')
           .filter(Boolean)
           .map((l) => {
