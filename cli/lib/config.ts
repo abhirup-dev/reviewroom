@@ -11,13 +11,31 @@ const reviewsOf = (repo: string) => path.join(reviewsDir(), remoteName(repo).rep
 /** A branch's review dir. shortcut: two forks' PRs from the same branch name share it; add a suffix if that bites. */
 export const branchDir = (repo: string, branch: string) => path.join(reviewsOf(repo), branch.replace(/[^\w.-]+/g, '-'));
 
-/** The review dir: --dir, else the current branch's. For an existing review (`existing`),
- *  a missing branch dir falls back to the repo's only review. */
+/** A stack's review dir: one review per stack (docs/adr/0001-one-review-per-stack.md), named by the stack's id. */
+export const stackDir = (repo: string, id: number) => path.join(reviewsOf(repo), `stack-${id}`);
+/** The repo's review of a stack with a PR that `is` (by its config.json), if there is one. */
+export function stackReview(repo: string, is: (p: StackConfig['prs'][number]) => boolean): string | undefined {
+  const root = reviewsOf(repo);
+  if (!fs.existsSync(root)) return;
+  return fs.readdirSync(root).map((d) => path.join(root, d)).find((d) => {
+    try {
+      return !!readConfig(d).stack?.prs.some(is);
+    } catch {
+      return false; // someone else's broken config.json is not this lookup's problem
+    }
+  });
+}
+
+/** The review dir: --dir, else the current branch's. For an existing review (`existing`), a missing branch dir falls
+ *  back to the review of a stack that has a PR from this branch, then to the repo's only review. */
 export function resolveDir(repo: string, dirFlag: string | undefined, { existing = false } = {}): string {
   if (dirFlag) return path.resolve(dirFlag);
   const root = reviewsOf(repo);
-  const own = branchDir(repo, (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim());
+  const branch = (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim();
+  const own = branchDir(repo, branch);
   if (!existing || fs.existsSync(own)) return own;
+  const stacked = stackReview(repo, (p) => p.headLabel === branch);
+  if (stacked) return stacked;
   const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
   throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);

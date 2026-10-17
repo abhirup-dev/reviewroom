@@ -10,7 +10,7 @@ export const registryDir = () => path.join(homeDir(), 'sessions');
 /** The hub's record (`reviewroom hub`, one per machine) and its log when started in the background. */
 export const hubFile = () => path.join(homeDir(), 'hub.json');
 export const hubLog = () => path.join(homeDir(), 'hub.log');
-/** Every review on this machine: reviews/<owner>-<repo>/<branch>/ (resolveDir). */
+/** Every review on this machine: reviews/<owner>-<repo>/<branch>/, or stack-<id>/ for a stack of PRs (resolveDir). */
 export const reviewsDir = () => path.join(homeDir(), 'reviews');
 /** The reviewer's saved layouts (<name>.json), shared by every review on this machine. */
 export const layoutsDir = () => path.join(homeDir(), 'layouts');

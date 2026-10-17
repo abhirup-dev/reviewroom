@@ -48,8 +48,8 @@ tab reconnects by itself. That is expected.
 
 ## Step 2: Relay the URL
 
-The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`,
-outside the repo) and the URL.
+The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`, or
+`.../stack-<id>` when the PR is in a stack of PRs: one review covers the whole stack; outside the repo) and the URL.
 `reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 

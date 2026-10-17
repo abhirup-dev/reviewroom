@@ -67,3 +67,30 @@ export function setup() {
     url: (reviewDir = dir) => until<string>(() => JSON.parse(read(reviewDir, 'server.json')).url),
   };
 }
+
+/** A stack of three PRs (examples/make-stack-repo.sh --squashed: #1 squash-merged) with a stub stack in its review's
+ *  config.json, as `pr <n>` writes it from GitHub (no GitHub here). Await `ready` first. */
+export function stackSetup() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-stack-'));
+  const repo = path.join(tmp, 'repo');
+  const home = path.join(tmp, 'home');
+  const dir = path.join(home, 'reviews', 'repo', 'stack-1');
+  const env = { ...process.env, REVIEWROOM_HOME: home };
+  const cli = (args: string[], input?: string) => run(env, args, input);
+  const prs = [1, 2, 3].map((number) => ({ number, title: `PR ${number}`, state: number === 1 ? 'merged' : 'open', headLabel: `stack-${number}`, head: `stack-${number}` }));
+  const ready = (async () => {
+    await $`bash ${path.join(root, 'examples', 'make-stack-repo.sh')} ${repo} --squashed`.quiet();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ repoPath: repo, base: 'main', head: 'stack-3', number: 2, title: 'PR 2', stack: { id: 1, source: 'chain', base: 'main', prs } }));
+  })();
+  afterAll(async () => {
+    await cli(['stop', '--repo', repo, '--dir', dir]);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+  return {
+    tmp, repo, dir, cli, ready,
+    d: ['--repo', repo, '--dir', dir],
+    git: (...args: string[]) => $`git -C ${repo} ${args}`.quiet(),
+    sessions: () => fs.readdirSync(path.join(home, 'sessions')).map((f) => JSON.parse(read(home, 'sessions', f))),
+  };
+}

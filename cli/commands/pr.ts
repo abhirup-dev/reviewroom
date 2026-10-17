@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, type StackConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
+import { type ReviewConfig, type StackConfig, resolveDir, branchDir, stackDir, stackReview, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, gql, prTarget as prOf } from '../lib/github.ts';
 import { detectStack, type Query } from '../lib/stack.ts';
@@ -56,6 +56,8 @@ async function prTarget(repo: string, o: PrOpts, n: string): Promise<Target> {
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
   const top = stack?.prs.at(-1);
   const cfg = { base, head: top?.head ?? head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: top?.headLabel ?? (info?.headRefName || `PR #${n}`), stack };
+  // a stack has one review, whichever of its PRs it was opened from, and keeps it when its id changes (the bottom merged)
+  if (stack) return { dir: stackReview(repo, (p) => stack.prs.some((q) => q.number === p.number)) ?? stackDir(repo, stack.id), cfg };
   return { dir: branchDir(repo, info?.headRefName || `pr-${n}`), cfg }; // pr-<n> only when gh can't name the branch
 }
 
