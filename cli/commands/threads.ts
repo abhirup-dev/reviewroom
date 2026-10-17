@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit, readConfig } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
-import { anchorText, githubContext } from '../../src/shared/feedback.ts';
+import { anchorText, byPr, githubContext, threadPr } from '../../src/shared/feedback.ts';
 import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/core/types.ts';
@@ -34,14 +34,18 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
     return;
   }
   const walkthrough = validWalkthrough(dir);
+  const stack = readConfig(dir).stack?.prs;
   console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
-  for (const t of list) {
-    const last = t.messages[t.messages.length - 1];
-    console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor, walkthrough)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
-    for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
-    if (last?.author === 'you') console.log('  -> awaiting agent reply');
+  for (const g of byPr(list, stack, threadPr)) {
+    if (stack) console.log(`\n== ${g.pr ? `#${g.pr.number} ${g.pr.title} (branch ${g.pr.headLabel})` : 'the whole stack'}`);
+    for (const t of g.items) {
+      const last = t.messages[t.messages.length - 1];
+      console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor, walkthrough)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
+      for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
+      if (last?.author === 'you') console.log('  -> awaiting agent reply');
+    }
   }
-  if (github.length) console.log('\n' + githubContext(github).join('\n'));
+  if (github.length) console.log('\n' + githubContext(github, stack).join('\n'));
 }
 
 // Agent replies as ops: `reply <thread> "<md>"`, or `reply --json <file|->` with [{thread, body, resolve?}].

@@ -92,10 +92,11 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
       if (op.round !== undefined && op.round !== s.round) throw new OpError('conflict', `round ${op.round} is already finished (now round ${s.round})`);
       if (r && r.status !== 'open') throw new OpError('conflict', `round ${s.round} is already ${r.status}`);
       // deliveredAt null = finished, not yet printed to the agent (absent on rounds from before this field existed)
-      const done: Pick<Round, 'status' | 'sentAt' | 'note' | 'deliveredAt'> = { status: op.kind === 'approve' ? 'approved' : 'sent', sentAt: now, note: op.note || undefined, deliveredAt: null };
+      const kind = finishKind(op);
+      const done: Pick<Round, 'status' | 'sentAt' | 'note' | 'deliveredAt' | 'verdicts'> = { status: kind === 'approve' ? 'approved' : 'sent', sentAt: now, note: op.note || undefined, deliveredAt: null, ...(op.verdicts && { verdicts: op.verdicts }) };
       if (r) Object.assign(r, done);
       else s.rounds.push({ n: s.round, startedAt: now, ...done });
-      if (op.kind === 'feedback') {
+      if (kind === 'feedback') {
         s.round += 1;
         s.rounds.push({ n: s.round, status: 'open', startedAt: now });
       }
@@ -120,6 +121,10 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
   s.rev = (s.rev ?? 0) + 1;
   return s;
 }
+
+/** What finishing a round amounts to: with per-PR verdicts, an approval only if every PR is approved. */
+export const finishKind = (op: { kind: 'feedback' | 'approve'; verdicts?: Record<string, string> }) =>
+  op.kind === 'approve' && Object.values(op.verdicts ?? {}).some((v) => v !== 'approve') ? 'feedback' : op.kind;
 
 /** Rounds finished but never printed to the agent, oldest first. */
 export const undelivered = (s: ReviewState) => s.rounds.filter((r) => r.status !== 'open' && r.deliveredAt === null);

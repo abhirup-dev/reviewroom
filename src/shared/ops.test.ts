@@ -85,3 +85,9 @@ test('viewed in one layer of a stack is not viewed in another, nor in the whole 
   expect(s.viewed).toEqual({ '366:a.go': 1 });
   expect(applyOp(s, { op: 'setViewed', path: 'a.go', viewed: false, pr: 366 }).viewed).toEqual({});
 });
+
+test('per-PR verdicts: approve stands only if every PR is approved', () => {
+  const changes = applyOp(empty(), { op: 'finishRound', kind: 'approve', verdicts: { 366: 'approve', 368: 'changes' } });
+  expect([changes.rounds[0].status, changes.round, changes.rounds[0].verdicts]).toEqual(['sent', 2, { 366: 'approve', 368: 'changes' }]);
+  expect(applyOp(empty(), { op: 'finishRound', kind: 'approve', verdicts: { 366: 'approve' } }).rounds[0].status).toBe('approved');
+});

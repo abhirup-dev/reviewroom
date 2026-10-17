@@ -59,6 +59,22 @@
               }
             ]
           },
+          "verdicts": {
+            "description": "A stack of PRs: the verdict on each PR when the round was finished",
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "changes",
+                "comment"
+              ]
+            }
+          },
           "heads": {
             "description": "The commits the round showed, as the server last served them: base and head of the whole range, and in a stack of PRs each PR's head as `#<n>`, bottom first. Absent on rounds from before this field existed.",
             "type": "object",

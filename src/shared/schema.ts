@@ -56,6 +56,10 @@ export const StoredThread = z.object({
   title: z.string().optional(),
 });
 
+/** A stack of PRs: the reviewer's verdict on each PR, by number. */
+const Verdicts = z.record(z.string().regex(/^[1-9]\d*$/, 'a PR number'), z.enum(['approve', 'changes', 'comment']));
+export type Verdicts = z.infer<typeof Verdicts>;
+
 export const Round = z.object({
   n: int,
   status: z.enum(['open', 'sent', 'approved']),
@@ -66,6 +70,7 @@ export const Round = z.object({
     .nullable()
     .optional()
     .describe("When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."),
+  verdicts: Verdicts.optional().describe('A stack of PRs: the verdict on each PR when the round was finished'),
   heads: z
     .record(z.string(), z.string())
     .optional()
@@ -102,8 +107,8 @@ export const GitHubAction = z.discriminatedUnion('action', [
 export type GitHubAction = z.infer<typeof GitHubAction>;
 
 /** Every change to the state, applied by applyOp in src/shared/ops.ts. `at` defaults to now. */
-/** POST /api/finish is this op without `op`. */
-export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional() });
+/** POST /api/finish is this op without `op`. With verdicts, `approve` stands only if every PR is approved. */
+export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional(), verdicts: Verdicts.optional() });
 export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('createThread'), id: nonEmpty, anchor: Anchor, msgId: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
   z.object({ op: z.literal('addMessage'), threadId: nonEmpty, id: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
