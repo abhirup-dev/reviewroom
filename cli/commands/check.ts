@@ -14,14 +14,16 @@ type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkR
 /** The stale-link check of review.html (missing: '') and walkthrough.json, which must match its schema first
  *  (else only `issues`), plus the walkthrough's static checks (`notes`; `estimates: false` when rendering measures them).
  *  Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files. */
-export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean } = {}): Promise<Checked> {
+export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean; notes?: boolean } = {}): Promise<Checked> {
   const tour = readWalkthrough(dir);
   if (tour && !tour.ok) return { issues: tour.issues };
   const file = path.join(dir, 'review.html');
   const tourFile = walkthroughPath(dir);
   const tourRaw = tour ? fs.readFileSync(tourFile, 'utf8') : '';
   const r = repoOf(dir, repo);
-  const prov = makeProvider(r, loadConfig(dir, r));
+  const raw = makeProvider(r, loadConfig(dir, r));
+  const found = new Map<string, ReturnType<typeof raw.search>>(); // the link check and the notes resolve the same symbols
+  const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   let { results, links } = checkLinks(html, prov, o.accept ? {} : known, tour?.ok ? tourText(tour.value) : '');
@@ -36,7 +38,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (healed) ({ results, links } = checkLinks(fixed, prov, links, tour?.ok ? tourText(JSON.parse(fixedTour)) : ''));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const value = tour?.ok ? tour.value : null;
-  const notes = value ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
+  const notes = value && o.notes !== false ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
   return { tour: value, results, bad: locate(problems(results), value), healed, notes };
 }
 

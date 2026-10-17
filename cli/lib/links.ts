@@ -27,7 +27,7 @@ const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1'
 
 /** Every distinct rr: link in the narrative, outside HTML comments (trailing sentence punctuation dropped). */
 export const extractLinks = (html: string) => [...new Set((html.match(LINK) ?? []).map((l) => l.replace(/[.,;:]+$/, '')))];
-const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
+export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 
 /**

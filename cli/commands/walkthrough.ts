@@ -21,7 +21,7 @@ export async function cmdWalkthrough(repo: string | null, o: Global & { dryRun?:
   if (action !== 'publish') fail('usage: reviewroom walkthrough publish [--dry-run] [--allow-stale]', 2);
   const dir = dirForEdit(repo, o.dir);
   if (!fs.existsSync(walkthroughPath(dir))) fail(`no walkthrough.json in ${dir}`);
-  const c = await runCheck(repo, dir, { store: !o.dryRun });
+  const c = await runCheck(repo, dir, { store: !o.dryRun, notes: false });
   if ('issues' in c) fail(schemaReport(c.issues));
   if (c.bad.length && !o.allowStale) fail(`${c.bad.length} link(s) need attention (fix them, or publish anyway with --allow-stale):\n${report(c.bad)}`);
   const t = prTarget(readConfig(dir));

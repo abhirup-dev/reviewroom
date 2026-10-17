@@ -5,7 +5,7 @@ import { plain } from '../../src/shared/feedback.ts';
 import { parseRef } from '../../src/shared/refs.ts';
 import { stepRefs, type Walkthrough } from '../../src/shared/walkthrough.ts';
 import { target } from '../../src/flows/walkthrough.ts';
-import { extractLinks } from './links.ts';
+import { extractLinks, uncomment } from './links.ts';
 import { tourText } from './walkthrough.ts';
 
 export type Finding = { check: string; level: 'warn' | 'info'; where?: string; message: string; fix: string };
@@ -15,13 +15,13 @@ const MAX_TOTAL = 25;
 const MAX_WORDS = 120; // a step's text; past this it rarely fits next to the code (an estimate: `lint` measures)
 const MAX_LINES = 60; // highlighted in one ref (an estimate: `lint` measures)
 const SMALL = 10; // changed lines below which an unshown file is only mentioned
-const TEST = /(^|\/)(tests?|__tests__|spec|testdata)\/|[._-](test|spec)\.[^/]+$|_test\.go$/;
+const TEST = /(^|\/)(tests?|__tests__|testdata)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/;
 
 /** The static checks. `estimates`: also the text-length and range-width guesses that rendering measures for real. */
 export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name: string) => string | undefined, { estimates = true } = {}): Finding[] {
   const out: Finding[] = [];
   const shown = new Set<string>();
-  for (const ref of extractLinks(tourText(w))) {
+  for (const ref of extractLinks(uncomment(tourText(w)))) { // a link in an HTML comment shows nothing
     const r = parseRef(ref);
     const p = r?.type === 'code' || r?.type === 'file' ? r.path : r?.type === 'sym' ? symPath(r.name) : undefined;
     if (p) shown.add(p);
@@ -59,6 +59,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
 export function findingReport(fs: Finding[], w: Walkthrough) {
   const order = ['', ...w.chapters.flatMap((c) => [c.id, ...c.steps.map((s) => `${c.id}/${s.id}`)])];
   const groups = new Map<string, Finding[]>();
-  for (const f of [...fs].sort((a, b) => order.indexOf(a.where ?? '') - order.indexOf(b.where ?? ''))) groups.set(f.where ?? '', [...(groups.get(f.where ?? '') ?? []), f]);
+  const rank = (f: Finding) => (order.indexOf(f.where ?? '') + 1 || order.length + 1); // unknown places last
+  for (const f of [...fs].sort((a, b) => rank(a) - rank(b))) groups.set(f.where ?? '', [...(groups.get(f.where ?? '') ?? []), f]);
   return [...groups].map(([where, g]) => `${where ? `[${where}]` : '[walkthrough]'}\n${g.map((f) => `  ${f.level.padEnd(4)} ${f.check}: ${f.message}\n       fix: ${f.fix}`).join('\n')}`).join('\n');
 }

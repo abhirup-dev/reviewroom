@@ -33,3 +33,11 @@ test('the report groups by place, the whole walkthrough first, then in walkthrou
   expect(r.split('\n').filter((l) => l.startsWith('['))).toEqual(['[walkthrough]', '[one/s1]', '[two]']);
   expect(r).toContain('fix: Give the step (or an earlier one) a ref');
 });
+
+test('a link in an HTML comment shows nothing; Python test_ files are tests; unknown places report last', () => {
+  const v: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [step('s1', 'rr:code/x.go#L1', '<!-- rr:code/pkg/b.go#L1 -->')] }] };
+  const fs = lintTour(v, [file('x.go', 20), file('pkg/b.go', 20), file('pkg/test_svc.py', 20)], () => undefined);
+  expect(fs.map((f) => f.message)).toEqual(['1 changed file(s) no step shows: pkg/b.go (+20 -0)', 'also not shown (small or tests): pkg/test_svc.py (+20 -0)']);
+  const r = findingReport([{ check: 'x', level: 'info', where: 'gone/s9', message: 'm', fix: 'f' }, ...fs], v);
+  expect(r.split('\n').filter((l) => l.startsWith('['))).toEqual(['[walkthrough]', '[gone/s9]']);
+});
