@@ -1,6 +1,10 @@
-// Layout files: a small declarative tree of splits and tab stacks. Built-in presets, the reviewer's default and
+// Layout files: a small declarative tree of splits and tab stacks. The shipped layouts, the reviewer's default and
 // their named layouts are all this shape; the dock loads one by compiling it to dockview's own JSON.
 import { z } from 'zod';
+import reading from '../layouts/reading.json';
+import wideCode from '../layouts/wide-code.json';
+import codeFocus from '../layouts/code-focus.json';
+import narrativeFocus from '../layouts/narrative-focus.json';
 
 /** `size` along the parent split: > 1 is pixels, <= 1 a fraction of what the pixel-sized siblings leave;
  *  unsized children share the rest. A split inside a split of the same direction is flattened. */
@@ -14,6 +18,10 @@ export const LayoutNode: z.ZodType<LayoutNode> = z.lazy(() =>
 export const Layout = z.object({ title: z.string().min(1), hint: z.string().optional(), root: LayoutNode });
 /** A layout file's name: what it's saved as and how menus, `layout=""` and `rr.layout()` refer to it. */
 export const LayoutId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,47}$/);
+/** The id a layout saved as `title` gets ('' if the title has no letters or digits). */
+export const layoutId = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+/** The layouts reviewroom ships (src/layouts/): always there, never replaced by a saved one. */
+export const builtinLayouts = { reading, 'wide-code': wideCode, 'code-focus': codeFocus, 'narrative-focus': narrativeFocus } as Record<string, Layout>;
 
 // dockview's serialised grid, as much of it as this file reads and writes
 type Orientation = 'HORIZONTAL' | 'VERTICAL';
@@ -21,6 +29,8 @@ type DockNode = { type: 'leaf' | 'branch'; data: DockGroup | DockNode[]; size?: 
 type DockGroup = { views: string[]; activeView?: string; id: string };
 export type DockJSON = { grid: { root: DockNode; width: number; height: number; orientation: Orientation }; panels: Record<string, { id: string; contentComponent?: string; title?: string; params?: Record<string, unknown> }> };
 type Panel = DockJSON['panels'][string];
+/** The reviewer's saved layouts by id, and which one (if any) is their default. */
+export type SavedLayouts = { layouts: Record<string, Layout>; default: string | null };
 /** A review's own layout: its dock as the reviewer left it (on-demand panels too), the PR panels it has offered,
  *  and the layout the dock was built from (where closed panels go back to). */
 export type LastLayout = { dock: DockJSON; offered: string[]; layout?: string };
