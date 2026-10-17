@@ -82,6 +82,7 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
 export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
+  const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, 'review.html');
@@ -200,7 +201,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
-      await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash() }) });
+      await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
       onClient?.();
@@ -221,7 +222,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
     writeState(dir, s);
     send('state', s);
-    const res = json(c, { ok: true, round: s.round });
+    const res = json(c, { ok: true, round: s.round, state: s });
     onFinish?.({ kind, md, round: n }); // serve.ts exits 150 ms later, after this response is out
     return res;
   });

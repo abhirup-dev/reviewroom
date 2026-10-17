@@ -171,14 +171,20 @@ kbd {
   background: var(--rr-panel-2);
   color: var(--rr-muted);
 }
-.rr-root.is-waiting .rr-send-btn {
+.rr-root.is-waiting .rr-send-btn,
+.rr-root.is-approved .rr-send-btn {
   opacity: 0.6;
 }
-.rr-root.is-waiting .rr-header::after {
-  content: 'Waiting for the agent…';
+/* beats .rr-pill's display; the root class for the status shows one */
+.rr-header .rr-round-status {
+  display: none;
   font-size: var(--rr-text-sm);
   color: var(--rr-muted);
-  margin-left: 4px;
+}
+.is-waiting .rr-round-status--waiting,
+.is-approved .rr-round-status--approved,
+.is-offline .rr-round-status--offline {
+  display: inline-flex;
 }
 .rr-root.is-picking .rr-doc-wrap {
   cursor: crosshair;
@@ -337,6 +343,12 @@ kbd {
   color: var(--rr-warn);
   background: var(--rr-warn-soft);
   border-color: transparent;
+}
+.rr-unsaved {
+  display: none;
+}
+.is-unsaved .rr-unsaved {
+  display: inline-flex;
 }
 .rr-pill--gh {
   color: var(--rr-ink-2);

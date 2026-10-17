@@ -25,3 +25,15 @@ test('saved markdown: labels lose brackets, embeds get their own line, empty lab
   expect(roundTrip('[a[b](rr:code/a.go) x ![e](rr:doc/s) y\n\n\n\nz\u00a0').saved).toBe('[ab](rr:code/a.go) x \n![e](rr:doc/s)\n y\n\nz');
   expect(roundTrip('[](rr:code/a.go)').saved).toBe('[label of rr:code/a.go](rr:code/a.go)');
 });
+
+test('Cancel throws the draft away; Esc keeps it for next time', () => {
+  const key = 'reviewroom:draft:test';
+  const open = () => composer({ label: (r: string) => r, selection: null } as never, { placeholder: 'Reply', buttons: [{ label: 'Send', onSubmit: () => {} }], draftKey: key, onCancel: () => {} });
+  localStorage.setItem(key, 'half a thought');
+  const c = open();
+  expect(c.el.querySelector('.rr-composer__input')!.textContent).toBe('half a thought');
+  c.el.querySelector('.cm-content')!.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  expect(localStorage.getItem(key)).toBe('half a thought');
+  [...open().el.querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!.click();
+  expect(localStorage.getItem(key)).toBe(null);
+});

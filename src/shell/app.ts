@@ -14,6 +14,7 @@ import { applyOp } from '../shared/ops';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 import type { GitHubAction } from '../shared/schema';
+import { showPanel } from './layout';
 
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';
@@ -410,15 +411,6 @@ export class ReviewApp {
     this.bus.emit('toast', { text, kind });
   }
   showPanel(id: string) {
-    const p = this.dock?.getPanel(id);
-    if (p) {
-      // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
-      // a panel behind another group's maximize still needs setActive, which brings it out
-      const covered = this.dock.hasMaximizedGroup() && !p.group.api.isMaximized();
-      if (p.api.isVisible && !covered) p.group.api.setActive();
-      else p.api.setActive();
-      return true;
-    }
-    return false;
+    return showPanel(this, id);
   }
 }

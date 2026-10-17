@@ -26,6 +26,7 @@ src/index.ts          boot(), the window.rr API for review authors, command/shor
 src/core/             data model (types), rr: links (refs), commands, markdown, small DOM helpers
 src/shared/           used by both the client and the CLI (no DOM, no Node): schema (state.json + ops, Zod), ops (the reducer), feedback
 src/providers/        where code comes from (local server, GitHub, static fixture) and where state lives
+src/flows/            UI flows as XState machines, render-agnostic (thread popup lifecycle); views subscribe
 src/shell/            ReviewApp (shared context + events), dock layout & presets, header
 src/panels/           dockable panels: narrative, code, files/contents/threads
 src/overlays/         thread popup/panel + composer, palette, hover previews, tooltips, toasts

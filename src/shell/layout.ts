@@ -311,6 +311,47 @@ export function offerGitHubPanels(app: ReviewApp) {
   offer('description', g?.description, addDescription);
 }
 
+// The rest of the app asks for panels through these, never dockview itself: a phone or tablet layout replaces them.
+export const hasPanel = (app: ReviewApp, id: string) => !!app.dock?.getPanel(id);
+export const closePanel = (app: ReviewApp, id: string) => app.dock?.getPanel(id)?.api.close();
+export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.dock?.getPanel(id)?.api.setTitle(title);
+/** The first open panel `match` accepts. */
+export const findPanel = (app: ReviewApp, match: (id: string, params: Record<string, unknown> | undefined) => boolean) => app.dock?.panels.find((p) => match(p.id, p.params))?.id;
+
+/** Bring an open panel to the front; false if it isn't open. */
+export function showPanel(app: ReviewApp, id: string) {
+  const p = app.dock?.getPanel(id);
+  if (!p) return false;
+  // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
+  // a panel behind another group's maximize still needs setActive, which brings it out
+  const covered = app.dock.hasMaximizedGroup() && !p.group.api.isMaximized();
+  if (p.api.isVisible && !covered) p.group.api.setActive();
+  else p.api.setActive();
+  return true;
+}
+
+export type Placement = 'right' | 'below' | 'float' | 'center';
+/** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
+export function addPanelAt(app: ReviewApp, panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: Placement, near?: string) {
+  const api = app.dock;
+  const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
+  if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
+  else api.addPanel({ ...panel, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined });
+}
+
+/** A thread as a panel: beside the narrative, or stacked with the threads already docked. */
+export function dockThread(app: ReviewApp, id: string, title: string) {
+  const api = app.dock;
+  const pid = 'thread:' + id;
+  if (!api.getPanel(pid)) {
+    const other = api.panels.find((p) => p.id.startsWith('thread:'));
+    const near = other ?? api.getPanel('narrative') ?? api.activePanel;
+    api.addPanel({ id: pid, component: 'thread', title, params: { id }, position: near ? { referencePanel: near.id, direction: other ? 'within' : 'right' } : undefined });
+    if (!other) api.getPanel(pid)?.group.api.setSize({ width: 420 });
+  }
+  showPanel(app, pid);
+}
+
 /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
 export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, unknown>) {
   const api = app.dock;
