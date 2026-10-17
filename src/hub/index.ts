@@ -30,7 +30,8 @@ const AGENTS: Record<string, [name: string, svg?: string]> = {
   droid: ['Droid'],
 };
 const TOOLS: Record<string, string> = { reviewroom: 'reviewroom', crit: 'Crit', plannotator: 'Plannotator' };
-const HEALTH: Record<string, string> = { ok: 'Its server answered the last check', unreachable: 'Its server did not answer in time', unknown: 'Not checked: no loopback URL to ask' };
+/** "5 min. ago" within a week, else the day without the year ("Oct 8"). */
+const started = (iso: string) => (Date.now() - Date.parse(iso) < 7 * 86400e3 ? relTime(iso) : new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
 const prettyKind = (k: string) => k.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 const base = (p: string | null) => p?.split('/').filter(Boolean).pop() ?? '';
 
@@ -97,7 +98,6 @@ const columns: [SortKey | null, string, string, string?][] = [
   ['subject', 'Review', 'What is under review: the title, PR, branch or file'],
   ['reviewRound', 'Round', 'The review round it is on: each round ends when the reviewer sends feedback', 'num'],
   ['commentCount', 'Comments', 'Comment threads so far (hover a number for how many are open)', 'num'],
-  [null, 'Health', 'Whether its server answered the last check'],
   ['startedAt', 'Started', 'When the session’s server started'],
   ['kind', 'Kind', 'What kind of review, from how it was launched'],
   ['repository', 'Repository', 'The git repository it reviews'],
@@ -107,8 +107,10 @@ const columns: [SortKey | null, string, string, string?][] = [
   ['pid', 'PID', 'Process id of the session’s server'],
   [null, '', ''],
 ];
+/** A column's class (c-round, c-directory, ...): narrow screens hide the least needed ones (hub.css). */
+const col = (label: string) => `c-${(label || 'actions').toLowerCase()}`;
 const heads = columns.map(([key, label, tip, cls]) =>
-  h('th', { class: cls, title: tip ? (key ? `${tip}. Click to sort` : tip) : undefined, onclick: key ? () => ((sort.dir = sort.key === key ? (-sort.dir as 1 | -1) : 1), (sort.key = key), paint()) : undefined, 'data-sort': key ?? undefined }, label),
+  h('th', { class: [cls, col(label)].filter(Boolean).join(' '), title: tip ? (key ? `${tip}. Click to sort` : tip) : undefined, onclick: key ? () => ((sort.dir = sort.key === key ? (-sort.dir as 1 | -1) : 1), (sort.key = key), paint()) : undefined, 'data-sort': key ?? undefined }, label),
 );
 const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
 
@@ -172,18 +174,23 @@ function row(s: SessionInfo) {
     'tr',
     { class: [on && 'is-selected', !seen.has(s.id) && 'is-new'].filter(Boolean).join(' ') || undefined, ondblclick: (e: MouseEvent) => !(e.target as Element).closest('a, button, input') && open(s) },
     h('td', { class: 'rr-hub__sel' }, h('input', { type: 'checkbox', class: 'rr-hub__check', checked: on, 'aria-label': `Select ${subject(s)}`, title: 'Select for Open or Close', onchange: () => (on ? selected.delete(s.id) : selected.add(s.id), paint()) })),
-    h('td', null, TOOLS[s.tool] ?? s.tool),
-    h('td', { class: 'rr-hub__subject', title: s.target ?? subject(s) }, subject(s)),
-    h('td', { class: 'num', title: s.reviewRound == null ? 'Not reported by this tool' : `Round ${s.reviewRound}` }, String(s.reviewRound ?? '–')),
-    h('td', { class: 'num' }, comments),
-    h('td', null, h('span', { class: `rr-pill rr-hub__health rr-hub__health--${s.health}`, title: HEALTH[s.health] + (s.urlNote ? ` (${s.urlNote})` : '') }, s.health)),
-    h('td', { title: s.startedAt ? new Date(s.startedAt).toLocaleString() : 'Not recorded' }, s.startedAt ? relTime(s.startedAt) : '–'),
-    h('td', { title: `${prettyKind(s.kind)} (${s.category}), from ${s.classificationSource}` }, prettyKind(s.kind)),
-    h('td', { class: 'rr-hub__trunc', title: s.repoRoot ?? '' }, s.repository ?? '–'),
-    h('td', { class: 'rr-hub__mono rr-hub__trunc', title: s.branch ?? '' }, s.branch ?? '–', s.worktree ? h('span', { class: 'rr-hub__dim', title: 'A linked git worktree' }, ' wt') : null),
-    h('td', { class: 'rr-hub__mono rr-hub__trunc rr-hub__cwd', title: s.cwd ?? '' }, s.cwd ?? '–'),
-    h('td', null, agent),
-    h('td', { class: 'rr-hub__mono', title: `Server process ${s.pid ?? 'unknown'}${s.port ? ` on port ${s.port}` : ''}` }, String(s.pid ?? '–')),
+    h('td', { class: col('Tool') }, TOOLS[s.tool] ?? s.tool),
+    h(
+      'td',
+      { class: 'rr-hub__subject', title: s.target ?? subject(s) },
+      h('div', { class: 'rr-hub__name' }, subject(s)),
+      // what the hidden columns said, under the title on narrow screens
+      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, TOOLS[s.tool] ?? s.tool), h('span', { class: 'rr-hub__sub-text' }, [s.repository, s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
+    ),
+    h('td', { class: 'num c-round', title: s.reviewRound == null ? 'Not reported by this tool' : `Round ${s.reviewRound}` }, String(s.reviewRound ?? '–')),
+    h('td', { class: 'num c-comments' }, comments),
+    h('td', { class: 'c-started', title: s.startedAt ? new Date(s.startedAt).toLocaleString() : 'Not recorded' }, s.startedAt ? started(s.startedAt) : '–'),
+    h('td', { class: 'c-kind', title: `${prettyKind(s.kind)} (${s.category}), from ${s.classificationSource}` }, prettyKind(s.kind)),
+    h('td', { class: 'rr-hub__trunc c-repository', title: s.repoRoot ?? '' }, s.repository ?? '–'),
+    h('td', { class: 'rr-hub__mono rr-hub__trunc c-branch', title: s.branch ?? '' }, s.branch ?? '–', s.worktree ? h('span', { class: 'rr-hub__dim', title: 'A linked git worktree' }, ' wt') : null),
+    h('td', { class: 'rr-hub__mono rr-hub__trunc rr-hub__cwd c-directory', title: s.cwd ?? '' }, s.cwd ?? '–'),
+    h('td', { class: 'c-agent' }, agent),
+    h('td', { class: 'rr-hub__mono c-pid', title: `Server process ${s.pid ?? 'unknown'}${s.port ? ` on port ${s.port}` : ''}` }, String(s.pid ?? '–')),
     h(
       'td',
       null,
@@ -204,7 +211,7 @@ function paint() {
   const total = data?.sessions.length ?? 0;
   const picked = rows.filter((s) => selected.has(s.id));
   // re-render only on change: a 2 s refresh must not steal focus or a hover
-  const key = JSON.stringify([rows.map((s) => [{ ...s, lastSeenAt: '', updatedAt: '' }, s.startedAt && relTime(s.startedAt)]), [...selected], sort, failed, warnings, data?.generatedAt && relTime(data.generatedAt)]);
+  const key = JSON.stringify([rows.map((s) => [{ ...s, lastSeenAt: '', updatedAt: '' }, s.startedAt && started(s.startedAt)]), [...selected], sort, failed, warnings, data?.generatedAt && relTime(data.generatedAt)]);
   if (key === painted) return;
   painted = key;
   meta.replaceChildren(h('span', { class: 'rr-pill', title: 'Sessions found across reviewroom, Crit and Plannotator' }, `${total} running`));

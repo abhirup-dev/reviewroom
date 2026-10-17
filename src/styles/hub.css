@@ -65,6 +65,20 @@
   min-height: 0;
   overflow: auto;
   background: var(--rr-surface-nav);
+  scrollbar-width: thin;
+  scrollbar-color: var(--rr-line-strong) transparent;
+}
+/* always visible, unlike macOS overlay scrollbars: the table may run past the right edge */
+.rr-hub__scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.rr-hub__scroll::-webkit-scrollbar-thumb {
+  background: var(--rr-line-strong);
+  border-radius: var(--rr-radius-lg);
+}
+.rr-hub__scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 .rr-hub__table {
   width: 100%;
@@ -150,9 +164,33 @@
 }
 .rr-hub__subject {
   max-width: 260px;
+}
+.rr-hub__name,
+.rr-hub__sub {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.rr-hub__name {
   font-weight: 500;
+}
+.rr-hub__sub {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+}
+.rr-hub__sub-tool {
+  display: none;
+}
+.rr-hub__sub-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-hub__sub .rr-hub__mark {
+  font-size: 13px;
 }
 .rr-hub__trunc {
   max-width: 200px;
@@ -192,16 +230,6 @@
 .rr-hub__dim {
   color: var(--rr-faint);
 }
-.rr-hub__health--ok {
-  border-color: transparent;
-  background: var(--rr-ok-soft);
-  color: var(--rr-ok);
-}
-.rr-hub__health--unreachable {
-  border-color: transparent;
-  background: var(--rr-risk-soft);
-  color: var(--rr-risk);
-}
 .rr-hub__actions {
   display: flex;
   align-items: center;
@@ -230,6 +258,68 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
 }
 .rr-hub__bar .rr-btn {
   transition: opacity 0.12s ease-out, background-color 0.12s ease-out;
+}
+/* narrower screens: drop the least needed columns; repository, branch, kind (and the tool, narrowest) move under the title */
+@media (max-width: 1279px) {
+  .rr-hub .c-directory,
+  .rr-hub .c-pid {
+    display: none;
+  }
+  /* the title takes what the other columns leave, and truncates */
+  .rr-hub__subject {
+    width: 100%;
+    min-width: 160px;
+    max-width: 0;
+  }
+  .rr-hub__trunc {
+    max-width: 150px;
+  }
+}
+@media (max-width: 1023px) {
+  .rr-hub .c-kind,
+  .rr-hub .c-repository,
+  .rr-hub .c-branch,
+  .rr-hub .c-agent {
+    display: none;
+  }
+  .rr-hub__sub {
+    display: flex;
+  }
+  .rr-hub__table td {
+    height: 44px;
+  }
+}
+@media (max-width: 639px) {
+  .rr-hub .c-tool,
+  .rr-hub .c-comments,
+  .rr-hub .c-started {
+    display: none;
+  }
+  .rr-hub__sub-tool {
+    display: inline;
+  }
+  .rr-hub__subject {
+    min-width: 120px;
+  }
+  .rr-hub__sub-tool::after {
+    content: '·';
+    margin-left: 6px;
+  }
+  .rr-hub__search {
+    flex: 1 1 100%;
+  }
+  .rr-hub__bar .rr-select,
+  .rr-hub__num {
+    flex: 1 1 40%;
+    width: auto;
+    max-width: none;
+  }
+  .rr-hub__spacer {
+    display: none;
+  }
+  .rr-hub .rr-header__title {
+    max-width: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-hub *,
