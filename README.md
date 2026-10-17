@@ -46,6 +46,19 @@ Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<b
 (the panels as you left them), and `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the
 **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 
+## Guided walkthroughs
+
+An agent can also write a guided walkthrough, `walkthrough.json`: chapters of slides the reviewer plays
+over the workbench, narration on the left, the slide's code (one chunk or several, across files) on the
+right, ← → between slides, pause to a pill to dig around, and **Comment** on a slide to start a thread
+anchored to it. It tells the main story; the walkthrough (`review.html`) is where the reviewer digs in,
+and a slide that draws questions gets a walkthrough section of its own with the slide embedded
+(`<rr-embed ref="rr:tour/…">`).
+`reviewroom walkthrough lint` plays every slide in a headless browser (Chrome, or Safari's engine on
+macOS) and reports what does not fit the screen; `reviewroom walkthrough shot` renders one slide. A PR
+author can ship one with the PR (`reviewroom walkthrough publish`); `reviewroom pr <n>` pulls it. The
+demo (`bun run demo`, then **Guided walkthrough** in the header) has one.
+
 ## GitHub threads and team reviews
 
 For a PR reviewed with `reviewroom pr <n>` (and `gh` logged in), the PR's own comment threads show

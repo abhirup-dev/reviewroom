@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit } from '../lib/config.ts';
-import { readState, commitOps, uid } from '../lib/state.ts';
+import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/shared/feedback.ts';
 import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
 import { cachedThreads } from '../lib/github.ts';
@@ -33,10 +33,11 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
     console.log(JSON.stringify({ round: s.round, threads: list, github }, null, 2));
     return;
   }
+  const walkthrough = validWalkthrough(dir);
   console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
   for (const t of list) {
     const last = t.messages[t.messages.length - 1];
-    console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
+    console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor, walkthrough)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
     for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
     if (last?.author === 'you') console.log('  -> awaiting agent reply');
   }

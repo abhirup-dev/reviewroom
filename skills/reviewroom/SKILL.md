@@ -1,6 +1,6 @@
 ---
 name: reviewroom
-description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code and answer the reviewer's threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided/walkthrough review of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
+description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code, optionally a guided walkthrough (chaptered slides played over the code), and answer the reviewer's threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided walkthrough, guided review or tour of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
 ---
 
 # Review with reviewroom
@@ -61,16 +61,48 @@ Read `git diff <base>...<head> --stat`, then the files. Find the entry point, th
 storage / proto / config changes, failure paths and what the tests cover. Read the PR description
 when `gh` is available.
 
+**Decide on a guided walkthrough now.** A guided walkthrough (`walkthrough.json` next to
+`review.html`) is the main story of the diff played over the workbench: chapters of slides, narration on
+the left, the slide's code on the right. When there is one, the reviewer opens it first, so it tells the
+main story; the walkthrough (`review.html`) is where they dig in.
+
+- Write one when the reviewer asked for a guided walkthrough, guided review or tour.
+- If they didn't, and the diff has a path to follow across files or touches more than about five,
+  ask once: **"Want a guided walkthrough of this diff too?"** Don't wait for the answer: go on with
+  the walkthrough, and write the guided walkthrough (Step 4b) if the answer is yes.
+
 ## Step 4: Write the walkthrough
 
 Before writing, read:
-1. `references/review-craft.md`: what to say and in what order.
+1. `references/review-craft.md`: what to say and in what order (with a guided walkthrough, "The guided
+   walkthrough and the walkthrough" first: outline the story once, then write both from it).
 2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
 
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
 
-Tell the reviewer: **"The walkthrough is ready. Leave comments, then click Send feedback (or Approve)."**
+## Step 4b: Write the guided walkthrough, when wanted
+
+Read "Guided walkthrough" in `references/authoring.md`, write `walkthrough.json`, then loop until
+`lint` is clean:
+
+```bash
+reviewroom check --dir <dir>                              # schema, links, what the slides leave out, pacing
+reviewroom walkthrough lint --dir <dir>                   # every slide measured on screen; exit 1 while warnings remain
+reviewroom walkthrough shot <chapter>/<step> --dir <dir>  # look at a slide a finding names (prints a PNG path)
+```
+
+(`reviewroom walkthrough …` and `walkthrough.json` are the guided walkthrough's names.) Each finding
+names the chapter/step and how to fix it. Take a screenshot only of slides you need to see.
+
+## Step 4c: Hand over
+
+Only once the walkthrough (and the guided walkthrough, if wanted) is done and clean, tell the reviewer:
+
+- With a guided walkthrough: **"The review is ready. Start with the guided walkthrough:
+  <url>?walkthrough= — then leave comments on slides or the walkthrough, and click Send feedback (or
+  Approve)."** (`?walkthrough=` opens the player at the first slide; the page alone does not.)
+- Without: **"The walkthrough is ready. Leave comments, then click Send feedback (or Approve)."**
 
 ## Step 5: Wait for the reviewer
 
@@ -110,6 +142,14 @@ For each thread in the feedback:
 
 If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports.
 
+A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
+the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a
+deeper explanation, a table, a sketch), grow the walkthrough instead of the slide: a new `data-round`
+section that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its
+top and expands on it; the reply links that section, and the discussion continues there. Edit the
+slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
+again as in Step 4b (`check`, then `walkthrough lint --dir <dir>`, then `shot` where needed) until clean.
+
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):
 `reviewroom reply --json <replies.json> --dir <dir>`, with `[{"thread": "t_ab12", "body": "…"}]`.
@@ -139,7 +179,8 @@ when ready."** Then return to Step 5.
   reviewer acts. Never run `reviewroom pr` without `--wait` or `--detach`: it serves forever.
 - Do not stop or kill the background command to "finish" a round; wait for it to exit.
 - Do not pass `--resolve` unless the reviewer explicitly asks.
-- Do not edit anything in the review directory except `review.html` and assets you add next to it.
+- Do not edit anything in the review directory except `review.html`, `walkthrough.json` and assets
+  you add next to them.
 - Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
   any round, team thread, earlier round) in plain text, and do not paraphrase or quote a thread:
   link or embed it. Link a thing where it first comes up; when the same thing appears again within

@@ -302,7 +302,11 @@ class ThreadsPanel implements PanelInstance {
     const r = ref ? parseRef(ref) : null;
     return h(
       'button',
-      { class: 'rr-thread-item' + (t.status === 'resolved' ? ' is-resolved' : ''), title: 'Open thread', onclick: () => app.bus.emit('open-thread', { id: t.id }) },
+      { class: 'rr-thread-item' + (t.status === 'resolved' ? ' is-resolved' : ''), title: 'Open thread', onclick: () => {
+          // a walkthrough step's thread: the player at that step, the thread over it
+          if (t.anchor.kind === 'tour') app.bus.emit('walkthrough-open', { chapter: t.anchor.chapter, step: t.anchor.step });
+          app.bus.emit('open-thread', { id: t.id });
+        } },
       h(
         'div',
         { class: 'rr-thread-item__anchor' },
@@ -368,6 +372,7 @@ class ThreadsPanel implements PanelInstance {
       ['PR description', list.filter((t) => t.anchor.kind === 'doc' && t.anchor.target === PR_DESCRIPTION)],
       ['Narrative', list.filter((t) => !t.gh && t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)],
       ['Code', list.filter((t) => !t.gh && (t.anchor.kind === 'code' || t.anchor.kind === 'symbol'))],
+      ['Guided walkthrough', list.filter((t) => t.anchor.kind === 'tour')],
       ['General', list.filter((t) => !t.gh && t.anchor.kind === 'general')],
       ['GitHub', list.filter((t) => t.gh)],
     ];

@@ -22,6 +22,20 @@ describe('api', () => {
   test('summary gives round and counts without thread text', async () =>
     expect(await (await fetch(url + 'api/summary')).json()).toMatchObject({ round: 1, threads: 0, browserClients: expect.any(Number) }));
 
+  test('walkthrough: 404 when absent, the file when valid, 422 with issues when not', async () => {
+    const file = path.join(dir, 'walkthrough.json');
+    fs.rmSync(file, { force: true });
+    expect(await status('api/walkthrough')).toBe(404);
+    const w = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: '<p>x</p>', ref: 'rr:code/x.go#L1' }] }] };
+    fs.writeFileSync(file, JSON.stringify(w));
+    const ok = await fetch(url + 'api/walkthrough');
+    expect([ok.status, await ok.json()]).toEqual([200, w]);
+    fs.writeFileSync(file, JSON.stringify({ ...w, version: 2 }));
+    const bad = await fetch(url + 'api/walkthrough');
+    expect([bad.status, (await bad.json()).issues]).toEqual([422, [expect.stringContaining('version')]]);
+    expect(await status('api/walkthrough', { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403);
+    fs.rmSync(file);
+  });
   test('saved layouts: shipped and taken names are refused, deleting the default clears it', async () => {
     const put = (p: string, body: unknown) => fetch(url + p, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const mine = { title: 'Mine', root: { tabs: ['narrative'] } };

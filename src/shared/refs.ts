@@ -12,6 +12,7 @@ import type { Anchor } from '../core/types';
 //   rr:sym/<name>               a symbol (resolved via provider search)
 //   rr:thread/<id>              a comment thread
 //   rr:round/<n>                a review round
+//   rr:tour/<chapter>/<step>    a step of the walkthrough (walkthrough.json ids)
 
 export type Ref =
   | { type: 'doc'; id: string; path?: string }
@@ -19,7 +20,8 @@ export type Ref =
   | { type: 'file'; path: string; rev: string; start?: number; end?: number }
   | { type: 'sym'; name: string }
   | { type: 'thread'; id: string }
-  | { type: 'round'; n: number };
+  | { type: 'round'; n: number }
+  | { type: 'tour'; chapter: string; step: string };
 
 const LINES = /#L(\d+)(?:-L?(\d+))?$/;
 
@@ -62,6 +64,10 @@ export function parseRef(input: string): Ref | null {
         return { type: 'thread', id: rest };
       case 'round':
         return { type: 'round', n: +rest };
+      case 'tour': {
+        const [chapter, step, ...more] = rest.split('/').map(decodeURIComponent);
+        return chapter && step && !more.length ? { type: 'tour', chapter, step } : null;
+      }
     }
   } catch {
     /* fallthrough */
@@ -85,6 +91,8 @@ export function formatRef(r: Ref): string {
       return `rr:thread/${r.id}`;
     case 'round':
       return `rr:round/${r.n}`;
+    case 'tour':
+      return `rr:tour/${encodeURIComponent(r.chapter)}/${encodeURIComponent(r.step)}`;
   }
 }
 
@@ -97,6 +105,8 @@ export function anchorRef(a: Anchor): string | null {
       return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end });
     case 'symbol':
       return formatRef({ type: 'sym', name: a.name });
+    case 'tour':
+      return formatRef({ type: 'tour', chapter: a.chapter, step: a.step });
     default:
       return null;
   }
@@ -109,9 +119,11 @@ export function anchorOf(ref: string): Anchor {
     case 'doc':
       return { kind: 'doc', target: r.id, path: r.path };
     case 'code':
-      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? 1 };
+      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1 };
     case 'sym':
       return { kind: 'symbol', name: r.name };
+    case 'tour':
+      return { kind: 'tour', chapter: r.chapter, step: r.step };
     default:
       return { kind: 'general' };
   }

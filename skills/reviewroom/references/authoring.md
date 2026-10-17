@@ -43,6 +43,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
 | `rr:thread/t_ab12cd` | An agent thread (`gh_<n>`: a team thread on the PR) |
 | `rr:round/2` | The walkthrough as it was at the end of round 2 |
+| `rr:tour/latency/s3` | A guided walkthrough slide; `<rr-embed>` shows it as a slide card (its text, its code, a play button) |
 
 Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
 `reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
@@ -121,6 +122,7 @@ Interactive widgets can drive the reviewer straight into the code:
 | API | |
 |---|---|
 | `rr.open(ref)` | Navigate to any `rr:` ref |
+| `rr.walkthrough(chapter?, step?)` | Play the guided walkthrough (ids; none: from the start) |
 | `rr.findSymbol(name)` | Jump to a definition |
 | `rr.read(path, 'head' \| 'base' \| sha)` | File contents (string) |
 | `rr.files()` / `rr.search(q, symbol?)` | Changed files / repo search hits |
@@ -130,6 +132,57 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
 | `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus' \| <saved name>)` | Switch layout (false if there's no such layout) |
 | `rr.theme()` | `'light'` or `'dark'` |
+
+## Guided walkthrough: `walkthrough.json`
+
+The optional guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
+on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
+review directory and is validated against `schema/walkthrough.schema.json`. The demo has a full
+one: `examples/habit-events/walkthrough.json`.
+
+```json
+{
+  "version": 1,
+  "title": "Attach recent HABIT events to the ranker request",
+  "chapters": [
+    {
+      "id": "why",
+      "title": "Why this change",
+      "lead": "<p class=\"rr-lede\">…</p><rr-flow>…</rr-flow>",
+      "steps": [
+        { "id": "s1", "text": "<p>Before this PR, <a href=\"rr:sym/Build\">Builder.Build</a> …</p>", "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39" },
+        { "id": "s2", "text": "<p>A TFS error comes back wrapped (top); the builder degrades (below).</p>", "ref": ["rr:code/pkg/features/habit/fetcher.go#L23-26", "rr:code/pkg/ranker/request_builder.go#L50-54"] },
+        { "id": "s3", "text": "<p>That is the whole path.</p>" }
+      ]
+    }
+  ]
+}
+```
+
+| Field | |
+|---|---|
+| chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
+| `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-flow>` |
+| step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
+| step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
+| no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |
+
+Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code
+link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
+from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-flow>`, `<rr-callout>`, `<rr-embed>`; styles,
+scripts, forms, media and `<rr-check>` are stripped (`walkthrough lint` names what was). Aim for one concept per chapter and 2 to 5 slides each.
+The commands and the file keep the short name: `reviewroom walkthrough …`, `walkthrough.json`.
+
+- `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
+  (changed files no slide shows, chapter sizes, empty panes); problems name the slide (chapter/step).
+- `reviewroom walkthrough lint` plays every slide in a headless browser and reports what does not fit:
+  narration that needs scrolling, highlighted lines off screen, stacked chunks too short, content wider
+  than its box, prose the sanitizer strips, page errors. Each finding says how to fix it.
+- `reviewroom walkthrough shot <chapter>/<step>` renders one slide to a PNG (`--theme dark`, `--viewport`).
+- `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a slide,
+  and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the walkthrough.
+- `reviewroom walkthrough publish` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
+  comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 
 ## Typography and colour
 

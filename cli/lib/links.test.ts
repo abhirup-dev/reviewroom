@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
 import type { SearchHit } from '../../src/core/types.ts';
+import type { Walkthrough } from '../../src/shared/walkthrough.ts';
+import { fixTour, locate, tourText } from './walkthrough.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
 const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (_rev: string, p: string) => files[p] ?? null, search: (q: unknown) => (q === 'Build' ? [{ kind: 'definition' } as SearchHit] : []) });
@@ -26,7 +28,7 @@ test('code shifted <=5 lines is moved and fixable; further or edited is changed'
 
 test('broken files, symbols and sections; links that left the narrative drop out', () => {
   const p = prov({ 'a.go': body.join('\n') });
-  const { results, links } = checkLinks(html('rr:code/gone.go#L1', 'rr:code/a.go#L29-40', 'rr:sym/Build', 'rr:sym/Nope', 'rr:doc/intro', 'rr:doc/missing', 'rr:file/a.go@abc'), p, { 'rr:code/old.go#L1': 'deadbeef' });
+  const { results, links } = checkLinks(html('rr:code/gone.go#L1', 'rr:code/a.go#L29-40', 'rr:sym/Build', 'rr:sym/Nope', 'rr:doc/intro', 'rr:doc/missing', 'rr:file/a.go@abc', 'rr:tour/missing/nope'), p, { 'rr:code/old.go#L1': 'deadbeef' });
   expect(status(results)).toEqual({
     'rr:code/gone.go#L1': 'broken',
     'rr:code/a.go#L29-40': 'broken',
@@ -35,6 +37,7 @@ test('broken files, symbols and sections; links that left the narrative drop out
     'rr:doc/intro': 'ok',
     'rr:doc/missing': 'broken',
     'rr:file/a.go@abc': 'ok',
+    'rr:tour/missing/nope': 'broken',
   });
   expect(links).toEqual({ 'rr:sym/Build': 'definition' });
 });
@@ -58,4 +61,20 @@ test('--fix moves each link once, even when one lands where another was', () => 
     expect(fixed.html).toContain('rr:code/a.go#L10"');
     expect(problems(checkLinks(fixed.html, after, fixed.links).results)).toEqual([]);
   }
+});
+
+test('walkthrough.json: step refs and prose links are checked decoded, located, and fixed in the JSON', () => {
+  const w = { version: 1, title: 'T', chapters: [{ id: 'why', title: 'W', lead: '<a href="rr:doc/intro">i</a><!-- <a href="rr:code/old.go#L1"> -->', steps: [{ id: 's1', text: '<p>See rr:code/a.go#L4-6.</p>', ref: 'rr:code/a.go#L4-6' }, { id: 's2', text: 'y', ref: 'rr:doc/nope' }] }] };
+  const json = JSON.stringify(w, null, 2).replace(/\//g, '\\/') + '\n'; // escaped slashes are still the same links
+  const { links } = checkLinks(html(), prov({ 'a.go': body.join('\n') }), {}, tourText(JSON.parse(json)));
+  expect(Object.keys(links)).toEqual(['rr:code/a.go#L4-6']);
+  const after = prov({ 'a.go': ['new', 'new', ...body].join('\n') });
+  const { results } = checkLinks(html(), after, links, tourText(w as Walkthrough));
+  expect(locate(problems(results), w as Walkthrough).map((x) => [x.ref, x.status, x.where])).toEqual([
+    ['rr:code/a.go#L4-6', 'moved', ['why/s1']],
+    ['rr:doc/nope', 'broken', ['why/s2']],
+  ]);
+  const fixed = fixTour(json, results, links);
+  expect(JSON.parse(fixed).chapters[0].steps[0]).toEqual({ id: 's1', text: '<p>See rr:code/a.go#L6-8.</p>', ref: 'rr:code/a.go#L6-8' });
+  expect(fixed).toBe(JSON.stringify(JSON.parse(fixed), null, 2) + '\n');
 });

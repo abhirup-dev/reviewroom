@@ -4,6 +4,7 @@
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { loadRaw, saveLocal } from '../core/store';
 import { StoredState, type GitHubAction } from '../shared/schema';
+import { parseWalkthrough, type Walkthrough } from '../shared/walkthrough';
 import type { LastLayout, Layout, SavedLayouts } from '../shared/layout';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import { roundStatus, syncMachine, unsent } from '../flows/sync';
@@ -49,7 +50,10 @@ export interface StateBackend {
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */
   githubAct?(action: GitHubAction): Promise<GitHubSnapshot>;
+  /** The review's walkthrough.json: null when there is none, `{ issues }` when it breaks the schema. */
+  walkthrough?(): Promise<WalkthroughLoad>;
 }
+export type WalkthroughLoad = Walkthrough | { issues: string[] } | null;
 export interface BackendEvents {
   state(s: ReviewState): void;
   review(): void;
@@ -211,6 +215,13 @@ export class ServerState implements StateBackend {
   async saveLastLayout(layout: LastLayout) {
     await fetch(`${this.api}/layout`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout), keepalive: true });
   }
+  async walkthrough(): Promise<WalkthroughLoad> {
+    const r = await fetch(`${this.api}/walkthrough`);
+    if (r.status === 404) return null;
+    if (r.ok || r.status === 422) return r.json();
+    throw new Error(`walkthrough.json: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
+
+  }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }
@@ -313,7 +324,13 @@ const LS_KEY = (id: string) => `reviewroom:state:${id}`;
 
 export class BrowserState implements StateBackend {
   readonly kind = 'browser';
-  constructor(private id: string, private seed?: ReviewState) {}
+  /** `tour`: the text of the page's #rr-walkthrough script (the static demo embeds one) */
+  constructor(private id: string, private seed?: ReviewState, private tour?: string) {}
+  async walkthrough(): Promise<WalkthroughLoad> {
+    if (this.tour === undefined) return null;
+    const r = parseWalkthrough(this.tour);
+    return r.ok ? r.value : { issues: r.issues };
+  }
   async load() {
     try {
       const raw = localStorage.getItem(LS_KEY(this.id));
