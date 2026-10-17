@@ -95,6 +95,7 @@
   min-height: 0;
 }
 .rr-tour__left {
+  contain: paint; /* author prose (maybe from a PR) can't paint over the controls, even position: fixed */
   background: var(--rr-surface-doc);
   border-right: 1px solid var(--rr-line);
   overflow: auto;
@@ -102,15 +103,18 @@
   display: flex;
   flex-direction: column;
 }
-.rr-tour__lead,
-.rr-tour__step,
+.rr-tour__lead.is-in,
+.rr-tour__step.is-in {
+  animation: rr-tour-in 0.2s ease;
+}
+@keyframes rr-tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
 .rr-tour__pane {
   transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.rr-tour__lead.is-out,
-.rr-tour__step.is-out {
-  opacity: 0;
-  transform: translateY(4px);
 }
 .rr-tour__pane.is-out {
   opacity: 0;
@@ -136,12 +140,17 @@
   height: 1px;
   background: var(--rr-line);
 }
+.rr-tour__refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
 .rr-tour__ref {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  margin-top: 6px;
   padding: 3px 8px;
   font: var(--rr-text-xs) var(--rr-mono);
   color: var(--rr-muted);
@@ -174,11 +183,43 @@
   flex-direction: column;
   overflow: auto;
 }
-.rr-tour__pane > .rr-code-panel {
+/* one chunk fills the pane; several stack, each tall enough to read, the pane scrolls */
+.rr-tour__chunk {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rr-tour__chunk.is-stacked {
+  flex: 1 0 280px;
+  border-bottom: 1px solid var(--rr-line-strong);
+}
+.rr-tour__chunk > .rr-code-panel {
   flex: 1;
   min-height: 0;
 }
+.rr-tour__chunk-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface-overlay-2);
+  font: 600 var(--rr-text-xs) var(--rr-mono);
+  color: var(--rr-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.rr-tour__chunk-head:hover {
+  color: var(--rr-accent);
+}
+.rr-tour__preview {
+  padding: 16px;
+  overflow: auto;
+}
 .rr-tour__diagram {
+  contain: paint;
   padding: 24px;
 }
 
@@ -326,9 +367,11 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-tour__player,
-  .rr-tour__lead,
-  .rr-tour__step,
   .rr-tour__pane {
     transition: none;
+  }
+  .rr-tour__lead.is-in,
+  .rr-tour__step.is-in {
+    animation: none;
   }
 }

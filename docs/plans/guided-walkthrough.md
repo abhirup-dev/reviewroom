@@ -14,7 +14,7 @@ Plannotator has "Guided Review" (ordered sections with summaries next to live di
 |---|---|
 | Separate artifact or narrative play mode | Separate artifact: `walkthrough.json` next to `review.html` |
 | Format | JSON with a Zod schema; prose fields are narrative HTML (same tokens: `<a href="rr:…">`, `<rr-flow>`, `<rr-code>`) |
-| Chapter model | Chapter = `lead` (static HTML, may hold a diagram) + ordered `steps`; each step has its own `text` and an optional `ref` |
+| Chapter model | Chapter = `lead` (static HTML, may hold a diagram) + ordered `steps`; each step has its own `text` and an optional `ref`: one link, or a list of links (chunks from several files, stacked in the pane) |
 | Step without `ref` | Right pane keeps the last target; if the chapter lead has an `<rr-flow>`, show that diagram instead |
 | Player | Overlay over the workbench (scrim). Pause = pill bottom-right, workbench fully usable, resume returns to the same step |
 | Comments | "Comment on this step" opens the usual composer, anchor `{ kind: 'tour', chapter, step }`. Thread lives in the Threads panel and the feedback round; the step shows a badge. Threads do not render inside the slide |
@@ -41,7 +41,8 @@ Plannotator has "Guided Review" (ordered sections with summaries next to live di
       "steps": [                         // >= 1
         { "id": "s1", "text": "<p>…</p>", "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39" },
         { "id": "s2", "text": "<p>…</p>", "ref": "rr:code/pkg/features/habit/fetcher.go#L19-28" },
-        { "id": "s3", "text": "<p>…</p>" }                        // no ref
+        { "id": "s3", "text": "<p>…</p>", "ref": ["rr:code/a.go#L23-26", "rr:code/b.go#L50-54"] }, // several chunks
+        { "id": "s4", "text": "<p>…</p>" }                        // no ref
       ]
     }
   ]
@@ -60,8 +61,9 @@ walkthrough.json ──GET /api/walkthrough──▶ StateBackend.walkthrough()
       │                                          │
       │ reviewroom check                         ▼
       │  (schema + refs via links.ts)      walkthroughMachine (XState, src/flows/walkthrough.ts)
-      │                                    closed ─open─▶ playing(chapter, step) ◀─resume─ paused
-      │                                             ◀─close─        ─pause─▶
+      │                                    closed ─open─▶ open { playing ⇄ paused } ─close─▶ closed
+      │                                    open invokes paneMachine and aims it at every step:
+      │                                    idle → resolving → gliding (same files) | leaving → entering → showing
       ▼                                                   │
 reviewroom walkthrough publish ──▶ PR comment      WalkthroughView (src/overlays/walkthrough.ts)
 reviewroom pr ◀── PR comment/description            ├─ left: lead + step text + "Comment on this step"

@@ -22,15 +22,19 @@ const unique = (ids: string[], what: string, ctx: z.RefinementCtx, at: (i: numbe
     if (ids.indexOf(v) !== i) ctx.addIssue({ code: 'custom', path: at(i), message: `duplicate ${what} id "${v}"` });
   });
 
+const PaneRef = z.string().refine(showable, 'must be an rr:code/, rr:file/, rr:sym/ or rr:doc/ link (lines #L<start>-<end>, start >= 1, end >= start)');
+
 export const Step = z.object({
   id,
   text: html.min(1, 'must be a non-empty string'),
   ref: z
-    .string()
-    .refine(showable, 'must be an rr:code/, rr:file/, rr:sym/ or rr:doc/ link (lines #L<start>-<end>, start >= 1, end >= start)')
+    .union([PaneRef, z.array(PaneRef).min(1, 'needs at least one link')])
     .optional()
-    .describe('What the right pane shows for this step. Omitted: keep the previous target (or the lead diagram)'),
+    .describe('What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (or the lead diagram)'),
 });
+
+/** A step's pane links as a list (`ref` may be one link or several). */
+export const stepRefs = (s: Pick<Step, 'ref'>): string[] => (s.ref === undefined ? [] : [s.ref].flat());
 
 export const Chapter = z
   .object({

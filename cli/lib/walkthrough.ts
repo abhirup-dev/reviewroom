@@ -1,10 +1,10 @@
 // walkthrough.json on the CLI side: where a link sits in it (for `check`), the PR block (`pr`, `walkthrough publish`).
 import type { GitHubSnapshot } from '../../src/core/types.ts';
-import { findBlocks, type Walkthrough } from '../../src/shared/walkthrough.ts';
+import { findBlocks, stepRefs, type Walkthrough } from '../../src/shared/walkthrough.ts';
 import { applyFixes, extractLinks, type LinkResult, type Links } from './links.ts';
 
 /** Every string of the walkthrough a link can sit in, decoded (what `checkLinks` scans as `extra`). */
-export const tourText = (w: Walkthrough) => w.chapters.flatMap((c) => [c.lead ?? '', ...c.steps.flatMap((s) => [s.text, s.ref ?? ''])]).join('\n');
+export const tourText = (w: Walkthrough) => w.chapters.flatMap((c) => [c.lead ?? '', ...c.steps.flatMap((s) => [s.text, ...stepRefs(s)])]).join('\n');
 
 /** walkthrough.json with moved links rewritten in every string, re-serialized (2-space, trailing newline). */
 export const fixTour = (json: string, results: LinkResult[], links: Links) =>
@@ -15,7 +15,7 @@ export function locate(results: LinkResult[], w: Walkthrough | null) {
   if (!w) return results;
   const has = (s: string | undefined, ref: string) => !!s && extractLinks(s).includes(ref);
   return results.map((r) => {
-    const where = w.chapters.flatMap((c) => [...(has(c.lead, r.ref) ? [c.id] : []), ...c.steps.filter((s) => has(s.ref, r.ref) || has(s.text, r.ref)).map((s) => `${c.id}/${s.id}`)]);
+    const where = w.chapters.flatMap((c) => [...(has(c.lead, r.ref) ? [c.id] : []), ...c.steps.filter((s) => stepRefs(s).includes(r.ref) || has(s.text, r.ref)).map((s) => `${c.id}/${s.id}`)]);
     return where.length ? { ...r, where } : r;
   });
 }

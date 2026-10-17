@@ -76,13 +76,14 @@ class CodePanel implements PanelInstance {
   private pin?: string;
   private optionsKey?: string;
   private optionsInit = false;
-  /** Keep revealed lines highlighted (the walkthrough's code pane) instead of letting them go after the glow. */
-  private sticky: boolean;
+  /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
+  private embedded: boolean;
+  private revealToken = 0;
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
-    this.sticky = !!params.sticky;
+    this.embedded = !!params.embedded;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
     this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' });
@@ -411,6 +412,7 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ navigation
   private async reveal(t: CodeTarget) {
+    const token = ++this.revealToken; // a newer reveal wins over this one's late unfold
     this.app.showPanel(this.panelId);
     if (t.view === 'file' || t.rev) return this.openFile(t.path, t.side, t.rev, t.start, t.end);
     const inDiff = this.app.files.some((f) => f.path === t.path);
@@ -423,23 +425,27 @@ class CodePanel implements PanelInstance {
     }
     // wait for the newest rebuild (lifting a filter or leaving the file view starts one)
     for (let r = this.ready; ; r = this.ready) if ((await r, r === this.ready)) break;
+    if (token !== this.revealToken) return;
     const f = this.files.get(t.path);
     if (!f) return;
     if (f.collapsed) this.toggleCollapse(t.path, false);
-    this.app.activeFile = t.path;
-    this.app.bus.emit('active-file', t.path);
+    if (!this.embedded) {
+      this.app.activeFile = t.path;
+      this.app.bus.emit('active-file', t.path);
+    }
     if (!t.start) return this.cv.scrollTo({ type: 'item', id: t.path, align: 'start' });
     const side: Side = t.side === 'base' ? 'deletions' : 'additions';
     const range = { start: t.start, end: t.end ?? t.start, side, endSide: side };
     this.land(t.path, range);
     // lines the PR didn't touch sit in folded context: once the file is mounted, unfold around them and land again
     const reveal = (loaded = false) => {
+      if (token !== this.revealToken) return;
       const it = this.cv.getRenderedItems().find((x) => x.id === t.path);
       if (it?.type !== 'diff' || !f.diff) return;
       // a file from the patch knows only its hunks: load it, then look again (revealLine refuses partial diffs)
       if (f.diff.isPartial && !loaded) return void it.instance.prepareForEditing().catch(() => {}).then(() => requestAnimationFrame(() => reveal(true)));
       // CodeView applies the unfold on its next frame; land once it has
-      if (unfold(it.instance, f.diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => this.land(t.path, range)));
+      if (unfold(it.instance, f.diff, side, range.start, range.end)) requestAnimationFrame(() => requestAnimationFrame(() => token === this.revealToken && this.land(t.path, range)));
     };
     requestAnimationFrame(() => reveal());
   }
@@ -455,7 +461,7 @@ class CodePanel implements PanelInstance {
     setTimeout(() => {
       if (token !== this.pinToken) return;
       this.scroller.style.removeProperty('--rr-pulse');
-      if (!this.sticky) this.cv.clearSelectedLines({ notify: false });
+      if (!this.embedded) this.cv.clearSelectedLines({ notify: false });
     }, 3000);
   }
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { encodeBlock, findBlocks, parseWalkthrough, type Walkthrough } from './walkthrough';
+import { encodeBlock, findBlocks, parseWalkthrough, stepRefs, type Walkthrough } from './walkthrough';
 
 const demo = readFileSync(new URL('../../examples/habit-events/walkthrough.json', import.meta.url), 'utf8');
 const valid = () => ({
@@ -66,4 +66,16 @@ test('PR blocks: encode round-trips; nested and inline blocks are ignored', () =
   expect(findBlocks('```text`bad\n```reviewroom-walkthrough\n{"c":3}\n```')).toEqual(['{"c":3}']);
   expect(findBlocks('```reviewroom-walkthrough`bad\n{}\n```')).toEqual([]);
   expect(findBlocks('```reviewroom-walkthrough\n{"d":4}')).toEqual(['{"d":4}']);
+});
+
+test('a step ref is one link or a non-empty list of them', () => {
+  const w = valid();
+  (w.chapters[0].steps[0] as { ref: unknown }).ref = ['rr:code/a.go#L1', 'rr:code/b.go#L2-3'];
+  expect(issues(w)).toBeNull();
+  (w.chapters[0].steps[0] as { ref: unknown }).ref = [];
+  expect(issues(w)).toContain('chapters.0.steps.0.ref');
+  (w.chapters[0].steps[0] as { ref: unknown }).ref = ['rr:code/a.go#L1', 'rr:thread/t1'];
+  expect(issues(w)).toContain('chapters.0.steps.0.ref.1');
+  expect(stepRefs({ ref: 'rr:code/a.go' })).toEqual(['rr:code/a.go']);
+  expect(stepRefs({})).toEqual([]);
 });

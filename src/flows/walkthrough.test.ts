@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { createActor } from 'xstate';
+import { createActor, fromPromise, waitFor } from 'xstate';
 import type { Walkthrough } from '../shared/walkthrough';
-import { current, deepLink, target, walkthroughMachine } from './walkthrough';
+import { current, deepLink, paneMachine, target, walkthroughMachine, type PaneShown, type PaneWant } from './walkthrough';
 
 const steps = (...ids: string[]) => ids.map((id) => ({ id, text: id }));
 const doc: Walkthrough = {
@@ -19,7 +19,8 @@ const start = (d: Walkthrough | null = doc) => {
 };
 const where = (a: ReturnType<typeof start>) => {
   const s = a.getSnapshot();
-  return [s.value, s.context.chapter, s.context.step];
+  const mode = s.matches({ open: 'playing' }) ? 'playing' : s.matches({ open: 'paused' }) ? 'paused' : 'closed';
+  return [mode, s.context.chapter, s.context.step];
 };
 
 test('open without a document stays closed', () => {
@@ -87,7 +88,8 @@ test('the code pane target: own ref, last ref in the chapter, lead diagram, an e
     ],
   };
   const at = (chapter: number, step: number) => target({ doc: d, chapter, step });
-  expect([at(0, 0), at(0, 1), at(0, 2), at(1, 0), at(2, 0)]).toEqual([null, { ref: 'rr:code/a.go#L1' }, { ref: 'rr:code/a.go#L1' }, 'diagram', { ref: 'rr:code/a.go#L1' }]);
+  const a1: PaneWant = { kind: 'refs', refs: ['rr:code/a.go#L1'] };
+  expect([at(0, 0), at(0, 1), at(0, 2), at(1, 0), at(2, 0)]).toEqual<PaneWant[]>([{ kind: 'empty' }, a1, a1, { kind: 'diagram', html: '<rr-flow><rr-node>n</rr-node></rr-flow>' }, a1]);
 });
 
 test('deep link: ?walkthrough=<chapter>/<step>, either part optional', () => {
@@ -95,4 +97,74 @@ test('deep link: ?walkthrough=<chapter>/<step>, either part optional', () => {
   expect(deepLink('?x=1&walkthrough=latency')).toEqual({ chapter: 'latency', step: undefined });
   expect(deepLink('?walkthrough')).toEqual({ chapter: undefined, step: undefined });
   expect(deepLink('?x=1')).toBeNull();
+});
+
+// ------------------------------------------------------------------ the pane
+
+const code = (path: string) => ({ path, side: 'head' as const, view: 'diff' as const });
+/** A pane whose lookups resolve when told to, recording what it rendered. */
+function pane() {
+  const log: string[] = [];
+  const pending: { want: PaneWant; done: (v: PaneShown) => void }[] = [];
+  const shown = (s: PaneShown) => (s.kind === 'refs' ? s.slots.map((x) => x.ref).join('+') : s.kind);
+  const a = createActor(
+    paneMachine.provide({
+      actors: { resolve: fromPromise(({ input }: { input: PaneWant }) => new Promise<PaneShown>((done) => pending.push({ want: input, done }))) },
+      actions: { fadeOut: () => log.push('fadeOut'), mount: ({ context }) => log.push('mount ' + shown(context.next!)), glide: ({ context }) => log.push('glide ' + shown(context.next!)), unmount: () => log.push('unmount') },
+      delays: { fade: 0 },
+    }),
+    { input: null },
+  ).start();
+  const settle = (i: number, refs: string[], paths: string[]) => pending[i].done({ kind: 'refs', slots: refs.map((ref, j) => ({ ref, code: code(paths[j]) })) });
+  return { a, log, pending, settle };
+}
+
+test('pane: a new show cancels a lookup still running; only the newest is mounted', async () => {
+  const { a, log, settle } = pane();
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } });
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r2', 'r3'] } });
+  settle(0, ['r1'], ['a.go']); // stale: its state is gone
+  settle(1, ['r2', 'r3'], ['a.go', 'b.go']);
+  await waitFor(a, (s) => s.matches('showing'));
+  expect(log).toEqual(['fadeOut', 'mount r2+r3']);
+});
+
+test('pane: same files glide without a fade; other files fade and remount; clear unmounts', async () => {
+  const { a, log, settle } = pane();
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } });
+  settle(0, ['r1'], ['a.go']);
+  await waitFor(a, (s) => s.matches('showing'));
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r1b'] } });
+  settle(1, ['r1b'], ['a.go']);
+  await waitFor(a, (s) => s.matches('showing') && s.context.shown?.kind === 'refs' && s.context.shown.slots[0].ref === 'r1b');
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r4'] } });
+  settle(2, ['r4'], ['c.go']);
+  await waitFor(a, (s) => s.matches('showing') && s.context.shown?.kind === 'refs' && s.context.shown.slots[0].ref === 'r4');
+  a.send({ type: 'clear' });
+  expect(log).toEqual(['fadeOut', 'mount r1', 'glide r1b', 'fadeOut', 'mount r4', 'unmount']);
+});
+
+const until = async (ok: () => boolean) => {
+  for (let i = 0; i < 100 && !ok(); i++) await new Promise((r) => setTimeout(r, 5));
+};
+
+test('the player aims its pane at every step and stops it on close', async () => {
+  const d: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: 'x', ref: ['rr:code/a.go#L1', 'rr:code/b.go#L2'] }, { id: 's2', text: 'y', ref: 'rr:code/a.go#L5' }] }] };
+  const shows: string[] = [];
+  let unmounts = 0;
+  const p = paneMachine.provide({
+    actors: { resolve: fromPromise(async ({ input }: { input: PaneWant }): Promise<PaneShown> => (input.kind === 'refs' ? { kind: 'refs', slots: input.refs.map((ref) => ({ ref, code: null })) } : input)) },
+    actions: { mount: ({ context: { next } }) => shows.push(next!.kind === 'refs' ? next!.slots.map((s) => s.ref).join(' ') : next!.kind), unmount: () => unmounts++ },
+    delays: { fade: 0 },
+  });
+  const a = createActor(walkthroughMachine.provide({ actors: { pane: p } })).start();
+  a.send({ type: 'load', doc: d });
+  a.send({ type: 'open' });
+  await until(() => shows.length === 1);
+  a.send({ type: 'next' });
+  await until(() => shows.length === 2);
+  a.send({ type: 'focus', refs: ['rr:sym/Fetcher'] });
+  await until(() => shows.length === 3);
+  a.send({ type: 'close' });
+  expect([shows, unmounts]).toEqual([['rr:code/a.go#L1 rr:code/b.go#L2', 'rr:code/a.go#L5', 'rr:sym/Fetcher'], 1]);
 });
