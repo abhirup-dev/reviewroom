@@ -87,7 +87,12 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   const clients = new Set<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, 'review.html');
-  const hash = () => (fs.existsSync(reviewFile) ? crypto.createHash('sha1').update(fs.readFileSync(reviewFile)).digest('hex').slice(0, 12) : '');
+  // what a reconnecting client compares: a change to either file while it was away reloads the page
+  const hash = () => {
+    const h = crypto.createHash('sha1');
+    for (const f of [reviewFile, path.join(dir, 'walkthrough.json')]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
+    return h.digest('hex').slice(0, 12);
+  };
   const send = (event: string, data: unknown) => {
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
   };

@@ -303,11 +303,11 @@ const LS_KEY = (id: string) => `reviewroom:state:${id}`;
 
 export class BrowserState implements StateBackend {
   readonly kind = 'browser';
-  constructor(private id: string, private seed?: ReviewState, private tour?: unknown) {}
-  // embedded in the page as #rr-walkthrough (the static demo does)
+  /** `tour`: the text of the page's #rr-walkthrough script (the static demo embeds one) */
+  constructor(private id: string, private seed?: ReviewState, private tour?: string) {}
   async walkthrough(): Promise<WalkthroughLoad> {
     if (this.tour === undefined) return null;
-    const r = parseWalkthrough(JSON.stringify(this.tour));
+    const r = parseWalkthrough(this.tour);
     return r.ok ? r.value : { issues: r.issues };
   }
   async load() {

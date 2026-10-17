@@ -100,7 +100,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
   const fixture = readJSON('#rr-fixture') as Fixture | null;
   const seedState = readJSON('#rr-state') as ReviewState | null;
-  const seedTour = readJSON('#rr-walkthrough') ?? undefined;
+  const seedTour = document.querySelector('#rr-walkthrough')?.textContent ?? undefined;
   const review = root.querySelector('rr-review') as HTMLElement | null;
   const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No <rr-review> content yet.'));
   doc.remove();
