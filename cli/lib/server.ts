@@ -1,5 +1,4 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
-import { execFile } from 'node:child_process';
 import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,7 +8,7 @@ import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, writeState } from './state.ts';
-import { DIST, PKG, hubLog, defaultLayoutFile, layoutsDir } from './paths.ts';
+import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
@@ -100,8 +99,8 @@ export const localOnly: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
-type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void };
-export function startServer({ repo, dir, cfg, onFinish }: ServerOpts) {
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
+export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
@@ -259,6 +258,7 @@ export function startServer({ repo, dir, cfg, onFinish }: ServerOpts) {
       await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
+      onClient?.();
       await new Promise<void>((r) => stream.onAbort(r));
       clearInterval(ping);
       clients.delete(stream);
@@ -301,7 +301,7 @@ export function startServer({ repo, dir, cfg, onFinish }: ServerOpts) {
     }),
   );
 
-  return { app, prov, commit, github, checkNarrative, watchers: () => clients.size }; // watchers: pages connected now
+  return { app, prov, commit, github, checkNarrative };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */
@@ -316,7 +316,4 @@ export function listen(app: Hono, port: number) {
   }
 }
 
-const openUrl = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
-// The macOS app (app/) opens a tab for each review registered with open: 'app': launch it when installed, else the browser.
-export const openBrowser = (url: string, app: boolean) =>
-  app && process.platform === 'darwin' ? execFile('open', ['-b', 'dev.reviewroom.mac'], (e) => e && openUrl(url)) : openUrl(url);
+export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway

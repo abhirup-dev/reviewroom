@@ -23,7 +23,7 @@ export function liveServer(dir: string): ServerRecord | null {
 // can list reviews without knowing which repos have them (AGENTS.md: a contract). Best effort: a failure never stops a review.
 // `agent`: the agent CLI that started the server, found once at start while the process chain is intact.
 // `author`: the PR author's GitHub login, for a review of a PR.
-export type SessionRecord = ServerRecord & { repo: string; dir: string; title: string | null; number: number | string | null; prUrl: string | null; base: string; head: string; mode: 'review' | 'serve'; open?: 'app' | 'browser' | 'none'; agent?: Agent | null; author?: string | null };
+export type SessionRecord = ServerRecord & { repo: string; dir: string; title: string | null; number: number | string | null; prUrl: string | null; base: string; head: string; mode: 'review' | 'serve'; agent?: Agent | null; author?: string | null };
 export function register(rec: SessionRecord) {
   try {
     fs.mkdirSync(registryDir(), { recursive: true });
