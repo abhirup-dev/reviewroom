@@ -20,8 +20,9 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   parsing.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by other local tools
-  (agent-annotation-hub) and the macOS app, which opens a tab for each with `open: "app"`; `layout.json` is the reviewer's default panel layout.
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by `reviewroom hub` (which
+  deletes records whose server is gone), the macOS app (a tab for each with `open: "app"`) and other local tools; `hub.json` is the running hub; `layout.json` is the
+  reviewer's default panel layout.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 
@@ -35,8 +36,9 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Working on it
 
-Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bundled into `dist/` (not
-committed), so all are `devDependencies`.
+Bun is the toolchain: it installs dependencies (`bun.lock`, pinned by `packageManager`), bundles the client and the
+CLI, runs the scripts and tests, and runs the built CLI (Bun >= 1.3.12). Every library is bundled into `dist/`, so all
+of them are `devDependencies`; the published package has no runtime dependencies.
 
 ```bash
 bun run setup       # install, build, put `reviewroom` on PATH, install the macOS app

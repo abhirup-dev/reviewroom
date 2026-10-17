@@ -126,6 +126,7 @@ body > [hidden] {
   background: transparent;
   color: var(--rr-ink-2);
   font: inherit;
+  text-decoration: none; /* also on links: All reviews */
   cursor: pointer;
 }
 .rr-hbtn:hover,

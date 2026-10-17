@@ -16,6 +16,7 @@ import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck } from './commands/check.ts';
+import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { ReviewroomError } from '../src/shared/ops.ts';
 
 const cli = cac('reviewroom');
@@ -90,11 +91,24 @@ cli
 
 cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 
+cli
+  .command('hub', 'Every review running on this machine (reviewroom, Crit, Plannotator) on one page')
+  .option('--detach', 'Run in the background, print the URL and return')
+  .option('--stop', 'Stop the running hub')
+  .option('--port <n>', 'Port (default: 4847)')
+  .option('--no-open', 'Do not open the browser')
+  .action(run<HubOpts>((_repo, o) => cmdHub(o)));
+
 // What an agent needs beyond the flags, shown under the command's --help.
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
+  hub: [
+    '  One hub per machine; a second `hub` prints the running one\'s URL. A review\'s "All reviews" button starts',
+    '  it in the background when none runs. It lists servers from ~/.reviewroom/sessions, ~/.crit/sessions and',
+    '  Plannotator\'s sessions dir, shows counts (never thread text) and can close a session.',
+  ].join('\n'),
   check: [
     '  Each link in review.html is remembered by what it pointed at when first seen. Problems:',
     '    moved     same lines, now at most 5 lines away   -> --fix rewrites the link',

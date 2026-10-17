@@ -9,6 +9,7 @@ import { undelivered } from '../../src/shared/ops.ts';
 import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
 import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
+import { agentAncestor } from '../hub/proc.ts';
 
 const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
 
@@ -48,8 +49,9 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const holder = await takeLock(dir, port);
   if (holder) fail(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
   const startedAt = new Date().toISOString();
+  const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));
-  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', open: !o.open ? 'none' : o.browser ? 'browser' : 'app', startedAt });
+  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', open: !o.open ? 'none' : o.browser ? 'browser' : 'app', startedAt, agent });
   const cleanup = () => {
     releaseLock(dir);
     unregister(process.pid);
