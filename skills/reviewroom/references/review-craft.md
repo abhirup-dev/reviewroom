@@ -37,7 +37,8 @@ Someone who reads only this should know where to look and what to worry about.
 - End with the open questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle
   before approving (compatibility, latency, migrations, observability, rollout).
 - Interpret the PR description and connect it to the code; don't restate it.
-- Keep the structure the same across reviews. Don't over-build.
+- Keep the structure the same across reviews. Don't over-build: for a typical diff, a lede, one flow,
+  four to seven sections and one checklist. A section is one concern, not one file.
 
 ## When to build something interactive
 

@@ -5,7 +5,7 @@ import type { DockviewApi } from 'dockview';
 import { Commands } from '../core/commands';
 import { Emitter, loadLocal, saveLocal } from '../core/store';
 import { parseRef, refLabel, type Ref } from '../core/refs';
-import { anchorRef } from '../shared/refs';
+import { anchorRef, symbolHits, symbolQuery } from '../shared/refs';
 import { h, uid } from '../core/dom';
 import { renderMarkdown } from '../core/markdown';
 import { PR_DESCRIPTION } from '../shared/feedback';
@@ -218,7 +218,9 @@ export class ReviewApp {
       case 'code': {
         const side = r.rev === 'base' ? 'base' : 'head';
         const rev = r.rev !== 'base' && r.rev !== 'head' ? r.rev : undefined;
-        this.bus.emit('reveal-code', { path: r.path, side, start: r.start, end: r.end, rev, view: 'diff' });
+        // a path outside the diff has no hunks to show: open the whole file instead
+        const view = this.files.some((f) => f.path === r.path) ? 'diff' : 'file';
+        this.bus.emit('reveal-code', { path: r.path, side, start: r.start, end: r.end, rev, view });
         break;
       }
       case 'file':
@@ -238,16 +240,24 @@ export class ReviewApp {
     }
   }
 
+  /** Search hits for an `rr:sym` name (`Name`, `Owner.Name`, `path:Name`), definitions first. */
+  // shortcut: filters the first 60 hits (definitions come first), so a qualifier can miss when a name has more
+  // definitions than that; pass a larger limit through search() if that shows up.
+  async searchSymbol(name: string): Promise<SearchHit[]> {
+    return symbolHits(await this.search(symbolQuery(name).word, true), name);
+  }
+
   async findSymbol(name: string) {
-    const hits = await this.search(name, true);
+    const hits = await this.searchSymbol(name);
     const defs = hits.filter((h) => h.kind === 'definition');
     const pick = defs.length === 1 ? defs[0] : hits.length === 1 ? hits[0] : null;
     if (pick) {
       const inDiff = this.files.some((f) => f.path === pick.path);
       this.bus.emit('reveal-code', { path: pick.path, side: 'head', start: pick.line, end: pick.line, view: inDiff ? 'diff' : 'file' });
     } else {
-      this.commands.run('palette.symbols:' + name);
-      this.openPalette?.('#' + name);
+      const word = symbolQuery(name).word;
+      this.commands.run('palette.symbols:' + word);
+      this.openPalette?.('#' + word);
     }
     return hits;
   }

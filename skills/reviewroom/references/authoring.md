@@ -18,6 +18,10 @@ The building blocks of the walkthrough, `review.html`. For what to write and in 
 Inside `<rr-review>` you may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put
 extra assets (images, js, css) next to `review.html` and reference them relatively.
 
+`#rr-meta` is optional JSON; leave it `{}` unless you need it. The CLI supplies the repo, PR and
+revisions. `"title"` replaces the review's title. `"theme"` overrides colour tokens per mode, without the
+`--rr-` prefix: `{ "theme": { "light": { "accent": "#7a3cff" }, "dark": { … } } }`.
+
 ## Structure the tooling understands
 
 | You write | You get |
@@ -35,27 +39,39 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 
 | Ref | Points at |
 |---|---|
-| `rr:code/pkg/x.go#L45-54` | Lines 45–54 of the new file in the diff (`@base` for the old side) |
-| `rr:code/pkg/x.go` | The file in the diff; its preview shows the changed hunks |
-| `rr:file/pkg/y.go@head#L10` | A file **outside** the diff, full view (any rev: `@base`, `@<sha>`) |
+| `rr:code/pkg/x.go#L45-54` | Lines 45–54 of any file in the repo at the head revision |
+| `rr:code/pkg/x.go@base#L45` | The same file at the base (`@<sha>` for any other commit) |
+| `rr:code/pkg/x.go` | The whole file; for a file in the diff its preview shows the changed hunks |
 | `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
+| `rr:sym/Builder.Build` | A symbol narrowed by its receiver, type or package (`habit.RecentEvents`) |
+| `rr:sym/pkg/ranker/builder.go:Build` | A symbol narrowed by its file (also a path suffix: `ranker/builder.go:Build`) |
 | `rr:doc/request-path` | A section or element id in the walkthrough |
 | `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
 | `rr:thread/t_ab12cd` | An agent thread (`gh_<n>`: a team thread on the PR) |
 | `rr:round/2` | The walkthrough as it was at the end of round 2 |
 | `rr:tour/latency/s3` | A guided walkthrough slide; `<rr-embed>` shows it as a slide card (its text, its code, a play button) |
 
-Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
+A file in the diff opens in the diff view; any other file opens whole. (`rr:file/<path>@<rev>` is the
+older spelling and still works.) Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
 `reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
 Hovering any link shows a live preview of its target; clicking it opens the target in the code or
-walkthrough panel. Give every link a human label; never show the raw `rr:` string. Link a thing
+walkthrough panel. Never show the raw `rr:` string.
+
+Two ways to write a link:
+
+- `<rr-ref ref="rr:…"></rr-ref>`: a chip. **Leave it empty** and it labels itself (`fetcher.go:21`,
+  a symbol's name, a section's heading). This is the default.
+- `<a href="rr:…">the retry loop</a>`: when the link text is a phrase in your sentence. Link a thing
 where it first comes up, not on every mention: within the next few paragraphs, plain text is fine.
 
 ## Symbols
 
 Prefer `rr:sym/<name>` for a function or type: it follows the code as it moves, and `check` never
-reports it as moved.
+reports it as moved. A bare name that has several definitions (`Build`, `New`) is ambiguous: clicking
+it opens a search instead of jumping. Qualify it (`Builder.Build`, `ranker/builder.go:Build`) whenever
+the name isn't unique in the repo. A method declared inside a class body (TypeScript, Python) only
+narrows by file, so use the `path:Name` form there; `check` reports a qualified link that matches nothing as broken.
 
 When a link's text is exactly the identifier declared at its target (`<a href="rr:sym/BuildRequest">BuildRequest</a>`,
 or a `rr:code` range that starts at the declaration or its doc comment), the link renders as code
@@ -67,7 +83,7 @@ at behaviour rather than a declaration ("the retry loop").
 Never paste diff code into the page; it goes stale and duplicates the code panel. Instead:
 
 ```html
-<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54">Builder.Build</rr-ref>   <!-- chip; hover = preview -->
+<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54"></rr-ref>                <!-- chip; hover = preview -->
 <rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9" title="table"></rr-code> <!-- live lines, highlighted -->
 <rr-embed ref="rr:doc/parallel-sketch"></rr-embed>                                    <!-- preview card of any ref -->
 <rr-code lang="go" title="suggested change">…code that is NOT in the diff…</rr-code>   <!-- your own code only -->
@@ -100,12 +116,16 @@ next to your answer. A link covers the whole thread, not a single message.
   <rr-node state="changed">RankerRequest</rr-node>                                     <!-- new changed removed baseline -->
 </rr-flow>
 <rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
-<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- open question -->
+<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- open questions -->
 <rr-markdown>## Markdown blocks work too</rr-markdown>
 ```
 
 `<rr-flow>` is for the one diagram every review should have: the delta against the baseline. Give
 every node a `ref` so it is clickable.
+
+Each `<rr-check>` is one **open question**; the reviewer marks it settled or not, and the feedback
+lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
+characters of its text stand in, and rewording it loses the reviewer's mark.
 
 ## Scripting: `window.rr`
 
@@ -123,7 +143,7 @@ Interactive widgets can drive the reviewer straight into the code:
 |---|---|
 | `rr.open(ref)` | Navigate to any `rr:` ref |
 | `rr.walkthrough(chapter?, step?)` | Play the guided walkthrough (ids; none: from the start) |
-| `rr.findSymbol(name)` | Jump to a definition |
+| `rr.findSymbol(name)` | Jump to a definition (same name forms as `rr:sym`) |
 | `rr.read(path, 'head' \| 'base' \| sha)` | File contents (string) |
 | `rr.files()` / `rr.search(q, symbol?)` | Changed files / repo search hits |
 | `rr.comment(ref, body?)` | Open the composer on (or create) a thread |

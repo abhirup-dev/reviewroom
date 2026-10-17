@@ -1,5 +1,5 @@
 // Shared by the CLI and the browser: no DOM or Node imports.
-import type { Anchor } from '../core/types';
+import type { Anchor, SearchHit } from '../core/types';
 
 // Durable links. Every addressable thing in a review has an `rr:` ref that
 // survives reloads and rounds and can be pasted into comments, markdown, HTML
@@ -9,7 +9,7 @@ import type { Anchor } from '../core/types';
 //   rr:doc/<id>/<css-path>      an element without an id, addressed below an ancestor id
 //   rr:code/<path>[@base|@head|@<sha>][#L12[-20]]   a file or line range in the diff
 //   rr:file/<path>@<rev>[#L12[-20]]                  the full file at a revision
-//   rr:sym/<name>               a symbol (resolved via provider search)
+//   rr:sym/<name>               a symbol (resolved via provider search): Name, Owner.Name or path/file.go:Name
 //   rr:thread/<id>              a comment thread
 //   rr:round/<n>                a review round
 //   rr:tour/<chapter>/<step>    a step of the walkthrough (walkthrough.json ids)
@@ -127,4 +127,31 @@ export function anchorOf(ref: string): Anchor {
     default:
       return { kind: 'general' };
   }
+}
+
+/**
+ * `rr:sym/<name>` forms: `Name`; `Owner.Name`, where Owner is a receiver, type or package; `path/to/file.go:Name`.
+ * `word` is what to search for; the rest narrows the hits.
+ */
+export function symbolQuery(name: string): { word: string; path?: string; owner?: string } {
+  const colon = name.lastIndexOf(':');
+  const path = colon > 0 ? name.slice(0, colon) : undefined;
+  const rest = colon > 0 ? name.slice(colon + 1) : name;
+  const dot = rest.lastIndexOf('.');
+  return dot > 0 ? { word: rest.slice(dot + 1), path, owner: rest.slice(0, dot) } : { word: rest, path };
+}
+
+/**
+ * The symbol search hits for `rr:sym/<name>`, definitions first. A qualifier keeps only the hits it matches: none
+ * means the qualified symbol is gone, not that any `Name` will do.
+ */
+// shortcut: Owner matches by text on the declaration line or a path segment, so a method declared inside a class body
+// (TS, Python) isn't narrowed by its class; use a path:Name link there, or a real symbol index if one lands.
+export function symbolHits<H extends Pick<SearchHit, 'path' | 'text' | 'kind'>>(hits: H[], name: string): H[] {
+  const { path, owner } = symbolQuery(name);
+  const word = owner && new RegExp(`(^|[^\\w$])${owner.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\w$]|$)`);
+  const fits = (h: H) =>
+    (!path || h.path === path || h.path.endsWith('/' + path)) && (!word || word.test(h.text) || h.path.split('/').includes(owner));
+  const kept = path || owner ? hits.filter(fits) : hits;
+  return [...kept.filter((h) => h.kind === 'definition'), ...kept.filter((h) => h.kind !== 'definition')];
 }
