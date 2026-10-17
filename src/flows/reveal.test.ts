@@ -58,3 +58,21 @@ test('reveal: the user selecting while it glows keeps their selection; a reveal 
   r.reveal('c.go', 1);
   expect(r.log.slice(-3)).toEqual(['landed', 'unglow', 'clear']);
 });
+
+test('reveal: selecting while it unfolds ends it, nothing clears the selection later; jumping mid-unfold drops our highlight', async () => {
+  const r = revealer();
+  r.reveal('a.go', 5);
+  r.preps[0]('lines');
+  await waitFor(r.a, (s) => s.matches('unfolding'));
+  r.a.send({ type: 'select' });
+  r.unfolds[0](false); // stale
+  await tick();
+  expect([r.a.getSnapshot().value, r.log]).toEqual(['idle', ['land a.go:5']]);
+  r.reveal('b.go', 2);
+  r.preps[1]('lines');
+  await waitFor(r.a, (s) => s.matches('unfolding'));
+  r.reveal('c.go'); // a file jump: nothing to highlight
+  r.preps[2]('nothing');
+  await tick();
+  expect(r.log.slice(-3)).toEqual(['land b.go:2', 'clear', 'landed']);
+});

@@ -466,6 +466,7 @@ class CodePanel implements PanelInstance {
     const f = this.files.get(t.path);
     if (this.mode !== 'diff' || !f?.diff) return false;
     await frame();
+    if (signal.aborted) return false; // before loading a partial diff for a reveal that is over
     const item = () => this.cv.getRenderedItems().find((x) => x.id === t.path);
     let it = item();
     // a file from the patch knows only its hunks: load it, then look again (revealLine refuses partial diffs)
