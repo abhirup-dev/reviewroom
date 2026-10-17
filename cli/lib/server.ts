@@ -54,6 +54,7 @@ function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   });
   // live reload is a nicety; a dead watcher (dir removed, fd limits) must not kill the server
   watcher.on('error', (e) => console.error(`reviewroom: file watch stopped: ${e.message}`));
+  return watcher;
 }
 
 /** Stale-link check of review.html: fingerprint new links, tell the agent (stderr) when the report changes. */
@@ -117,7 +118,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     return s;
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
-  watchNarrative(dir, (edited) => {
+  const watcher = watchNarrative(dir, (edited) => {
     send('review', { hash: hash() });
     if (edited) checkNarrative();
   });
@@ -256,7 +257,9 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     }),
   );
 
-  return { app, prov, commit, github, checkNarrative };
+  // for a server that ends before its process does (`walkthrough lint`): the watch would keep the process alive
+  const close = () => watcher.close();
+  return { app, prov, commit, github, checkNarrative, close };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */

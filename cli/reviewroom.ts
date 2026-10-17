@@ -88,9 +88,15 @@ cli
   .action(run(cmdCheck));
 
 cli
-  .command('walkthrough <action>', 'publish: post walkthrough.json to the PR (or update the comment it is in)')
-  .option('--dry-run', 'Print the comment instead of posting it')
-  .option('--allow-stale', 'Post even if some links need attention (never with schema errors)')
+  .command('walkthrough <action> [step]', 'lint: measure every step on screen; shot <chapter>/<step>: a screenshot; publish: post it to the PR')
+  .option('--viewport <WxH,...>', 'lint: viewports to measure at (default 1280x800,1440x900); shot: one (default 1280x800)')
+  .option('--theme <light|dark>', 'shot: the theme (default light)')
+  .option('--out <file>', 'shot: where to write the PNG (default: a temp file, printed)')
+  .option('--json', 'lint: print { engine, viewports, links, findings } as JSON')
+  .option('--dry-run', 'publish: print the comment instead of posting it')
+  .option('--allow-stale', 'publish: post even if some links need attention (never with schema errors)')
+  .example('  reviewroom walkthrough lint')
+  .example('  reviewroom walkthrough shot latency/s3 --theme dark')
   .example('  reviewroom walkthrough publish')
   .action(run(cmdWalkthrough));
 
@@ -100,6 +106,12 @@ cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
   walkthrough: [
+    '  lint runs `check` (schema, links, what the tour leaves out, its pacing), then plays every step in a headless',
+    '  browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) on the review as built now, and reports',
+    '  what the reviewer would hit: narration that needs scrolling, highlighted lines off screen, stacked chunks too',
+    '  short to read, content wider than its box, prose the sanitizer strips, page errors. Each finding names the',
+    '  chapter/step and how to fix it; exit 1 while any warning is left. Nothing is written.',
+    '  shot renders one step (after it settles) and prints the PNG\'s path, then that step\'s findings.',
     '  publish runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',

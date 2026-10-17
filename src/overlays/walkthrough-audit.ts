@@ -12,42 +12,46 @@ function deepAll(root: Element | ShadowRoot, sel: string, out: Element[] = []): 
   return out;
 }
 
-/** The highlighted rows' span in a code view's scroller: [top, bottom] in viewport px, or null (none drawn). */
+/** The highlighted code rows' span in a code view's scroller: [top, bottom] in viewport px, or null (none drawn).
+ *  Comment cards on the lines are marked selected too, but carry no line type. */
 function highlight(scroller: Element): [number, number] | null {
-  const rows = deepAll(scroller, '[data-selected-line]').map((e) => e.getBoundingClientRect());
+  const rows = deepAll(scroller, '[data-selected-line][data-line-type]').map((e) => e.getBoundingClientRect());
   return rows.length ? [Math.min(...rows.map((r) => r.top)), Math.max(...rows.map((r) => r.bottom))] : null;
 }
 
-/** Wait until the highlight of every chunk with lines (`highlighted`, per chunk) is drawn and stops moving: it
- *  lands after an unfold and a scroll. False: still moving after ~3 s. */
-export async function settle(pane: HTMLElement, highlighted: boolean[]): Promise<boolean> {
+/** Wait until the highlight of every chunk with lines (`highlighted`, per chunk) is drawn and nothing moves for a
+ *  few frames: the code lands after an unfold and a scroll, previews in the narration (<rr-code>, <rr-embed>) fill
+ *  in when their code arrives. False: still moving after ~4 s. */
+export async function settle(left: HTMLElement, pane: HTMLElement, highlighted: boolean[]): Promise<boolean> {
   await document.fonts.ready;
-  let last = '';
-  for (let i = 0; i < 90; i++) {
+  let last = '', still = 0;
+  for (let i = 0; i < 120; i++) {
     await frame();
     await frame();
     const spans = [...pane.children].map((c) => c.querySelector('.rr-code-scroll')).map((s) => s && highlight(s));
-    const now = JSON.stringify(spans);
-    const drawn = spans.every((s, j) => !highlighted[j] || s);
-    if (drawn && now === last) return true;
+    const now = JSON.stringify([spans, left.scrollHeight, left.scrollWidth]);
+    still = now === last ? still + 1 : 0;
     last = now;
+    if (still >= 6 && spans.every((s, j) => !highlighted[j] || s)) return true;
   }
   return false;
 }
 
-function chunk(el: Element | undefined, ref: string, lines: number): ChunkAudit {
+function chunk(el: Element | undefined, pane: HTMLElement, ref: string, lines: number): ChunkAudit {
   const scroller = el?.querySelector('.rr-code-scroll');
   if (!scroller) return { ref, code: false, lines: 0, visible: 0, hidden: 0 };
-  const box = scroller.getBoundingClientRect();
+  // stacked chunks can run past the pane (it scrolls): what shows is the part inside both
+  const [s, p] = [scroller.getBoundingClientRect(), pane.getBoundingClientRect()];
+  const box = { top: Math.max(s.top, p.top), bottom: Math.max(Math.max(s.top, p.top), Math.min(s.bottom, p.bottom)) };
   const lineH = deepAll(scroller, '[data-line]')[0]?.getBoundingClientRect().height || 20;
   const span = highlight(scroller);
   // rows past the drawn ones are not in the DOM: the highlight is at least its line count tall
   const hidden = !lines ? 0 : !span ? lines : Math.ceil((Math.max(0, box.top - span[0]) + Math.max(0, Math.max(span[1], span[0] + lines * lineH) - box.bottom)) / lineH);
-  return { ref, code: true, lines, visible: Math.floor(scroller.clientHeight / lineH), hidden: Math.min(lines, hidden) };
+  return { ref, code: true, lines, visible: Math.floor((box.bottom - box.top) / lineH), hidden: Math.min(lines, hidden) };
 }
 
 /** Measure the step on screen. `shown`: what the pane shows (paneMachine's context). */
-export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLElement }, shown: PaneShown | null, stripped: string[], settled: boolean): StepAudit {
+export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLElement }, shown: PaneShown | null, stripped: StepAudit['stripped'], settled: boolean): StepAudit {
   const { left, lead, pane } = els;
   const kind = shown?.kind ?? 'empty';
   const slots = shown?.kind === 'refs' ? shown.slots : [];
@@ -60,7 +64,7 @@ export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLE
   return {
     left: { visible: left.clientHeight, content: left.scrollHeight, lead: lead.hidden ? 0 : lead.offsetHeight },
     pane: kind,
-    chunks: slots.map((s, i) => chunk(pane.children[i], s.ref, s.code?.start ? (s.code.end ?? s.code.start) - s.code.start + 1 : 0)),
+    chunks: slots.map((s, i) => chunk(pane.children[i], pane, s.ref, s.code?.start ? (s.code.end ?? s.code.start) - s.code.start + 1 : 0)),
     wide: [...new Set(wide)],
     stripped,
     settled,

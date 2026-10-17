@@ -269,17 +269,17 @@ export function mountWalkthrough(app: ReviewApp) {
     await loaded;
     if (!ctx().doc) throw new Error(app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'no walkthrough.json');
     if (theme) {
-      document.documentElement.dataset.theme = theme; // the host's choice: the reviewer's own pref stays as it is
+      app.prefs = { ...app.prefs, theme }; // for this page only: not saved, the reviewer's pref stays as it is
       app.applyTheme();
     }
     actor.send({ type: 'open', chapter, step });
     const want = JSON.stringify(target(ctx()));
     const shown = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context.shown;
-    // the entrance; an author's endless animation would never finish
-    await Promise.all(left.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished));
-    const settled = await settle(pane, shown?.kind === 'refs' ? shown.slots.map((s) => !!s.code?.start) : []);
+    // the entrance; an author's endless or paused animation would never finish
+    await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished)), new Promise((r) => setTimeout(r, 1000))]);
+    const settled = await settle(left, pane, shown?.kind === 'refs' ? shown.slots.map((s) => !!s.code?.start) : []);
     const { chapter: ch, step: st } = current(ctx());
-    return measure({ left, lead, pane }, shown, proseRemoved((ch.lead ?? '') + st.text), settled);
+    return measure({ left, lead, pane }, shown, { lead: proseRemoved(ch.lead ?? ''), text: proseRemoved(st.text) }, settled);
   }
   return { actor, audit };
 }

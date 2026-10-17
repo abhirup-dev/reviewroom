@@ -92,8 +92,8 @@ export type StepAudit = {
   chunks: ChunkAudit[];
   /** content wider than its box (sideways scrolling): 'narration', 'diagram', or a tag inside the narration */
   wide: string[];
-  /** what the sanitizer took out of the step's text and the lead */
-  stripped: string[];
+  /** what the sanitizer took out of the chapter lead and the step's text */
+  stripped: { lead: string[]; text: string[] };
   /** false: the code had not settled when the page gave up waiting (the numbers may be off) */
   settled: boolean;
 };
