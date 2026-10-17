@@ -8,7 +8,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, state, GitHub (Octokit, as the `gh` user).
 - `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
   `shared/` is used by the CLI too (no DOM, no Node): Zod schema, op reducer, `rr:` grammar, feedback text.
-  `flows/` holds the XState machines (thread popup, server sync); views subscribe.
+  `flows/` holds the XState machines (thread popup, server sync, layout save); views subscribe.
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
 
 ## Contracts (change deliberately, update the skill when you do)
@@ -20,7 +20,8 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
 - **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by other local tools
-  (agent-annotation-hub); `layout.json` is the reviewer's default panel layout.
+  (agent-annotation-hub); `layouts/<name>.json` are the reviewer's layout files (`default.json` their default), in the
+  format of `src/shared/layout.ts`, like the built-ins in `src/layouts/`.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 

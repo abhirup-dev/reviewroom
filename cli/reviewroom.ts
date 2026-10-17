@@ -124,7 +124,7 @@ cli.help((sections) => {
       title: 'The review dir',
       body: [
         '  <repo>/.reviewroom/<name>/, excluded from git. review.html and any assets next to it are yours;',
-        '  everything else (state.json, config.json, rounds/) belongs to reviewroom: read and change it',
+        '  everything else (state.json, config.json, layout.json, rounds/) belongs to reviewroom: read and change it',
         '  through these commands only.',
       ].join('\n'),
     },
