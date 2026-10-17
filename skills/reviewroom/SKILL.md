@@ -106,6 +106,10 @@ For each thread in the feedback:
 
 If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports.
 
+A thread anchored on a walkthrough step (`rr:tour/<chapter>/<step>`; its anchor line quotes the
+slide) means that slide was unclear. Answer in the thread, and if the slide was wrong or confusing,
+edit that step in `walkthrough.json` for the next round. `reviewroom check` validates it again.
+
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):
 `reviewroom reply --json <replies.json> --dir <dir>`, with `[{"thread": "t_ab12", "body": "…"}]`.

@@ -17,7 +17,7 @@ export type WalkthroughEvent =
   | { type: 'resume' }
   | { type: 'close' };
 
-const clamp = (n: number, max: number) => Math.max(0, Math.min(n, max));
+const clamp = (n: number, max: number) => Math.max(0, Math.min(Math.trunc(n) || 0, max)); // NaN, fractions: still a real index
 const at = (doc: Walkthrough, chapter: number, step: number) => {
   const c = clamp(chapter, doc.chapters.length - 1);
   return { chapter: c, step: clamp(step, doc.chapters[c].steps.length - 1) };

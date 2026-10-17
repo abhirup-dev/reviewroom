@@ -20,11 +20,13 @@ export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | unde
       return 'Thread';
     case 'round':
       return 'Round ' + r.n;
+    case 'tour':
+      return 'Walkthrough step'; // ReviewApp.label names the chapter and step
   }
 }
 
 export function refIcon(r: Ref): SVGSVGElement {
-  return icon(({ doc: 'doc', code: 'code', file: 'files', sym: 'symbol', thread: 'thread', round: 'round' } as const)[r.type], 12);
+  return icon(({ doc: 'doc', code: 'code', file: 'files', sym: 'symbol', thread: 'thread', round: 'round', tour: 'play' } as const)[r.type], 12);
 }
 
 /** Build a CSS path from `ancestor` down to `el` (used for elements without ids). */

@@ -12,6 +12,7 @@
 import cssText from './styles/bundle.css' with { type: 'text' };
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
+import { anchorOf } from './shared/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
@@ -198,9 +199,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     files: () => app.files,
     search: (q: string, symbol = false) => app.search(q, symbol),
     comment: (ref: string, body?: string) => {
-      const r = parseRef(ref);
-      const anchor =
-        r?.type === 'doc' ? { kind: 'doc' as const, target: r.id, path: r.path } : r?.type === 'code' ? { kind: 'code' as const, path: r.path, rev: r.rev === 'base' ? ('base' as const) : ('head' as const), start: r.start ?? 1, end: r.end ?? r.start ?? 1 } : r?.type === 'sym' ? { kind: 'symbol' as const, name: r.name } : { kind: 'general' as const };
+      const anchor = anchorOf(ref);
       return body ? app.createThread(anchor, body) : app.compose(anchor);
     },
     on: app.bus.on.bind(app.bus),

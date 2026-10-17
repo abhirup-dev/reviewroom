@@ -6,8 +6,21 @@ import { takeLock, releaseLock } from './lock.ts';
 import { emptyState, type Op, type ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
+import { parseWalkthrough, type Parsed } from '../../src/shared/walkthrough.ts';
 
 export const statePath = (dir: string) => path.join(dir, 'state.json');
+export const walkthroughPath = (dir: string) => path.join(dir, 'walkthrough.json');
+
+/** The review's walkthrough.json, parsed; null when there is none. */
+export function readWalkthrough(dir: string): Parsed | null {
+  const f = walkthroughPath(dir);
+  return fs.existsSync(f) ? parseWalkthrough(fs.readFileSync(f, 'utf8')) : null;
+}
+/** The walkthrough if there is a valid one (context for tour threads). */
+export const validWalkthrough = (dir: string) => {
+  const r = readWalkthrough(dir);
+  return r?.ok ? r.value : null;
+};
 
 /** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
 export function readState(dir: string): ReviewState {

@@ -2,11 +2,22 @@
 // agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
 import type { Anchor, ReviewState, Thread } from '../core/types';
 import { anchorRef } from './refs';
+import type { Walkthrough } from './walkthrough';
 
 /** Doc anchors with this target are on the PR's own description (GitHub's text, not review.html). */
 export const PR_DESCRIPTION = 'rr-pr-description';
 
-export const anchorText = (a: Anchor) => {
+// block tags break words, inline ones don't
+const plain = (html: string) => html.replace(/<\/?(p|div|li|br|h\d|ul|ol|tr|td|rr-flow|rr-node)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+/** Where a tour anchor sits in the walkthrough: chapter and step indices, -1 when gone. */
+export const tourPosition = (a: { chapter: string; step: string }, w?: Walkthrough | null) => {
+  const c = w?.chapters.findIndex((ch) => ch.id === a.chapter) ?? -1;
+  return [c, c < 0 ? -1 : w!.chapters[c].steps.findIndex((s) => s.id === a.step)] as const;
+};
+
+/** One line saying what a thread is on; `walkthrough` gives a tour thread its slide (chapter, step n/m, text). */
+export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => {
   switch (a.kind) {
     case 'doc':
       if (a.target === PR_DESCRIPTION)
@@ -16,6 +27,12 @@ export const anchorText = (a: Anchor) => {
       return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'})`;
     case 'symbol':
       return `symbol ${a.name}`;
+    case 'tour': {
+      const [c, s] = tourPosition(a, walkthrough);
+      if (s < 0) return `walkthrough step ${a.chapter}/${a.step}${walkthrough ? ' (step no longer in the walkthrough)' : ''}`;
+      const ch = walkthrough!.chapters[c];
+      return `walkthrough "${ch.title}" step ${s + 1}/${ch.steps.length}: "${plain(ch.steps[s].text)}"`;
+    }
     default:
       return 'general';
   }
@@ -43,12 +60,20 @@ export interface FeedbackOpts {
   codeExcerpt?: (a: Anchor) => string | null;
   /** The PR's GitHub threads, listed as context (colleagues' comments, not this reviewer's feedback). */
   github?: Thread[];
+  /** walkthrough.json, for the slide a tour thread is on */
+  walkthrough?: Walkthrough | null;
 }
 
 export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   const round = state.round;
   const at = opts.dir ? ` --dir '${opts.dir.replace(/'/g, `'\\''`)}'` : '';
-  const touched = state.threads.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === round));
+  // walkthrough threads last, in tour order, so the agent reads them like the reviewer played them
+  const order = (t: Thread) => {
+    if (t.anchor.kind !== 'tour') return 0;
+    const [c, s] = tourPosition(t.anchor, opts.walkthrough);
+    return 1 + (c + 1) * 1e4 + (s + 1);
+  };
+  const touched = state.threads.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === round)).sort((a, b) => order(a) - order(b));
   const open = state.threads.filter((t) => t.status === 'open');
   const lines: string[] = [];
   if (opts.kind === 'approve') {
@@ -68,7 +93,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
     '',
   );
   for (const t of touched) {
-    lines.push(`## Thread ${t.id} - ${t.status}`, `Anchor: ${anchorText(t.anchor)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
+    lines.push(`## Thread ${t.id} - ${t.status}`, `Anchor: ${anchorText(t.anchor, opts.walkthrough)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
     const ex = opts.codeExcerpt?.(t.anchor);
     if (ex) lines.push('', '```', ex, '```');
     lines.push('');

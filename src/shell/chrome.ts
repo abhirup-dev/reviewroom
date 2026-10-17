@@ -77,7 +77,7 @@ export function sendDialog(app: ReviewApp) {
       }
       app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
     } else {
-      await copyText(feedbackMarkdown(app.state, { kind, note: text }));
+      await copyText(feedbackMarkdown(app.state, { kind, note: text, walkthrough: app.walkthrough }));
       app.apply({ op: 'finishRound', kind, note: text, round: n });
       app.toast('Feedback copied — paste it to your agent');
     }

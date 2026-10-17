@@ -9,7 +9,7 @@ import { feedbackMarkdown } from '../../src/shared/feedback.ts';
 import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
-import { readState, writeState } from './state.ts';
+import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, layoutFile } from './paths.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
@@ -20,7 +20,6 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { FinishRound, GitHubAction, issueText } from '../../src/shared/schema.ts';
-import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { createAdaptorServer } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -90,7 +89,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   // what a reconnecting client compares: a change to either file while it was away reloads the page
   const hash = () => {
     const h = crypto.createHash('sha1');
-    for (const f of [reviewFile, path.join(dir, 'walkthrough.json')]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
+    for (const f of [reviewFile, walkthroughPath(dir)]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
     return h.digest('hex').slice(0, 12);
   };
   const send = (event: string, data: unknown) => {
@@ -195,10 +194,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     return json(c, { rev: commit(ops).rev });
   });
   app.get('/api/walkthrough', (c) => {
-    const file = path.join(dir, 'walkthrough.json');
-    if (!fs.existsSync(file)) return json(c, { error: 'no walkthrough.json' }, 404);
-    const r = parseWalkthrough(fs.readFileSync(file, 'utf8'));
-    return r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
+    const r = readWalkthrough(dir);
+    return !r ? json(c, { error: 'no walkthrough.json' }, 404) : r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
   });
   app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
   app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
@@ -227,7 +224,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads });
+    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));

@@ -51,7 +51,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
   for (const ref of extractLinks(html)) {
     const r = parseRef(ref);
-    if (!r || r.type === 'thread' || r.type === 'round') {
+    if (!r || r.type === 'thread' || r.type === 'round' || r.type === 'tour') {
       out(ref, 'broken', 'not a valid link');
       continue;
     }

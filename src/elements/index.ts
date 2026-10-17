@@ -183,6 +183,8 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
     }
     case 'round':
       return h('div', null, `Round ${r.n}`);
+    case 'tour':
+      return h('div', null, app.label(ref));
   }
 }
 

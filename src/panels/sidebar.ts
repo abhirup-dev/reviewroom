@@ -368,6 +368,7 @@ class ThreadsPanel implements PanelInstance {
       ['PR description', list.filter((t) => t.anchor.kind === 'doc' && t.anchor.target === PR_DESCRIPTION)],
       ['Narrative', list.filter((t) => !t.gh && t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)],
       ['Code', list.filter((t) => !t.gh && (t.anchor.kind === 'code' || t.anchor.kind === 'symbol'))],
+      ['Walkthrough', list.filter((t) => t.anchor.kind === 'tour')],
       ['General', list.filter((t) => !t.gh && t.anchor.kind === 'general')],
       ['GitHub', list.filter((t) => t.gh)],
     ];
