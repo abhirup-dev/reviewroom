@@ -6,6 +6,8 @@ import { parseRef } from './refs';
 import { issueList } from './schema';
 
 const nonEmpty = z.string().min(1, 'must be a non-empty string');
+// quoted into the agent's feedback markdown: a line break there could forge a heading
+const title = nonEmpty.max(120, 'must be at most 120 characters').regex(/^[^\r\n]*$/, 'must be one line');
 const id = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'must be lowercase letters, digits and dashes');
 const html = z.string().describe('Narrative HTML: rr: links, <rr-flow>, <rr-code> work as in review.html');
 // a ref the right pane can show: code/file with ordered, positive lines; sym/doc with a name
@@ -20,7 +22,8 @@ const unique = (ids: string[], what: string, ctx: z.RefinementCtx, at: (i: numbe
     if (ids.indexOf(v) !== i) ctx.addIssue({ code: 'custom', path: at(i), message: `duplicate ${what} id "${v}"` });
   });
 
-const PaneRef = z.string().refine(showable, 'must be an rr:code/, rr:file/, rr:sym/ or rr:doc/ link (lines #L<start>-<end>, start >= 1, end >= start)');
+const paneRefMessage = 'must be an rr:code/, rr:file/, rr:sym/ or rr:doc/ link (lines #L<start>-<end>, start >= 1, end >= start)';
+const PaneRef = z.string().regex(/^rr:(code|file|sym|doc)\//, paneRefMessage).refine(showable, { message: paneRefMessage, when: (p) => !p.issues.length });
 
 export const Step = z.object({
   id,
@@ -37,7 +40,7 @@ export const stepRefs = (s: Pick<Step, 'ref'>): string[] => (s.ref === undefined
 const Chapter = z
   .object({
     id,
-    title: nonEmpty,
+    title,
     lead: html.optional().describe('Static for the whole chapter; may hold an <rr-flow> diagram'),
     steps: z.array(Step).min(1, 'needs at least one step'),
   })
@@ -46,7 +49,7 @@ const Chapter = z
 export const Walkthrough = z
   .object({
     version: z.literal(1),
-    title: nonEmpty,
+    title,
     chapters: z.array(Chapter).min(1, 'needs at least one chapter'),
   })
   .superRefine((w, ctx) => unique(w.chapters.map((c) => c.id), 'chapter', ctx, (i) => ['chapters', i, 'id']));

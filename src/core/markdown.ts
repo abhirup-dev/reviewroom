@@ -53,12 +53,19 @@ export function renderMarkdown(src: string): string {
   });
 }
 
-/** Author HTML from outside this machine (a walkthrough pulled from a PR): no scripts or handlers; the display
- *  elements a narrative uses stay (not <rr-check>, which changes review state). */
+/** Author HTML from outside this machine (a walkthrough pulled from a PR): display-only. Text formatting, links
+ *  (http(s) or rr:) and the narrative's own elements stay; no styles, forms, media or remote loads, not <rr-check>
+ *  (it changes review state) nor <rr-markdown> (its markdown sanitizer lets images through). */
 export function sanitizeProse(html: string): string {
   return DOMPurify.sanitize(html, {
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|rr):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
-    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout|markdown)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title)$/, allowCustomizedBuiltInElements: false },
+    // body: the parse root DOMPurify wraps the fragment in
+    ALLOWED_TAGS: ['body', 'p', 'br', 'hr', 'span', 'div', 'a', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark', 'small', 'sub', 'sup', 'code', 'kbd', 'pre', 'blockquote', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'details', 'summary'],
+    // listed here (not only as a custom element's) so `ref` is URL-checked too
+    ALLOWED_ATTR: ['href', 'ref', 'title', 'class'],
+    // other allowed attributes are checked as URLs: plain words for these, only http(s)/rr: for href and ref
+    ADD_URI_SAFE_ATTR: ['caption', 'kind', 'lang', 'state'],
+    ALLOWED_URI_REGEXP: /^(?:https?|rr):/i,
+    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title)$/, allowCustomizedBuiltInElements: false },
   });
 }
 

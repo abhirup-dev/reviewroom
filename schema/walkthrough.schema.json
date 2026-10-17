@@ -8,7 +8,9 @@
     },
     "title": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[^\\r\\n]*$"
     },
     "chapters": {
       "minItems": 1,
@@ -22,7 +24,9 @@
           },
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\r\\n]*$"
           },
           "lead": {
             "description": "Static for the whole chapter; may hold an <rr-flow> diagram",
@@ -47,13 +51,15 @@
                   "description": "What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (or the lead diagram)",
                   "anyOf": [
                     {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "^rr:(code|file|sym|doc)\\/"
                     },
                     {
                       "minItems": 1,
                       "type": "array",
                       "items": {
-                        "type": "string"
+                        "type": "string",
+                        "pattern": "^rr:(code|file|sym|doc)\\/"
                       }
                     }
                   ]

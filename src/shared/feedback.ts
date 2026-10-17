@@ -16,8 +16,7 @@ const tourPosition = (a: { chapter: string; step: string }, w?: Walkthrough | nu
   return [c, c < 0 ? -1 : w!.chapters[c].steps.findIndex((s) => s.id === a.step)] as const;
 };
 
-/** One line saying what a thread is on; `walkthrough` gives a tour thread its slide (chapter, step n/m, text). */
-export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => {
+const describeAnchor = (a: Anchor, walkthrough?: Walkthrough | null) => {
   switch (a.kind) {
     case 'doc':
       if (a.target === PR_DESCRIPTION)
@@ -37,6 +36,10 @@ export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => {
       return 'general';
   }
 };
+
+/** One line saying what a thread is on; `walkthrough` gives a tour thread its slide (chapter, step n/m, text).
+ *  Whitespace collapses: titles and quotes can come from a PR, and a line break could forge a heading in feedback. */
+export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => describeAnchor(a, walkthrough).replace(/\s+/g, ' ');
 
 /** Open GitHub threads as markdown: what colleagues said on the PR. The agent can link them (rr:thread/<id>), not post to them. */
 export function githubContext(threads: Thread[] = []) {
