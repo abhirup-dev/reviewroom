@@ -19,6 +19,9 @@ test('anchors: the CLI stores what the browser would', () => {
   for (const s of ['rr:thread/t_1', 'rr:file/a.go@x', 'general', '']) expect(anchorOf(s)).toEqual({ kind: 'general' });
   for (const s of ['rr:doc/intro/p', 'rr:code/my%20file.go@base#L3-5', 'rr:sym/Build', 'rr:tour/why/s2']) expect(anchorRef(anchorOf(s))).toBe(s);
   expect(anchorRef({ kind: 'general' })).toBeNull();
+  // a full sha pins the lines; anything else that names a rev is not stored
+  expect(anchorOf(`rr:code/a.go@${'c'.repeat(40)}#L2`)).toEqual({ kind: 'code', path: 'a.go', rev: 'head', start: 2, end: 2, sha: 'c'.repeat(40) });
+  expect(anchorOf('rr:code/a.go@abc123#L2')).toEqual({ kind: 'code', path: 'a.go', rev: 'head', start: 2, end: 2 });
 });
 
 test('anchorOf: a one-line code link ends where it starts; a tour link has exactly a chapter and a step', () => {

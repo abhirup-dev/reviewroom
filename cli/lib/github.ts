@@ -194,7 +194,7 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
     if (gh) return `[${label || 'thread'}](${gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
     const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
-    const sha = a.rev === 'base' ? shas.base : shas.head;
+    const sha = a.sha ?? (a.rev === 'base' ? shas.base : shas.head);
     return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path.split('/').map(encodeURIComponent).join('/')}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
   });
 }
@@ -261,6 +261,8 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       case 'comment': {
         // a new line comment: a draft in the viewer's pending review (started on the commit being reviewed)
         const an = a.anchor;
+        // GitHub's line numbers are the PR's whole diff: a line of one commit's diff may be another line there
+        if (an.sha && an.sha !== (an.rev === 'base' ? prov.base : (localHead || s.headSha))) fail("GitHub takes comments on the PR's whole diff only: comment from All changes, or send this one to the agent", 422);
         const review = s.pending?.id ?? (await run(M.startReview, { pr: s.pr, commit: localHead })).addPullRequestReview?.pullRequestReview?.id;
         const side = an.rev === 'base' ? 'LEFT' : 'RIGHT';
         const multi = an.start < an.end;

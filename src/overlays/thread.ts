@@ -277,7 +277,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       { class: 'rr-thread__head' },
       h(
         'button',
-        { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: () => ref && app.open(ref) },
+        { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: async () => ref && (await app.showRangeOf(anchor), app.open(ref)) },
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         // the quote itself is shown below; the chip says where it is
         ref ? app.label(ref) : (t?.title ?? app.anchorLabel(anchor)),
@@ -537,7 +537,11 @@ export function mountThreadPopup(app: ReviewApp) {
     dockThread(app, id, t.title ?? app.anchorLabel(t.anchor));
   };
   flow.start();
-  app.bus.on('open-thread', ({ id }) => (app.showPanel('thread:' + id) || flow.send({ type: 'open', id })));
+  app.bus.on('open-thread', ({ id }) => {
+    const t = app.thread(id);
+    if (t) void app.showRangeOf(t.anchor); // a thread on one commit's diff: that commit's diff behind it
+    if (!app.showPanel('thread:' + id)) flow.send({ type: 'open', id });
+  });
   app.bus.on('compose-thread', ({ anchor, quote, to }) => flow.send({ type: 'compose', anchor, quote, to }));
 }
 

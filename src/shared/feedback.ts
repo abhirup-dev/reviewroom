@@ -23,7 +23,7 @@ const describeAnchor = (a: Anchor, walkthrough?: Walkthrough | null) => {
         return `PR description (the author's text on GitHub; you cannot edit it, answer in the thread)${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
       return `walkthrough ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
     case 'code':
-      return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'})`;
+      return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'}${a.sha ? `, at commit ${a.sha.slice(0, 7)}` : ''})`;
     case 'symbol':
       return `symbol ${a.name}`;
     case 'tour': {

@@ -35,9 +35,11 @@ export interface Commit {
   subject: string;
   author?: string;
   date?: string;
+  /** Its first parent's sha (the base of its own diff); missing: `sha^` */
+  parent?: string;
 }
 
-/** A diff range. 'all' = meta.base..meta.head; a commit sha = sha^..sha. */
+/** A diff range. 'all' = meta.base..meta.head; a commit sha = its parent..sha. */
 export interface DiffRange {
   base: Rev;
   head: Rev;

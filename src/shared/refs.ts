@@ -119,7 +119,8 @@ export function anchorOf(ref: string): Anchor {
     case 'doc':
       return { kind: 'doc', target: r.id, path: r.path };
     case 'code':
-      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1 };
+      // a full sha pins the lines (the file at that commit); a branch or other rev is not stored
+      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1, ...(/^[0-9a-f]{40}$/.test(r.rev) && { sha: r.rev }) };
     case 'sym':
       return { kind: 'symbol', name: r.name };
     case 'tour':

@@ -12,6 +12,7 @@ import { PR_DESCRIPTION } from '../shared/feedback';
 import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
 import { applyOp } from '../shared/ops';
+import { homeRange, showsOn, sideSha } from '../core/anchors';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 import type { GitHubAction } from '../shared/schema';
@@ -175,7 +176,16 @@ export class ReviewApp {
   }
   ranges(): DiffRange[] {
     const all: DiffRange = { base: this.meta.base, head: this.meta.head, label: 'All changes', key: 'all' };
-    return [all, ...this.commits.map((c) => ({ base: c.sha + '^', head: c.sha, label: `${c.short} · ${c.subject}`, key: c.sha }))];
+    return [all, ...this.commits.map((c) => ({ base: c.parent ?? c.sha + '^', head: c.sha, label: `${c.short} · ${c.subject}`, key: c.sha }))];
+  }
+  /** Whether a code thread is drawn on the active range (or `range`): see src/core/anchors.ts. */
+  codeShows(a: Anchor, range: Pick<DiffRange, 'base' | 'head'> = this.range) {
+    return a.kind === 'code' && showsOn(a, range, this.ranges());
+  }
+  /** Switch to the range a code thread was made on, when the active one doesn't draw it. */
+  async showRangeOf(a: Anchor) {
+    const home = a.kind === 'code' && !this.codeShows(a) ? homeRange(a, this.ranges()) : undefined;
+    if (home) await this.setRange(home);
   }
   visibleFiles(): ChangedFile[] {
     return this.files.filter((f) => !(this.prefs.hideTests && isTest(f.path)) && !this.prefs.hiddenTypes.includes(fileType(f.path)));
@@ -293,7 +303,9 @@ export class ReviewApp {
   anchorLabel(a: Anchor): string {
     if (a.kind === 'general') return 'General';
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
-    return this.label(anchorRef(a)!);
+    // a thread on one commit's diff names that commit
+    const home = a.kind === 'code' && homeRange(a, this.ranges());
+    return this.label(anchorRef(a)!) + (home && home.key !== 'all' ? ` · ${home.label.split(' · ')[0]}` : '');
   }
 
   // ------------------------------------------------------------ threads
@@ -392,6 +404,9 @@ export class ReviewApp {
 
   /** Local threads change at once; GitHub ones resolve once GitHub has taken the comment (undefined thread). */
   createThread(anchor: Anchor, body: string, author: Author = 'you', toGitHub = this.commentsToGitHub(anchor)): Thread | undefined | Promise<boolean> {
+    // made on one commit's diff: pinned to that commit, so other ranges don't draw it on their same line numbers.
+    // Not on All changes: a push moves its head, and its threads must stay on it.
+    if (anchor.kind === 'code' && !anchor.sha && this.commits.some((c) => c.sha === this.range.key)) anchor = { ...anchor, sha: sideSha(this.range, anchor.rev) };
     if (author === 'you' && toGitHub)
       return anchor.kind === 'code' ? this.githubAct({ action: 'comment', anchor, body }) : this.githubAct({ action: 'conversation', body });
     const id = uid('t_');

@@ -141,6 +141,11 @@
                     "type": "integer",
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
+                  },
+                  "sha": {
+                    "description": "The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
                   }
                 },
                 "required": [

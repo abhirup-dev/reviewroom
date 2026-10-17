@@ -70,7 +70,7 @@ class FilesPanel implements PanelInstance {
 
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
-    const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path);
+    const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path && app.codeShows(t.anchor));
     const viewed = app.state.viewed[f.path] !== undefined;
     return h(
       'button',

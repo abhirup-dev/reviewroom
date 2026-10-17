@@ -130,8 +130,8 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
     },
     commits(): Commit[] {
       if (isWT(head)) return [];
-      const out = git(['log', '--reverse', '--format=%H%x1f%h%x1f%s%x1f%an%x1f%aI', `${base}..${head}`], repo).trim();
-      return out ? out.split('\n').map((l) => { const [sha, short, subject, author, date] = l.split('\x1f'); return { sha, short, subject, author, date }; }) : [];
+      const out = git(['log', '--reverse', '--format=%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%P', `${base}..${head}`], repo).trim();
+      return out ? out.split('\n').map((l) => { const [sha, short, subject, author, date, parents] = l.split('\x1f'); return { sha, short, subject, author, date, parent: parents.split(' ')[0] || undefined }; }) : [];
     },
     files(b: string, h: string): ChangedFile[] {
       const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];

@@ -3,13 +3,16 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import { op, post, read, setup } from './fixture.ts';
 
 describe('a round finished while no agent waits', () => {
-  const { d, cli, serve, state } = setup();
+  const { d, dir, cli, serve, state, git } = setup();
   let url = '';
   let late: Awaited<ReturnType<typeof cli>>;
   beforeAll(async () => {
     url = await serve();
     await op(url, { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
     await op(url, { op: 'addMessage', threadId: 't_one', id: 'm_two', body: 'and?', author: 'you' });
+    // made on the first commit's diff: line 6 there is a line the branch's head has moved
+    const sha = (await git('rev-parse', 'feat/habit-events~1')).stdout.toString().trim();
+    await op(url, { op: 'createThread', id: 't_commit', anchor: { kind: 'code', path: 'pkg/ranker/request_builder.go', rev: 'head', start: 6, end: 6, sha }, msgId: 'm_c', body: 'this import?', author: 'you' });
   });
 
   test('double finish: one wins, the other gets 409', async () => {
@@ -24,6 +27,7 @@ describe('a round finished while no agent waits', () => {
     expect(state().rounds[0].deliveredAt).toBeString();
     expect((await fetch(url + 'api/meta')).ok).toBe(true);
   });
+  test("a thread on one commit's diff quotes that commit's lines", () => expect(read(dir, 'rounds', '1', 'feedback.md')).toMatch(/at commit [0-9a-f]{7}\)[^]*\n {3}6 {2}\t"github.com\/sharechat\/mfas\/pkg\/tardis"/));
   // git may report the repo via /private/var on macOS
   test('feedback names the review dir in the commands it asks for', () => expect(late.stdout).toMatch(/--dir '[^']*\/reviews\/repo\/feat-habit-events'/));
 });

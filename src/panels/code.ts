@@ -286,7 +286,7 @@ class CodePanel implements PanelInstance {
     const items: CodeViewItem<Meta>[] = [];
     const fv = this.fileView;
     if (this.mode === 'file') {
-      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side), version: ++this.version });
+      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side, fv.rev), version: ++this.version });
     } else {
       for (const [path, f] of this.files) items.push({ id: path, type: 'diff', fileDiff: f.diff ?? NO_DIFF(path), annotations: this.annotations(path), collapsed: f.collapsed, version: ++this.version });
     }
@@ -298,7 +298,7 @@ class CodePanel implements PanelInstance {
     const entry = this.files.get(path);
     if (!entry) return undefined;
     const f = entry.file;
-    const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open');
+    const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open' && app.codeShows(t.anchor));
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
@@ -386,7 +386,7 @@ class CodePanel implements PanelInstance {
     if (!this.app.prefs.inlineThreads) return [];
     return this.app
       .threads()
-      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && onLine(t))
+      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && onLine(t) && this.app.codeShows(t.anchor))
       .map((t) => {
         const a = t.anchor as Extract<Thread['anchor'], { kind: 'code' }>;
         const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
@@ -419,10 +419,10 @@ class CodePanel implements PanelInstance {
   }
 
   // ------------------------------------------------------------ full file view
-  private fileAnnotations(path: string, side: 'base' | 'head') {
+  private fileAnnotations(path: string, side: 'base' | 'head', rev?: string) {
     return this.app
       .threads()
-      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === side && onLine(t))
+      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === side && onLine(t) && this.app.codeShows(t.anchor, rev ? { base: rev, head: rev } : undefined))
       .map((t) => ({ lineNumber: (t.anchor as Extract<Thread['anchor'], { kind: 'code' }>).end, metadata: { threadId: t.id } }));
   }
 

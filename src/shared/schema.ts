@@ -12,7 +12,15 @@ const dateTime = z.string().meta({ format: 'date-time' });
 
 export const TextQuote = z.object({ exact: z.string(), prefix: z.string().optional(), suffix: z.string().optional() });
 
-const CodeAnchor = z.object({ kind: z.literal('code'), path: z.string(), rev: z.enum(['base', 'head']), start: int, end: int });
+const sha = z.string().regex(/^[0-9a-f]{40}$/, 'must be a full 40-hex commit sha');
+const CodeAnchor = z.object({
+  kind: z.literal('code'),
+  path: z.string(),
+  rev: z.enum(['base', 'head']),
+  start: int,
+  end: int,
+  sha: sha.optional().describe("The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head"),
+});
 export const Anchor = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('doc'),
