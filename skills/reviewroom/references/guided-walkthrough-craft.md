@@ -41,6 +41,13 @@ slide. If "and then" fits between two slides, they are a list: reorder or cut. P
 as subject, verbs that move data or control (reads, writes, calls, guards, drops), not "updates",
 "refactors", "improves". Introduce a file by its role, then its name, once.
 
+**Pictures.** A slide is a picture with a caption, and the picture is often not code. The context
+chapter's lead is an `<rr-flow>` of the surrounding system with the threads marked; the convergence
+shows the contract as a diagram (who writes it, who reads it) before it shows the lines; a thread
+chapter opens on its flow, then walks it line by line. Slides take `<rr-flow>`, `<rr-code>` and
+`<rr-callout>` directly, and `<rr-embed ref="rr:doc/<id>">` for any richer figure you drew in
+`review.html`, so draw once and show it in both. Build every figure for the narrow pane.
+
 **Anti-patterns**, all from one real walkthrough: chapters named after review categories (Why,
 Validation, Failure modes, Tests) instead of parts of the change; slides about what the PR is *not*;
 a thread introduced on slide 2 that vanishes until chapter 4; the critical contract spread over four

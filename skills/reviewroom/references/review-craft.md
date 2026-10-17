@@ -54,11 +54,14 @@ Write for that width first; a wide window then just has margin.
 - No side-by-side layouts. A before/after is two blocks, one under the other.
 - Long identifiers and paths go in links or chips, not in table cells or diagram nodes.
 
-## When to build something interactive
+## Show it, then say it
 
-Use HTML, SVG or script when a picture or a widget answers a question faster than prose: a latency
-budget, a state machine, the shape of rows in a table, a query plan, a before/after of a data
-structure. Make widget parts clickable into the code with `rr.open(…)`.
+Prose explains; a picture lets the reader see. Reach for one by default, not as an exception:
+whenever a section has moving parts (a flow, a state machine, a schema, a before/after of a data
+structure, a sequence of calls, a latency budget, a query plan), draw it first and write the paragraph
+that walks it. The lede's `<rr-flow>` is the first of these, not the only one. Plain HTML and SVG are
+enough; a `<table>` is a picture too when the shape of the data is the point. Make the parts clickable
+into the code (`ref` on nodes, `rr.open(…)` in widgets), and build each one for a narrow column.
 
 ## With a guided walkthrough
 
