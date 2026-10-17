@@ -24,6 +24,18 @@ test('anchors: the CLI stores what the browser would', () => {
   expect(anchorOf('rr:code/a.go@abc123#L2')).toEqual({ kind: 'code', path: 'a.go', rev: 'head', start: 2, end: 2 });
 });
 
+test("@pr:<n> addresses a stack PR's layer; no branch reads as one", () => {
+  for (const s of ['rr:code/a.go@pr:366', 'rr:code/a.go@pr:366:base#L3-5', 'rr:file/a.go@pr:2#L1', 'rr:file/a.go@pr:2:base']) expect(formatRef(parseRef(s)!)).toBe(s);
+  expect(parseRef('rr:code/a.go@pr:366#L4')).toEqual({ type: 'code', path: 'a.go', rev: 'head', start: 4, end: 4, pr: 366 });
+  expect(parseRef('rr:code/a.go@pr:366:head')).toEqual({ type: 'code', path: 'a.go', rev: 'head', pr: 366 });
+  // old forms: branches named pr-<n> or pr/<n> are revs, as before
+  for (const rev of ['pr-366', 'pr/366', 'pr:0', 'pr:x']) expect(parseRef(`rr:code/a.go@${rev}`)).toEqual({ type: 'code', path: 'a.go', rev });
+  const a = anchorOf('rr:code/a.go@pr:366:base#L3-5');
+  expect(a).toEqual({ kind: 'code', path: 'a.go', rev: 'base', start: 3, end: 5, pr: 366 });
+  expect(anchorRef(a)).toBe('rr:code/a.go@pr:366:base#L3-5');
+  expect(anchorRef(anchorOf('rr:code/a.go@pr:7#L2'))).toBe('rr:code/a.go@pr:7#L2');
+});
+
 test('anchorOf: a one-line code link ends where it starts; a tour link has exactly a chapter and a step', () => {
   expect(anchorOf('rr:code/a.go#L12')).toMatchObject({ kind: 'code', start: 12, end: 12 });
   expect(anchorOf('rr:code/a.go#L3-9')).toMatchObject({ start: 3, end: 9 });

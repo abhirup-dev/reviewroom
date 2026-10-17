@@ -42,7 +42,8 @@ export function mountWalkthrough(app: ReviewApp) {
   async function codeAt(ref: string): Promise<CodeAt | null> {
     const r = parseRef(ref);
     if (r?.type === 'code' || r?.type === 'file') {
-      const rev = /^(base|head)$/.test(r.rev) ? undefined : r.rev;
+      // shortcut: a @pr:<n> ref shows the file at that layer's commit; playing a chapter in its PR's layer is rr-n45.4.3
+      const rev = r.pr ? app.refRev(r) : /^(base|head)$/.test(r.rev) ? undefined : r.rev;
       return { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev, view: r.type === 'file' ? 'file' : 'diff' };
     }
     if (r?.type !== 'sym') return null;

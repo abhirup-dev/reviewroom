@@ -41,6 +41,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 |---|---|
 | `rr:code/pkg/x.go#L45-54` | Lines 45–54 of any file in the repo at the head revision |
 | `rr:code/pkg/x.go@base#L45` | The same file at the base (`@<sha>` for any other commit) |
+| `rr:code/pkg/x.go@pr:366#L45` | A stack of PRs: the lines in PR #366's layer, at its head (`@pr:366:base`: the PR below's head). Opening it shows that layer; it survives a force-push. Also `rr:file/…@pr:<n>` |
 | `rr:code/pkg/x.go` | The whole file; for a file in the diff its preview shows the changed hunks |
 | `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
 | `rr:sym/Builder.Build` | A symbol narrowed by its receiver, type or package (`habit.RecentEvents`) |

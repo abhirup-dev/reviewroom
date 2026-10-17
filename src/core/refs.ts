@@ -12,7 +12,7 @@ export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | unde
       const base = r.path.split('/').pop()!;
       const lines = r.start ? `:${r.start}${r.end && r.end !== r.start ? '–' + r.end : ''}` : '';
       const rev = r.rev === 'base' ? ' (before)' : r.rev !== 'head' ? ` @${r.rev.slice(0, 7)}` : '';
-      return base + lines + rev;
+      return base + lines + rev + (r.pr ? ` · #${r.pr}` : '');
     }
     case 'sym':
       return r.name;

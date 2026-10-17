@@ -156,6 +156,12 @@ export class ReviewApp {
   revOf(rev: string) {
     return rev === 'base' || rev === 'head' ? this.revFor(rev) : rev;
   }
+  /** A code or file ref's revision: with @pr:<n>, that side of the PR's layer (undefined: no such PR in the stack). */
+  refRev(r: { rev: string; pr?: number }) {
+    if (!r.pr) return this.revOf(r.rev);
+    const l = this.prRange(r.pr);
+    return l && this.revFor(r.rev === 'base' ? 'base' : 'head', l);
+  }
   read(path: string, rev: string): Promise<string | null> {
     const key = rev + ':' + path;
     let p = this.cache.get(key);
@@ -244,16 +250,23 @@ export class ReviewApp {
         this.bus.emit('reveal-doc', { id: r.id, path: r.path });
         break;
       case 'code': {
+        // a stack PR's layer: show it first
+        const layer = r.pr ? this.prRange(r.pr) : undefined;
+        if (r.pr && !layer) return this.toast(`PR #${r.pr} is not in this review's stack`, 'error');
+        if (layer && this.range.key !== layer.key) await this.setRange(layer);
         const side = r.rev === 'base' ? 'base' : 'head';
-        const rev = r.rev !== 'base' && r.rev !== 'head' ? r.rev : undefined;
+        const rev = !r.pr && r.rev !== 'base' && r.rev !== 'head' ? r.rev : undefined;
         // a path outside the diff has no hunks to show: open the whole file instead
         const view = this.files.some((f) => f.path === r.path) ? 'diff' : 'file';
         this.bus.emit('reveal-code', { path: r.path, side, start: r.start, end: r.end, rev, view });
         break;
       }
-      case 'file':
-        this.bus.emit('reveal-code', { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev: /^(base|head)$/.test(r.rev) ? undefined : r.rev, view: 'file' });
+      case 'file': {
+        const rev = this.refRev(r);
+        if (!rev) return this.toast(`PR #${r.pr} is not in this review's stack`, 'error');
+        this.bus.emit('reveal-code', { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev: r.pr || !/^(base|head)$/.test(r.rev) ? rev : undefined, view: 'file' });
         break;
+      }
       case 'sym':
         return this.findSymbol(r.name);
       case 'thread':

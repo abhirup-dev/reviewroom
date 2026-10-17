@@ -1,7 +1,7 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit } from '../lib/config.ts';
+import { dirForEdit, readConfig } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/shared/feedback.ts';
 import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
@@ -85,6 +85,8 @@ export async function cmdComment(repo: string | null, o: BodyOpts, [ref, body]: 
   const dir = dirForEdit(repo, o.dir);
   if (!ref) fail('missing rr: ref (or "general")');
   const id = uid('t_');
-  await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
+  const anchor = anchorOf(ref);
+  if (anchor.kind === 'code' && anchor.pr && !readConfig(dir).stack?.prs.some((p) => p.number === anchor.pr)) fail(`PR #${anchor.pr} is not in this review's stack`);
+  await commitOps(dir, [{ op: 'createThread', id, anchor, msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
   console.log(id);
 }

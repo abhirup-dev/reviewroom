@@ -72,8 +72,8 @@ const track = (box: HTMLElement, inst: { cleanUp(): void }) => {
 const range = (start: number, end: number) => ({ startingLine: start - 1, totalLines: end - start + 1, bufferBefore: 0, bufferAfter: 0 });
 
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, opts: { endAt?: number } = {}): Promise<HTMLElement> {
-  const rev = app.revOf(r.rev);
-  const text = await app.read(r.path, rev);
+  const rev = app.refRev(r);
+  const text = rev ? await app.read(r.path, rev) : null;
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
   const box = h('div', { class: 'rr-snippet' });
   // a changed file without lines: its hunks

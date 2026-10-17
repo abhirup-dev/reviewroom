@@ -78,3 +78,15 @@ test('walkthrough.json: step refs and prose links are checked decoded, located, 
   expect(JSON.parse(fixed).chapters[0].steps[0]).toEqual({ id: 's1', text: '<p>See rr:code/a.go#L6-8.</p>', ref: 'rr:code/a.go#L6-8' });
   expect(fixed).toBe(JSON.stringify(JSON.parse(fixed), null, 2) + '\n');
 });
+
+test("@pr:<n> links read that PR's layer; a PR not in the stack is broken", () => {
+  const files: Record<string, string> = { 'L1:a.go': 'one', 'B1:a.go': 'zero', 'h:a.go': 'top' };
+  const p = { head: 'h', base: 'b', read: (rev: string, f: string) => files[`${rev}:${f}`] ?? null, search: () => [], layers: [{ number: 1, base: 'B1', head: 'L1' }] };
+  const { results, links } = checkLinks(html('rr:code/a.go@pr:1#L1', 'rr:code/a.go@pr:1:base#L1', 'rr:code/a.go@pr:2#L1', 'rr:code/a.go#L1'), p);
+  expect(status(results)).toEqual({ 'rr:code/a.go@pr:1#L1': 'new', 'rr:code/a.go@pr:1:base#L1': 'new', 'rr:code/a.go@pr:2#L1': 'broken', 'rr:code/a.go#L1': 'new' });
+  expect(results.find((x) => x.status === 'broken')!.why).toBe("PR #2 is not in this review's stack");
+  // each one fingerprinted at its own commit
+  expect(new Set(Object.values(links)).size).toBe(3);
+  // a review without a stack: every @pr: link is broken, not a crash
+  expect(checkLinks(html('rr:code/a.go@pr:1#L1'), prov({ 'a.go': 'x' })).results[0].status).toBe('broken');
+});

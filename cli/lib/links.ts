@@ -37,7 +37,7 @@ export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
-export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '', tour: Walkthrough | null = null) {
+export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'> & Partial<Pick<Provider, 'layers'>>, known: Links = {}, extra = '', tour: Walkthrough | null = null) {
   html = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
@@ -78,9 +78,15 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
       if (known[ref] || hit?.kind === 'definition') links[ref] = 'definition';
       continue;
     }
-    const text = read(r.rev, r.path);
+    // @pr:<n>: that side of the PR's layer
+    const layer = r.pr ? prov.layers?.find((l) => l.number === r.pr) : undefined;
+    if (r.pr && !layer) {
+      out(ref, 'broken', `PR #${r.pr} is not in this review's stack`);
+      continue;
+    }
+    const text = read(layer ? (r.rev === 'base' ? layer.base : layer.head) : r.rev, r.path);
     if (text == null) {
-      out(ref, 'broken', `file not found at ${r.rev}`);
+      out(ref, 'broken', `file not found at ${r.pr ? `#${r.pr}'s ${r.rev}` : r.rev}`);
       continue;
     }
     if (!r.start) {

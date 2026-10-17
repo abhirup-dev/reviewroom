@@ -8,7 +8,8 @@ import type { Anchor, SearchHit } from '../core/types';
 //   rr:doc/<id>                 a section or any element with an id in the narrative
 //   rr:doc/<id>/<css-path>      an element without an id, addressed below an ancestor id
 //   rr:code/<path>[@base|@head|@<sha>][#L12[-20]]   a file or line range in the diff
-//   rr:file/<path>@<rev>[#L12[-20]]                  the full file at a revision
+//   rr:code/<path>@pr:<n>[:base][#L12[-20]]         ... in a stack of PRs, in PR #<n>'s layer (head side, or base)
+//   rr:file/<path>@<rev>[#L12[-20]]                  the full file at a revision (or @pr:<n>[:base])
 //   rr:sym/<name>               a symbol (resolved via provider search): Name, Owner.Name or path/file.go:Name
 //   rr:thread/<id>              a comment thread
 //   rr:round/<n>                a review round
@@ -16,14 +17,16 @@ import type { Anchor, SearchHit } from '../core/types';
 
 export type Ref =
   | { type: 'doc'; id: string; path?: string }
-  | { type: 'code'; path: string; rev: string; start?: number; end?: number }
-  | { type: 'file'; path: string; rev: string; start?: number; end?: number }
+  | { type: 'code'; path: string; rev: string; start?: number; end?: number; pr?: number }
+  | { type: 'file'; path: string; rev: string; start?: number; end?: number; pr?: number }
   | { type: 'sym'; name: string }
   | { type: 'thread'; id: string }
   | { type: 'round'; n: number }
   | { type: 'tour'; chapter: string; step: string };
 
 const LINES = /#L(\d+)(?:-L?(\d+))?$/;
+// a colon is never part of a git rev, so no branch can be read as one of these
+const PR_REV = /^pr:([1-9]\d*)(?::(base|head))?$/;
 
 export function parseRef(input: string): Ref | null {
   let s = input.trim();
@@ -56,6 +59,8 @@ export function parseRef(input: string): Ref | null {
           rev = rest.slice(at + 1);
           rest = rest.slice(0, at);
         }
+        const pr = rev.match(PR_REV);
+        if (pr) return { type, path: decodeURI(rest), rev: pr[2] ?? 'head', start, end, pr: +pr[1] };
         return { type, path: decodeURI(rest), rev, start, end };
       }
       case 'sym':
@@ -82,7 +87,7 @@ export function formatRef(r: Ref): string {
     case 'code':
     case 'file': {
       const lines = r.start ? `#L${r.start}${r.end && r.end !== r.start ? '-' + r.end : ''}` : '';
-      const rev = r.type === 'code' && r.rev === 'head' ? '' : `@${r.rev}`;
+      const rev = r.pr ? `@pr:${r.pr}${r.rev === 'base' ? ':base' : ''}` : r.type === 'code' && r.rev === 'head' ? '' : `@${r.rev}`;
       return `rr:${r.type}/${encodeURI(r.path)}${rev}${lines}`;
     }
     case 'sym':
@@ -102,7 +107,7 @@ export function anchorRef(a: Anchor): string | null {
     case 'doc':
       return formatRef({ type: 'doc', id: a.target, path: a.path });
     case 'code':
-      return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end });
+      return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end, pr: a.pr });
     case 'symbol':
       return formatRef({ type: 'sym', name: a.name });
     case 'tour':
@@ -120,7 +125,7 @@ export function anchorOf(ref: string): Anchor {
       return { kind: 'doc', target: r.id, path: r.path };
     case 'code':
       // a full sha pins the lines (the file at that commit); a branch or other rev is not stored
-      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1, ...(/^[0-9a-f]{40}$/.test(r.rev) && { sha: r.rev }) };
+      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1, ...(/^[0-9a-f]{40}$/.test(r.rev) && { sha: r.rev }), ...(r.pr && { pr: r.pr }) };
     case 'sym':
       return { kind: 'symbol', name: r.name };
     case 'tour':
