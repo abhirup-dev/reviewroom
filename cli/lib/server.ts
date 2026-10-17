@@ -8,11 +8,12 @@ import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, writeState } from './state.ts';
-import { DIST, PKG, layoutFile } from './paths.ts';
+import { DIST, PKG, hubLog, layoutFile } from './paths.ts';
+import { ensureHub } from './registry.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
@@ -76,6 +77,27 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
   };
 }
 
+// Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too (no-cors GETs, form POSTs,
+// DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
+function allowed(c: Context) {
+  const port = getBunServer<Bun.Server<undefined>>(c)?.port;
+  const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
+  if (!origins.includes(c.req.header('host') ?? '')) return false;
+  if (!c.req.path.startsWith('/api/')) return true;
+  const site = c.req.header('sec-fetch-site');
+  if (site && site !== 'same-origin' && site !== 'none') return false;
+  const origin = c.req.header('origin');
+  return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
+}
+
+/** Every response says which process sent it (lock.ts `answers`); the hub's server uses this too. */
+export const localOnly: MiddlewareHandler = async (c, next) => {
+  c.header('x-reviewroom-pid', String(process.pid));
+  c.header('cache-control', 'no-store'); // unless a route says otherwise
+  if (!allowed(c)) return c.json({ error: 'forbidden' }, 403);
+  await next();
+};
+
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
 export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
@@ -114,26 +136,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     if (edited) checkNarrative();
   });
 
-  // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
-  // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
-  const allowed = (c: Context) => {
-    const port = getBunServer<Bun.Server<undefined>>(c)?.port;
-    const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
-    if (!origins.includes(c.req.header('host') ?? '')) return false;
-    if (!c.req.path.startsWith('/api/')) return true;
-    const site = c.req.header('sec-fetch-site');
-    if (site && site !== 'same-origin' && site !== 'none') return false;
-    const origin = c.req.header('origin');
-    return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
-  };
-
   const app = new Hono();
-  app.use(async (c, next) => {
-    c.header('x-reviewroom-pid', String(process.pid));
-    c.header('cache-control', 'no-store'); // unless a route says otherwise
-    if (!allowed(c)) return json(c, { error: 'forbidden' }, 403);
-    await next();
-  });
+  app.use(localOnly);
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
     if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
@@ -184,6 +188,11 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     const ops = c.req.valid('json').ops as Op[];
     if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
+  });
+  // the hub: every review running on this machine; started on first use
+  app.get('/api/hub', async (c) => {
+    const url = await ensureHub();
+    return url ? c.redirect(url) : json(c, { error: `the hub did not start; see ${hubLog()}` }, 500);
   });
   app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
   app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
