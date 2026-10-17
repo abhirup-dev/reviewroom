@@ -159,8 +159,9 @@ Interactive widgets can drive the reviewer straight into the code:
 
 The optional guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
 on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
-review directory and is validated against `schema/walkthrough.schema.json`. The demo has a full
-one: `examples/habit-events/walkthrough.json`.
+review directory and is validated against `schema/walkthrough.schema.json` in the reviewroom install (`reviewroom check
+--help` prints its absolute path). Put that path in a top-level `"$schema"` key so your editor validates as you type.
+The demo has a full one: `examples/habit-events/walkthrough.json`.
 
 ```json
 {
@@ -196,7 +197,11 @@ scripts, forms, media and `<rr-check>` are stripped (`walkthrough lint` names wh
 The commands and the file keep the short name: `reviewroom walkthrough …`, `walkthrough.json`.
 
 - `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
-  (changed files no slide shows, chapter sizes, empty panes); problems name the slide (chapter/step).
+  (changed files no slide shows, chapter sizes, empty panes); problems name the slide (chapter/step). A file linked
+  anywhere in slide text counts as shown; tests, generated, lock and doc files, and files with under 10 changed lines,
+  are only reported as info.
+- Highlight budget at a laptop screen: about 25 lines for one ref, 10 each for two stacked, never more than two
+  stacked. `check` estimates it; `walkthrough lint` measures it and proposes a narrower range.
 - `reviewroom walkthrough lint` plays every slide in a headless browser and reports what does not fit:
   narration that needs scrolling, highlighted lines off screen, stacked chunks too short, content wider
   than its box, prose the sanitizer strips, page errors. Each finding says how to fix it.

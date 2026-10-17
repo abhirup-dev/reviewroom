@@ -61,7 +61,7 @@ async function lint(repo: string | null, dir: string, o: WalkthroughOpts) {
       try {
         // the page's own start-up (review.html's scripts too): not a step's
         for (const e of page.errors()) boot.push({ check: 'page-error', level: 'warn', message: `while the page started (${vpName(vp)}): ${e.slice(0, 200)}`, fix: 'A script in review.html or the walkthrough prose failed; the reviewer sees the same.' });
-        for (const ch of tour.chapters) for (const st of ch.steps) ms.push({ viewport: vpName(vp), chapter: ch.id, step: st.id, audit: await page.audit(ch.id, st.id), errors: page.errors() });
+        for (const ch of tour.chapters) for (const st of ch.steps) ms.push({ viewport: vpName(vp), chapter: ch.id, step: st.id, audit: await page.audit(ch.id, st.id), errors: page.errors(), ownRef: st.ref !== undefined });
       } finally {
         await page.close();
       }
@@ -96,7 +96,7 @@ async function shot(repo: string | null, dir: string, o: WalkthroughOpts, at?: s
       const audit = await page.audit(chapter, step, theme);
       await Bun.write(out, await page.screenshot());
       console.log(out);
-      const found = judge([{ viewport: vpName(vp), chapter, step, audit, errors: page.errors() }]);
+      const found = judge([{ viewport: vpName(vp), chapter, step, audit, errors: page.errors(), ownRef: ch.steps.find((s) => s.id === step)!.ref !== undefined }]);
       if (found.length) console.log(findingReport(found, w.value));
     } finally {
       await page.close();

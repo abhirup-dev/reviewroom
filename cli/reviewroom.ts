@@ -18,7 +18,7 @@ import { cmdPr, type PrOpts } from './commands/pr.ts';
 import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
-import { cmdCheck } from './commands/check.ts';
+import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
 import { cmdWalkthrough } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { ReviewroomError } from '../src/shared/ops.ts';
@@ -146,11 +146,11 @@ const notes: Record<string, string> = {
     '    changed   code at those lines changed, or moved further, or a symbol lost its definition',
     '              -> re-read the code; fix the link and the prose around it (or --accept if both still hold)',
     '    broken    the file, symbol or section (rr:doc/<id>) is gone -> fix or remove the link',
-    '  walkthrough.json, when present, must match schema/walkthrough.schema.json (checked first); its slide refs and',
+    `  walkthrough.json, when present, must match ${WALKTHROUGH_SCHEMA} (checked first); its slide refs and`,
     '  the links in its prose are checked like the walkthrough\'s, and problems name the slide (chapter/step) they are in.',
     '  Then whether it works as a guided walkthrough (notes, exit code unaffected): changed files no slide shows,',
-    '  chapters of one slide or more than 6, a slide whose code pane is empty, and estimates of slides too long to fit (over 120 words,',
-    '  over 60 highlighted lines). Each note says how to fix it.',
+    '  chapters of one slide or more than 6, a slide whose code pane is empty, and estimates of slides too long to fit (over 120 words;',
+    '  over about 25 highlighted lines for one ref, 10 each for two stacked; more than two refs stacked). Each note says how to fix it.',
     '  The server also checks on start and on every save of review.html or walkthrough.json. Links in HTML comments are ignored.',
   ].join('\n'),
 };
