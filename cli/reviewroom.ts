@@ -84,7 +84,7 @@ cli
   .command('check', 'Check rr: links in review.html and walkthrough.json against the code (exit 1 while any need attention)')
   .option('--fix', 'Rewrite links whose code moved a few lines')
   .option('--accept', 'Take every link as it is now')
-  .option('--json', 'Print problems as JSON')
+  .option('--json', 'Print problems as JSON: { links, walkthrough }')
   .action(run(cmdCheck));
 
 cli
@@ -115,6 +115,9 @@ const notes: Record<string, string> = {
     '    broken    the file, symbol or section (rr:doc/<id>) is gone -> fix or remove the link',
     '  walkthrough.json, when present, must match schema/walkthrough.schema.json (checked first); its step refs and',
     '  the links in its prose are checked like the narrative\'s, and problems name the chapter/step they are in.',
+    '  Then whether it works as a tour (notes, exit code unaffected): changed files no step shows, chapters of one',
+    '  step or more than 6, a step whose code pane is empty, and estimates of steps too long to fit (over 120 words,',
+    '  over 60 highlighted lines). Each note says how to fix it.',
     '  The server also checks on start and on every save of review.html or walkthrough.json. Links in HTML comments are ignored.',
   ].join('\n'),
 };

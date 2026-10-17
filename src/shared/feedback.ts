@@ -8,7 +8,7 @@ import type { Walkthrough } from './walkthrough';
 export const PR_DESCRIPTION = 'rr-pr-description';
 
 // block tags break words, inline ones don't
-const plain = (html: string) => html.replace(/<\/?(p|div|li|br|h\d|ul|ol|tr|td|rr-flow|rr-node)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+export const plain = (html: string) => html.replace(/<\/?(p|div|li|br|h\d|ul|ol|tr|td|rr-flow|rr-node)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
 /** Where a tour anchor sits in the walkthrough: chapter and step indices, -1 when gone. */
 export const tourPosition = (a: { chapter: string; step: string }, w?: Walkthrough | null) => {

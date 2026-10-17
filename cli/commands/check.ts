@@ -6,13 +6,15 @@ import { dirForEdit, loadConfig, repoOf } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
+import { findingReport, lintTour, type Finding } from '../lib/tour-lint.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
 
-type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean };
+type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[] };
 
 /** The stale-link check of review.html (missing: '') and walkthrough.json, which must match its schema first
- *  (else only `issues`). Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files. */
-export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean; store?: boolean } = {}): Promise<Checked> {
+ *  (else only `issues`), plus the walkthrough's static checks (`notes`; `estimates: false` when rendering measures them).
+ *  Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files. */
+export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean } = {}): Promise<Checked> {
   const tour = readWalkthrough(dir);
   if (tour && !tour.ok) return { issues: tour.issues };
   const file = path.join(dir, 'review.html');
@@ -34,7 +36,8 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (healed) ({ results, links } = checkLinks(fixed, prov, links, tour?.ok ? tourText(JSON.parse(fixedTour)) : ''));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const value = tour?.ok ? tour.value : null;
-  return { tour: value, results, bad: locate(problems(results), value), healed };
+  const notes = value ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
+  return { tour: value, results, bad: locate(problems(results), value), healed, notes };
 }
 
 export const schemaReport = (issues: string[]) => `walkthrough.json does not match schema/walkthrough.schema.json:\n  ${issues.join('\n  ')}`;
@@ -50,9 +53,12 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
     process.exitCode = 1;
     return;
   }
-  const { tour, results, bad, healed } = c;
-  if (o.json) console.log(JSON.stringify(bad, null, 2));
-  else if (bad.length) console.log(`${bad.length} of ${results.length} links need attention:\n${report(bad)}`);
-  else console.log(`${results.length} links ok${tour ? ' (review.html and walkthrough.json)' : ''}${healed ? ' (moved links fixed)' : ''}`);
+  const { tour, results, bad, healed, notes } = c;
+  if (o.json) console.log(JSON.stringify({ links: bad, walkthrough: notes }, null, 2));
+  else {
+    if (bad.length) console.log(`${bad.length} of ${results.length} links need attention:\n${report(bad)}`);
+    else console.log(`${results.length} links ok${tour ? ' (review.html and walkthrough.json)' : ''}${healed ? ' (moved links fixed)' : ''}`);
+    if (tour && notes.length) console.log(`\nwalkthrough.json (\`reviewroom walkthrough lint\` also measures each step on screen):\n${findingReport(notes, tour)}`);
+  }
   if (bad.length) process.exitCode = 1;
 }
