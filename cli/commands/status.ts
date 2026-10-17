@@ -14,14 +14,16 @@ export function cmdStatus(repo: string | null, o: StatusOpts) {
   const waiting = open.filter((t) => t.messages[t.messages.length - 1]?.author === 'you');
   if (o.json) {
     const cfg = readConfig(dir);
-    let base, head;
+    let base, head, stack;
     try {
-      if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
+      // no repo, or git fails: no base/head. A stack: each PR's layer, bottom first
+      if (repo) ({ base, head, layers: stack } = makeProvider(repo, loadConfig(dir, repo)));
     } catch {}
-    console.log(JSON.stringify({ dir, review: path.join(dir, 'review.html'), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
+    console.log(JSON.stringify({ dir, review: path.join(dir, 'review.html'), url: liveServer(dir)?.url ?? null, base, head, ...(stack && { stack }), config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
     return;
   }
-  console.log(`${dir}\nround ${s.round} (${s.rounds.find((r) => r.n === s.round)?.status}) | ${s.threads.length} threads | ${open.length} open | ${waiting.length} awaiting agent reply`);
+  const prs = readConfig(dir).stack?.prs;
+  console.log(`${dir}\n${prs ? `stack of ${prs.length} PRs (#${prs[0].number}..#${prs.at(-1)!.number}) | ` : ''}round ${s.round} (${s.rounds.find((r) => r.n === s.round)?.status}) | ${s.threads.length} threads | ${open.length} open | ${waiting.length} awaiting agent reply`);
 }
 
 export async function cmdStop(repo: string | null, o: Global) {

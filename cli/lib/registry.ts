@@ -22,8 +22,10 @@ export function liveServer(dir: string): ServerRecord | null {
 // Per-user registry of running servers, one <pid>.json each, so other local tools (an annotation hub)
 // can list reviews without knowing which repos have them (AGENTS.md: a contract). Best effort: a failure never stops a review.
 // `agent`: the agent CLI that started the server, found once at start while the process chain is intact.
-// `author`: the PR author's GitHub login, for a review of a PR.
-export type SessionRecord = ServerRecord & { repo: string; dir: string; title: string | null; number: number | string | null; prUrl: string | null; base: string; head: string; mode: 'review' | 'serve'; agent?: Agent | null; author?: string | null };
+// `author`: the PR author's GitHub login, for a review of a PR. `stack`: a review of a stack of PRs, bottom first
+// (`number` stays the PR it was opened from, for readers that know no stacks).
+export type StackRecord = { id: number; prs: { number: number; title: string; url: string | null; state: string }[] };
+export type SessionRecord = ServerRecord & { repo: string; dir: string; title: string | null; number: number | string | null; prUrl: string | null; base: string; head: string; mode: 'review' | 'serve'; agent?: Agent | null; author?: string | null; stack?: StackRecord | null };
 export function register(rec: SessionRecord) {
   try {
     fs.mkdirSync(registryDir(), { recursive: true });

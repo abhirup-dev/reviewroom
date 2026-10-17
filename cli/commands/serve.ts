@@ -51,7 +51,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const startedAt = new Date().toISOString();
   const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));
-  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt, agent, author: cfg.number ? (cfg.author ?? null) : null });
+  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt, agent, author: cfg.number ? (cfg.author ?? null) : null, stack: cfg.stack ? { id: cfg.stack.id, prs: cfg.stack.prs.map((p) => ({ number: p.number, title: p.title, url: p.url ?? null, state: p.state })) } : null });
   const cleanup = () => {
     releaseLock(dir);
     unregister(process.pid);

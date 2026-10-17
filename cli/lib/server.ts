@@ -4,7 +4,7 @@ import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { feedbackMarkdown } from '../../src/shared/feedback.ts';
+import { feedbackMarkdown, threadPr } from '../../src/shared/feedback.ts';
 import { headChanges, makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
@@ -202,7 +202,11 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = s.rounds.find((r) => r.n === s.round);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    const waiting = (ts: typeof s.threads) => ts.filter((t) => t.status === 'open' && t.messages.at(-1)?.author === 'you').length;
+    // a stack: the same counts per PR (threads on the whole stack are in no PR's)
+    const w = cfg.stack && validWalkthrough(dir);
+    const byPr = cfg.stack && Object.fromEntries(cfg.stack.prs.map((p) => { const ts = s.threads.filter((t) => threadPr(t, w) === p.number); return [p.number, { threads: ts.length, open: ts.filter((t) => t.status === 'open').length, awaitingAgent: waiting(ts) }]; }));
+    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: waiting(s.threads), comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)), ...(byPr && { byPr }) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {

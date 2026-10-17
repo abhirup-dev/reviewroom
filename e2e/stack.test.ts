@@ -6,7 +6,7 @@ import type { Commit, ReviewMeta } from '../src/core/types.ts';
 import { op, post, read, stackSetup, until } from './fixture.ts';
 
 describe('a stacked review', () => {
-  const { repo, dir, d, cli, git, ready, state } = stackSetup();
+  const { repo, dir, d, cli, git, ready, state, sessions } = stackSetup();
   let url = '';
   beforeAll(async () => {
     await ready;
@@ -57,6 +57,27 @@ describe('a stacked review', () => {
     fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'T', chapters: [ch('x', 9), ch('y', 2)] }));
     expect((await cli(['check', '--json', ...d])).stdout).toContain("PR #9 is not in this review's stack");
     fs.rmSync(path.join(dir, 'walkthrough.json'));
+  });
+
+  test('one session for the stack, with its PRs; the hub lists it once; summary and status per PR', async () => {
+    const [rec] = sessions();
+    expect([rec.number, rec.stack.id, rec.stack.prs.map((p: { number: number }) => p.number)]).toEqual([2, 1, [1, 2, 3]]);
+    const hub = (await cli(['hub', '--detach', '--no-open', '--port', '0'])).stdout.trim();
+    try {
+      const list = await until(async () => {
+        const all = (await (await fetch(hub + 'api/sessions')).json()).sessions.filter((x: { tool: string }) => x.tool === 'reviewroom');
+        return all.length && all[0].health === 'ok' && all;
+      });
+      expect(list.map((x: { target: string; stack: unknown[] }) => [x.target, x.stack.length])).toEqual([['#1..#3 (3 PRs)', 3]]);
+    } finally {
+      await cli(['hub', '--stop']);
+    }
+    const summary = await (await fetch(url + 'api/summary')).json();
+    expect(Object.keys(summary.byPr)).toEqual(['1', '2', '3']);
+    expect(summary.byPr['1'].threads).toBe(1); // the layer thread from the feedback test
+    const status = JSON.parse((await cli(['status', '--json', ...d])).stdout);
+    expect(status.stack.map((l: { number: number }) => l.number)).toEqual([1, 2, 3]);
+    expect((await cli(['status', ...d])).stdout).toContain('stack of 3 PRs (#1..#3)');
   });
 
   test('status on any branch of the stack finds its review', async () => {

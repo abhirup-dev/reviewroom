@@ -8,6 +8,7 @@ describe('classifySession', () => {
     expect(classifySession({ tool: 'reviewroom', mode: 'review', label: 'x', pr: 42 })).toMatchObject({ kind: 'pull-request-review', target: '#42' });
     expect(classifySession({ tool: 'reviewroom', mode: 'serve', label: null, head: 'worktree' })).toMatchObject({ kind: 'code-review', target: 'uncommitted changes' });
     expect(classifySession({ tool: 'reviewroom', mode: 'serve', label: null, head: 'feat/a' }).target).toBe('feat/a');
+    expect(classifySession({ tool: 'reviewroom', mode: 'review', label: 'x', pr: 367, stack: [364, 366, 367, 368, 369, 370, 371] })).toMatchObject({ kind: 'pull-request-review', target: '#364..#371 (7 PRs)' });
   });
 
   test('Crit review surfaces from launch args', () => {

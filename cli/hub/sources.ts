@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { normalizeTimestamp, parseStrictPid, parseStrictPort } from './loopback.ts';
 import type { RawCritEntry, RawPlanEntry } from '../../src/shared/hub.ts';
-import type { SessionRecord } from '../lib/registry.ts';
+import type { SessionRecord, StackRecord } from '../lib/registry.ts';
 import { registryDir } from '../lib/paths.ts';
 
 type Obj = Record<string, unknown>;
@@ -76,6 +76,14 @@ export function readPlanRaw(dataDir: string): RawPlanEntry[] {
   }));
 }
 
+/** A record's stack of PRs, if it is a well-formed one (PR numbers, titles and states as text, http(s) URLs only). */
+function stackOf(v: unknown): StackRecord | null {
+  const s = v as Obj | null | undefined;
+  if (!s || typeof s.id !== 'number' || !Array.isArray(s.prs)) return null;
+  const prs = (s.prs as Obj[]).flatMap((p) => (p && Number.isInteger(p.number) && typeof p.title === 'string' ? [{ number: p.number as number, title: p.title, url: typeof p.url === 'string' && /^https?:\/\//.test(p.url) ? p.url : null, state: str(p.state) ?? 'open' }] : []));
+  return prs.length > 1 ? { id: s.id, prs } : null;
+}
+
 /** reviewroom's own session records: written by `serve`, removed on exit. The URL is rebuilt from the port, so it
  *  is loopback by construction. */
 export function readReviewroom(): (SessionRecord & { registryUpdatedAt: string | null })[] {
@@ -100,6 +108,7 @@ export function readReviewroom(): (SessionRecord & { registryUpdatedAt: string |
       // a GitHub login: it ends up in an avatar URL
       author: typeof o.author === 'string' && /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(o.author) ? o.author : null,
       agent: typeof agent?.name === 'string' && parseStrictPid(agent.pid) ? { name: agent.name, pid: agent.pid as number } : null,
+      stack: stackOf(o.stack),
       registryUpdatedAt: mtime,
     }];
   });
