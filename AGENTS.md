@@ -8,8 +8,12 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, state, GitHub (Octokit, as the `gh` user).
 - `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
   `shared/` is used by the CLI too (no DOM, no Node): Zod schema, op reducer, `rr:` grammar, feedback text.
-  `flows/` holds the XState machines (thread popup, server sync); views subscribe.
+  `flows/` holds the XState machines (thread popup, server sync, layout save); views subscribe.
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
+
+## Where reviews live
+
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo.
 
 ## Contracts (change deliberately, update the skill when you do)
 
@@ -19,9 +23,10 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   parsing.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by `reviewroom hub` (which
-  deletes records whose server is gone) and other local tools; `hub.json` is the running hub; `layout.json` is the
-  reviewer's default panel layout.
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
+  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
+  `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/shared/layout.ts` like the shipped ones
+  in `src/layouts/` (whose names they can't take); `default-layout.json` names their default.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 
@@ -35,9 +40,8 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Working on it
 
-Bun is the toolchain: it installs dependencies (`bun.lock`, pinned by `packageManager`), bundles the client and the
-CLI, runs the scripts and tests, and runs the built CLI (Bun >= 1.3.12). Every library is bundled into `dist/`, so all
-of them are `devDependencies`; the published package has no runtime dependencies.
+Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bundled into `dist/` (not
+committed), so all are `devDependencies`.
 
 ```bash
 bun run setup       # install, build, put `reviewroom` on PATH

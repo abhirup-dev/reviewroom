@@ -37,11 +37,16 @@ export const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8')
 export function setup() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-'));
   const repo = path.join(tmp, 'repo');
-  const dir = path.join(repo, '.reviewroom', 'feat-habit-events');
+  const home = path.join(tmp, 'home');
+  // the demo repo has no remote: its reviews are keyed by the checkout's name
+  const reviews = path.join(home, 'reviews', 'repo');
+  const dir = path.join(reviews, 'feat-habit-events');
   const d = ['--repo', repo, '--dir', dir];
-  const env = { ...process.env, REVIEWROOM_HOME: path.join(tmp, 'home') };
+  const env = { ...process.env, REVIEWROOM_HOME: home };
   const procs: Subprocess[] = [];
   fs.cpSync(path.join(template, 'repo'), repo, { recursive: true });
+  fs.cpSync(path.join(template, 'home', 'reviews'), path.join(home, 'reviews'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...JSON.parse(read(dir, 'config.json')), repoPath: repo }));
   const cli = (args: string[], input?: string) => run(env, args, input);
   afterAll(async () => {
     for (const p of procs) p.kill();
@@ -49,7 +54,7 @@ export function setup() {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
   return {
-    tmp, repo, dir, d, cli,
+    tmp, repo, reviews, dir, d, cli,
     state: () => JSON.parse(read(dir, 'state.json')),
     /** The per-user session registry. */
     sessions: () => fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(read(tmp, 'home', 'sessions', f))),
