@@ -21,6 +21,7 @@ describe('a stacked review', () => {
     expect(commits.map((c) => c.pr)).toEqual([1, 1, 2, 2, 3]);
     const l = meta.stack![1];
     expect((await (await fetch(url + `api/files?base=${l.base}&head=${l.head}`)).json()).map((f: { path: string }) => f.path)).toEqual(['cache/cache.go']);
+    expect((await (await fetch(url + `api/patch?base=${l.base}&head=${l.head}`)).text()).match(/^diff --git .*$/gm)).toEqual(['diff --git a/cache/cache.go b/cache/cache.go']);
   });
 
   test("feedback quotes a layer's thread at that layer's lines", async () => {

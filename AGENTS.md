@@ -32,9 +32,9 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` (`stack-<id>/` fo
   `src/shared/walkthrough.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server (`cli/lib/registry.ts` SessionRecord; a stack review adds
-  `stack`, its `number` stays the PR it was opened from), read by `reviewroom hub` (which deletes records whose server
-  is gone) and other local tools; `hub.json` is the running hub;
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server
+  (`cli/lib/registry.ts` SessionRecord; a stack review adds `stack`, its `number` stays the PR it was opened from), read
+  by `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
   `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/shared/layout.ts` like the shipped ones
   in `src/layouts/` (whose names they can't take); `default-layout.json` names their default.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
@@ -58,6 +58,7 @@ bun run setup       # install, build, put `reviewroom` on PATH
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
+bun run demo-stack  # a stack of three PRs (no GitHub) + live review
 ```
 
 Verify UI changes in a real browser on the demo (light and dark, wide and laptop widths). To get a new build into
