@@ -14,7 +14,7 @@ open question and round is kept from one round to the next.
 
 The CLI's help is the command reference: `reviewroom --help`, and `reviewroom <command> --help`
 for flags and notes. Read it before your first command. If `reviewroom` is not on PATH, use
-`npx -y reviewroom …`.
+`bunx reviewroom …`.
 
 ## Choose the command
 

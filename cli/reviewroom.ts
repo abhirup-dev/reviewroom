@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
