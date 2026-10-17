@@ -1,15 +1,12 @@
 import { expect, test } from 'bun:test';
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { Hono } from 'hono';
 import { listen } from './server.ts';
 
-test('listen reports the port it fell back to when the first is taken', async () => {
-  const taken = http.createServer();
-  const p = await listen(taken, 41000); // listen itself skips busy ports; away from the smoke test's 4900-4990
-  const s = http.createServer();
-  const port = () => (s.address() as AddressInfo).port;
-  expect(await listen(s, p)).toBe(port());
-  expect(port()).not.toBe(p);
-  taken.close();
-  s.close();
+test('listen falls back to the next port when the first is taken', () => {
+  const app = new Hono();
+  const taken = listen(app, 41000); // listen itself skips busy ports; away from the smoke test's 4900-4990
+  const s = listen(app, taken.port!);
+  expect(s.port).not.toBe(taken.port);
+  void taken.stop(true);
+  void s.stop(true);
 });

@@ -42,8 +42,9 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
   let seen = false; // a browser tab connected
-  const { server, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
-  const port = await listen(server, +(portFlag || 4848));
+  const { app, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
+  const server = listen(app, +(portFlag || 4848));
+  const port = server.port!;
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
   if (holder) fail(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
@@ -76,8 +77,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
       console.error(`reviewroom: could not record delivery: ${(e as Error).message}`);
     }
     console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} -> ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
-    server.closeAllConnections?.();
-    server.close();
+    void server.stop(true);
     process.exit(0); // the review is over: also ends the narrative watcher and SSE pings
   }, 150);
 }

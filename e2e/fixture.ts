@@ -7,10 +7,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dir, '..');
-const entry = path.join(root, 'dist', 'cli', 'reviewroom.mjs');
-const node = Bun.which('node') ?? 'node'; // the CLI's runtime is Node, not the Bun running the tests
+const entry = path.join(root, 'dist', 'cli', 'reviewroom.js');
+const bun = process.execPath; // the CLI runs on the same Bun as the tests
 const run = async (env: Record<string, string | undefined>, args: string[], input = '') => {
-  const r = await $`${node} ${entry} ${args} < ${new Response(input)}`.env(env).nothrow().quiet();
+  const r = await $`${bun} ${entry} ${args} < ${new Response(input)}`.env(env).nothrow().quiet();
   return { code: r.exitCode, stdout: r.stdout.toString(), stderr: r.stderr.toString() };
 };
 
@@ -57,7 +57,7 @@ export function setup() {
     /** `pr --detach` on a free port: the URL. */
     serve: async () => (await cli(['pr', 'feat/habit-events', '--detach', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
     /** A foreground server process (killed in afterAll). */
-    spawn: (args: string[]) => procs[procs.push(Bun.spawn([node, entry, ...args], { env, stdio: ['ignore', 'ignore', 'ignore'] })) - 1],
+    spawn: (args: string[]) => procs[procs.push(Bun.spawn([bun, entry, ...args], { env, stdio: ['ignore', 'ignore', 'ignore'] })) - 1],
     /** The URL of the server a foreground command started for a review dir. */
     url: (reviewDir = dir) => until<string>(() => JSON.parse(read(reviewDir, 'server.json')).url),
   };
