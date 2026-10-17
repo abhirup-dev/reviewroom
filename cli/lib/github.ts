@@ -292,3 +292,19 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
 
   return { target, cached: () => snap, snapshot: () => snap ?? refresh(), refresh, act };
 }
+
+/** The viewer's own newest PR conversation comment containing `marker` (someone else's is never theirs to update). */
+export const ownMarked = (s: Pick<GitHubSnapshot, 'threads'>, marker: string) =>
+  s.threads.find((t) => t.gh?.conversation)?.messages.findLast((m) => m.gh?.kind === 'issue' && m.gh.mine && m.body.includes(marker));
+
+/** Post `body` to the PR conversation, or update the viewer's comment carrying `marker` in place; the comment's URL. */
+export async function upsertComment(cwd: string, t: PrTarget, marker: string, body: string) {
+  const s = await fetchPr(cwd, t, null);
+  const mine = ownMarked(s, marker);
+  if (mine?.gh) {
+    const r = await gql<Mutation>(cwd, t.host, 'mutation($id: ID!, $body: String!) { updateIssueComment(input: {id: $id, body: $body}) { issueComment { url } } }', { id: mine.gh.node, body });
+    return r.updateIssueComment?.issueComment?.url ?? mine.gh.url;
+  }
+  const r = await gql<Mutation>(cwd, t.host, 'mutation($pr: ID!, $body: String!) { addComment(input: {subjectId: $pr, body: $body}) { commentEdge { node { url } } } }', { pr: s.pr, body });
+  return r.addComment?.commentEdge?.node?.url ?? s.url;
+}

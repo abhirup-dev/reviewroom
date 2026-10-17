@@ -16,6 +16,7 @@ import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck } from './commands/check.ts';
+import { cmdWalkthrough } from './commands/walkthrough.ts';
 import { ReviewroomError } from '../src/shared/ops.ts';
 
 const cli = cac('reviewroom');
@@ -86,11 +87,23 @@ cli
   .option('--json', 'Print problems as JSON')
   .action(run(cmdCheck));
 
+cli
+  .command('walkthrough <action>', 'publish: post walkthrough.json to the PR (or update the comment it is in)')
+  .option('--dry-run', 'Print the comment instead of posting it')
+  .option('--allow-stale', 'Post even if some links need attention (never with schema errors)')
+  .example('  reviewroom walkthrough publish')
+  .action(run(cmdWalkthrough));
+
 cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 
 // What an agent needs beyond the flags, shown under the command's --help.
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
+  walkthrough: [
+    '  publish runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
+    '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
+    '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
+  ].join('\n'),
   pr: '  A PR that carries a walkthrough (a ```reviewroom-walkthrough block in a comment or its description, see\n  `walkthrough publish`) gets it as walkthrough.json when the review has none; the newest block wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),

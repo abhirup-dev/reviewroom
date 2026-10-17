@@ -34,6 +34,13 @@ describe('walkthrough', () => {
     fs.copyFileSync(demo, file);
   });
 
+  test('walkthrough publish --dry-run prints the PR block; without a PR it cannot post', async () => {
+    const dry = await cli(['walkthrough', 'publish', '--dry-run', ...d]);
+    expect([dry.code, dry.stdout]).toEqual([0, expect.stringContaining('<!-- reviewroom-walkthrough -->\n```reviewroom-walkthrough\n{')]);
+    const real = await cli(['walkthrough', 'publish', ...d]);
+    expect([real.code, real.stderr]).toEqual([1, expect.stringContaining('not about a GitHub PR')]);
+  });
+
   test('a tour anchor without a step breaks the schema', async () => {
     const st = state();
     st.threads[0].anchor = { kind: 'tour', chapter: 'latency' };
