@@ -44,8 +44,11 @@ export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => descr
 
 /** A PR of a stack, as feedback names it. */
 export type StackRef = { number: number; title: string; headLabel: string };
-/** The stack PR a thread is about: its code anchor's layer, or the PR it is on GitHub. */
-export const threadPr = (t: Pick<Thread, 'anchor' | 'pr'>) => t.pr ?? (t.anchor.kind === 'code' ? t.anchor.pr : undefined);
+/** The stack PR a thread is about: its code anchor's layer, the PR it is on GitHub, or its slide's chapter's. */
+export const threadPr = (t: Pick<Thread, 'anchor' | 'pr'>, w?: Walkthrough | null) => {
+  const a = t.anchor;
+  return t.pr ?? (a.kind === 'code' ? a.pr : a.kind === 'tour' ? w?.chapters.find((c) => c.id === a.chapter)?.pr : undefined);
+};
 /** `items` a group per stack PR, bottom first, then those on the whole stack (or a PR no longer in it); `keep`: PRs
  *  listed even with nothing in them. Without a stack, one group. */
 export function byPr<T>(items: T[], stack: StackRef[] | undefined, prOf: (t: T) => number | undefined, keep: (n: number) => boolean = () => false) {
@@ -125,7 +128,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   );
   const { stack, verdicts = {} } = opts;
   // a stack: a section per PR, bottom first, saying where its fixes go; then the whole stack's threads
-  for (const g of byPr(touched, stack, threadPr, (n) => !!verdicts[n])) {
+  for (const g of byPr(touched, stack, (t) => threadPr(t, opts.walkthrough), (n) => !!verdicts[n])) {
     if (stack) {
       const v = g.pr && verdicts[g.pr.number];
       lines.push(g.pr ? `## ${prTitle(g.pr)}${v ? ` - ${VERDICT[v]}` : ''}` : '## The whole stack', '', g.pr ? `Commit fixes for it on branch \`${g.pr.headLabel}\`.` : 'Threads on the stack as a whole: fix each on the branch of the PR that holds the code.', '');

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { pickBlock } from './walkthrough.ts';
+import { chainWalkthroughs, pickBlock, splitWalkthrough } from './walkthrough.ts';
 import { ownMarked } from './github.ts';
 import { publishBody } from '../commands/walkthrough.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
@@ -23,4 +23,23 @@ test('publish: the viewer\'s own marked comment is the one updated; oversize is 
   const w: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's', text: 'x' }] }] };
   expect(publishBody(w, 7)).toContain('reviewroom pr 7');
   expect(() => publishBody({ ...w, title: 'x'.repeat(70_000) })).toThrow(/at most 65536/);
+});
+
+test('a stack: one part per PR with its chapters (stack-wide ones with the bottom), chained back in order', () => {
+  const ch = (id: string, pr?: number) => ({ id, title: id, steps: [{ id: 's', text: 'x' }], ...(pr && { pr }) });
+  const w: Walkthrough = { version: 1, title: 'T', chapters: [ch('intro'), ch('a', 366), ch('b', 367), ch('c', 368), ch('end')] };
+  const parts = splitWalkthrough(w, { id: 9, prs: [366, 367, 368, 369] });
+  expect(parts.map((p) => [p.pr, p.doc.chapters.map((c) => c.id), p.doc.stack.position])).toEqual([[366, ['intro', 'a', 'end'], 1], [367, ['b'], 2], [368, ['c'], 3]]);
+  // three comments; pulled back from any member, in the order written
+  expect(chainWalkthroughs([...parts].reverse())).toEqual({ version: 1, title: 'T', chapters: w.chapters });
+  // PRs' own walkthroughs (published from single-PR reviews): each one's chapters are that PR's, ids kept apart
+  const own = (pr: number): { pr: number; doc: Walkthrough } => ({ pr, doc: { version: 1, title: `PR ${pr}`, chapters: [ch('intro')] } });
+  expect(chainWalkthroughs([own(366), own(367)])!.chapters.map((c) => [c.id, c.pr])).toEqual([['intro', 366], ['intro-367', 367]]);
+  expect(chainWalkthroughs([])).toBeNull();
+});
+
+test('publish on a stack: the bodies of a dry run, one per PR', () => {
+  const w: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', pr: 2, steps: [{ id: 's', text: 'x' }] }] };
+  const [p] = splitWalkthrough(w, { id: 1, prs: [1, 2] });
+  expect(publishBody(p.doc, p.pr)).toContain('"position": 2');
 });

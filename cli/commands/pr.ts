@@ -7,10 +7,10 @@ import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider }
 import { scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, type StackConfig, resolveDir, branchDir, stackDir, stackReview, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
-import { fetchPr, gql, prTarget as prOf } from '../lib/github.ts';
+import { fetchPr, fetchStack, gql, prTarget as prOf } from '../lib/github.ts';
 import { detectStack, type Query } from '../lib/stack.ts';
 import { walkthroughPath } from '../lib/state.ts';
-import { pickBlock } from '../lib/walkthrough.ts';
+import { chainWalkthroughs, pickBlock } from '../lib/walkthrough.ts';
 import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
@@ -113,17 +113,28 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   const file = walkthroughPath(dir);
   const t = prOf(cfg);
   if (!t || (fs.existsSync(file) && !force)) return;
-  let pick;
+  let found: { pr: number; pick: ReturnType<typeof pickBlock> }[];
   try {
-    pick = pickBlock(await fetchPr(repo, t, null));
+    // a stack: every PR's own, chained in stack order
+    const numbers = cfg.stack?.prs.map((p) => p.number);
+    const parts = numbers ? (await fetchStack(repo, t, numbers, {})).parts : [await fetchPr(repo, t, null)];
+    found = parts.map((s, i) => ({ pr: numbers?.[i] ?? t.number, pick: pickBlock(s) }));
   } catch (e) {
     return console.error(`reviewroom: could not look for a guided walkthrough on the PR: ${(e as Error).message}`);
   }
-  if (!pick) return;
-  const r = parseWalkthrough(pick.text);
-  if (!r.ok) return console.error(`reviewroom: the guided walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
+  const docs = found.flatMap(({ pr, pick }) => {
+    if (!pick) return [];
+    const r = parseWalkthrough(pick.text);
+    if (r.ok) return [{ pr, doc: r.value, from: pick.from }];
+    console.error(`reviewroom: the guided walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
+    return [];
+  });
+  if (!docs.length) return;
+  const doc = cfg.stack ? chainWalkthroughs(docs)! : docs[0].doc;
+  const r = parseWalkthrough(JSON.stringify({ ...doc, stack: undefined })); // chained: still one valid walkthrough; the part markers are the PRs'
+  if (!r.ok) return console.error(`reviewroom: the PRs' guided walkthroughs do not chain into one, not used:\n  ${r.issues.join('\n  ')}`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
-  console.error(`reviewroom: guided walkthrough from ${pick.from}`);
+  console.error(`reviewroom: guided walkthrough from ${docs.map((d) => d.from).join(', ')}`);
 }
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {

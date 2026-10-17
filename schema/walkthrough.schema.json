@@ -32,6 +32,12 @@
             "description": "Static for the whole chapter; may hold an <rr-flow> diagram",
             "type": "string"
           },
+          "pr": {
+            "description": "A stack of PRs: the PR this chapter is about (playing it shows that PR's layer). Omitted: about the whole stack (an intro, a hand-off)",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
           "steps": {
             "minItems": 1,
             "type": "array",
@@ -78,6 +84,33 @@
           "steps"
         ]
       }
+    },
+    "stack": {
+      "description": "Set by `walkthrough publish` on each PR's part of a stack's walkthrough: the stack, this PR's place in it (1 = bottom), and every chapter's id in order, so `reviewroom pr` chains the parts back",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "position": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "position",
+        "order"
+      ]
     }
   },
   "required": [

@@ -36,7 +36,7 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
   const walkthrough = validWalkthrough(dir);
   const stack = readConfig(dir).stack?.prs;
   console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
-  for (const g of byPr(list, stack, threadPr)) {
+  for (const g of byPr(list, stack, (t) => threadPr(t, walkthrough))) {
     if (stack) console.log(`\n== ${g.pr ? `#${g.pr.number} ${g.pr.title} (branch ${g.pr.headLabel})` : 'the whole stack'}`);
     for (const t of g.items) {
       const last = t.messages[t.messages.length - 1];

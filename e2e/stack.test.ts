@@ -1,5 +1,7 @@
 // A review of a stack of PRs: one review dir for the stack, its layers served, found from any of its branches.
 import { beforeAll, describe, expect, test } from 'bun:test';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Commit, ReviewMeta } from '../src/core/types.ts';
 import { op, post, read, stackSetup, until } from './fixture.ts';
 
@@ -42,6 +44,17 @@ describe('a stacked review', () => {
     expect(log).toMatch(/since round 1:\n {2}#2: 1 new commit \([0-9a-f]{7}\.\.[0-9a-f]{7}\)\n {2}#3: rewritten[^\n]*git range-diff[^\n]*\n +1: +[0-9a-f]+ = 1: +[0-9a-f]+ cache: Forget/);
     expect((await post(url + 'api/finish', { kind: 'feedback', round: 2 })).status).toBe(200);
     expect(read(dir, 'rounds', '2', 'feedback.md')).toContain('## The stack since round 1 (what the reviewer saw this round)\n\n```\n#2: 1 new commit');
+  });
+
+  test('walkthrough publish --dry-run: one comment per PR with chapters; a chapter on a PR outside the stack is flagged', async () => {
+    const ch = (id: string, pr?: number) => ({ id, title: id, ...(pr && { pr }), steps: [{ id: 's1', text: '<p>See <a href="rr:code/cache/cache.go@pr:2#L1">the cache</a>.</p>' }, { id: 's2', text: '<p>More.</p>' }] });
+    fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'T', chapters: [ch('intro'), ch('one', 1), ch('two', 2), ch('three', 3)] }));
+    const r = await cli(['walkthrough', 'publish', '--dry-run', ...d]);
+    expect([r.code, [...r.stdout.matchAll(/^--- PR #(\d+)$/gm)].map((m) => m[1])]).toEqual([0, ['1', '2', '3']]);
+    expect((await cli(['walkthrough', 'publish', '--dry-run', '--pr', '3', ...d])).stdout.match(/^--- PR #\d+$/gm)).toEqual(['--- PR #3']);
+    fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'T', chapters: [ch('x', 9), ch('y', 2)] }));
+    expect((await cli(['check', '--json', ...d])).stdout).toContain("PR #9 is not in this review's stack");
+    fs.rmSync(path.join(dir, 'walkthrough.json'));
   });
 
   test('status on any branch of the stack finds its review', async () => {

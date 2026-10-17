@@ -105,6 +105,7 @@ cli
   .option('--json', 'lint: print { engine, viewports, links, findings } as JSON')
   .option('--dry-run', 'publish: print the comment instead of posting it')
   .option('--allow-stale', 'publish: post even if some links need attention (never with schema errors)')
+  .option('--pr <n>', 'publish, a stack of PRs: only that PR\'s comment (default: every PR with chapters)')
   .example('  reviewroom walkthrough lint')
   .example('  reviewroom walkthrough shot latency/s3 --theme dark')
   .example('  reviewroom walkthrough publish')
@@ -133,6 +134,8 @@ const notes: Record<string, string> = {
     '  publish runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
+    '  A stack of PRs: each PR gets its own comment with its chapters (a chapter\'s `pr`), the bottom PR the stack-wide',
+    '  ones too; `reviewroom pr <n>` on any of them chains every PR\'s part back in stack order.',
   ].join('\n'),
   pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `walkthrough publish`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,

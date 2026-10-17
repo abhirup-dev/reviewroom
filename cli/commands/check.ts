@@ -23,7 +23,8 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const value = tour?.ok ? tour.value : null; // past the schema check, a walkthrough that is there is valid
   const tourRaw = value ? fs.readFileSync(tourFile, 'utf8') : '';
   const r = repo ?? fail('not inside a git repository (use --repo)');
-  const raw = makeProvider(r, loadConfig(dir, r));
+  const cfg = loadConfig(dir, r);
+  const raw = makeProvider(r, cfg);
   const found = new Map<string, ReturnType<typeof raw.search>>(); // the link check and the notes resolve the same symbols
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir, { repair: o.store !== false }).links ?? {};
@@ -40,6 +41,8 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : '', value));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const notes = value && o.notes !== false ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
+  // a chapter about a PR: one of this review's stack
+  for (const c of value?.chapters ?? []) if (c.pr && !cfg.stack?.prs.some((p) => p.number === c.pr)) notes.push({ check: 'chapter-pr', level: 'warn', where: c.id, message: `PR #${c.pr} is not in this review's ${cfg.stack ? 'stack' : 'diff (it is not a stack of PRs)'}`, fix: 'Set the chapter\'s pr to a PR of the stack, or drop it for a chapter about the whole stack.' });
   return { tour: value, results, bad: locate(problems(results), value), healed, notes };
 }
 

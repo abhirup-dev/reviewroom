@@ -187,6 +187,7 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 |---|---|
 | chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
 | `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-flow>` |
+| chapter `pr` | A stack of PRs: the PR the chapter is about (its links read at that PR's layer). Omitted: the whole stack (an intro, a hand-off). `walkthrough publish` posts each PR its own chapters |
 | step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
 | no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |

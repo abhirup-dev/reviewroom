@@ -42,6 +42,7 @@ const Chapter = z
     id,
     title,
     lead: html.optional().describe('Static for the whole chapter; may hold an <rr-flow> diagram'),
+    pr: z.number().int().positive().optional().describe('A stack of PRs: the PR this chapter is about (playing it shows that PR\'s layer). Omitted: about the whole stack (an intro, a hand-off)'),
     steps: z.array(Step).min(1, 'needs at least one step'),
   })
   .superRefine((c, ctx) => unique(c.steps.map((s) => s.id), 'step', ctx, (i) => ['steps', i, 'id']));
@@ -51,6 +52,10 @@ export const Walkthrough = z
     version: z.literal(1),
     title,
     chapters: z.array(Chapter).min(1, 'needs at least one chapter'),
+    stack: z
+      .object({ id: z.number().int(), position: z.number().int().positive(), order: z.array(z.string()) })
+      .optional()
+      .describe("Set by `walkthrough publish` on each PR's part of a stack's walkthrough: the stack, this PR's place in it (1 = bottom), and every chapter's id in order, so `reviewroom pr` chains the parts back"),
   })
   .superRefine((w, ctx) => unique(w.chapters.map((c) => c.id), 'chapter', ctx, (i) => ['chapters', i, 'id']));
 

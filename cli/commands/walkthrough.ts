@@ -8,6 +8,7 @@ import { dirForEdit, readConfig } from '../lib/config.ts';
 import { prTarget, upsertComment } from '../lib/github.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough, walkthroughPath } from '../lib/state.ts';
+import { splitWalkthrough } from '../lib/walkthrough.ts';
 import { BLOCK_MARK, encodeBlock, type Walkthrough } from '../../src/shared/walkthrough.ts';
 import { findingReport, judge, type Finding, type Measured } from '../lib/tour-lint.ts';
 import { openPage, parseViewports, vpName, withServer } from '../lib/render.ts';
@@ -22,7 +23,7 @@ export function publishBody(w: Walkthrough, pr?: number) {
   return body;
 }
 
-type WalkthroughOpts = Global & { dryRun?: boolean; allowStale?: boolean; viewport?: string; theme?: string; out?: string; json?: boolean };
+type WalkthroughOpts = Global & { dryRun?: boolean; allowStale?: boolean; viewport?: string; theme?: string; out?: string; json?: boolean; pr?: string };
 
 export async function cmdWalkthrough(repo: string | null, o: WalkthroughOpts, [action, at]: string[]) {
   const actions = { publish, lint, shot };
@@ -36,14 +37,19 @@ async function publish(repo: string | null, dir: string, o: WalkthroughOpts) {
   const c = await runCheck(repo, dir, { store: !o.dryRun, notes: false });
   if ('issues' in c) fail(schemaReport(c.issues));
   if (c.bad.length && !o.allowStale) fail(`${c.bad.length} link(s) need attention (fix them, or publish anyway with --allow-stale):\n${report(c.bad)}`);
-  const t = prTarget(readConfig(dir));
-  const body = publishBody(c.tour!, t?.number);
+  const cfg = readConfig(dir);
+  const t = prTarget(cfg);
+  // a stack: each PR gets its own chapters (the bottom one the stack-wide ones too), as its own comment
+  const parts = cfg.stack ? splitWalkthrough(c.tour!, { id: cfg.stack.id, prs: cfg.stack.prs.map((p) => p.number) }) : [{ pr: t?.number, doc: c.tour! }];
+  const pick = o.pr ? parts.filter((p) => p.pr === +o.pr!) : parts;
+  if (o.pr && !pick.length) fail(cfg.stack?.prs.some((p) => p.number === +o.pr!) ? `no chapter of the guided walkthrough is about PR #${o.pr}` : `PR #${o.pr} is not in this review's stack`);
+  const bodies = pick.map((p) => ({ pr: p.pr, body: publishBody(p.doc, p.pr) })); // every one checked before any is posted
   if (o.dryRun) {
-    console.log(body);
+    console.log(bodies.map((b) => (cfg.stack ? `--- PR #${b.pr}\n${b.body}` : b.body)).join('\n'));
     return;
   }
   if (!t) fail('this review is not about a GitHub PR (start it with `reviewroom pr <number>`)');
-  console.log(await upsertComment(dir, t, BLOCK_MARK, body));
+  for (const b of bodies) console.log(await upsertComment(dir, { ...t, number: b.pr! }, BLOCK_MARK, b.body));
 }
 
 async function lint(repo: string | null, dir: string, o: WalkthroughOpts) {

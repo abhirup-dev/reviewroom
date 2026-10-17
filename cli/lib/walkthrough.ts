@@ -32,3 +32,32 @@ export function pickBlock(s: Pick<GitHubSnapshot, 'description' | 'threads'>) {
   }
   return null;
 }
+
+/** A stack's walkthrough as one part per PR, bottom first, for its PR comment: each PR's chapters, the stack-wide ones
+ *  (no pr) with the bottom PR. Every part says where it sits and the order of all chapters. PRs with none get no part. */
+export function splitWalkthrough(w: Walkthrough, stack: { id: number; prs: number[] }) {
+  const order = w.chapters.map((c) => c.id);
+  const mine = (n: number, i: number) => (c: Walkthrough['chapters'][number]) => c.pr === n || (i === 0 && !stack.prs.includes(c.pr ?? 0));
+  return stack.prs
+    .map((n, i) => ({ pr: n, doc: { ...w, chapters: w.chapters.filter(mine(n, i)), stack: { id: stack.id, position: i + 1, order } } }))
+    .filter((p) => p.doc.chapters.length);
+}
+
+/** The walkthroughs of a stack's PRs, bottom first, as one: a part published from a stack keeps each chapter's pr (none:
+ *  the whole stack's) and its order; a PR's own walkthrough is that PR's chapters. Null: none. */
+export function chainWalkthroughs(parts: { pr: number; doc: Walkthrough }[]): Walkthrough | null {
+  if (!parts.length) return null;
+  const seen = new Set<string>();
+  const chapters = parts.flatMap(({ pr, doc }) =>
+    doc.chapters.map((c) => {
+      // two PRs' own walkthroughs may both have an "intro"
+      const id = seen.has(c.id) ? `${c.id}-${pr}` : c.id;
+      seen.add(id);
+      return { ...c, id, pr: doc.stack ? c.pr : pr };
+    }),
+  );
+  const order = parts.find((p) => p.doc.stack)?.doc.stack!.order ?? [];
+  const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+  chapters.sort((a, b) => rank(a.id) - rank(b.id)); // stable: parts' own order where there is none
+  return { version: 1, title: (parts.find((p) => p.doc.stack) ?? parts.at(-1)!).doc.title, chapters };
+}
