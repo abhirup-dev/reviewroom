@@ -76,8 +76,8 @@ main story; the walkthrough (`review.html`) is where they dig in.
 ## Step 4: Write the walkthrough
 
 Before writing, read:
-1. `references/review-craft.md`: what to say and in what order (with a guided walkthrough, "The guided
-   walkthrough: a story" first: outline the story once, then write both from it).
+1. `references/review-craft.md`: what to say and in what order (with a guided walkthrough,
+   `references/guided-walkthrough-craft.md` first: outline the story once, then write both from it).
 2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
 
 The walkthrough is usually read in a narrow side panel (about 400px), and later on phones: design every
@@ -88,9 +88,9 @@ Edit `review.html` in the review directory; the open page reloads on every save.
 
 ## Step 4b: Write the guided walkthrough, when wanted
 
-Read "The guided walkthrough: a story" in `references/review-craft.md` (the shape: context, threads,
-convergence on the critical files, reconciliation; the diff and description as the only evidence), then
-"Guided walkthrough" in `references/authoring.md` (the file). Write `walkthrough.json`, then loop until
+Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
+files, reconciliation; the diff and description as the only evidence), then "Guided walkthrough" in
+`references/authoring.md` (the file). Write `walkthrough.json`, then loop until
 `lint` is clean:
 
 ```bash
