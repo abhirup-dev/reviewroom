@@ -236,6 +236,7 @@ export class ServerState implements StateBackend {
 // ------------------------------------------------------------------ GitHub (fallback)
 // File contents come from raw.githubusercontent.com (not the REST API), so a
 // review costs ~2 API calls (compare + commits) regardless of PR size.
+// One base..head only: stacks of PRs (ReviewMeta.stack) come from the CLI's server, not this browser-only path.
 
 /** The fields of GitHub's compare response that are read here. */
 type Compare = {

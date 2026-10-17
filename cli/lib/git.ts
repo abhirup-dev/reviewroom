@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/core/types.ts';
+import type { ChangedFile, Commit, ReviewMeta, SearchHit, StackPr } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
 import type { ReviewConfig } from './config.ts';
 
@@ -130,6 +130,33 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
   const base = layers?.[0].base ?? (git(['merge-base', resolve(cfg.base), headCommit], repo, { soft: true }) || resolve(cfg.base)).trim();
   const isWT = (r: string) => r === WORKTREE;
   const realRepo = fs.realpathSync(repo);
+  // heads are pinned for the provider's life: a stack's layers are computed once, on first use
+  let stack: StackPr[] | undefined, byCommit: Map<string, number> | undefined;
+  const stackPrs = () =>
+    (stack ??= layers!.map((l, i) => {
+      const p = cfg.stack!.prs[i];
+      const changed = files(l.base, l.head);
+      const state = p.state === 'open' ? (p.review ?? 'open') : p.state;
+      return { number: p.number, title: p.title, author: p.author, url: p.url, state, headLabel: p.headLabel, base: l.base, head: l.head, ...(l.restack && { restack: true }), additions: changed.reduce((a, f) => a + f.additions, 0), deletions: changed.reduce((a, f) => a + f.deletions, 0), files: changed.length };
+    }));
+  // which layer a commit is in: the first (from the bottom) that has it
+  const prOf = (sha: string) => (byCommit ??= new Map(layers!.toReversed().flatMap((l) => git(['rev-list', `${l.base}..${l.head}`], repo).split('\n').filter(Boolean).map((c) => [c, l.number] as const)))).get(sha);
+  function files(b: string, h: string): ChangedFile[] {
+    const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
+    const files = parseDiff(git(['diff', '--numstat', '-M', '-z', '--end-of-options', ...range], repo), git(['diff', '--name-status', '-M', '-z', '--end-of-options', ...range], repo));
+    if (isWT(h)) {
+      const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter(Boolean);
+      for (const p of untracked) {
+        // nested repos are listed as `dir/`
+        if (p.endsWith('/') || !fs.statSync(path.join(repo, p)).isFile()) continue;
+        const buf = fs.readFileSync(path.join(repo, p));
+        // same heuristic as git: a NUL in the first 8000 bytes means binary
+        const binary = buf.subarray(0, 8000).includes(0);
+        files.push({ path: p, additions: binary ? 0 : buf.toString('utf8').split('\n').length, deletions: 0, binary, status: 'added' });
+      }
+    }
+    return files;
+  }
   return {
     base,
     head,
@@ -148,29 +175,15 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
         head,
         baseLabel: cfg.baseLabel || cfg.base,
         headLabel: cfg.headLabel || (isWT(head) ? 'working tree' : (git(['rev-parse', '--abbrev-ref', cfg.head], repo, { soft: true }) || cfg.head).trim()),
+        ...(layers && { stack: stackPrs() }),
       };
     },
     commits(): Commit[] {
       if (isWT(head)) return [];
       const out = git(['log', '--reverse', '--format=%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%P', `${base}..${head}`], repo).trim();
-      return out ? out.split('\n').map((l) => { const [sha, short, subject, author, date, parents] = l.split('\x1f'); return { sha, short, subject, author, date, parent: parents.split(' ')[0] || undefined }; }) : [];
+      return out ? out.split('\n').map((l) => { const [sha, short, subject, author, date, parents] = l.split('\x1f'); return { sha, short, subject, author, date, parent: parents.split(' ')[0] || undefined, ...(layers && { pr: prOf(sha) }) }; }) : [];
     },
-    files(b: string, h: string): ChangedFile[] {
-      const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];
-      const files = parseDiff(git(['diff', '--numstat', '-M', '-z', '--end-of-options', ...range], repo), git(['diff', '--name-status', '-M', '-z', '--end-of-options', ...range], repo));
-      if (isWT(h)) {
-        const untracked = git(['ls-files', '--others', '--exclude-standard', '-z'], repo).split('\0').filter(Boolean);
-        for (const p of untracked) {
-          // nested repos are listed as `dir/`
-          if (p.endsWith('/') || !fs.statSync(path.join(repo, p)).isFile()) continue;
-          const buf = fs.readFileSync(path.join(repo, p));
-          // same heuristic as git: a NUL in the first 8000 bytes means binary
-          const binary = buf.subarray(0, 8000).includes(0);
-          files.push({ path: p, additions: binary ? 0 : buf.toString('utf8').split('\n').length, deletions: 0, binary, status: 'added' });
-        }
-      }
-      return files;
-    },
+    files,
     /** The range's diff for the client to render from; prefixes and colour pinned against the user's git config. */
     patch(b: string, h: string, ws: boolean): string {
       const range = isWT(h) ? [checkRev(b)] : [checkRev(b), checkRev(h)];

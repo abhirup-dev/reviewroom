@@ -16,6 +16,27 @@ export interface ReviewMeta {
   head: Rev;
   baseLabel?: string;
   headLabel?: string;
+  /** A stack of PRs (`reviewroom pr` on a PR in one): bottom first; base..head spans them all, `number` is the PR asked for. */
+  stack?: StackPr[];
+}
+
+/** One PR of a stack. Its layer, base..head, is what it adds on the PR below (base = that PR's head). */
+export interface StackPr {
+  number: number;
+  title: string;
+  author?: string;
+  url?: string;
+  /** merged or closed on GitHub; else its review decision (approved, changes wanted) or open */
+  state: 'merged' | 'closed' | 'approved' | 'changes' | 'open';
+  /** its head branch */
+  headLabel: string;
+  base: Rev;
+  head: Rev;
+  /** the PR below was rewritten after this one was pushed: the layer starts where the two still agree */
+  restack?: boolean;
+  additions: number;
+  deletions: number;
+  files: number;
 }
 
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed';
@@ -37,6 +58,8 @@ export interface Commit {
   date?: string;
   /** Its first parent's sha (the base of its own diff); missing: `sha^` */
   parent?: string;
+  /** In a stack: the PR whose layer it is in */
+  pr?: number;
 }
 
 /** A diff range. 'all' = meta.base..meta.head; a commit sha = its parent..sha. */
@@ -45,6 +68,8 @@ export interface DiffRange {
   head: Rev;
   label: string;
   key: string;
+  /** a stack PR's layer, or a commit in it: that PR's number */
+  pr?: number;
 }
 
 export interface SearchHit {
