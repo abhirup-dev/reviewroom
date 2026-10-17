@@ -30,6 +30,17 @@ export function current({ doc, chapter, step }: Ctx) {
   return { chapter: ch, step: ch.steps[step], isFirst: chapter === 0 && step === 0, isLast: chapter === last && step === ch.steps.length - 1 };
 }
 
+/** What the code pane shows for the current step: its ref; else the chapter's last ref so far; else the chapter
+ *  lead's diagram; else the last ref of an earlier chapter; else nothing. */
+export function target({ doc, chapter, step }: Ctx): { ref: string } | 'diagram' | null {
+  const ch = doc!.chapters[chapter];
+  const back = ch.steps.slice(0, step + 1).findLast((s) => s.ref)?.ref;
+  if (back) return { ref: back };
+  if (ch.lead && /<rr-flow[\s>]/.test(ch.lead)) return 'diagram';
+  const earlier = doc!.chapters.slice(0, chapter).flatMap((c) => c.steps).findLast((s) => s.ref)?.ref;
+  return earlier ? { ref: earlier } : null;
+}
+
 const move = { next: { actions: 'next' }, prev: { actions: 'prev' }, goto: { actions: 'goto' } } as const;
 
 export const walkthroughMachine = setup({

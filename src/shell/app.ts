@@ -73,6 +73,8 @@ export interface AppEvents extends Record<string, unknown> {
   'round-view': number;
   /** play the walkthrough at a step (ids; missing: the first) */
   'walkthrough-open': { chapter?: string; step?: string };
+  /** walkthrough.json loaded (null: none, or invalid) */
+  walkthrough: Walkthrough | null;
   toast: { text: string; kind?: 'info' | 'error' };
 }
 
@@ -96,8 +98,9 @@ export class ReviewApp {
   prefs: Prefs;
   files: ChangedFile[] = [];
   commits: Commit[] = [];
-  /** walkthrough.json, once loaded and valid */
+  /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
   walkthrough: Walkthrough | null = null;
+  walkthroughIssues: string[] | null = null;
   range!: DiffRange;
   dock!: DockviewApi;
   /** The narrative root element once mounted (inside the narrative panel). */

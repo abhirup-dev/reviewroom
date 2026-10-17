@@ -104,7 +104,7 @@ const notes: Record<string, string> = {
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
   ].join('\n'),
-  pr: '  A PR that carries a walkthrough (a ```reviewroom-walkthrough block in its description or a comment by its\n  author or you, see\n  `walkthrough publish`) gets it as walkthrough.json when the review has none; the newest block wins.',
+  pr: '  A PR that carries a walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `walkthrough publish`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   check: [

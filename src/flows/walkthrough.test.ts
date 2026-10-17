@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createActor } from 'xstate';
 import type { Walkthrough } from '../shared/walkthrough';
-import { current, walkthroughMachine } from './walkthrough';
+import { current, target, walkthroughMachine } from './walkthrough';
 
 const steps = (...ids: string[]) => ids.map((id) => ({ id, text: id }));
 const doc: Walkthrough = {
@@ -74,4 +74,18 @@ test('reloading keeps the position where it exists; a removed document closes', 
   expect(where(a)).toEqual(['playing', 1, 0]);
   a.send({ type: 'load', doc: null });
   expect(where(a)).toEqual(['closed', 1, 0]);
+});
+
+test('the code pane target: own ref, last ref in the chapter, lead diagram, an earlier ref, nothing', () => {
+  const d: Walkthrough = {
+    version: 1,
+    title: 'T',
+    chapters: [
+      { id: 'a', title: 'A', steps: [{ id: 'a1', text: 'x' }, { id: 'a2', text: 'x', ref: 'rr:code/a.go#L1' }, { id: 'a3', text: 'x' }] },
+      { id: 'b', title: 'B', lead: '<rr-flow><rr-node>n</rr-node></rr-flow>', steps: [{ id: 'b1', text: 'x' }] },
+      { id: 'c', title: 'C', steps: [{ id: 'c1', text: 'x' }] },
+    ],
+  };
+  const at = (chapter: number, step: number) => target({ doc: d, chapter, step });
+  expect([at(0, 0), at(0, 1), at(0, 2), at(1, 0), at(2, 0)]).toEqual([null, { ref: 'rr:code/a.go#L1' }, { ref: 'rr:code/a.go#L1' }, 'diagram', { ref: 'rr:code/a.go#L1' }]);
 });

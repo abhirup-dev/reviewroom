@@ -53,6 +53,15 @@ export function renderMarkdown(src: string): string {
   });
 }
 
+/** Author HTML from outside this machine (a walkthrough pulled from a PR): no scripts or handlers; the display
+ *  elements a narrative uses stay (not <rr-check>, which changes review state). */
+export function sanitizeProse(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|rr):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout|markdown)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title)$/, allowCustomizedBuiltInElements: false },
+  });
+}
+
 export function plainExcerpt(src: string, n = 90): string {
   const s = src
     .replace(/<!--[\s\S]*?(-->|$)/g, '')

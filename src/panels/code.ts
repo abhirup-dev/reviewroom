@@ -76,10 +76,13 @@ class CodePanel implements PanelInstance {
   private pin?: string;
   private optionsKey?: string;
   private optionsInit = false;
+  /** Keep revealed lines highlighted (the walkthrough's code pane) instead of letting them go after the glow. */
+  private sticky: boolean;
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
+    this.sticky = !!params.sticky;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
     this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' });
@@ -452,7 +455,7 @@ class CodePanel implements PanelInstance {
     setTimeout(() => {
       if (token !== this.pinToken) return;
       this.scroller.style.removeProperty('--rr-pulse');
-      this.cv.clearSelectedLines({ notify: false });
+      if (!this.sticky) this.cv.clearSelectedLines({ notify: false });
     }, 3000);
   }
 

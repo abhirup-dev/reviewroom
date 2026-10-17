@@ -2,51 +2,163 @@
   "version": 1,
   "round": 2,
   "rounds": [
-    { "n": 1, "status": "sent", "startedAt": "2026-10-09T09:02:00Z", "sentAt": "2026-10-09T09:41:00Z", "note": "Mostly fine. Main worry is latency and silent degradation." },
-    { "n": 2, "status": "open", "startedAt": "2026-10-09T09:58:00Z" }
+    {
+      "n": 1,
+      "status": "sent",
+      "startedAt": "2026-10-09T09:02:00Z",
+      "sentAt": "2026-10-09T09:41:00Z",
+      "note": "Mostly fine. Main worry is latency and silent degradation."
+    },
+    {
+      "n": 2,
+      "status": "open",
+      "startedAt": "2026-10-09T09:58:00Z"
+    }
   ],
   "threads": [
     {
       "id": "t_seq01",
-      "anchor": { "kind": "doc", "target": "request-path", "quote": { "exact": "sequentially, so its latency adds straight onto the feed request", "prefix": "The habit call runs after the Tardis fetch, " } },
+      "anchor": {
+        "kind": "doc",
+        "target": "request-path",
+        "quote": {
+          "exact": "sequentially, so its latency adds straight onto the feed request",
+          "prefix": "The habit call runs after the Tardis fetch, "
+        }
+      },
       "status": "open",
       "createdRound": 1,
       "messages": [
-        { "id": "m_1", "author": "you", "round": 1, "at": "2026-10-09T09:20:00Z", "body": "Why sequential? Could this run alongside `Tardis.Fetch`? Both only need the user id as far as I can tell." },
-        { "id": "m_2", "author": "agent", "round": 2, "at": "2026-10-09T09:57:00Z", "body": "It could. Both calls depend only on `req.UserID`; the author kept them sequential to reuse the error branch at [request_builder.go:47](rr:code/pkg/ranker/request_builder.go#L47-49).\n\n| path | p50 | p99 |\n|---|---|---|\n| Tardis.Fetch | 4 ms | 18 ms |\n| habit.RecentEvents | 3 ms | 12 ms |\n| **sequential** | 7 ms | **30 ms** |\n| **parallel** | 4 ms | **18 ms** |\n\nI added a section with an errgroup sketch instead of repeating it here:\n\n![](rr:doc/parallel-sketch)" }
+        {
+          "id": "m_1",
+          "author": "you",
+          "round": 1,
+          "at": "2026-10-09T09:20:00Z",
+          "body": "Why sequential? Could this run alongside `Tardis.Fetch`? Both only need the user id as far as I can tell."
+        },
+        {
+          "id": "m_2",
+          "author": "agent",
+          "round": 2,
+          "at": "2026-10-09T09:57:00Z",
+          "body": "It could. Both calls depend only on `req.UserID`; the author kept them sequential to reuse the error branch at [request_builder.go:47](rr:code/pkg/ranker/request_builder.go#L47-49).\n\n| path | p50 | p99 |\n|---|---|---|\n| Tardis.Fetch | 4 ms | 18 ms |\n| habit.RecentEvents | 3 ms | 12 ms |\n| **sequential** | 7 ms | **30 ms** |\n| **parallel** | 4 ms | **18 ms** |\n\nI added a section with an errgroup sketch instead of repeating it here:\n\n![](rr:doc/parallel-sketch)"
+        }
       ]
     },
     {
       "id": "t_metric",
-      "anchor": { "kind": "code", "path": "pkg/ranker/request_builder.go", "rev": "head", "start": 51, "end": 53 },
+      "anchor": {
+        "kind": "code",
+        "path": "pkg/ranker/request_builder.go",
+        "rev": "head",
+        "start": 51,
+        "end": 53
+      },
       "status": "open",
       "createdRound": 1,
       "messages": [
-        { "id": "m_3", "author": "you", "round": 1, "at": "2026-10-09T09:25:00Z", "body": "Shouldn't this bump a `habit_degraded_total` counter? Otherwise a 100% failure is invisible." },
-        { "id": "m_4", "author": "agent", "round": 2, "at": "2026-10-09T09:57:30Z", "body": "Agreed. `b.metrics` is already injected ([NewBuilder](rr:code/pkg/ranker/request_builder.go#L32)), so it's one line — the sketch in [Parallel fetch sketch](rr:doc/parallel-sketch) includes it. I'd suggest it to the author as a required change." }
+        {
+          "id": "m_3",
+          "author": "you",
+          "round": 1,
+          "at": "2026-10-09T09:25:00Z",
+          "body": "Shouldn't this bump a `habit_degraded_total` counter? Otherwise a 100% failure is invisible."
+        },
+        {
+          "id": "m_4",
+          "author": "agent",
+          "round": 2,
+          "at": "2026-10-09T09:57:30Z",
+          "body": "Agreed. `b.metrics` is already injected ([NewBuilder](rr:code/pkg/ranker/request_builder.go#L32)), so it's one line — the sketch in [Parallel fetch sketch](rr:doc/parallel-sketch) includes it. I'd suggest it to the author as a required change."
+        }
       ]
     },
     {
       "id": "t_rows",
-      "anchor": { "kind": "doc", "target": "sample-rows" },
+      "anchor": {
+        "kind": "doc",
+        "target": "sample-rows"
+      },
       "status": "resolved",
       "createdRound": 1,
       "messages": [
-        { "id": "m_5", "author": "you", "round": 1, "at": "2026-10-09T09:31:00Z", "body": "`ts` here is a timestamp but the proto says `ts_ms`. Where does the conversion happen?" },
-        { "id": "m_6", "author": "agent", "round": 2, "at": "2026-10-09T09:58:00Z", "body": "In `decode`: TFS returns epoch millis in the `ts` column and it's copied straight into `TsMs`.\n\n![](rr:code/pkg/features/habit/fetcher.go#L39-47)\n\nThe SQL table is the offline sink; the online path never reads it." }
+        {
+          "id": "m_5",
+          "author": "you",
+          "round": 1,
+          "at": "2026-10-09T09:31:00Z",
+          "body": "`ts` here is a timestamp but the proto says `ts_ms`. Where does the conversion happen?"
+        },
+        {
+          "id": "m_6",
+          "author": "agent",
+          "round": 2,
+          "at": "2026-10-09T09:58:00Z",
+          "body": "In `decode`: TFS returns epoch millis in the `ts` column and it's copied straight into `TsMs`.\n\n![](rr:code/pkg/features/habit/fetcher.go#L39-47)\n\nThe SQL table is the offline sink; the online path never reads it."
+        }
       ]
     },
     {
       "id": "t_test",
-      "anchor": { "kind": "code", "path": "pkg/features/habit/fetcher_test.go", "rev": "head", "start": 17, "end": 22 },
+      "anchor": {
+        "kind": "code",
+        "path": "pkg/features/habit/fetcher_test.go",
+        "rev": "head",
+        "start": 17,
+        "end": 22
+      },
       "status": "open",
       "createdRound": 2,
       "messages": [
-        { "id": "m_7", "author": "you", "round": 2, "at": "2026-10-09T10:12:00Z", "body": "Can we also cover the degrade branch in `Build`? A stub fetcher that errors should still yield a request with empty `HabitEvents`." }
+        {
+          "id": "m_7",
+          "author": "you",
+          "round": 2,
+          "at": "2026-10-09T10:12:00Z",
+          "body": "Can we also cover the degrade branch in `Build`? A stub fetcher that errors should still yield a request with empty `HabitEvents`."
+        }
       ]
     }
   ],
-  "viewed": { "migrations/004_habit_events.sql": 1 },
-  "pins": ["rr:doc/request-path"],
-  "checks": { "proto-compat": "pass", "migration": "pass", "latency": "todo", "observability": "fail" }
+  "viewed": {
+    "migrations/004_habit_events.sql": 1
+  },
+  "pins": [
+    "rr:doc/request-path"
+  ],
+  "checks": {
+    "proto-compat": "pass",
+    "migration": "pass",
+    "latency": "todo",
+    "observability": "fail"
+  },
+  "links": {
+    "rr:sym/Fetcher": "definition",
+    "rr:code/proto/feed/v2/ranker_request.proto#L25": "8504847cfd2ce830",
+    "rr:code/pkg/ranker/request_builder.go#L50-54": "d20e8f481f56b53a",
+    "rr:code/pkg/ranker/request_builder.go#L42": "f5c9e2f758837e8b",
+    "rr:code/pkg/ranker/request_builder.go#L46": "2bdeafa6680e20cb",
+    "rr:code/pkg/features/habit/fetcher.go#L20-28": "d2b3bc05808df448",
+    "rr:code/pkg/features/habit/fetcher.go#L24": "a735cab91c12c6b1",
+    "rr:code/pkg/ranker/request_builder.go#L55-59": "29ee14256ccee9a0",
+    "rr:code/pkg/features/habit/fetcher.go#L21": "a85ac09c2fd9a9f2",
+    "rr:code/pkg/ranker/request_builder.go#L46-49": "b607e2a135f65dbc",
+    "rr:code/pkg/ranker/request_builder.go#L46-60": "10d31ea440a48faa",
+    "rr:code/pkg/ranker/request_builder.go#L32": "8846e78ca8cb1ada",
+    "rr:code/migrations/004_habit_events.sql#L1-9": "aeb12f6db15016bf",
+    "rr:code/pkg/features/habit/fetcher_test.go#L11-15": "f3a5a874daf7baa4",
+    "rr:code/pkg/features/habit/fetcher_test.go#L17-22": "431b59e4ce6f5eb4",
+    "rr:code/pkg/ranker/request_builder.go#L50": "0e56848faf4fde2c",
+    "rr:code/pkg/ranker/request_builder.go@base#L29-39": "5c5964bdad870daf",
+    "rr:code/pkg/features/habit/fetcher.go#L19-28": "0a2e5f83de255efa",
+    "rr:code/pkg/features/habit/fetcher.go#L39-48": "cc5f8adc08a3a3ee",
+    "rr:code/pkg/ranker/request_builder.go#L46-54": "2b66ee866588fc64",
+    "rr:code/pkg/features/habit/fetcher.go#L21-22": "d522ea459f99b87a",
+    "rr:code/pkg/ranker/request_builder.go#L50-59": "32f468be42f98bec",
+    "rr:code/pkg/ranker/request_builder.go#L28-34": "5d02ab21dfdbe013",
+    "rr:code/proto/feed/v2/ranker_request.proto#L15-25": "231d6a9b64f10980",
+    "rr:code/migrations/004_habit_events.sql#L1-8": "58520e3d919abdee",
+    "rr:code/pkg/features/habit/fetcher_test.go#L11-22": "725f36192381ffb1"
+  },
+  "rev": 1
 }
