@@ -5,9 +5,10 @@ import path from 'node:path';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
+import { type ReviewConfig, type StackConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
-import { fetchPr, prTarget as prOf } from '../lib/github.ts';
+import { fetchPr, gql, prTarget as prOf } from '../lib/github.ts';
+import { detectStack, type Query } from '../lib/stack.ts';
 import { walkthroughPath } from '../lib/state.ts';
 import { pickBlock } from '../lib/walkthrough.ts';
 import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
@@ -26,30 +27,66 @@ function gh(repo: string, args: string[]) {
   }
 }
 
-export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean };
+export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; stack?: boolean };
 /** Where the review lives and what it compares; base and head are always resolved. */
 type Target = { dir: string; cfg: ReviewConfig };
 
-/** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
-function prTarget(repo: string, o: PrOpts, n: string): Target {
+const prRef = (n: number | string) => `refs/reviewroom/pr-${n}`;
+/** A PR's head already here, when fetching failed. Offline, SSH without an agent, or not GitHub. */
+const localCopy = (repo: string, remote: string, n: number | string, branch?: string) =>
+  [prRef(n), `pr-${n}`, `pr/${n}`, `refs/pr/${n}`, `${remote}/pr/${n}`, branch, branch && `${remote}/${branch}`].filter((r): r is string => !!r).find((r) => hasRef(r, repo));
+
+/** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch; and its stack's, when it is in one. */
+async function prTarget(repo: string, o: PrOpts, n: string): Promise<Target> {
   const { remote } = o;
   const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
-  let head = `refs/reviewroom/pr-${n}`;
+  let head = prRef(n);
   const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo) || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${head}`, repo));
   if (!fetched) {
-    // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
-    const local = [head, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
+    const local = localCopy(repo, remote, n, info?.headRefName);
     if (!local) fail(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
     console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
     head = local;
   }
-  const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
+  const stack = fetched && o.stack !== false && info?.url ? await stackOf(repo, remote, info.url) : null;
+  const baseBranch = (o.base ?? stack?.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
   if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-  const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
+  const top = stack?.prs.at(-1);
+  const cfg = { base, head: top?.head ?? head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: top?.headLabel ?? (info?.headRefName || `PR #${n}`), stack };
   return { dir: branchDir(repo, info?.headRefName || `pr-${n}`), cfg }; // pr-<n> only when gh can't name the branch
+}
+
+/** The stack the PR at `url` is in, its PRs' heads fetched (null: none, or GitHub can't say; the review is the PR alone). */
+async function stackOf(repo: string, remote: string, url: string): Promise<StackConfig | null> {
+  const t = prOf({ url })!;
+  const q: Query = (query, vars = {}) => gql(repo, t.host, query, { owner: t.owner, name: t.name, ...vars });
+  // a PR the description names is below this one only if its head is in this one's history
+  const has = (sha: string) => git(['cat-file', '-e', `${sha}^{commit}`], repo, { soft: true }) !== null;
+  const isAncestor = (a: string, b: string, n: number) => (has(a) || fetchRef(remote, `+refs/pull/${n}/head:${prRef(n)}`, repo)) && git(['merge-base', '--is-ancestor', a, b], repo, { soft: true }) !== null;
+  let s;
+  try {
+    s = await detectStack(t, q, isAncestor);
+  } catch (e) {
+    console.error(`reviewroom: could not look for a stack of PRs: ${(e as Error).message}`);
+    return null;
+  }
+  if (!s) return null;
+  const how = { native: "GitHub's stack", chain: 'their branches', body: 'the PR descriptions' }[s.source];
+  console.error(`reviewroom: PR #${t.number} is in a stack of ${s.prs.length} PRs (${s.prs.map((p) => '#' + p.number).join(', ')}, found from ${how}); fetching their heads...`);
+  // every head in one fetch; when that fails, each on its own, then what is already here
+  const all = fetchRef(remote, s.prs.map((p) => `+refs/pull/${p.number}/head:${prRef(p.number)}`), repo);
+  const prs = s.prs.map((p) => {
+    const ok = all || fetchRef(remote, `+refs/pull/${p.number}/head:${prRef(p.number)}`, repo);
+    const head = ok ? prRef(p.number) : localCopy(repo, remote, p.number, p.headRefName);
+    if (!head) fail(`could not fetch PR #${p.number} of the stack from ${remote} and found no local copy; fetch it (git fetch ${remote} pull/${p.number}/head:pr-${p.number}) or pass --no-stack`);
+    if (!ok && git(['rev-parse', head], repo).trim() !== p.headRefOid) console.error(`reviewroom: PR #${p.number}: using local ${head}, behind the PR`);
+    const review = p.reviewDecision === 'APPROVED' ? ('approved' as const) : p.reviewDecision === 'CHANGES_REQUESTED' ? ('changes' as const) : undefined;
+    return { number: p.number, title: p.title, author: p.author?.login, url: p.url, state: p.state.toLowerCase() as Lowercase<typeof p.state>, ...(review && { review }), headLabel: p.headRefName, head };
+  });
+  return { id: s.id, source: s.source, base: s.base, prs };
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
@@ -90,7 +127,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
-  const t = n ? prTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
+  const t = n ? await prTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
   const dir = o.dir ? path.resolve(o.dir) : t.dir;
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value

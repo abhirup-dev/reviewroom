@@ -20,9 +20,10 @@ export function git(args: string[], cwd: string, opts: GitOpts = {}): string | n
   }
 }
 // Network fetches must never hang on an SSH passphrase / host-key prompt or a dead VPN.
-export const fetchRef = (remote: string, refspec: string, cwd: string) => {
+// Several refspecs go in one fetch (one connection); it fails as a whole if any of them does.
+export const fetchRef = (remote: string, refspecs: string | string[], cwd: string) => {
   try {
-    execFileSync('git', ['fetch', '--quiet', '--end-of-options', remote, refspec], {
+    execFileSync('git', ['fetch', '--quiet', '--end-of-options', remote, ...[refspecs].flat()], {
       cwd, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000,
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND || 'ssh -o BatchMode=yes -o ConnectTimeout=10' },
     });

@@ -33,7 +33,21 @@ export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept.
 // repoPath: the checkout the review was made from, so `--dir` alone finds its repo; repo: GitHub's owner/name.
 const text = z.string().optional().catch(undefined);
-const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text });
+// stack: the PR stack the review covers (`reviewroom pr` on a PR in one), bottom first; head is each PR's fetched ref.
+// A stack that no longer parses means no stack, not a broken review.
+const StackPr = z.looseObject({
+  number: z.number().int().positive(),
+  title: z.string(),
+  author: z.string().optional(),
+  url: z.string().optional(),
+  state: z.enum(['open', 'merged', 'closed']),
+  review: z.enum(['approved', 'changes']).optional(),
+  headLabel: z.string(),
+  head: z.string(),
+});
+const Stack = z.looseObject({ id: z.number().int(), source: z.enum(['native', 'chain', 'body']), base: z.string(), prs: z.array(StackPr).min(2) });
+export type StackConfig = z.infer<typeof Stack>;
+const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text, stack: Stack.nullable().optional().catch(undefined) }); // null: `pr` found none (or --no-stack)
 /** config.json, with --base/--head/--title applied (loadConfig). */
 export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
 export const configPath = (dir: string) => path.join(dir, 'config.json');

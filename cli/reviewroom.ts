@@ -49,6 +49,7 @@ cli
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Remote to fetch from', { default: 'origin' })
+  .option('--no-stack', 'Review the PR alone, even when it is in a stack of PRs')
   .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s guided walkthrough)')
   .option('--detach', 'Serve in the background, print the URL and return')
   .option('--wait', 'Then block like `review` until the round ends')
