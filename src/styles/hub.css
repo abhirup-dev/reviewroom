@@ -65,6 +65,20 @@
   min-height: 0;
   overflow: auto;
   background: var(--rr-surface-nav);
+  scrollbar-width: thin;
+  scrollbar-color: var(--rr-line-strong) transparent;
+}
+/* always visible, unlike macOS overlay scrollbars: the table may run past the right edge */
+.rr-hub__scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.rr-hub__scroll::-webkit-scrollbar-thumb {
+  background: var(--rr-line-strong);
+  border-radius: var(--rr-radius-lg);
+}
+.rr-hub__scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 .rr-hub__table {
   width: 100%;
@@ -92,6 +106,7 @@
 }
 .rr-hub__table th[data-sort] {
   cursor: pointer;
+  transition: color 0.12s ease-out;
 }
 .rr-hub__table th[data-sort]:hover,
 .rr-hub__table th[aria-sort] {
@@ -104,19 +119,40 @@
   content: ' ▼';
 }
 .rr-hub__table td {
+  transition: background-color 0.12s ease-out, color 0.12s ease-out;
   height: 32px;
   padding: 0 8px;
   border-bottom: 1px solid var(--rr-line);
   white-space: nowrap;
 }
+.rr-hub__table tbody tr {
+  transition: background-color 0.12s ease-out;
+}
 .rr-hub__table tbody tr:hover {
   background: var(--rr-hover);
+}
+/* a hairline marks the row under the pointer or focus */
+.rr-hub__table tbody tr:is(:hover, :focus-within) td:first-child {
+  box-shadow: inset 2px 0 0 var(--rr-line-strong);
+}
+.rr-hub__table tbody tr.is-selected td:first-child {
+  box-shadow: inset 2px 0 0 var(--rr-ink-2);
+}
+.rr-hub__table tbody tr.is-new {
+  animation: rr-hub-in 0.24s ease-out;
+}
+@keyframes rr-hub-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
 }
 .rr-hub__table tbody tr.is-selected {
   background: var(--rr-active);
 }
-.rr-hub__table .num {
-  text-align: right;
+/* short columns (marks, counts) centre their heading over their contents */
+.rr-hub__table :is(.num, .c-tool, .c-agent) {
+  text-align: center;
 }
 .rr-hub__table .rr-hub__sel {
   width: 32px;
@@ -129,9 +165,33 @@
 }
 .rr-hub__subject {
   max-width: 260px;
+}
+.rr-hub__name,
+.rr-hub__sub {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.rr-hub__name {
   font-weight: 500;
+}
+.rr-hub__sub {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+}
+.rr-hub__sub-tool {
+  display: none;
+}
+.rr-hub__sub-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-hub__sub .rr-hub__mark {
+  font-size: 13px;
 }
 .rr-hub__trunc {
   max-width: 200px;
@@ -159,18 +219,45 @@
   font-family: var(--rr-mono);
   font-size: 11.5px;
 }
+.rr-hub__tool {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.rr-hub__tool > img,
+.rr-hub__tool > .rr-mark {
+  width: 18px;
+  height: 18px;
+}
+.rr-hub__tool > .rr-mark {
+  font-size: 8.5px;
+}
+.rr-hub__author {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  gap: 6px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-hub__avatar {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%; /* GitHub avatars are round everywhere in reviewroom */
+  background: var(--rr-hover);
+}
+.rr-hub__agent {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.rr-hub__mark {
+  display: inline-flex;
+  font-size: 16px; /* the marks are 1em */
+}
 .rr-hub__dim {
   color: var(--rr-faint);
-}
-.rr-hub__health--ok {
-  border-color: transparent;
-  background: var(--rr-ok-soft);
-  color: var(--rr-ok);
-}
-.rr-hub__health--unreachable {
-  border-color: transparent;
-  background: var(--rr-risk-soft);
-  color: var(--rr-risk);
 }
 .rr-hub__actions {
   display: flex;
@@ -180,6 +267,92 @@
 }
 .rr-hub__actions a.rr-icon-btn {
   text-decoration: none;
+}
+/* the row's actions recede until the row is in play */
+.rr-hub__actions .rr-icon-btn {
+  opacity: 0.55;
+  transition: opacity 0.12s ease-out, background-color 0.12s ease-out, color 0.12s ease-out;
+}
+tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
+  opacity: 1;
+}
+.rr-hub__actions .rr-icon-btn:hover {
+  color: var(--rr-ink);
+}
+.rr-hub__banner {
+  animation: rr-fade 0.16s ease-out;
+}
+.rr-hub__count:not(:empty) {
+  animation: rr-fade 0.12s ease-out;
+}
+.rr-hub__bar .rr-btn {
+  transition: opacity 0.12s ease-out, background-color 0.12s ease-out;
+}
+/* narrower screens: drop the least needed columns; repository, branch, kind (and the tool, narrowest) move under the title */
+@media (max-width: 1279px) {
+  .rr-hub .c-directory,
+  .rr-hub .c-pid {
+    display: none;
+  }
+  /* the title takes what the other columns leave, and truncates */
+  .rr-hub__subject {
+    width: 100%;
+    min-width: 160px;
+    max-width: 0;
+  }
+  .rr-hub__trunc {
+    max-width: 150px;
+  }
+}
+@media (max-width: 1023px) {
+  .rr-hub .c-kind,
+  .rr-hub .c-repository,
+  .rr-hub .c-branch,
+  .rr-hub .c-agent {
+    display: none;
+  }
+  .rr-hub__sub {
+    display: flex;
+  }
+  .rr-hub__table td {
+    height: 44px;
+  }
+}
+@media (max-width: 639px) {
+  .rr-hub .c-tool,
+  .rr-hub .c-comments,
+  .rr-hub .c-started {
+    display: none;
+  }
+  .rr-hub__sub-tool {
+    display: inline-flex;
+  }
+  .rr-hub__subject {
+    min-width: 120px;
+  }
+
+  .rr-hub__search {
+    flex: 1 1 100%;
+  }
+  .rr-hub__bar .rr-select,
+  .rr-hub__num {
+    flex: 1 1 40%;
+    width: auto;
+    max-width: none;
+  }
+  .rr-hub__spacer {
+    display: none;
+  }
+  .rr-hub .rr-header__title {
+    max-width: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-hub *,
+  .rr-hub *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 .rr-hub__empty {
   padding: 32px 14px;
@@ -192,4 +365,10 @@
 .rr-hub__foot {
   justify-content: flex-end;
   padding: 10px 14px 14px;
+}
+.rr-hub__sub .rr-hub__tool > img,
+.rr-hub__sub .rr-hub__tool > .rr-mark {
+  width: 14px;
+  height: 14px;
+  font-size: 7px;
 }

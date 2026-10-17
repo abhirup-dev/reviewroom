@@ -14,7 +14,8 @@ export function tip(el: HTMLElement, text: string, keys?: string) {
   return el;
 }
 
-export function mountTooltips(app: ReviewApp) {
+/** `app` is optional: the hub page (src/hub/) has tooltips but no ReviewApp. */
+export function mountTooltips(app?: Pick<ReviewApp, 'escapers'>) {
   const box = h('div', { class: 'rr-tooltip', role: 'tooltip', popover: 'manual' }); // a popover: over modal dialogs too
   const shown = () => box.matches(':popover-open');
   document.body.append(box);
@@ -74,5 +75,5 @@ export function mountTooltips(app: ReviewApp) {
   document.addEventListener('pointerdown', hide, true);
   document.addEventListener('scroll', hide, true);
   document.addEventListener('keydown', (e) => e.key === 'Escape' && hide(), true);
-  app.escapers.push(() => (shown() ? (hide(), true) : false));
+  app?.escapers.push(() => (shown() ? (hide(), true) : false));
 }

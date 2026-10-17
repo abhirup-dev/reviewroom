@@ -32,7 +32,7 @@ function session(id: string, tool: ToolName, now: string, fields: Partial<Sessio
   return {
     id, tool, pid: null, port: null, url: null, urlNote: null, cwd: null, branch: null, worktree: null, repoRoot: null, repository: null,
     category: 'other', kind: 'unknown', target: null, classificationSource: '', origin: null, originSource: null, parentAgentPid: null,
-    parentAgentGroup: null, mode: null, label: null, project: null, reviewPath: null, startedAt: null, updatedAt: null, commentCount: null,
+    parentAgentGroup: null, author: null, mode: null, label: null, project: null, reviewPath: null, startedAt: null, updatedAt: null, commentCount: null,
     resolvedCommentCount: null, unresolvedCommentCount: null, reviewRound: null, browserClients: null, interacted: null,
     firstSeenAt: now, lastSeenAt: now, health: 'unknown', notes: [], ...fields,
   };
@@ -201,7 +201,7 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir,
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir,
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
       withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));

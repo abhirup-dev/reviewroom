@@ -55,12 +55,12 @@ describe('registries', () => {
   });
 
   test('reviewroom: records under REVIEWROOM_HOME, URL rebuilt from the port, junk skipped', () => {
-    write(rrHome, '321.json', { pid: 321, port: 4848, url: 'https://evil.example/', repo: '/r', dir: '/r/.reviewroom/feat', title: null, number: 7, head: 'worktree', mode: 'serve', agent: { name: 'codex', pid: 9 } });
+    write(rrHome, '321.json', { pid: 321, port: 4848, url: 'https://evil.example/', repo: '/r', dir: '/r/.reviewroom/feat', title: null, number: 7, head: 'worktree', mode: 'serve', agent: { name: 'codex', pid: 9 }, author: '../evil?x' });
     write(rrHome, '322.json', { pid: 999, port: 4849 }); // pid does not match the file
     write(rrHome, '323.json', '{not json');
     const [r, ...rest] = readReviewroom();
     expect(rest).toEqual([]);
-    expect(r).toMatchObject({ pid: 321, url: 'http://127.0.0.1:4848/', repo: '/r', number: 7, mode: 'serve', agent: { name: 'codex', pid: 9 } });
+    expect(r).toMatchObject({ pid: 321, url: 'http://127.0.0.1:4848/', repo: '/r', number: 7, mode: 'serve', agent: { name: 'codex', pid: 9 }, author: null }); // not a GitHub login: dropped
   });
 });
 
@@ -97,7 +97,7 @@ describe('poll', () => {
     const repo = tmp();
     const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1 }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
     const dead = sleeper();
-    write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'pr-42'), title: 'Habit events', number: 42, head: 'refs/reviewroom/pr-42', mode: 'review', agent: { name: 'claude-code', pid: 77 } });
+    write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'pr-42'), title: 'Habit events', number: 42, head: 'refs/reviewroom/pr-42', mode: 'review', agent: { name: 'claude-code', pid: 77 }, author: 'mradul' });
     const alsoLive = sleeper(); // answers as itself, with a body that is not JSON: kept
     const garbled = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('{not json', { headers: { 'x-reviewroom-pid': String(alsoLive.pid) } }) });
     write(rrHome, `${alsoLive.pid}.json`, { pid: alsoLive.pid, port: garbled.port, repo, dir: repo, head: 'main', mode: 'serve' });
@@ -106,7 +106,7 @@ describe('poll', () => {
     void server.stop(true);
     void garbled.stop(true);
     expect(Object.keys(sessions).sort()).toEqual([`reviewroom:${process.pid}`, `reviewroom:${alsoLive.pid}`].sort());
-    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Habit events', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, origin: 'claude-code', parentAgentPid: 77 });
+    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Habit events', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, origin: 'claude-code', parentAgentPid: 77, author: 'mradul' });
     expect(sessions[`reviewroom:${alsoLive.pid}`]).toMatchObject({ health: 'ok', commentCount: null });
     expect(fs.existsSync(path.join(rrHome, 'sessions', `${dead.pid}.json`))).toBe(false);
   });
