@@ -238,6 +238,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
+    { id: 'walkthrough.play', title: 'Play walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
     { id: 'layout.saveDefault', title: 'Save layout as default', group: 'Layout', hint: 'Reviews without a layout of their own open like this', when: () => !!app.backend.saveDefaultLayout, run: () => saveDefaultLayout(app) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },

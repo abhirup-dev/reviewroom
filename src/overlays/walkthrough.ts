@@ -6,7 +6,7 @@ import { h, icon } from '../core/dom';
 import { sanitizeProse } from '../core/markdown';
 import { parseRef, refIcon } from '../core/refs';
 import { renderPreview } from '../elements';
-import { current, target, walkthroughMachine } from '../flows/walkthrough';
+import { current, deepLink, target, walkthroughMachine } from '../flows/walkthrough';
 import type { CodeTarget, ReviewApp } from '../shell/app';
 import { menuItem, popMenu } from '../shell/chrome';
 import { panelDefs, type PanelInstance } from '../shell/layout';
@@ -216,6 +216,8 @@ export function mountWalkthrough(app: ReviewApp) {
     app.walkthroughIssues = w && 'issues' in w ? w.issues : null;
     actor.send({ type: 'load', doc: app.walkthrough });
     app.bus.emit('walkthrough', app.walkthrough);
+    const link = deepLink(location.search);
+    if (link && app.walkthrough) actor.send({ type: 'open', ...link });
   }, () => {});
   return actor;
 }

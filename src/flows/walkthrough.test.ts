@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createActor } from 'xstate';
 import type { Walkthrough } from '../shared/walkthrough';
-import { current, target, walkthroughMachine } from './walkthrough';
+import { current, deepLink, target, walkthroughMachine } from './walkthrough';
 
 const steps = (...ids: string[]) => ids.map((id) => ({ id, text: id }));
 const doc: Walkthrough = {
@@ -88,4 +88,11 @@ test('the code pane target: own ref, last ref in the chapter, lead diagram, an e
   };
   const at = (chapter: number, step: number) => target({ doc: d, chapter, step });
   expect([at(0, 0), at(0, 1), at(0, 2), at(1, 0), at(2, 0)]).toEqual([null, { ref: 'rr:code/a.go#L1' }, { ref: 'rr:code/a.go#L1' }, 'diagram', { ref: 'rr:code/a.go#L1' }]);
+});
+
+test('deep link: ?walkthrough=<chapter>/<step>, either part optional', () => {
+  expect(deepLink('?walkthrough=latency/s3')).toEqual({ chapter: 'latency', step: 's3' });
+  expect(deepLink('?x=1&walkthrough=latency')).toEqual({ chapter: 'latency', step: undefined });
+  expect(deepLink('?walkthrough')).toEqual({ chapter: undefined, step: undefined });
+  expect(deepLink('?x=1')).toBeNull();
 });

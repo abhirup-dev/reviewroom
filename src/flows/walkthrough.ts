@@ -41,6 +41,14 @@ export function target({ doc, chapter, step }: Ctx): { ref: string } | 'diagram'
   return earlier ? { ref: earlier } : null;
 }
 
+/** The `?walkthrough=<chapter>/<step>` deep link (either part optional); null when absent. */
+export function deepLink(search: string): { chapter?: string; step?: string } | null {
+  const v = new URLSearchParams(search).get('walkthrough');
+  if (v === null) return null;
+  const [chapter, step] = v.split('/');
+  return { chapter: chapter || undefined, step: step || undefined };
+}
+
 const move = { next: { actions: 'next' }, prev: { actions: 'prev' }, goto: { actions: 'goto' } } as const;
 
 export const walkthroughMachine = setup({
