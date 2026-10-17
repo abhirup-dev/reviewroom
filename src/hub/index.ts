@@ -2,6 +2,7 @@
 // own server (a review server refuses requests from other ports). Filter, sort, open, close.
 import { backdropCloses, h, icon, relTime } from '../core/dom';
 import { mountTooltips } from '../overlays/tooltip';
+import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
 import type { HubSnapshot, SessionInfo } from '../shared/hub';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg' with { type: 'text' };
@@ -14,7 +15,7 @@ import amp from '@lobehub/icons-static-svg/icons/amp-color.svg' with { type: 'te
 import pi from '@lobehub/icons-static-svg/icons/pi.svg' with { type: 'text' };
 
 type Compat = Record<string, { installed: string | null; verifiedAgainst: string; status: string }>;
-type SortKey = 'tool' | 'subject' | 'kind' | 'repository' | 'branch' | 'cwd' | 'pid' | 'origin' | 'commentCount' | 'reviewRound' | 'startedAt';
+type SortKey = 'tool' | 'subject' | 'author' | 'kind' | 'repository' | 'branch' | 'cwd' | 'pid' | 'origin' | 'commentCount' | 'reviewRound' | 'startedAt';
 
 /** Agent names as cli/hub/proc.ts reports them -> display name and mark (droid has none: shown as text). */
 const AGENTS: Record<string, [name: string, svg?: string]> = {
@@ -32,6 +33,13 @@ const AGENTS: Record<string, [name: string, svg?: string]> = {
 const TOOLS: Record<string, string> = { reviewroom: 'reviewroom', crit: 'Crit', plannotator: 'Plannotator' };
 /** "5 min. ago" within a week, else the day without the year ("Oct 8"). */
 const started = (iso: string) => (Date.now() - Date.parse(iso) < 7 * 86400e3 ? relTime(iso) : new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+/** The tool's mark: reviewroom's own rr square, Crit's and Plannotator's favicons. */
+const toolMark = (tool: string) =>
+  h(
+    'span',
+    { class: 'rr-hub__tool', title: TOOLS[tool] ?? tool, 'aria-label': TOOLS[tool] ?? tool },
+    tool === 'reviewroom' ? h('span', { class: 'rr-mark' }, 'rr') : h('img', { src: tool === 'crit' ? CRIT_LOGO : PLANNOTATOR_LOGO, alt: '' }),
+  );
 const prettyKind = (k: string) => k.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 const base = (p: string | null) => p?.split('/').filter(Boolean).pop() ?? '';
 
@@ -72,15 +80,19 @@ const f = {
   repo: select('Repository', 'Show only reviews of one repository'),
   branch: select('Branch', 'Show only sessions on one branch'),
   cwd: select('Working directory', 'Show only sessions started in one directory'),
+  author: select('Author', 'Show only reviews of one author’s pull requests, or the ones with no PR author'),
   comments: input({ type: 'number', min: '0', placeholder: 'Min comments', 'aria-label': 'Minimum comments', title: 'Show only sessions with at least this many comments', class: 'rr-input rr-hub__num' }),
   round: input({ type: 'number', min: '1', placeholder: 'Min round', 'aria-label': 'Minimum round', title: 'Show only sessions on this round or later', class: 'rr-input rr-hub__num' }),
 };
+/** The Author filter's value for sessions without a PR author (self-reviews, Crit, Plannotator). */
+const NO_AUTHOR = '\u0000none';
 const selectOptions: [HTMLSelectElement, string, (s: SessionInfo) => string | null][] = [
   [f.tool, 'All tools', (s) => s.tool],
   [f.kind, 'All kinds', (s) => s.kind],
   [f.repo, 'All repositories', (s) => s.repository],
   [f.branch, 'All branches', (s) => s.branch],
   [f.cwd, 'All directories', (s) => s.cwd],
+  [f.author, 'All authors', (s) => s.author ?? NO_AUTHOR],
 ];
 
 const meta = h('div', { class: 'rr-header__meta' });
@@ -96,6 +108,7 @@ const columns: [SortKey | null, string, string, string?][] = [
   // where the review stands first; where it runs (repository, directory, processes) after, scrolled to on narrow screens
   ['tool', 'Tool', 'The review tool running the session'],
   ['subject', 'Review', 'What is under review: the title, PR, branch or file'],
+  ['author', 'Author', 'Who opened the pull request on GitHub (only for reviews of a PR)'],
   ['reviewRound', 'Round', 'The review round it is on: each round ends when the reviewer sends feedback', 'num'],
   ['commentCount', 'Comments', 'Comment threads so far (hover a number for how many are open)', 'num'],
   ['startedAt', 'Started', 'When the session’s server started'],
@@ -128,7 +141,7 @@ document.body.append(
     h(
       'div',
       { class: 'rr-hub__bar' },
-      f.q, f.tool, f.kind, f.repo, f.branch, f.cwd, f.comments, f.round,
+      f.q, f.tool, f.author, f.kind, f.repo, f.branch, f.cwd, f.comments, f.round,
       h('button', { class: 'rr-btn rr-btn--ghost rr-btn--small', title: 'Clear every filter', onclick: () => (Object.values(f).forEach((el) => (el.value = '')), paint()) }, 'Clear'),
       h('span', { class: 'rr-hub__spacer' }),
       count, openBtn, closeBtn,
@@ -140,7 +153,7 @@ document.body.append(
 // ------------------------------------------------------------ filtering and sorting
 function visible(): SessionInfo[] {
   const q = f.q.value.trim().toLowerCase();
-  const text = (s: SessionInfo) => [s.id, s.tool, s.category, s.kind, s.target, s.repository, s.repoRoot, s.branch, s.cwd, s.pid, s.parentAgentPid, s.origin, s.mode, s.label, s.project].join(' ').toLowerCase();
+  const text = (s: SessionInfo) => [s.id, s.tool, s.category, s.kind, s.target, s.repository, s.repoRoot, s.branch, s.cwd, s.pid, s.parentAgentPid, s.origin, s.author, s.mode, s.label, s.project].join(' ').toLowerCase();
   const rows = (data?.sessions ?? []).filter(
     (s) =>
       (!q || text(s).includes(q)) &&
@@ -149,6 +162,7 @@ function visible(): SessionInfo[] {
       (!f.repo.value || s.repository === f.repo.value) &&
       (!f.branch.value || s.branch === f.branch.value) &&
       (!f.cwd.value || s.cwd === f.cwd.value) &&
+      (!f.author.value || (s.author ?? NO_AUTHOR) === f.author.value) &&
       (!f.comments.value || (s.commentCount ?? -1) >= +f.comments.value) &&
       (!f.round.value || (s.reviewRound ?? -1) >= +f.round.value),
   );
@@ -174,13 +188,20 @@ function row(s: SessionInfo) {
     'tr',
     { class: [on && 'is-selected', !seen.has(s.id) && 'is-new'].filter(Boolean).join(' ') || undefined, ondblclick: (e: MouseEvent) => !(e.target as Element).closest('a, button, input') && open(s) },
     h('td', { class: 'rr-hub__sel' }, h('input', { type: 'checkbox', class: 'rr-hub__check', checked: on, 'aria-label': `Select ${subject(s)}`, title: 'Select for Open or Close', onchange: () => (on ? selected.delete(s.id) : selected.add(s.id), paint()) })),
-    h('td', { class: col('Tool') }, TOOLS[s.tool] ?? s.tool),
+    h('td', { class: col('Tool') }, toolMark(s.tool)),
     h(
       'td',
       { class: 'rr-hub__subject', title: s.target ?? subject(s) },
       h('div', { class: 'rr-hub__name' }, subject(s)),
       // what the hidden columns said, under the title on narrow screens
-      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, TOOLS[s.tool] ?? s.tool), h('span', { class: 'rr-hub__sub-text' }, [s.repository, s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
+      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, toolMark(s.tool)), h('span', { class: 'rr-hub__sub-text' }, [s.repository, s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
+    ),
+    h(
+      'td',
+      { class: 'c-author' },
+      s.author
+        ? h('span', { class: 'rr-hub__author', title: `@${s.author} opened this pull request` }, h('img', { class: 'rr-hub__avatar', src: `https://avatars.githubusercontent.com/${s.author}?s=40`, alt: '', loading: 'lazy' }), s.author)
+        : null,
     ),
     h('td', { class: 'num c-round', title: s.reviewRound == null ? 'Not reported by this tool' : `Round ${s.reviewRound}` }, String(s.reviewRound ?? '–')),
     h('td', { class: 'num c-comments' }, comments),
@@ -238,7 +259,7 @@ function fillSelects() {
   for (const [el, label, get] of selectOptions) {
     const values = [...new Set((data?.sessions ?? []).map(get).filter((v): v is string => !!v))].sort();
     const old = el.value;
-    el.replaceChildren(h('option', { value: '' }, label), ...values.map((v) => h('option', { value: v }, el === f.kind ? prettyKind(v) : el === f.tool ? (TOOLS[v] ?? v) : v)));
+    el.replaceChildren(h('option', { value: '' }, label), ...values.map((v) => h('option', { value: v }, v === NO_AUTHOR ? 'No author' : el === f.kind ? prettyKind(v) : el === f.tool ? (TOOLS[v] ?? v) : v)));
     el.value = values.includes(old) ? old : '';
   }
 }

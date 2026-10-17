@@ -97,6 +97,8 @@ export function readReviewroom(): (SessionRecord & { registryUpdatedAt: string |
       head: str(o.head) ?? '',
       mode: o.mode === 'review' ? 'review' : 'serve',
       startedAt: normalizeTimestamp(o.startedAt) ?? '',
+      // a GitHub login: it ends up in an avatar URL
+      author: typeof o.author === 'string' && /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(o.author) ? o.author : null,
       agent: typeof agent?.name === 'string' && parseStrictPid(agent.pid) ? { name: agent.name, pid: agent.pid as number } : null,
       registryUpdatedAt: mtime,
     }];

@@ -75,6 +75,8 @@ export interface SessionInfo {
   target: string | null;
   classificationSource: string;
   /** The agent that started the session: recorded by reviewroom, guessed from process ancestry for the others. */
+  /** GitHub login of the PR's author, for a review of a PR; null otherwise. */
+  author: string | null;
   origin: string | null;
   originSource: string | null;
   parentAgentPid: number | null;
