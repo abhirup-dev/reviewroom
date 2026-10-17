@@ -18,7 +18,7 @@ const MAX_LINES = { 1: 25, 2: 10 } as const;
 const SMALL = 10; // changed lines below which an unshown file is only mentioned
 const TEST = /(^|\/)(tests?|__tests__|testdata)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/;
 // lock, checksum, doc and generated files: only mentioned, like tests
-const SKIP = /(^|\/)(bun\.lock|package-lock\.json|yarn\.lock|go\.sum|Cargo\.lock)$|\.(sum|sha256|md|pb\.go)$|_generated\.[^/]+$|\.gen\.[^/]+$|(^|\/)dist\//;
+const SKIP = /(^|\/)(bun\.lock|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|go\.sum|Cargo\.lock|Gemfile\.lock|poetry\.lock|uv\.lock|package\.json|go\.mod|Cargo\.toml|Gemfile|pyproject\.toml|requirements[^/]*\.txt|pom\.xml|build\.gradle(\.kts)?)$|\.(sum|sha256|md|pb\.go)$|_generated\.[^/]+$|\.gen\.[^/]+$|(^|\/)dist\//;
 
 /** The static checks. `estimates`: also the text-length and range-width guesses that rendering measures for real. */
 export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name: string) => string | undefined, { estimates = true } = {}): Finding[] {

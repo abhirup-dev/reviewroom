@@ -41,6 +41,11 @@ slide. If "and then" fits between two slides, they are a list: reorder or cut. P
 as subject, verbs that move data or control (reads, writes, calls, guards, drops), not "updates",
 "refactors", "improves". Introduce a file by its role, then its name, once.
 
+**Dependency files never get a slide.** `go.mod`, `go.sum`, `package.json`, lockfiles, `requirements.txt`,
+`pyproject.toml`, `Cargo.toml`, `pom.xml` and their kin are not part of the story: don't point a `ref` at
+them or give them a chapter. A thread that needs a new library says so in a sentence on the slide that
+uses it. The one exception is a PR that is only a dependency change.
+
 **Pictures.** A slide is a picture with a caption, and the picture is often not code. The context
 chapter's lead is an `<rr-flow>` of the surrounding system with the threads marked; the convergence
 shows the contract as a diagram (who writes it, who reads it) before it shows the lines; a thread

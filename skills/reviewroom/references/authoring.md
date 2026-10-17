@@ -198,7 +198,7 @@ The commands and the file keep the short name: `reviewroom walkthrough …`, `wa
 
 - `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
   (changed files no slide shows, chapter sizes, empty panes); problems name the slide (chapter/step). A file linked
-  anywhere in slide text counts as shown; tests, generated, lock and doc files, and files with under 10 changed lines,
+  anywhere in slide text counts as shown; tests, generated, dependency, lock and doc files, and files with under 10 changed lines,
   are only reported as info.
 - Highlight budget at a laptop screen: about 25 lines for one ref, 10 each for two stacked, never more than two
   stacked. `check` estimates it; `walkthrough lint` measures it and proposes a narrower range.
