@@ -122,8 +122,8 @@ class CodePanel implements PanelInstance {
         if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
       }),
       app.bus.on('selection', (sel) => {
-        // Esc / clearing the selection also clears the highlighted line range
-        if (!sel) this.cv.clearSelectedLines({ notify: false });
+        // Esc / clearing the selection also clears the highlighted line range; the walkthrough's highlight is its own
+        if (!sel && !this.embedded) this.cv.clearSelectedLines({ notify: false });
       }),
     );
     this.element.addEventListener('rr-code-cmd', (e) => {

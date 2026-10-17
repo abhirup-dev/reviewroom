@@ -131,7 +131,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const progress = h('div', { class: 'rr-tour__progress' });
   const player = h(
     'div',
-    { class: 'rr-tour__player', role: 'dialog', 'aria-label': 'Guided walkthrough' },
+    { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
     h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
     h('div', { class: 'rr-tour__body' }, left, right),
     h('div', { class: 'rr-tour__bottom' }, prev, progress, next),
@@ -179,8 +179,20 @@ export function mountWalkthrough(app: ReviewApp) {
     void el.offsetWidth;
     el.classList.add('is-in');
   };
+  // playing, the player is modal: the workbench behind it can't be clicked, tabbed to or read out (paused, it's in use)
+  let back: HTMLElement | null = null;
+  const modal = (on: boolean) => {
+    for (const el of app.root.children) if (el !== root) (el as HTMLElement).inert = on;
+    if (on) {
+      back = document.activeElement as HTMLElement | null;
+      player.focus();
+    } else if (player.contains(document.activeElement)) back?.focus();
+  };
   actor.subscribe((s) => {
-    root.dataset.mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
+    const mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
+    const was = root.dataset.mode;
+    root.dataset.mode = mode; // first: the player can't take focus while hidden
+    if ((mode === 'playing') !== (was === 'playing')) modal(mode === 'playing');
     if (!s.matches('open')) return void (last = { chapter: -1, step: -1, doc: null });
     const { chapter, step, doc: d } = s.context;
     const cur = current(s.context);
@@ -234,16 +246,18 @@ export function mountWalkthrough(app: ReviewApp) {
   app.bus.on('state', paintThreads);
   app.bus.on('code-landed', ({ panel }) => views.some((v) => v.id === panel) && actor.send({ type: 'landed' }));
 
-  // ← → while playing (not while typing or in a menu or dialog); Esc pauses
-  document.addEventListener(
+  // ← → while playing (not while typing or in a menu or dialog); Esc pauses. On window, ahead of the command
+  // registry's document listener: the workbench's shortcuts don't reach behind the player (mod+k's palette opens above it)
+  window.addEventListener(
     'keydown',
     (e) => {
-      if (!actor.getSnapshot().matches({ open: 'playing' }) || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector(':popover-open, dialog[open]')) return;
-      const type = ({ ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'pause' } as const)[e.key as 'ArrowRight'];
-      if (!type) return;
-      e.preventDefault();
-      e.stopPropagation();
-      actor.send({ type });
+      if (!actor.getSnapshot().matches({ open: 'playing' }) || typing(e.target) || document.querySelector('dialog[open], [popover=auto]:popover-open')) return;
+      const type = !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector(':popover-open') && ({ ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'pause' } as const)[e.key as 'ArrowRight'];
+      if (type) {
+        e.preventDefault();
+        actor.send({ type });
+      }
+      if (!e.metaKey && !e.ctrlKey) e.stopPropagation();
     },
     true,
   );

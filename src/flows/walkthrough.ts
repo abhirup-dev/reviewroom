@@ -129,7 +129,7 @@ export function current({ doc, chapter, step }: Ctx) {
   return { chapter: ch, step: ch.steps[step], isFirst: chapter === 0 && step === 0, isLast: chapter === last && step === ch.steps.length - 1 };
 }
 
-const FLOW = /<rr-flow[\s>][\s\S]*<\/rr-flow>/;
+const FLOW = /<rr-flow[\s>][\s\S]*?<\/rr-flow>/; // the first one
 
 /** What the code pane shows for the current step: its links; else the chapter's last links so far; else the chapter
  *  lead's diagram; else the last links of an earlier chapter; else nothing. */

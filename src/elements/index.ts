@@ -266,6 +266,8 @@ class RREmbed extends HTMLElement {
 
 // ------------------------------------------------------------------ rr-code
 class RRCode extends HTMLElement {
+  private file?: InstanceType<typeof PierreFile>;
+  private gen = 0;
   connectedCallback() {
     if (this.dataset.ready) return; // re-attached (panel reopened or moved)
     this.dataset.ready = '1';
@@ -276,6 +278,7 @@ class RRCode extends HTMLElement {
     this.dataset.src = inline;
     this.replaceChildren();
     this.classList.add('rr-code');
+    const gen = ++this.gen;
     withApp(async (app) => {
       let contents = inline.replace(/^\n/, '').replace(/\s+$/, '');
       let name = `snippet.${lang || 'txt'}`;
@@ -284,6 +287,7 @@ class RRCode extends HTMLElement {
       const r = ref ? parseRef(ref) : null;
       if (r && (r.type === 'code' || r.type === 'file')) {
         contents = (await app.read(r.path, app.revOf(r.rev))) ?? '';
+        if (gen !== this.gen) return; // left the page while reading
         name = r.path;
         // the whole file, drawn from start to end with its real line numbers
         if (r.start) renderRange = range(r.start, r.end ?? contents.split('\n').length);
@@ -297,7 +301,19 @@ class RRCode extends HTMLElement {
       );
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
-      new PierreFile(codeOptions('--rr-panel-2')).render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
+      this.file = new PierreFile(codeOptions('--rr-panel-2'));
+      this.file.render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
+    });
+  }
+  disconnectedCallback() {
+    // moved (a panel dragged) is back by the next microtask; gone for good, release pierre and start over if re-added
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      this.gen++;
+      this.file?.cleanUp();
+      this.file = undefined;
+      this.replaceChildren(this.dataset.src ?? '');
+      delete this.dataset.ready;
     });
   }
 }
