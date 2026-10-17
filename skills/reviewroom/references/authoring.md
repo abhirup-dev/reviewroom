@@ -168,8 +168,9 @@ one: `examples/habit-events/walkthrough.json`.
 | no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |
 
 Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code
-link in the text shows that code in the pane without leaving the slide. Scripts and event handlers are
-stripped (a guided walkthrough can come from a PR). Aim for one concept per chapter and 2 to 5 slides each.
+link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
+from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-flow>`, `<rr-callout>`, `<rr-embed>`; styles,
+scripts, forms, media and `<rr-check>` are stripped (`walkthrough lint` names what was). Aim for one concept per chapter and 2 to 5 slides each.
 The commands and the file keep the short name: `reviewroom walkthrough …`, `walkthrough.json`.
 
 - `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
