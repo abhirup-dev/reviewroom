@@ -25,10 +25,10 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
-  /** the code panels on screen, one per chunk (null: a preview) */
-  let views: (PanelInstance & { id: string; pin: string } | null)[] = [];
+  /** per chunk on screen: its code panel (null: a preview) and its header (stacked only) */
+  let views: { panel: PanelInstance | null; id: string; head: HTMLElement | null }[] = [];
   const dispose = () => {
-    views.forEach((v) => v?.dispose?.());
+    views.forEach((v) => v.panel?.dispose?.());
     views = [];
   };
   async function codeAt(ref: string): Promise<CodeAt | null> {
@@ -42,23 +42,21 @@ export function mountWalkthrough(app: ReviewApp) {
     const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
     return d ? { path: d.path, side: 'head', start: d.line, end: d.line, view: app.files.some((f) => f.path === d.path) ? 'diff' : 'file' } : null;
   }
+  // stacked: a header names the chunk; clicking it shows only that one
+  const nameHead = (head: HTMLElement, ref: string) => {
+    const r = parseRef(ref);
+    head.replaceChildren(...(r ? [refIcon(r)] : []), h('span', null, app.label(ref)));
+    head.onclick = () => actor.send({ type: 'focus', refs: [ref] });
+  };
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
-    let body: HTMLElement;
-    if (slot.code) {
-      const id = `code:tour-${++panes}`;
-      const panel = panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true }, id);
-      views.push({ ...panel, id, pin: slot.code.path });
-      body = panel.element;
-    } else {
-      views.push(null);
-      body = h('div', { class: 'rr-tour__preview' });
-      void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
-    }
-    if (!many) return h('div', { class: 'rr-tour__chunk' }, body);
-    // stacked: a header names the chunk; clicking it shows only that one
-    const r = parseRef(slot.ref);
-    const head = h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane', onclick: () => actor.send({ type: 'focus', refs: [slot.ref] }) }, r ? refIcon(r) : null, h('span', null, app.label(slot.ref)));
-    return h('div', { class: 'rr-tour__chunk is-stacked' }, head, body);
+    const id = `code:tour-${++panes}`;
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true }, id) : null;
+    const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
+    if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
+    const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
+    if (head) nameHead(head, slot.ref);
+    views.push({ panel, id, head });
+    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : '') }, head, body);
   };
   const mount = (s: PaneShown) => {
     dispose();
@@ -68,15 +66,20 @@ export function mountWalkthrough(app: ReviewApp) {
       flow.innerHTML = sanitizeProse(s.html);
       pane.replaceChildren(flow);
     } else pane.replaceChildren(h('div', { class: 'rr-empty' }, 'Nothing to show for this step'));
-    pane.classList.remove('is-out');
   };
   const pane$ = paneMachine.provide({
     actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(ref) }))) } : input)) },
     actions: {
       fadeOut: () => pane.classList.add('is-out'),
+      fadeIn: () => pane.classList.remove('is-out'),
       mount: ({ context }) => mount(context.next!),
       // same files: each view's highlight moves to its new lines
-      glide: ({ context }) => context.next!.kind === 'refs' && context.next!.slots.forEach((s, i) => views[i] && s.code && app.bus.emit('reveal-code', { ...s.code, panel: views[i].id })),
+      glide: ({ context }) =>
+        context.next!.kind === 'refs' &&
+        context.next!.slots.forEach((s, i) => {
+          if (views[i]?.head) nameHead(views[i].head, s.ref);
+          if (s.code) app.bus.emit('reveal-code', { ...s.code, panel: views[i].id });
+        }),
       unmount: () => (dispose(), pane.replaceChildren()),
     },
   });
@@ -97,7 +100,24 @@ export function mountWalkthrough(app: ReviewApp) {
   const stepText = h('div', { class: 'rr-tour__text rr-prose' });
   const chips = h('div', { class: 'rr-tour__refs' });
   const stepBox = h('div', { class: 'rr-tour__step' }, stepText, chips);
-  const left = h('div', { class: 'rr-tour__left' }, lead, divider, stepBox);
+  const anchor = () => {
+    const { chapter, step } = current(ctx());
+    return { kind: 'tour' as const, chapter: chapter.id, step: step.id };
+  };
+  // the step's threads go through the usual composer and thread popup (threadMachine), and the feedback round
+  const comment = h('button', { class: 'rr-btn rr-btn--small rr-tour__comment', title: 'Comment on this step: the agent gets the slide with your comment', onclick: () => app.compose(anchor()) }, icon('thread', 12), h('span', null, 'Comment'));
+  const badge = h('button', { class: 'rr-tour__badge', title: 'Open the thread on this step' });
+  const threadsOn = (chapter: string, step: string) => app.state.threads.filter((t) => t.status === 'open' && t.anchor.kind === 'tour' && t.anchor.chapter === chapter && t.anchor.step === step);
+  const paintThreads = () => {
+    if (!ctx().doc) return;
+    const { chapter, step } = anchor();
+    const ts = threadsOn(chapter, step);
+    badge.hidden = !ts.length;
+    badge.replaceChildren(icon('thread', 12), String(ts.length));
+    badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
+    progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
+  };
+  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
   const openHere = btn('popout', 'Pause and open this in the workbench', () => {
     const [ref] = shownRefs();
     actor.send({ type: 'pause' });
@@ -201,14 +221,16 @@ export function mountWalkthrough(app: ReviewApp) {
             { class: 'rr-tour__ticks' },
             ...c.steps.map((_, si) => {
               const at = ci < chapter || (ci === chapter && si < step) ? ' is-done' : ci === chapter && si === step ? ' is-on' : '';
-              return h('button', { class: 'rr-tour__tick' + at, title: `${c.title} · step ${si + 1}`, 'aria-label': `${c.title}, step ${si + 1}`, onclick: () => actor.send({ type: 'goto', chapter: ci, step: si }) });
+              return h('button', { class: 'rr-tour__tick' + at, 'data-chapter': c.id, 'data-step': c.steps[si].id, title: `${c.title} · step ${si + 1}`, 'aria-label': `${c.title}, step ${si + 1}`, onclick: () => actor.send({ type: 'goto', chapter: ci, step: si }) });
             }),
           ),
         ),
       ),
     );
     last = { chapter, step, doc: d };
+    paintThreads();
   });
+  app.bus.on('state', paintThreads);
 
   // ← → while playing (not while typing or in a menu or dialog); Esc pauses
   document.addEventListener(

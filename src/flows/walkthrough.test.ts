@@ -110,8 +110,8 @@ function pane() {
   const a = createActor(
     paneMachine.provide({
       actors: { resolve: fromPromise(({ input }: { input: PaneWant }) => new Promise<PaneShown>((done) => pending.push({ want: input, done }))) },
-      actions: { fadeOut: () => log.push('fadeOut'), mount: ({ context }) => log.push('mount ' + shown(context.next!)), glide: ({ context }) => log.push('glide ' + shown(context.next!)), unmount: () => log.push('unmount') },
-      delays: { fade: 0 },
+      actions: { fadeIn: () => log.push('fadeIn'), fadeOut: () => log.push('fadeOut'), mount: ({ context }) => log.push('mount ' + shown(context.next!)), glide: ({ context }) => log.push('glide ' + shown(context.next!)), unmount: () => log.push('unmount') },
+      delays: { fade: 30 },
     }),
     { input: null },
   ).start();
@@ -126,7 +126,7 @@ test('pane: a new show cancels a lookup still running; only the newest is mounte
   settle(0, ['r1'], ['a.go']); // stale: its state is gone
   settle(1, ['r2', 'r3'], ['a.go', 'b.go']);
   await waitFor(a, (s) => s.matches('showing'));
-  expect(log).toEqual(['fadeOut', 'mount r2+r3']);
+  expect(log).toEqual(['fadeOut', 'mount r2+r3', 'fadeIn']);
 });
 
 test('pane: same files glide without a fade; other files fade and remount; clear unmounts', async () => {
@@ -141,7 +141,7 @@ test('pane: same files glide without a fade; other files fade and remount; clear
   settle(2, ['r4'], ['c.go']);
   await waitFor(a, (s) => s.matches('showing') && s.context.shown?.kind === 'refs' && s.context.shown.slots[0].ref === 'r4');
   a.send({ type: 'clear' });
-  expect(log).toEqual(['fadeOut', 'mount r1', 'glide r1b', 'fadeOut', 'mount r4', 'unmount']);
+  expect(log).toEqual(['fadeOut', 'mount r1', 'fadeIn', 'glide r1b', 'fadeIn', 'fadeOut', 'mount r4', 'fadeIn', 'unmount']);
 });
 
 const until = async (ok: () => boolean) => {
@@ -167,4 +167,19 @@ test('the player aims its pane at every step and stops it on close', async () =>
   await until(() => shows.length === 3);
   a.send({ type: 'close' });
   expect([shows, unmounts]).toEqual([['rr:code/a.go#L1 rr:code/b.go#L2', 'rr:code/a.go#L5', 'rr:sym/Fetcher'], 1]);
+});
+
+test('pane: back to what is on screen during a fade glides and fades back in', async () => {
+  const { a, log, settle } = pane();
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } });
+  settle(0, ['r1'], ['a.go']);
+  await waitFor(a, (s) => s.matches('showing'));
+  log.length = 0;
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r9'] } });
+  settle(1, ['r9'], ['z.go']);
+  await waitFor(a, (s) => s.matches('leaving'));
+  a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } }); // before the fade ends
+  settle(2, ['r1'], ['a.go']);
+  await waitFor(a, (s) => s.matches('showing'));
+  expect(log).toEqual(['fadeOut', 'glide r1', 'fadeIn']);
 });

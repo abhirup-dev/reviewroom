@@ -124,6 +124,34 @@
 .rr-tour__text > :first-child {
   margin-top: 0;
 }
+.rr-tour__divider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rr-tour__divider-row .rr-tour__divider {
+  flex: 1;
+}
+.rr-tour__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rr-comment);
+  color: var(--rr-comment-ink);
+  font: 600 var(--rr-text-xs) var(--rr-font);
+  cursor: pointer;
+}
+.rr-tour__actions {
+  margin-top: auto;
+  padding-top: 16px;
+}
+.rr-tour__comment {
+  color: var(--rr-comment);
+}
 .rr-tour__divider {
   display: flex;
   align-items: center;

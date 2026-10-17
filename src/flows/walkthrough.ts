@@ -4,7 +4,8 @@
 //   walkthroughMachine   closed ──open──▶ open { playing ⇄ paused } ──close──▶ closed
 //                        while open it runs a paneMachine child and tells it what the current step shows
 //   paneMachine          idle ─show─▶ resolving ─▶ gliding (same files: move the highlights) ─▶ showing
-//                                              └─▶ leaving (fade out) ─▶ entering (mount, fade in) ─┘
+//                                              └─▶ leaving (fade out) ─▶ entering (mount) ──────────┘
+//                        showing fades in, whichever way it was reached
 //                        a new `show` in any state starts over; the stale lookup or fade is cancelled with its state
 //
 // Autoplay, later, is an open.auto substate.
@@ -41,6 +42,8 @@ export const paneMachine = setup({
   actions: {
     /** start hiding what is on screen */
     fadeOut: () => {},
+    /** show what is on screen (whichever way it got there: a fade can be cut short by a glide) */
+    fadeIn: () => {},
     /** replace what is on screen (disposing its views) with `context.next` and fade in */
     mount: () => {},
     /** move the highlights of the views on screen to `context.next` */
@@ -78,7 +81,7 @@ export const paneMachine = setup({
       entry: ['mount', assign({ shown: ({ context }) => context.next })],
       always: 'showing',
     },
-    showing: { on: show },
+    showing: { entry: 'fadeIn', on: show },
   },
 });
 
