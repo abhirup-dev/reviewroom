@@ -7,6 +7,10 @@ import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded
 import { scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
+import { fetchPr, prTarget as prOf } from '../lib/github.ts';
+import { walkthroughPath } from '../lib/state.ts';
+import { pickBlock } from '../lib/walkthrough.ts';
+import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
@@ -65,6 +69,24 @@ function localTarget(repo: string, o: PrOpts): Target {
   return { dir, cfg: loadConfig(dir, repo, o) };
 }
 
+/** A PR's own walkthrough (a ```reviewroom-walkthrough block in a comment or the description) when there is no local one. */
+async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean) {
+  const file = walkthroughPath(dir);
+  const t = prOf(cfg);
+  if (!t || (fs.existsSync(file) && !force)) return;
+  let pick;
+  try {
+    pick = pickBlock(await fetchPr(repo, t, null));
+  } catch (e) {
+    return console.error(`reviewroom: could not look for a walkthrough on the PR: ${(e as Error).message}`);
+  }
+  if (!pick) return;
+  const r = parseWalkthrough(pick.text);
+  if (!r.ok) return console.error(`reviewroom: the walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
+  fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
+  console.error(`reviewroom: walkthrough from ${pick.from}`);
+}
+
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
@@ -79,6 +101,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const prov = makeProvider(repo, cfg);
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
+  await pullWalkthrough(repo, dir, cfg, !!o.force);
 
   if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open }, !!o.wait); // --base/--head/--title are in config.json now
   const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];

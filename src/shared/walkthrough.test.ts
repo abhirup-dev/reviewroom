@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { parseWalkthrough } from './walkthrough';
+import { encodeBlock, findBlocks, parseWalkthrough, type Walkthrough } from './walkthrough';
 
 const demo = readFileSync(new URL('../../examples/habit-events/walkthrough.json', import.meta.url), 'utf8');
 const valid = () => ({
@@ -53,4 +53,14 @@ test('every ref form the narrative accepts for code works', () => {
     w.chapters[0].steps[0].ref = ref;
     expect(issues(w)).toBeNull();
   }
+});
+
+test('PR blocks: encode round-trips; nested and inline blocks are ignored', () => {
+  const w = { ...valid(), title: 'has ``` inside' } as Walkthrough;
+  const md = `intro\n\n${encodeBlock(w)}\nafter`;
+  expect(findBlocks(md).map((b) => JSON.parse(b))).toEqual([w]);
+  const nested = '````md\n```reviewroom-walkthrough\n{}\n```\n````\nand `` ```reviewroom-walkthrough `` inline';
+  expect(findBlocks(nested)).toEqual([]);
+  expect(findBlocks('~~~reviewroom-walkthrough\n{"a":1}\n~~~\n```reviewroom-walkthrough\n{"b":2}\n```')).toEqual(['{"a":1}', '{"b":2}']);
+  expect(findBlocks('no block')).toEqual([]);
 });

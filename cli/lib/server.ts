@@ -14,6 +14,7 @@ import { DIST, PKG, layoutFile } from './paths.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
+import { tourText } from './walkthrough.ts';
 import { Hono, type Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -67,7 +68,8 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       if (!fs.existsSync(reviewFile)) return;
       const known = readState(dir).links ?? {};
       // the current head, not the one this server started on: `check` must fingerprint the same code
-      const tour = fs.existsSync(walkthroughPath(dir)) ? fs.readFileSync(walkthroughPath(dir), 'utf8') : '';
+      const w = readWalkthrough(dir);
+      const tour = w?.ok ? tourText(w.value) : '';
       const { results, links } = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour);
       if (JSON.stringify(links) !== JSON.stringify(known)) commit([{ op: 'setLinks', links }]);
       const bad = problems(results);

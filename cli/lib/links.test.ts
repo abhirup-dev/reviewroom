@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
 import type { SearchHit } from '../../src/core/types.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
-import { locate } from './walkthrough.ts';
+import { fixTour, locate, tourText } from './walkthrough.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
 const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (_rev: string, p: string) => files[p] ?? null, search: (q: unknown) => (q === 'Build' ? [{ kind: 'definition' } as SearchHit] : []) });
@@ -62,19 +62,18 @@ test('--fix moves each link once, even when one lands where another was', () => 
   }
 });
 
-test('walkthrough.json text: step refs and prose links inside JSON strings are checked, located and fixed', () => {
-  const w = { version: 1, title: 'T', chapters: [{ id: 'why', title: 'W', lead: '<a href="rr:doc/intro">i</a>', steps: [{ id: 's1', text: '<p>See <a href="rr:code/a.go#L4-6">x</a>.</p>', ref: 'rr:code/a.go#L4-6' }, { id: 's2', text: 'y', ref: 'rr:doc/nope' }] }] };
-  const text = JSON.stringify(w, null, 2) + '\n';
-  const { links } = checkLinks(html(), prov({ 'a.go': body.join('\n') }), {}, text);
+test('walkthrough.json: step refs and prose links are checked decoded, located, and fixed in the JSON', () => {
+  const w = { version: 1, title: 'T', chapters: [{ id: 'why', title: 'W', lead: '<a href="rr:doc/intro">i</a><!-- <a href="rr:code/old.go#L1"> -->', steps: [{ id: 's1', text: '<p>See rr:code/a.go#L4-6.</p>', ref: 'rr:code/a.go#L4-6' }, { id: 's2', text: 'y', ref: 'rr:doc/nope' }] }] };
+  const json = JSON.stringify(w, null, 2).replace(/\//g, '\\/') + '\n'; // escaped slashes are still the same links
+  const { links } = checkLinks(html(), prov({ 'a.go': body.join('\n') }), {}, tourText(JSON.parse(json)));
   expect(Object.keys(links)).toEqual(['rr:code/a.go#L4-6']);
   const after = prov({ 'a.go': ['new', 'new', ...body].join('\n') });
-  const { results } = checkLinks(html(), after, links, text);
-  const bad = locate(problems(results), w as Walkthrough);
-  expect(bad.map((x) => [x.ref, x.status, x.where])).toEqual([
+  const { results } = checkLinks(html(), after, links, tourText(w as Walkthrough));
+  expect(locate(problems(results), w as Walkthrough).map((x) => [x.ref, x.status, x.where])).toEqual([
     ['rr:code/a.go#L4-6', 'moved', ['why/s1']],
     ['rr:doc/nope', 'broken', ['why/s2']],
   ]);
-  const fixed = applyFixes(text, results, links).html;
-  expect(JSON.parse(fixed).chapters[0].steps[0]).toMatchObject({ ref: 'rr:code/a.go#L6-8', text: expect.stringContaining('rr:code/a.go#L6-8') });
-  expect(fixed.endsWith('}\n')).toBe(true);
+  const fixed = fixTour(json, results, links);
+  expect(JSON.parse(fixed).chapters[0].steps[0]).toEqual({ id: 's1', text: '<p>See rr:code/a.go#L6-8.</p>', ref: 'rr:code/a.go#L6-8' });
+  expect(fixed).toBe(JSON.stringify(JSON.parse(fixed), null, 2) + '\n');
 });

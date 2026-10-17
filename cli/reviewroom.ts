@@ -42,7 +42,7 @@ cli
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Remote to fetch from', { default: 'origin' })
-  .option('--force', 'Overwrite an existing review.html with the scaffold')
+  .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s)')
   .option('--detach', 'Serve in the background, print the URL and return')
   .option('--wait', 'Then block like `review` until the round ends')
   .option('--port <n>', 'Port (default: 4848)')
@@ -91,6 +91,7 @@ cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 // What an agent needs beyond the flags, shown under the command's --help.
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
+  pr: '  A PR that carries a walkthrough (a ```reviewroom-walkthrough block in a comment or its description, see\n  `walkthrough publish`) gets it as walkthrough.json when the review has none; the newest block wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   check: [

@@ -73,3 +73,32 @@ export const walkthroughJsonSchema = () => ({
   $id: 'reviewroom/walkthrough.schema.json',
   title: 'reviewroom walkthrough (.reviewroom/<branch>/walkthrough.json)',
 });
+
+// ------------------------------------------------------------------ the PR block
+// A walkthrough travels in a PR comment or description as a fenced ```reviewroom-walkthrough block
+// (`reviewroom walkthrough publish` writes it, `reviewroom pr` reads it). The HTML comment marks the comment we own.
+export const BLOCK_MARK = '<!-- reviewroom-walkthrough -->';
+const LANG = 'reviewroom-walkthrough';
+
+/** The markdown for a PR comment carrying `doc`; the fence outgrows any backtick run inside. */
+export function encodeBlock(doc: Walkthrough) {
+  const json = JSON.stringify(doc, null, 2);
+  const fence = '`'.repeat(Math.max(3, ...[...json.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+  return `${BLOCK_MARK}\n${fence}${LANG}\n${json}\n${fence}\n`;
+}
+
+/** The contents of every top-level ```reviewroom-walkthrough block in `md`, in order (not ones nested in other fences). */
+export function findBlocks(md: string): string[] {
+  const out: string[] = [];
+  let open: { fence: string; body: string[] | null } | null = null;
+  for (const line of md.split(/\r?\n/)) {
+    const m = line.match(/^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)/);
+    if (!open) {
+      if (m) open = { fence: m[1], body: m[2] === LANG ? [] : null };
+    } else if (m && m[1][0] === open.fence[0] && m[1].length >= open.fence.length && !line.slice(line.indexOf(m[1]) + m[1].length).trim()) {
+      if (open.body) out.push(open.body.join('\n'));
+      open = null;
+    } else open.body?.push(line);
+  }
+  return out;
+}

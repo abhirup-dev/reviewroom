@@ -20,7 +20,7 @@ export interface LinkResult {
 export type Links = Record<string, string>;
 
 const DRIFT = 5; // a block that moved further than this is reported for the agent to fix, not healed
-const LINK = /rr:(?:code|file|sym|doc)\/[^\s"'<>`)\\]+/g; // no backslash: links inside JSON strings end at \"
+const LINK = /rr:(?:code|file|sym|doc)\/[^\s"'<>`)]+/g;
 const LINES = /#L(\d+)(?:-L?(\d+))?$/;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1').update(lines.slice(s - 1, e).join('\n')).digest('hex').slice(0, 16);
@@ -31,7 +31,7 @@ const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 
 /**
- * Check every link in `html`, and in `extra` (walkthrough.json's text), against the code. `known` is the ref -> hash map from the last check
+ * Check every link in `html`, and in `extra` (walkthrough.json's prose and refs: tourText), against the code. `known` is the ref -> hash map from the last check
  * (state.json `links`); the returned `links` is the new one (links no longer in the narrative drop out).
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
@@ -51,7 +51,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     return files.get(sha + ':' + p);
   };
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
-  for (const ref of extractLinks(html + '\n' + extra)) {
+  for (const ref of extractLinks(html + '\n' + uncomment(extra))) {
     const r = parseRef(ref);
     if (!r || r.type === 'thread' || r.type === 'round' || r.type === 'tour') {
       out(ref, 'broken', 'not a valid link');
