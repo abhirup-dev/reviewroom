@@ -28,7 +28,7 @@ Then ask for a review: *"review PR 4821 in reviewroom"*. Without Claude Code, `b
 and point your agent at [`skills/reviewroom/`](skills/reviewroom/SKILL.md):
 
 ```bash
-reviewroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the browser
+reviewroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the macOS app if installed, else the browser (--browser: always the browser)
 ```
 
 Contributing to reviewroom itself (`bun run setup`, `bun run demo`): [AGENTS.md](AGENTS.md).

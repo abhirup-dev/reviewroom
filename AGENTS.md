@@ -10,6 +10,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `shared/` is used by the CLI too (no DOM, no Node): Zod schema, op reducer, `rr:` grammar, feedback text.
   `flows/` holds the XState machines (thread popup, server sync); views subscribe.
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
+- `app/` (Tauri, Rust): the macOS app, one native tab per running review from `~/.reviewroom/sessions`; `bun run app`.
 
 ## Contracts (change deliberately, update the skill when you do)
 
@@ -20,7 +21,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
 - **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by other local tools
-  (agent-annotation-hub); `layout.json` is the reviewer's default panel layout.
+  (agent-annotation-hub) and the macOS app, which opens a tab for each with `open: "app"`; `layout.json` is the reviewer's default panel layout.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 
@@ -38,7 +39,7 @@ Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bu
 committed), so all are `devDependencies`.
 
 ```bash
-bun run setup       # install, build, put `reviewroom` on PATH
+bun run setup       # install, build, put `reviewroom` on PATH, install the macOS app
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review

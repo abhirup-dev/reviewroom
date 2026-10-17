@@ -1,4 +1,5 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
+import { execFile } from 'node:child_process';
 import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -76,8 +77,8 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
   };
 }
 
-type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
-export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void };
+export function startServer({ repo, dir, cfg, onFinish }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
@@ -201,7 +202,6 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
       await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
-      onClient?.();
       await new Promise<void>((r) => stream.onAbort(r));
       clearInterval(ping);
       clients.delete(stream);
@@ -244,7 +244,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     }),
   );
 
-  return { app, prov, commit, github, checkNarrative };
+  return { app, prov, commit, github, checkNarrative, watchers: () => clients.size }; // watchers: pages connected now
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */
@@ -259,4 +259,7 @@ export function listen(app: Hono, port: number) {
   }
 }
 
-export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
+const openUrl = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
+// The macOS app (app/) opens a tab for each review registered with open: 'app': launch it when installed, else the browser.
+export const openBrowser = (url: string, app: boolean) =>
+  app && process.platform === 'darwin' ? execFile('open', ['-b', 'dev.reviewroom.mac'], (e) => e && openUrl(url)) : openUrl(url);

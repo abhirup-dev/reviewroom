@@ -80,10 +80,11 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
 
-  if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open }, !!o.wait); // --base/--head/--title are in config.json now
+  if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
   const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
   if (o.port) args.push('--port', o.port);
   if (!o.open) args.push('--no-open');
+  if (o.browser) args.push('--browser');
   await stopServer(dir);
   const out = fs.openSync(path.join(dir, 'server.log'), 'a');
   spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();

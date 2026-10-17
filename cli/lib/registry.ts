@@ -18,7 +18,7 @@ export function liveServer(dir: string): ServerRecord | null {
 }
 // Per-user registry of running servers, one <pid>.json each, so other local tools (an annotation hub)
 // can list reviews without knowing which repos have them (AGENTS.md: a contract). Best effort: a failure never stops a review.
-export type SessionRecord = ServerRecord & { repo: string; dir: string; title: string | null; number: number | string | null; prUrl: string | null; base: string; head: string; mode: 'review' | 'serve' };
+export type SessionRecord = ServerRecord & { repo: string; dir: string; title: string | null; number: number | string | null; prUrl: string | null; base: string; head: string; mode: 'review' | 'serve'; open: 'app' | 'browser' | 'none' };
 export function register(rec: SessionRecord) {
   try {
     fs.mkdirSync(registryDir(), { recursive: true });
