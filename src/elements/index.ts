@@ -280,6 +280,7 @@ class RRCode extends HTMLElement {
     this.classList.add('rr-code');
     const gen = ++this.gen;
     withApp(async (app) => {
+      if (gen !== this.gen) return; // left the page before the app was ready (boot detaches the walkthrough)
       let contents = inline.replace(/^\n/, '').replace(/\s+$/, '');
       let name = `snippet.${lang || 'txt'}`;
       let headLabel = title || lang || '';

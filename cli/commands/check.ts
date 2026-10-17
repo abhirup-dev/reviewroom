@@ -25,7 +25,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const raw = makeProvider(r, loadConfig(dir, r));
   const found = new Map<string, ReturnType<typeof raw.search>>(); // the link check and the notes resolve the same symbols
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
-  const known = readState(dir).links ?? {};
+  const known = readState(dir, { repair: o.store !== false }).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourText(value) : '', value);
   let fixed = html, fixedTour = tourRaw;
