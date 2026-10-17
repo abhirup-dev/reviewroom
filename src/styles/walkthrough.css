@@ -243,8 +243,18 @@
   text-align: left;
   cursor: pointer;
 }
-.rr-tour__chunk-head:hover {
+button.rr-tour__chunk-head:hover {
   color: var(--rr-accent);
+}
+/* in a code panel's toolbar: the toolbar is the row */
+.rr-toolbar .rr-tour__chunk-head {
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: nowrap;
+}
+span.rr-tour__chunk-head {
+  cursor: default;
 }
 .rr-tour__preview {
   padding: 16px;
