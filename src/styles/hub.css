@@ -180,6 +180,15 @@
   font-family: var(--rr-mono);
   font-size: 11.5px;
 }
+.rr-hub__agent {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.rr-hub__mark {
+  display: inline-flex;
+  font-size: 16px; /* the marks are 1em */
+}
 .rr-hub__dim {
   color: var(--rr-faint);
 }

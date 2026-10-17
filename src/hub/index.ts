@@ -3,10 +3,32 @@
 import { backdropCloses, h, icon, relTime } from '../core/dom';
 import { mountTooltips } from '../overlays/tooltip';
 import type { HubSnapshot, SessionInfo } from '../shared/hub';
+// the agents' own marks (LobeHub icons, MIT), bundled as text
+import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg' with { type: 'text' };
+import codex from '@lobehub/icons-static-svg/icons/codex-color.svg' with { type: 'text' };
+import copilot from '@lobehub/icons-static-svg/icons/githubcopilot.svg' with { type: 'text' };
+import geminiCli from '@lobehub/icons-static-svg/icons/geminicli-color.svg' with { type: 'text' };
+import opencode from '@lobehub/icons-static-svg/icons/opencode.svg' with { type: 'text' };
+import kiro from '@lobehub/icons-static-svg/icons/kiro-color.svg' with { type: 'text' };
+import amp from '@lobehub/icons-static-svg/icons/amp-color.svg' with { type: 'text' };
+import pi from '@lobehub/icons-static-svg/icons/pi.svg' with { type: 'text' };
 
 type Compat = Record<string, { installed: string | null; verifiedAgainst: string; status: string }>;
 type SortKey = 'tool' | 'subject' | 'kind' | 'repository' | 'branch' | 'cwd' | 'pid' | 'origin' | 'commentCount' | 'reviewRound' | 'startedAt';
 
+/** Agent names as cli/hub/proc.ts reports them -> display name and mark (droid has none: shown as text). */
+const AGENTS: Record<string, [name: string, svg?: string]> = {
+  'claude-code': ['Claude Code', claudeCode],
+  codex: ['Codex', codex],
+  'copilot-cli': ['GitHub Copilot', copilot],
+  'gemini-cli': ['Gemini CLI', geminiCli],
+  opencode: ['OpenCode', opencode],
+  'kiro-cli': ['Kiro', kiro],
+  amp: ['Amp', amp],
+  pi: ['Pi', pi],
+  'oh-my-pi': ['oh-my-pi', pi],
+  droid: ['Droid'],
+};
 const TOOLS: Record<string, string> = { reviewroom: 'reviewroom', crit: 'Crit', plannotator: 'Plannotator' };
 const HEALTH: Record<string, string> = { ok: 'Its server answered the last check', unreachable: 'Its server did not answer in time', unknown: 'Not checked: no loopback URL to ask' };
 const prettyKind = (k: string) => k.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -141,7 +163,10 @@ const open = (s: SessionInfo) => s.url && window.open(s.url, '_blank', 'noopener
 // ------------------------------------------------------------ rendering
 function row(s: SessionInfo) {
   const on = selected.has(s.id);
-  const agent = s.origin ? h('span', { title: `${s.origin}, pid ${s.parentAgentPid}: ${s.originSource ?? ''}` }, s.origin, h('span', { class: 'rr-hub__dim' }, ` ${s.parentAgentPid}`)) : h('span', { title: 'No agent CLI found among its parent processes' }, '–');
+  const [agentName, mark] = s.origin ? (AGENTS[s.origin] ?? [s.origin]) : [];
+  const agent = s.origin
+    ? h('span', { class: 'rr-hub__agent', title: `${agentName}, pid ${s.parentAgentPid}: ${s.originSource ?? ''}` }, mark ? h('span', { class: 'rr-hub__mark', html: mark.replace(/<title>.*?<\/title>/, ''), 'aria-label': agentName }) : agentName)
+    : h('span', { title: 'No agent CLI found among its parent processes' }, '–');
   const comments = s.commentCount == null ? h('span', { title: 'Not reported by this tool' }, '–') : s.unresolvedCommentCount != null ? h('span', { title: `${s.unresolvedCommentCount} open of ${s.commentCount}` }, String(s.commentCount)) : String(s.commentCount);
   return h(
     'tr',
