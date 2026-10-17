@@ -66,6 +66,10 @@ export const Round = z.object({
     .nullable()
     .optional()
     .describe("When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."),
+  heads: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('The commits the round showed, as the server last served them: base and head of the whole range, and in a stack of PRs each PR\'s head as `#<n>`, bottom first. Absent on rounds from before this field existed.'),
 });
 
 export const StoredState = z.object({
@@ -112,6 +116,7 @@ export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setLinks'), links: z.record(z.string(), z.string()) }),
   FinishRound,
   z.object({ op: z.literal('markDelivered'), round: int, at: z.string().optional() }),
+  z.object({ op: z.literal('setHeads'), round: int, heads: z.record(z.string(), z.string()) }),
 ]);
 
 export type TextQuote = z.infer<typeof TextQuote>;

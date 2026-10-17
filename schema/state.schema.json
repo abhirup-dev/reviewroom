@@ -58,6 +58,16 @@
                 "type": "null"
               }
             ]
+          },
+          "heads": {
+            "description": "The commits the round showed, as the server last served them: base and head of the whole range, and in a stack of PRs each PR's head as `#<n>`, bottom first. Absent on rounds from before this field existed.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [

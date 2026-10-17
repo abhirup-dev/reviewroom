@@ -71,3 +71,11 @@ test('delivery tracking: null until printed; legacy rounds count as delivered', 
   expect(undelivered(s).map((r) => r.n)).toEqual([2]);
   expect(undelivered(applyOp(s, { op: 'markDelivered', round: 2 }))).toEqual([]);
 });
+
+test('heads: set on the open round only; a finished round keeps what it showed', () => {
+  const s = applyOp(empty(), { op: 'setHeads', round: 1, heads: { base: 'b', head: 'h', '#1': 'h' } });
+  expect(s.rounds[0].heads).toEqual({ base: 'b', head: 'h', '#1': 'h' });
+  const sent = applyOp(s, { op: 'finishRound', kind: 'feedback' });
+  expect(code(() => applyOp(sent, { op: 'setHeads', round: 1, heads: {} }))).toBe('conflict');
+  expect(code(() => applyOp(sent, { op: 'setHeads', round: 9, heads: {} }))).toBe('not_found');
+});

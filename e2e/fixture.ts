@@ -91,6 +91,7 @@ export function stackSetup() {
     tmp, repo, dir, cli, ready,
     d: ['--repo', repo, '--dir', dir],
     git: (...args: string[]) => $`git -C ${repo} ${args}`.quiet(),
+    state: () => JSON.parse(read(dir, 'state.json')),
     sessions: () => fs.readdirSync(path.join(home, 'sessions')).map((f) => JSON.parse(read(home, 'sessions', f))),
   };
 }

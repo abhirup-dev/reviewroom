@@ -151,6 +151,8 @@ If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
 push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
+When a round starts, `reviewroom review` prints what moved since the last one (new commits, or a branch rewritten: a
+force-push or a restack of a stack of PRs, with `git range-diff`'s pairing); the next feedback repeats it for a stack.
 
 A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
 the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a

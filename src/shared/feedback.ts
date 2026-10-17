@@ -65,6 +65,8 @@ export interface FeedbackOpts {
   github?: Thread[];
   /** walkthrough.json, for the slide a tour thread is on */
   walkthrough?: Walkthrough | null;
+  /** A stack of PRs: what changed in its PRs since round `since` (cli/lib/git.ts headChanges), as this round showed it. */
+  changes?: { since: number; lines: string[] };
 }
 
 export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
@@ -87,6 +89,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   }
   lines.push(`# Review feedback - round ${round}`, '');
   if (opts.note) lines.push('## Overall', '', opts.note, '');
+  if (opts.changes?.lines.length) lines.push(`## The stack since round ${opts.changes.since} (what the reviewer saw this round)`, '', '```', ...opts.changes.lines, '```', '');
   lines.push(
     `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
     `(leave resolving to the reviewer), change code and/or the walkthrough (review.html) as needed,`,

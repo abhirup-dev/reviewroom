@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/shared/feedback.ts';
-import { makeProvider, type Provider } from './git.ts';
+import { headChanges, makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
@@ -293,7 +293,10 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    // a stack: which PRs moved since the last round, so the agent knows what the reviewer saw
+    const [was, now] = [prev.rounds.filter((r) => r.n < n && r.heads).at(-1), prev.rounds.find((r) => r.n === n)?.heads];
+    const changes = prov.layers && was && now ? { since: was.n, lines: headChanges(repo, was.heads!, now) } : undefined;
+    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir), changes });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));

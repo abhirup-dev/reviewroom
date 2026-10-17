@@ -98,6 +98,13 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
       }
       break;
     }
+    case 'setHeads': {
+      const r = s.rounds.find((x) => x.n === op.round);
+      if (!r) throw new OpError('not_found', `no round ${op.round}`);
+      if (r.status !== 'open') throw new OpError('conflict', `round ${op.round} is already ${r.status}: what it showed is settled`);
+      r.heads = op.heads;
+      break;
+    }
     case 'markDelivered': {
       const r = s.rounds.find((x) => x.n === op.round);
       if (!r) throw new OpError('not_found', `no round ${op.round}`);

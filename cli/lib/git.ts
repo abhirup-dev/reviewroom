@@ -103,6 +103,37 @@ export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {
 
 export type Provider = ReturnType<typeof makeProvider>;
 
+/** What a provider shows, for Round.heads: the whole range's base and head, and each stack PR's head as `#<n>`, in
+ *  stack order (`#`: JSON keys that look like integers would be reordered). */
+export const headsOf = (prov: Pick<Provider, 'base' | 'head' | 'layers'>): Record<string, string> => ({ base: prov.base, head: prov.head, ...Object.fromEntries((prov.layers ?? []).map((l) => [`#${l.number}`, l.head])) });
+
+/** What changed between two rounds' heads, a line each: per stack PR (or the whole range) new commits, rewritten
+ *  (a force-push or restack: with `git range-diff`'s pairing of old and new commits), new or gone. Unchanged: nothing. */
+export function headChanges(repo: string, was: Record<string, string>, now: Record<string, string>): string[] {
+  const keys = (h: Record<string, string>) => Object.keys(h).filter((k) => k.startsWith('#'));
+  const [before, after] = [keys(was), keys(now)];
+  const stacked = after.length > 0;
+  // a layer's base is the head of the PR below it, the bottom's the range's base
+  const baseOf = (h: Record<string, string>, ks: string[], k: string) => (ks.indexOf(k) > 0 ? h[ks[ks.indexOf(k) - 1]] : h.base);
+  const lines: string[] = [];
+  for (const k of stacked ? after : ['head']) {
+    const name = stacked ? k : 'the branch';
+    const [old, cur] = [was[k], now[k]];
+    if (!old) lines.push(`${name}: new in the stack`);
+    else if (old === cur) continue;
+    else if (git(['merge-base', '--is-ancestor', old, cur], repo, { soft: true }) !== null) {
+      const n = +(git(['rev-list', '--count', `${old}..${cur}`], repo, { soft: true }) || 0);
+      lines.push(`${name}: ${n} new commit${n === 1 ? '' : 's'} (${old.slice(0, 7)}..${cur.slice(0, 7)})`);
+    } else {
+      const from = [stacked ? baseOf(was, before, k) : was.base, old], to = [stacked ? baseOf(now, after, k) : now.base, cur];
+      const pairs = (git(['range-diff', '-s', '--no-color', `${from[0]}..${from[1]}`, `${to[0]}..${to[1]}`], repo, { soft: true }) || '').trim().split('\n').filter(Boolean);
+      lines.push(`${name}: rewritten (force-pushed or restacked); git range-diff ${from[0].slice(0, 12)}..${from[1].slice(0, 12)} ${to[0].slice(0, 12)}..${to[1].slice(0, 12)}:`, ...pairs.slice(0, 20).map((l) => '    ' + l), ...(pairs.length > 20 ? [`    ... ${pairs.length - 20} more`] : []));
+    }
+  }
+  for (const k of before) if (stacked && !now[k]) lines.push(`${k}: no longer in the stack (its threads stay)`);
+  return lines;
+}
+
 /** A stack PR's layer: what it adds on the PR below. `restack`: the PR below was rewritten after this one was pushed,
  *  so the layer starts where the two still agree. */
 export type Layer = { number: number; base: string; head: string; restack?: true };
