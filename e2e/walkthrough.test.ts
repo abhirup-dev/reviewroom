@@ -1,5 +1,5 @@
 // walkthrough.json on the agent's side: tour threads carry their slide.
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { read, setup } from './fixture.ts';
@@ -7,10 +7,15 @@ import { read, setup } from './fixture.ts';
 describe('walkthrough', () => {
   const { dir, d, cli, state } = setup();
   const demo = path.join(import.meta.dir, '..', 'examples', 'habit-events', 'walkthrough.json');
+  const scaffold = read(dir, 'review.html');
+  // every test starts from the demo's guided walkthrough, the scaffolded review.html and no state.json
+  beforeEach(() => {
+    fs.copyFileSync(demo, path.join(dir, 'walkthrough.json'));
+    fs.writeFileSync(path.join(dir, 'review.html'), scaffold);
+    for (const f of fs.readdirSync(dir).filter((f) => f.startsWith('state.json'))) fs.rmSync(path.join(dir, f));
+  });
 
   test('a comment on a step is a tour thread; status --threads shows the slide', async () => {
-    fs.mkdirSync(dir, { recursive: true });
-    fs.copyFileSync(demo, path.join(dir, 'walkthrough.json'));
     const c = await cli(['comment', 'rr:tour/latency/s2', 'why 30 ms?', ...d]);
     expect(c.code).toBe(0);
     expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'latency', step: 's2' });
@@ -31,7 +36,6 @@ describe('walkthrough', () => {
     fs.writeFileSync(file, JSON.stringify({ ...w, version: 2 }));
     const bad = await cli(['check', ...d]);
     expect([bad.code, bad.stderr]).toEqual([1, expect.stringContaining('version')]);
-    fs.copyFileSync(demo, file);
   });
 
   test('walkthrough publish --dry-run prints the PR block; without a PR it cannot post', async () => {
@@ -42,6 +46,7 @@ describe('walkthrough', () => {
   });
 
   test('a tour anchor without a step breaks the schema', async () => {
+    await cli(['comment', 'rr:tour/latency/s2', 'why 30 ms?', ...d]);
     const st = state();
     st.threads[0].anchor = { kind: 'tour', chapter: 'latency' };
     fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(st));
@@ -49,17 +54,14 @@ describe('walkthrough', () => {
     expect(r.stderr).toMatch(/does not match schema.*step/);
   });
 
-  // needs a browser (Chrome, or WebKit on macOS); without one it says so and the test only checks that
-  test('walkthrough lint measures every step on screen; shot writes one step\'s PNG', async () => {
-    fs.copyFileSync(demo, path.join(dir, 'walkthrough.json'));
+  const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
+  if (!browser) console.log('skipping walkthrough lint/shot: no browser (Chrome or Chromium) to render in');
+  const listing = () => fs.readdirSync(dir).sort().map((f) => `${f} ${fs.statSync(path.join(dir, f)).mtimeMs}`);
+  test.skipIf(!browser)('walkthrough lint measures every step on screen; shot writes one step\'s PNG; neither touches the review', async () => {
     // a script of the author's that throws: the reviewer would hit it, so lint reports it
     fs.writeFileSync(path.join(dir, 'review.html'), read(import.meta.dir, '..', 'templates', 'review.html').replace('</rr-review>', '<script>throw new Error("author boom")</script></rr-review>'));
-    for (const f of fs.readdirSync(dir).filter((f) => f.startsWith('state.json'))) fs.rmSync(path.join(dir, f)); // the test above broke it on purpose
+    const before = listing();
     const lint = await cli(['walkthrough', 'lint', '--viewport', '1280x720', '--json', ...d]);
-    if (/no browser to render in/.test(lint.stderr)) {
-      expect(lint.code).toBe(1);
-      return;
-    }
     if (!lint.stdout) throw new Error(lint.stderr);
     const out = JSON.parse(lint.stdout);
     expect(out).toMatchObject({ viewports: ['1280x720'], links: [] });
@@ -71,5 +73,6 @@ describe('walkthrough', () => {
     const shot = await cli(['walkthrough', 'shot', 'latency/s2', '--out', png, ...d]);
     expect([shot.code, shot.stdout.split('\n')[0]]).toEqual([0, png]);
     expect([...fs.readFileSync(png).subarray(1, 4)].map((c) => String.fromCharCode(c)).join('')).toBe('PNG');
+    expect(listing()).toEqual(before);
   }, 60_000);
 });

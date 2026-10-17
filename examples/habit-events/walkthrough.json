@@ -9,8 +9,8 @@
       "steps": [
         {
           "id": "s1",
-          "text": "<p>Before this PR, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L29-39\">Builder.Build</a> fetches four base keys from Tardis and wraps them. No per-user event history reaches the ranker.</p>",
-          "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39"
+          "text": "<p>Before this PR, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L33-38\">Builder.Build</a> fetches four base keys from Tardis and wraps them. No per-user event history reaches the ranker.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go@base#L33-38"
         },
         {
           "id": "s2",
