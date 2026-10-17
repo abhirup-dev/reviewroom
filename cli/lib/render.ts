@@ -16,10 +16,11 @@ export function parseViewports(s: string): Viewport[] {
   });
 }
 
-/** The review served from this process (the current build, whatever a running server has) while `fn` runs. */
+/** The review served from this process while `fn` runs: the current build (whatever a running server has), read-only
+ *  (the page is the author's HTML; it must not write the review or call GitHub behind a live server's back). */
 export async function withServer<T>(repo: string | null, dir: string, fn: (url: string) => Promise<T>): Promise<T> {
   const r = repoOf(dir, repo);
-  const { app, close } = startServer({ repo: r, dir, cfg: loadConfig(dir, r) });
+  const { app, close } = startServer({ repo: r, dir, cfg: loadConfig(dir, r), readOnly: true });
   const server = listen(app, 0);
   try {
     return await fn(`http://127.0.0.1:${server.port}/`);
@@ -28,6 +29,8 @@ export async function withServer<T>(repo: string | null, dir: string, fn: (url: 
     void server.stop(true);
   }
 }
+
+const CATCH = `addEventListener('error', (e) => console.error(e.message)); addEventListener('unhandledrejection', (e) => console.error('unhandled rejection: ' + (e.reason?.message ?? e.reason)));`;
 
 export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit>; errors(): string[]; screenshot(): Promise<Blob>; close(): Promise<void> };
 
@@ -47,9 +50,17 @@ export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Pa
     view = new Bun.WebView({ ...vp, backend: 'webkit', console: capture });
     engine = 'webkit';
   }
-  await view.navigate(url);
-  const started = await view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`);
-  if (!started) fail(`the review page did not start in 20 s (review.html must load /_rr/reviewroom.js and wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
+  try {
+    // uncaught errors reach the console too (Chrome; WebKit reports console.error only)
+    if (engine === 'chrome') await view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH });
+    // load waits for every image and script: a stalled one must not stall us; the app may be up before it
+    await Promise.race([view.navigate(url), Bun.sleep(20_000)]);
+    const started = await view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`);
+    if (!started) fail(`the review page did not start in 20 s (review.html must wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
+  } catch (e) {
+    view.close();
+    throw e;
+  }
   return {
     engine,
     audit: (...at) => view.evaluate(`window.rr.auditWalkthrough(...${JSON.stringify(at)})`) as Promise<StepAudit>,

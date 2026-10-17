@@ -80,8 +80,9 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
   };
 }
 
-type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void };
-export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) {
+/** `readOnly`: a server that only shows the review (`walkthrough lint`): no writes, no GitHub calls; it holds no lock. */
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
+export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
@@ -141,6 +142,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     c.header('x-reviewroom-pid', String(process.pid));
     c.header('cache-control', 'no-store'); // unless a route says otherwise
     if (!allowed(c)) return json(c, { error: 'forbidden' }, 403);
+    if (readOnly && c.req.method !== 'GET' && c.req.method !== 'HEAD') return json(c, { error: 'read-only server' }, 403);
     await next();
   });
   app.notFound((c) => json(c, { error: 'not found' }, 404));
@@ -206,7 +208,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     fs.writeFileSync(layoutFile(), JSON.stringify(c.req.valid('json')));
     return json(c, { ok: true });
   });
-  app.get('/api/github', async (c) => json(c, await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
+  app.get('/api/github', async (c) => json(c, readOnly ? (github.cached() ?? { ok: false, threads: [], error: 'not fetched (read-only server)' }) : await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
   app.post('/api/github', body(GitHubAction), async (c) => json(c, await github.act(c.req.valid('json'))));
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD

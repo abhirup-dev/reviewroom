@@ -52,20 +52,22 @@ async function lint(repo: string | null, dir: string, o: WalkthroughOpts) {
   const tour = c.tour!;
   const viewports = parseViewports(o.viewport ?? '1280x800,1440x900');
   const ms: Measured[] = [];
+  const boot: Finding[] = [];
   let engine = '';
   await withServer(repo, dir, async (url) => {
     for (const vp of viewports) {
       const page = await openPage(url, vp);
       engine = page.engine;
       try {
-        page.errors(); // the page's own start-up: not a step's
+        // the page's own start-up (review.html's scripts too): not a step's
+        for (const e of page.errors()) boot.push({ check: 'page-error', level: 'warn', message: `while the page started (${vpName(vp)}): ${e.slice(0, 200)}`, fix: 'A script in review.html or the walkthrough prose failed; the reviewer sees the same.' });
         for (const ch of tour.chapters) for (const st of ch.steps) ms.push({ viewport: vpName(vp), chapter: ch.id, step: st.id, audit: await page.audit(ch.id, st.id), errors: page.errors() });
       } finally {
         await page.close();
       }
     }
   });
-  const findings: Finding[] = [...c.notes, ...judge(ms)];
+  const findings: Finding[] = [...c.notes, ...boot, ...judge(ms)];
   const steps = tour.chapters.reduce((n, ch) => n + ch.steps.length, 0);
   if (o.json) console.log(JSON.stringify({ engine, viewports: viewports.map(vpName), links: c.bad, findings }, null, 2));
   else {

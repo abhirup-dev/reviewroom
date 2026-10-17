@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup } from './fixture.ts';
+import { read, setup } from './fixture.ts';
 
 describe('walkthrough', () => {
   const { dir, d, cli, state } = setup();
@@ -52,7 +52,8 @@ describe('walkthrough', () => {
   // needs a browser (Chrome, or WebKit on macOS); without one it says so and the test only checks that
   test('walkthrough lint measures every step on screen; shot writes one step\'s PNG', async () => {
     fs.copyFileSync(demo, path.join(dir, 'walkthrough.json'));
-    fs.copyFileSync(path.join(import.meta.dir, '..', 'templates', 'review.html'), path.join(dir, 'review.html'));
+    // a script of the author's that throws: the reviewer would hit it, so lint reports it
+    fs.writeFileSync(path.join(dir, 'review.html'), read(import.meta.dir, '..', 'templates', 'review.html').replace('</rr-review>', '<script>throw new Error("author boom")</script></rr-review>'));
     for (const f of fs.readdirSync(dir).filter((f) => f.startsWith('state.json'))) fs.rmSync(path.join(dir, f)); // the test above broke it on purpose
     const lint = await cli(['walkthrough', 'lint', '--viewport', '1280x720', '--json', ...d]);
     if (/no browser to render in/.test(lint.stderr)) {
@@ -64,6 +65,7 @@ describe('walkthrough', () => {
     expect(out).toMatchObject({ viewports: ['1280x720'], links: [] });
     // the demo's longest step needs scrolling on a short screen, and the report says where and how to fix it
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the step') }));
+    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
     expect(lint.code).toBe(1);
     const png = path.join(dir, '..', 'shot.png');
     const shot = await cli(['walkthrough', 'shot', 'latency/s2', '--out', png, ...d]);
