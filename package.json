@@ -11,6 +11,7 @@
     ".": "./dist/reviewroom.js",
     "./style.css": "./dist/reviewroom.css",
     "./schema/state.json": "./schema/state.schema.json",
+    "./schema/walkthrough.json": "./schema/walkthrough.schema.json",
     "./package.json": "./package.json"
   },
   "files": [

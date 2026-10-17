@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "chapters": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lead": {
+            "description": "Static for the whole chapter; may hold an <rr-flow> diagram",
+            "type": "string"
+          },
+          "steps": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Narrative HTML: rr: links, <rr-flow>, <rr-code> work as in review.html"
+                },
+                "ref": {
+                  "description": "What the right pane shows for this step. Omitted: keep the previous target (or the lead diagram)",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "steps"
+        ]
+      }
+    }
+  },
+  "required": [
+    "version",
+    "title",
+    "chapters"
+  ],
+  "$id": "reviewroom/walkthrough.schema.json",
+  "title": "reviewroom walkthrough (.reviewroom/<branch>/walkthrough.json)"
+}

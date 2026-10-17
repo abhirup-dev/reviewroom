@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "title": "Attach recent HABIT events to the ranker request",
+  "chapters": [
+    {
+      "id": "why",
+      "title": "Why this change",
+      "lead": "<p class=\"rr-lede\">The ranker scores candidates with four base features from Tardis and nothing about what the user did this week. This PR reads the last 7 days of HABIT events through TFS v2 and sends them along as a new proto field.</p><rr-flow><rr-node state=\"baseline\">FeedRequest</rr-node><rr-node state=\"baseline\" ref=\"rr:code/pkg/ranker/request_builder.go#L42\">Builder.Build</rr-node><rr-node state=\"baseline\" ref=\"rr:code/pkg/ranker/request_builder.go#L46\">Tardis.Fetch</rr-node><rr-node state=\"new\" ref=\"rr:code/pkg/features/habit/fetcher.go#L20-28\">habit.RecentEvents</rr-node><rr-node state=\"changed\" ref=\"rr:code/pkg/ranker/request_builder.go#L55-59\">RankerRequest</rr-node></rr-flow>",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>Before this PR, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L29-39\">Builder.Build</a> fetches four base keys from Tardis and wraps them. No per-user event history reaches the ranker.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The new <a href=\"rr:code/pkg/features/habit/fetcher.go#L19-28\">habit.Fetcher</a> reads HABIT events from TFS v2: one key per hourly bucket in the window, decoded newest first.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L19-28"
+        },
+        {
+          "id": "s3",
+          "text": "<p>Decoding stops at <a href=\"rr:code/pkg/features/habit/fetcher.go#L39-48\">50 rows</a>, so a heavy user cannot blow up the request size.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L39-48"
+        },
+        {
+          "id": "s4",
+          "text": "<p>That is the whole path. Green is new, blue is changed; the rest of the walkthrough follows the call from left to right.</p>"
+        }
+      ]
+    },
+    {
+      "id": "latency",
+      "title": "Request path & failure mode",
+      "lead": "<p class=\"rr-lede\">The habit call runs after Tardis, not alongside it, so its latency adds straight onto every feed request. On error the feed still serves, without the signal.</p><rr-flow><rr-node state=\"baseline\">Tardis.Fetch · 18 ms</rr-node><rr-node state=\"new\">habit.RecentEvents · 12 ms</rr-node><rr-node state=\"changed\">p99 30 ms of 40</rr-node></rr-flow>",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>The new call starts only after <a href=\"rr:code/pkg/ranker/request_builder.go#L46-49\">Tardis.Fetch</a> returns. Both need only the user id, so they could share an errgroup.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L46-54"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The fetcher caps itself with a <a href=\"rr:code/pkg/features/habit/fetcher.go#L21-22\">30 ms deadline</a>, which bounds the worst case at roughly 48 ms p99.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L21-22"
+        },
+        {
+          "id": "s3",
+          "text": "<p>On any error the builder logs at warn and sends an empty list. <code>habit_events</code> is repeated, so the ranker reads nil as \"no signal\".</p><p><strong>Nothing counts degraded requests.</strong></p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L50-59"
+        },
+        {
+          "id": "s4",
+          "text": "<p>Yet <code>b.metrics</code> is <a href=\"rr:code/pkg/ranker/request_builder.go#L28-34\">already injected</a>: a <code>habit_degraded_total</code> counter is one line.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L28-34"
+        }
+      ]
+    },
+    {
+      "id": "schema",
+      "title": "Proto, storage & tests",
+      "lead": "<p class=\"rr-lede\">Field 12 is appended, never reused, so older ranker builds ignore it. The table is additive and its index matches the window read.</p>",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>A new <code>HabitEvent</code> message and <a href=\"rr:code/proto/feed/v2/ranker_request.proto#L25\">field 12</a> on <code>RankerRequest</code>. Wire compatible in both directions.</p>",
+          "ref": "rr:code/proto/feed/v2/ranker_request.proto#L15-25"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The offline sink. <code>(user_id, ts DESC)</code> serves \"last N for a user\" without a sort.</p>",
+          "ref": "rr:code/migrations/004_habit_events.sql#L1-8"
+        },
+        {
+          "id": "s3",
+          "text": "<p>Two tests: the deadline fires, and decoding caps at 50. Nothing exercises the degrade branch in <code>Build</code>.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher_test.go#L11-22"
+        }
+      ]
+    }
+  ]
+}
