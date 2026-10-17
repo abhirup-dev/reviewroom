@@ -4,7 +4,7 @@
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { loadRaw, saveLocal } from '../core/store';
 import { StoredState, type GitHubAction } from '../shared/schema';
-import type { LastLayout, Layout } from '../shared/layout';
+import type { LastLayout, Layout, SavedLayouts } from '../shared/layout';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import { roundStatus, syncMachine, unsent } from '../flows/sync';
 
@@ -36,10 +36,12 @@ export interface StateBackend {
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
-  /** The reviewer's layout files by name (`default` is their default), shared by every review. */
-  layouts(): Promise<Record<string, Layout>>;
-  /** Save layout file `id`, or delete it (null). */
+  /** The reviewer's saved layouts and their default, shared by every review. */
+  layouts(): Promise<SavedLayouts>;
+  /** Save a new layout as `id` (false if that name is taken), or delete it (null). */
   saveLayout(id: string, layout: Layout | null): Promise<boolean>;
+  /** Make saved layout `id` the default, or have none (null). */
+  setDefaultLayout(id: string | null): Promise<boolean>;
   /** This review's dock as the reviewer left it. */
   lastLayout(): Promise<LastLayout | null>;
   saveLastLayout(layout: LastLayout): Promise<void>;
@@ -198,6 +200,10 @@ export class ServerState implements StateBackend {
     const r = await fetch(`${this.api}/layouts/${id}`, layout ? { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout) } : { method: 'DELETE' });
     return r.ok;
   }
+  async setDefaultLayout(id: string | null) {
+    const r = await fetch(`${this.api}/default-layout`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layout: id }) });
+    return r.ok;
+  }
   lastLayout() {
     return fetch(`${this.api}/layout`).then(json);
   }
@@ -326,14 +332,21 @@ export class BrowserState implements StateBackend {
       /* ignore */
     }
   }
-  async layouts(): Promise<Record<string, Layout>> {
-    return JSON.parse(loadRaw(LAYOUTS_KEY) ?? '{}');
+  async layouts(): Promise<SavedLayouts> {
+    const v = JSON.parse(loadRaw(LAYOUTS_KEY) ?? 'null');
+    return v?.layouts ? (v as SavedLayouts) : { layouts: {}, default: null };
   }
   async saveLayout(id: string, layout: Layout | null) {
     const all = await this.layouts();
-    if (layout) all[id] = layout;
-    else delete all[id];
+    if (layout && all.layouts[id]) return false;
+    if (layout) all.layouts[id] = layout;
+    else delete all.layouts[id];
+    if (!layout && all.default === id) all.default = null;
     saveLocal(LAYOUTS_KEY, all);
+    return true;
+  }
+  async setDefaultLayout(id: string | null) {
+    saveLocal(LAYOUTS_KEY, { ...(await this.layouts()), default: id });
     return true;
   }
   async lastLayout() {

@@ -5,17 +5,13 @@ import { h, icon } from '../core/dom';
 import type { ReviewApp } from './app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from '../flows/layout';
-import { fromDockview, placement, toDockview, type DockJSON, type LastLayout, type Layout } from '../shared/layout';
-import reading from '../layouts/reading.json';
-import wideCode from '../layouts/wide-code.json';
-import codeFocus from '../layouts/code-focus.json';
-import narrativeFocus from '../layouts/narrative-focus.json';
+import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from '../shared/layout';
 
 export interface PanelDef {
   id: string;
   title: string;
   icon?: Parameters<typeof icon>[0];
-  /** Parameterised panels (e.g. one per thread) are opened on demand, never by presets or the panel menu. */
+  /** Parameterised panels (e.g. one per thread) are opened on demand, never by layouts or the panel menu. */
   onDemand?: boolean;
   /** Build the panel body. Called once per mounted panel instance. */
   create(app: ReviewApp, params: Record<string, unknown>, panelId: string): PanelInstance;
@@ -34,14 +30,10 @@ export function definePanel(def: PanelDef) {
 export const panelDefs = () => [...registry.values()];
 
 // ---------------------------------------------------------------- layout files
-/** The layouts reviewroom ships; the reviewer's own files of the same name replace them. */
-const builtins = { reading, 'wide-code': wideCode, 'code-focus': codeFocus, 'narrative-focus': narrativeFocus } as Record<string, Layout>;
-/** Every layout by name: the built-ins, then the reviewer's files (`default` is their default). */
-export const layouts = (app: ReviewApp): Record<string, Layout> => ({ ...builtins, ...app.layouts });
-/** The layouts to pick from (the default is what Reset goes back to), in menu and alt+N order. */
-export const pickableLayouts = (app: ReviewApp) => Object.entries(layouts(app)).filter(([id]) => id !== 'default');
+/** Every layout by name: the shipped ones, then the reviewer's saved ones (in menu and alt+N order). */
+export const layouts = (app: ReviewApp): Record<string, Layout> => ({ ...builtinLayouts, ...app.layouts });
 // the review's starting layout: the reviewer's default, else its layout="" attribute, else Reading
-const startId = (app: ReviewApp) => ['default', app.root.getAttribute('layout') ?? '', 'reading'].find((id) => layouts(app)[id])!;
+const startId = (app: ReviewApp) => [app.defaultLayout ?? '', app.root.getAttribute('layout') ?? '', 'reading'].find((id) => layouts(app)[id])!;
 
 // the layout the dock was last built from: closed panels and the PR's late panels go back where it puts them
 let current: Layout | undefined;
@@ -80,47 +72,44 @@ export function applyLayout(app: ReviewApp, id: string) {
   return true;
 }
 
-/** The dock as a layout file: no on-demand panels, no windows. */
-function asLayout(app: ReviewApp, title: string): Layout | null {
+/** Save the current arrangement as a new layout named `title`, to pick from the layout menu in any review
+ *  (and start from, `asDefault`). A taken name (shipped or saved) is refused: false, nothing changed. */
+export async function saveLayout(app: ReviewApp, title: string, asDefault = false) {
+  const id = layoutId(title);
+  if (!id) return app.toast('Name it with some letters or digits', 'error'), false;
+  if (layouts(app)[id]) return app.toast(`“${title}” is taken: pick another name`, 'error'), false;
   const now = passing(app.dock) && last ? JSON.parse(last.raw) : app.dock.toJSON();
-  const root = fromDockview(now as DockJSON, (id) => !id.includes(':'));
-  return root && { title, root };
-}
-
-/** Save the current arrangement as layout file `id` (or delete that file: no title). */
-async function saveLayout(app: ReviewApp, id: string, title?: string) {
-  const layout = title === undefined ? null : asLayout(app, title);
-  if (title !== undefined && !layout) return app.toast('Nothing to save: no panels are open', 'error'), false;
+  const root = fromDockview(now as DockJSON, (pid) => !pid.includes(':')); // no on-demand panels, no windows
+  if (!root) return app.toast('Nothing to save: no panels are open', 'error'), false;
+  const layout = { title, root };
   if (!(await app.backend.saveLayout(id, layout).catch(() => false))) return app.toast('Could not save the layout', 'error'), false;
-  if (layout) app.layouts[id] = layout;
-  else delete app.layouts[id];
-  return true;
-}
-
-/** Remember the current arrangement for every review on this machine (or forget it). */
-export async function saveDefaultLayout(app: ReviewApp, forget = false) {
-  if (await saveLayout(app, 'default', forget ? undefined : 'My default')) app.toast(forget ? 'Default layout forgotten: new reviews start from the preset' : 'Saved: reviews without a layout of their own open like this');
-}
-
-/** Save the current arrangement under a name, to pick from the layout menu in any review. */
-export async function saveNamedLayout(app: ReviewApp, title: string) {
-  const id = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
-  if (!id || id === 'default') return app.toast('Name it with some letters or digits (and not “default”)', 'error'), false;
-  if (!(await saveLayout(app, id, title))) return false;
+  app.layouts[id] = layout;
   app.commands.register(layoutCommand(app, id));
-  app.toast(`Saved layout “${title}”`);
+  if (asDefault && !(await setDefaultLayout(app, id))) return true; // saved; setDefaultLayout said what failed
+  app.toast(asDefault ? `Saved “${title}”: reviews without a layout of their own open like this` : `Saved layout “${title}”`);
   return true;
 }
 
-/** Delete one of the reviewer's layout files (a built-in of the same name comes back). */
+/** Make saved layout `id` the one reviews start from, or have none (null). */
+export async function setDefaultLayout(app: ReviewApp, id: string | null) {
+  if (!(await app.backend.setDefaultLayout(id).catch(() => false))) return app.toast('Could not change the default layout', 'error'), false;
+  app.defaultLayout = id;
+  if (!id) app.toast('No default layout: new reviews start from their built-in layout');
+  return true;
+}
+
+/** Delete one of the reviewer's saved layouts (it stops being the default, if it was). */
 export async function deleteLayout(app: ReviewApp, id: string) {
   const title = app.layouts[id]?.title;
-  if (await saveLayout(app, id)) app.toast(`Deleted layout “${title}”`);
+  if (!(await app.backend.saveLayout(id, null).catch(() => false))) return app.toast('Could not delete the layout', 'error');
+  delete app.layouts[id];
+  if (app.defaultLayout === id) app.defaultLayout = null;
+  app.toast(`Deleted layout “${title}”`);
 }
 
 /** The palette command for layout `id` (alt+N for the first nine). */
 export function layoutCommand(app: ReviewApp, id: string) {
-  const i = pickableLayouts(app).findIndex(([x]) => x === id);
+  const i = Object.keys(layouts(app)).indexOf(id);
   const l = layouts(app)[id];
   return { id: 'layout.' + id, title: `Layout: ${l.title}`, group: 'Layout', hint: l.hint, keys: i >= 0 && i < 9 ? [`alt+${i + 1}`] : undefined, when: () => !!layouts(app)[id], run: () => applyLayout(app, id) };
 }
@@ -149,7 +138,7 @@ function track(api: DockviewApi) {
   last = s;
 }
 export const canUndoLayout = () => undoStack.length > 0;
-/** Back to the layout before the last change (presets and resets included). */
+/** Back to the layout before the last change (switching layouts and resets included). */
 export function undoLayout(app: ReviewApp) {
   const prev = undoStack.pop();
   if (!prev) return;
@@ -245,7 +234,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement, saved: LastLayout |
       api.fromJSON(saved.dock as SerializedDockview);
       restored = api.panels.length > 0;
     } catch (e) {
-      console.warn('[reviewroom] stale layout, using preset', e);
+      console.warn('[reviewroom] stale layout, starting over', e);
       api.clear();
     }
   }
@@ -353,13 +342,12 @@ export function dockThread(app: ReviewApp, id: string, title: string) {
 /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
 export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, unknown>) {
   const api = app.dock;
-  // back where the layout puts it, else beside a sensible neighbour
+  // back where the layout puts it; one the layout has no place for joins the narrative's tabs (as in applyLayout)
   let p = api.getPanel(id) ?? placePanel(app, id, params);
   if (!p) {
     const kind = id.split(':')[0];
-    const near = kind === 'code' ? (api.getPanel('narrative') ? { panel: 'narrative', dir: 'right' as const } : undefined) : api.getPanel('toc') ? { panel: 'toc', dir: 'within' as const } : api.getPanel('narrative') ? { panel: 'narrative', dir: 'left' as const } : undefined;
     const def = registry.get(kind)!;
-    p = api.addPanel({ id, component: kind, title: def.title + (id.includes(':') ? ' ' + id.split(':')[1] : ''), params, position: near ? { referencePanel: near.panel, direction: near.dir } : undefined });
+    p = api.addPanel({ id, component: kind, title: def.title + (id.includes(':') ? ' ' + id.split(':')[1] : ''), params, position: api.getPanel('narrative') ? { referencePanel: 'narrative', direction: 'within' } : undefined });
   }
   if (!p.api.isVisible) p.api.setActive();
   return p;
