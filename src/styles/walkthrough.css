@@ -403,3 +403,42 @@
     animation: none;
   }
 }
+
+/* a step as a card (<rr-embed ref="rr:tour/…">, hover previews) */
+.rr-slide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* wide code scrolls inside its preview, not the card */
+  gap: 10px;
+  padding-block: 12px;
+}
+/* the code previews run edge to edge, like the embed's other previews */
+.rr-slide > .rr-slide__where,
+.rr-slide > .rr-slide__text,
+.rr-slide > .rr-slide__refs {
+  padding-inline: 16px;
+  min-width: 0;
+}
+.rr-slide__where {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--rr-font);
+  font-size: var(--rr-text-xs);
+  color: var(--rr-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rr-slide__refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rr-slide__ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-xs);
+  color: var(--rr-muted);
+}

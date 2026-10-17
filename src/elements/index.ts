@@ -12,7 +12,8 @@
 import { FileDiff, File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
-import { plainExcerpt, renderMarkdown } from '../core/markdown';
+import { plainExcerpt, renderMarkdown, sanitizeProse } from '../core/markdown';
+import { stepRefs } from '../shared/walkthrough';
 import type { ReviewApp } from '../shell/app';
 import { PIERRE_CSS } from '../panels/code';
 
@@ -184,8 +185,30 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
     case 'round':
       return h('div', null, `Round ${r.n}`);
     case 'tour':
-      return h('div', null, app.label(ref));
+      return slide(app, r, opts);
   }
+}
+
+/** A walkthrough step as a card: where it is, its text, its code (compact: the links only), and a way to play the
+ *  walkthrough from it. A narrative section that expands on a step embeds it like this. */
+async function slide(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: { compact?: boolean }) {
+  // the page may not have loaded walkthrough.json yet
+  const loaded = app.walkthrough ?? (await app.backend.walkthrough?.().catch(() => null));
+  const w = loaded && 'version' in loaded ? loaded : null;
+  const ch = w?.chapters.find((c) => c.id === r.chapter);
+  const i = ch?.steps.findIndex((s) => s.id === r.step) ?? -1;
+  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This walkthrough step no longer exists');
+  const step = ch.steps[i];
+  const text = h('div', { class: 'rr-prose rr-slide__text' });
+  text.innerHTML = sanitizeProse(step.text); // a walkthrough can come from a PR
+  const refs = stepRefs(step);
+  const code = opts.compact
+    ? refs.length ? [h('div', { class: 'rr-slide__refs' }, ...refs.map((x) => h('span', { class: 'rr-slide__ref' }, refIcon(parseRef(x)!), app.label(x))))] : []
+    : await Promise.all(refs.map((x) => renderPreview(app, x, { compact: true })));
+  const title = 'Play the walkthrough from this step';
+  const play = h('button', { class: 'rr-icon-btn', title, 'aria-label': title, onclick: () => app.bus.emit('walkthrough-open', { chapter: r.chapter, step: r.step }) }, icon('play', 14));
+  // the play button sits on top: an embed shows a preview's first lines only
+  return h('div', { class: 'rr-slide' }, h('div', { class: 'rr-slide__where' }, h('span', null, `${ch.title} · step ${i + 1} of ${ch.steps.length}`), play), text, ...code);
 }
 
 class RREmbed extends HTMLElement {
