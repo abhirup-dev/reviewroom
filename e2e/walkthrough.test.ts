@@ -15,7 +15,7 @@ describe('walkthrough', () => {
     expect(c.code).toBe(0);
     expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'latency', step: 's2' });
     const s = await cli(['status', '--threads', ...d]);
-    expect(s.stdout).toMatch(/walkthrough "Request path & failure mode" step 2\/4: "The fetcher caps itself/);
+    expect(s.stdout).toMatch(/guided walkthrough "Request path & failure mode" slide 2\/4: "The fetcher caps itself/);
   });
 
   test('check covers walkthrough.json: the demo is ok, a broken step ref names its step, a schema error stops it', async () => {
@@ -27,7 +27,7 @@ describe('walkthrough', () => {
     w.chapters[1].steps[0].ref = 'rr:code/pkg/gone.go#L1-2';
     fs.writeFileSync(file, JSON.stringify(w, null, 2));
     const broken = await cli(['check', ...d]);
-    expect([broken.code, broken.stdout]).toEqual([1, expect.stringMatching(/broken\s+rr:code\/pkg\/gone.go#L1-2.*\[walkthrough latency\/s1\]/)]);
+    expect([broken.code, broken.stdout]).toEqual([1, expect.stringMatching(/broken\s+rr:code\/pkg\/gone.go#L1-2.*\[guided walkthrough latency\/s1\]/)]);
     fs.writeFileSync(file, JSON.stringify({ ...w, version: 2 }));
     const bad = await cli(['check', ...d]);
     expect([bad.code, bad.stderr]).toEqual([1, expect.stringContaining('version')]);
@@ -64,7 +64,7 @@ describe('walkthrough', () => {
     const out = JSON.parse(lint.stdout);
     expect(out).toMatchObject({ viewports: ['1280x720'], links: [] });
     // the demo's longest step needs scrolling on a short screen, and the report says where and how to fix it
-    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the step') }));
+    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the slide') }));
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
     expect(lint.code).toBe(1);
     const png = path.join(dir, '..', 'shot.png');

@@ -66,7 +66,7 @@ export function mountWalkthrough(app: ReviewApp) {
       const flow = h('div', { class: 'rr-tour__diagram rr-prose' });
       flow.innerHTML = sanitizeProse(s.html);
       pane.replaceChildren(flow);
-    } else pane.replaceChildren(h('div', { class: 'rr-empty' }, 'Nothing to show for this step'));
+    } else pane.replaceChildren(h('div', { class: 'rr-empty' }, 'Nothing to show for this slide'));
   };
   const pane$ = paneMachine.provide({
     actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(ref) }))) } : input)) },
@@ -106,8 +106,8 @@ export function mountWalkthrough(app: ReviewApp) {
     return { kind: 'tour' as const, chapter: chapter.id, step: step.id };
   };
   // the step's threads go through the usual composer and thread popup (threadMachine), and the feedback round
-  const comment = h('button', { class: 'rr-btn rr-btn--small rr-tour__comment', title: 'Comment on this step: the agent gets the slide with your comment', onclick: () => app.compose(anchor()) }, icon('thread', 12), h('span', null, 'Comment'));
-  const badge = h('button', { class: 'rr-tour__badge', title: 'Open the thread on this step' });
+  const comment = h('button', { class: 'rr-btn rr-btn--small rr-tour__comment', title: 'Comment on this slide: the agent gets it with your comment', onclick: () => app.compose(anchor()) }, icon('thread', 12), h('span', null, 'Comment'));
+  const badge = h('button', { class: 'rr-tour__badge', title: 'Open the thread on this slide' });
   const threadsOn = (chapter: string, step: string) => app.state.threads.filter((t) => t.status === 'open' && t.anchor.kind === 'tour' && t.anchor.chapter === chapter && t.anchor.step === step);
   const paintThreads = () => {
     if (!ctx().doc) return;
@@ -125,20 +125,20 @@ export function mountWalkthrough(app: ReviewApp) {
     if (ref) void app.open(ref);
   });
   const right = h('div', { class: 'rr-tour__right' }, pane);
-  const prev = btn('chevron', 'Previous step', () => actor.send({ type: 'prev' }), '←');
+  const prev = btn('chevron', 'Previous slide', () => actor.send({ type: 'prev' }), '←');
   prev.classList.add('rr-tour__flip');
   const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
   const progress = h('div', { class: 'rr-tour__progress' });
   const player = h(
     'div',
-    { class: 'rr-tour__player', role: 'dialog', 'aria-label': 'Walkthrough' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the walkthrough', () => actor.send({ type: 'close' }))),
+    { class: 'rr-tour__player', role: 'dialog', 'aria-label': 'Guided walkthrough' },
+    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
     h('div', { class: 'rr-tour__body' }, left, right),
     h('div', { class: 'rr-tour__bottom' }, prev, progress, next),
   );
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
-  const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the walkthrough at this step', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
+  const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   app.root.append(root);
 
@@ -147,7 +147,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const chapterMenu = () =>
     popMenu(chapterBtn, (close) =>
       ctx().doc!.chapters.map((c, i) =>
-        menuItem(c.title, () => (close(), actor.send({ type: 'goto', chapter: i, step: 0 })), { checked: i === ctx().chapter, hint: `${c.steps.length} step${c.steps.length > 1 ? 's' : ''}` }),
+        menuItem(c.title, () => (close(), actor.send({ type: 'goto', chapter: i, step: 0 })), { checked: i === ctx().chapter, hint: `${c.steps.length} slide${c.steps.length > 1 ? 's' : ''}` }),
       ),
     );
 
@@ -200,17 +200,17 @@ export function mountWalkthrough(app: ReviewApp) {
     position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);
     chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);
-    divider.textContent = `Step ${step + 1} of ${n}`;
+    divider.textContent = `Slide ${step + 1} of ${n}`;
     prose(stepText, cur.step.text);
     const refs = stepRefs(cur.step);
     chips.replaceChildren(
       ...refs.map((ref) => h('button', { class: 'rr-tour__ref', title: refs.length > 1 ? 'Show only this in the code pane' : 'Show this in the code pane', onclick: () => actor.send({ type: 'focus', refs: [ref] }) }, refIcon(parseRef(ref)!), h('span', null, app.label(ref)))),
-      ...(refs.length > 1 ? [h('button', { class: 'rr-tour__ref', title: 'Show all of this step\'s code again', onclick: () => actor.send({ type: 'focus' }) }, icon('split', 12), h('span', null, `All ${refs.length}`))] : []),
+      ...(refs.length > 1 ? [h('button', { class: 'rr-tour__ref', title: 'Show all of this slide\'s code again', onclick: () => actor.send({ type: 'focus' }) }, icon('split', 12), h('span', null, `All ${refs.length}`))] : []),
     );
     enter(stepBox);
     prev.toggleAttribute('disabled', cur.isFirst);
     next.replaceChildren(cur.isLast ? 'Finish' : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
-    next.title = cur.isLast ? 'End the walkthrough' : 'Next step';
+    next.title = cur.isLast ? 'End the guided walkthrough' : 'Next slide';
     progress.replaceChildren(
       ...d!.chapters.map((c, ci) =>
         h(
@@ -222,7 +222,7 @@ export function mountWalkthrough(app: ReviewApp) {
             { class: 'rr-tour__ticks' },
             ...c.steps.map((_, si) => {
               const at = ci < chapter || (ci === chapter && si < step) ? ' is-done' : ci === chapter && si === step ? ' is-on' : '';
-              return h('button', { class: 'rr-tour__tick' + at, 'data-chapter': c.id, 'data-step': c.steps[si].id, title: `${c.title} · step ${si + 1}`, 'aria-label': `${c.title}, step ${si + 1}`, onclick: () => actor.send({ type: 'goto', chapter: ci, step: si }) });
+              return h('button', { class: 'rr-tour__tick' + at, 'data-chapter': c.id, 'data-step': c.steps[si].id, title: `${c.title} · slide ${si + 1}`, 'aria-label': `${c.title}, slide ${si + 1}`, onclick: () => actor.send({ type: 'goto', chapter: ci, step: si }) });
             }),
           ),
         ),
@@ -249,7 +249,7 @@ export function mountWalkthrough(app: ReviewApp) {
   );
 
   app.bus.on('walkthrough-open', ({ chapter, step }) => {
-    if (!app.walkthrough) return app.toast('No walkthrough for this review');
+    if (!app.walkthrough) return app.toast('No guided walkthrough for this review');
     actor.send({ type: 'open', chapter, step });
   });
   const loaded = app.backend.walkthrough?.().then(

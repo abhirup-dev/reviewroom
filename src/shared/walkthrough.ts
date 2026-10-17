@@ -72,7 +72,7 @@ export function parseWalkthrough(text: string): Parsed {
 export const walkthroughJsonSchema = () => ({
   ...z.toJSONSchema(Walkthrough, { target: 'draft-2020-12', io: 'input' }),
   $id: 'reviewroom/walkthrough.schema.json',
-  title: 'reviewroom walkthrough (.reviewroom/<branch>/walkthrough.json)',
+  title: 'reviewroom guided walkthrough (.reviewroom/<branch>/walkthrough.json)',
 });
 
 // ------------------------------------------------------------------ measuring a step (`walkthrough lint`)

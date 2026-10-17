@@ -274,7 +274,7 @@ export class ReviewApp {
     if (r.type === 'tour') {
       const ch = this.walkthrough?.chapters.find((c) => c.id === r.chapter);
       const n = ch ? ch.steps.findIndex((s) => s.id === r.step) + 1 : 0;
-      return ch && n ? `Walkthrough · ${ch.title} · step ${n}` : 'Walkthrough step';
+      return ch && n ? `Guided walkthrough · ${ch.title} · slide ${n}` : 'Guided walkthrough slide';
     }
     return refLabel(r, this.docTitle);
   }

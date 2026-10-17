@@ -109,7 +109,7 @@ export const problems = (results: LinkResult[]) => results.filter((x) => x.statu
 
 /** One line per problem, for the agent. */
 export const report = (bad: LinkResult[]) =>
-  bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}${x.where ? `  [walkthrough ${x.where.join(', ')}]` : ''}`).join('\n');
+  bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}${x.where ? `  [guided walkthrough ${x.where.join(', ')}]` : ''}`).join('\n');
 
 /** Rewrite moved links in one pass (so #L4->#L7 and #L7->#L10 can't chain) and move their fingerprints along. */
 export function applyFixes(html: string, results: LinkResult[], links: Links) {

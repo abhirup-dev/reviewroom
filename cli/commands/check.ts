@@ -60,7 +60,7 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
   else {
     if (bad.length) console.log(`${bad.length} of ${results.length} links need attention:\n${report(bad)}`);
     else console.log(`${results.length} links ok${tour ? ' (review.html and walkthrough.json)' : ''}${healed ? ' (moved links fixed)' : ''}`);
-    if (tour && notes.length) console.log(`\nwalkthrough.json (\`reviewroom walkthrough lint\` also measures each step on screen):\n${findingReport(notes, tour)}`);
+    if (tour && notes.length) console.log(`\nthe guided walkthrough, walkthrough.json (\`reviewroom walkthrough lint\` also measures each slide on screen):\n${findingReport(notes, tour)}`);
   }
   if (bad.length) process.exitCode = 1;
 }

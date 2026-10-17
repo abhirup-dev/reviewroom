@@ -34,7 +34,7 @@ The agent's freeform explanation of the diff, written for the reviewer to read a
 _Avoid_: narrative, review, review page, review.html
 
 **Guided walkthrough**:
-An optional tour of the diff played over the workbench: chapters of slides, narration beside the code each slide
+The optional main story of the diff, played over the workbench: chapters of slides, narration beside the code each slide
 shows. The reviewer sees it first; the walkthrough is where they dig in. Its file and commands keep the short name
 (`walkthrough.json`, `reviewroom walkthrough …`), and its links are `rr:tour/<chapter>/<step>`.
 _Avoid_: walkthrough (bare), tour, slideshow, presentation

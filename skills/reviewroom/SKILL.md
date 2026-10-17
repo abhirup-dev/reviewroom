@@ -60,8 +60,8 @@ storage / proto / config changes, failure paths and what the tests cover. Read t
 when `gh` is available.
 
 **Decide on a guided walkthrough now.** A guided walkthrough (`walkthrough.json` next to
-`review.html`) is a tour of the diff played over the workbench: chapters of slides, narration on the
-left, the step's code on the right. When there is one, the reviewer opens it first, so it tells the
+`review.html`) is the main story of the diff played over the workbench: chapters of slides, narration on
+the left, the slide's code on the right. When there is one, the reviewer opens it first, so it tells the
 main story; the walkthrough (`review.html`) is where they dig in.
 
 - Write one when the reviewer asked for a guided walkthrough, guided review or tour.
@@ -85,7 +85,7 @@ Read "Guided walkthrough" in `references/authoring.md`, write `walkthrough.json`
 `lint` is clean:
 
 ```bash
-reviewroom check --dir <dir>                              # schema, links, what the tour leaves out, pacing
+reviewroom check --dir <dir>                              # schema, links, what the slides leave out, pacing
 reviewroom walkthrough lint --dir <dir>                   # every slide measured on screen; exit 1 while warnings remain
 reviewroom walkthrough shot <chapter>/<step> --dir <dir>  # look at a slide a finding names (prints a PNG path)
 ```

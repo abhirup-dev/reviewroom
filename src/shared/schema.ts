@@ -23,7 +23,7 @@ export const Anchor = z.discriminatedUnion('kind', [
   CodeAnchor,
   z.object({ kind: z.literal('symbol'), name: z.string() }),
   z.object({ kind: z.literal('general') }),
-  z.object({ kind: z.literal('tour'), chapter: z.string(), step: z.string() }).describe('A step of walkthrough.json (chapter and step ids)'),
+  z.object({ kind: z.literal('tour'), chapter: z.string(), step: z.string() }).describe('A slide of the guided walkthrough, walkthrough.json (chapter and step ids)'),
 ]);
 
 export const Author = z.enum(['you', 'agent']);

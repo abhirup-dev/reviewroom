@@ -78,13 +78,13 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   try {
     pick = pickBlock(await fetchPr(repo, t, null));
   } catch (e) {
-    return console.error(`reviewroom: could not look for a walkthrough on the PR: ${(e as Error).message}`);
+    return console.error(`reviewroom: could not look for a guided walkthrough on the PR: ${(e as Error).message}`);
   }
   if (!pick) return;
   const r = parseWalkthrough(pick.text);
-  if (!r.ok) return console.error(`reviewroom: the walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
+  if (!r.ok) return console.error(`reviewroom: the guided walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
-  console.error(`reviewroom: walkthrough from ${pick.from}`);
+  console.error(`reviewroom: guided walkthrough from ${pick.from}`);
 }
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {

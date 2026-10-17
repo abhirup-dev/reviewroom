@@ -45,17 +45,18 @@ Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`
 `review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
 `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
 
-## Walkthroughs
+## Guided walkthroughs
 
-An agent can also write `walkthrough.json`: a chaptered tour the reviewer plays over the workbench,
-narration on the left, the step's code (one chunk or several, across files) on the right, ← → to step,
-pause to a pill to dig around, and **Comment** on a step to start a thread anchored to it. It tells
-the main story; the narrative is where the reviewer digs in, and a slide that draws questions gets a
-narrative section of its own with the slide embedded (`<rr-embed ref="rr:tour/…">`).
-`reviewroom walkthrough lint` plays every step in a headless browser (Chrome, or Safari's engine on
-macOS) and reports what does not fit the screen; `reviewroom walkthrough shot` renders one step. A PR
+An agent can also write a guided walkthrough, `walkthrough.json`: chapters of slides the reviewer plays
+over the workbench, narration on the left, the slide's code (one chunk or several, across files) on the
+right, ← → between slides, pause to a pill to dig around, and **Comment** on a slide to start a thread
+anchored to it. It tells the main story; the walkthrough (`review.html`) is where the reviewer digs in,
+and a slide that draws questions gets a walkthrough section of its own with the slide embedded
+(`<rr-embed ref="rr:tour/…">`).
+`reviewroom walkthrough lint` plays every slide in a headless browser (Chrome, or Safari's engine on
+macOS) and reports what does not fit the screen; `reviewroom walkthrough shot` renders one slide. A PR
 author can ship one with the PR (`reviewroom walkthrough publish`); `reviewroom pr <n>` pulls it. The
-demo (`bun run demo`, then **Walkthrough** in the header) has one.
+demo (`bun run demo`, then **Guided walkthrough** in the header) has one.
 
 ## GitHub threads and team reviews
 

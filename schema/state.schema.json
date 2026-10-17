@@ -198,7 +198,7 @@
                   "chapter",
                   "step"
                 ],
-                "description": "A step of walkthrough.json (chapter and step ids)"
+                "description": "A slide of the guided walkthrough, walkthrough.json (chapter and step ids)"
               }
             ]
           },

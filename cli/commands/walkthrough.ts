@@ -71,10 +71,10 @@ async function lint(repo: string | null, dir: string, o: WalkthroughOpts) {
   const steps = tour.chapters.reduce((n, ch) => n + ch.steps.length, 0);
   if (o.json) console.log(JSON.stringify({ engine, viewports: viewports.map(vpName), links: c.bad, findings }, null, 2));
   else {
-    console.log(`${steps} steps measured at ${viewports.map(vpName).join(', ')} (${engine})`);
+    console.log(`${steps} slides measured at ${viewports.map(vpName).join(', ')} (${engine})`);
     if (c.bad.length) console.log(`\n${c.bad.length} link(s) need attention:\n${report(c.bad)}`);
-    console.log(findings.length ? `\n${findingReport(findings, tour)}` : '\nno findings: every step fits.');
-    if (findings.some((f) => f.level === 'warn')) console.log('\nSee a step with `reviewroom walkthrough shot <chapter>/<step>`.');
+    console.log(findings.length ? `\n${findingReport(findings, tour)}` : '\nno findings: every slide fits.');
+    if (findings.some((f) => f.level === 'warn')) console.log('\nSee a slide with `reviewroom walkthrough shot <chapter>/<step>`.');
   }
   if (c.bad.length || findings.some((f) => f.level === 'warn')) process.exitCode = 1;
 }

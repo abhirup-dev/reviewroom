@@ -21,7 +21,7 @@ export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | unde
     case 'round':
       return 'Round ' + r.n;
     case 'tour':
-      return 'Walkthrough step'; // ReviewApp.label names the chapter and step
+      return 'Guided walkthrough slide'; // ReviewApp.label names the chapter and step
   }
 }
 

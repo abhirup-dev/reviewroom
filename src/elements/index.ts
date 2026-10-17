@@ -197,7 +197,7 @@ async function slide(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: { 
   const w = loaded && 'version' in loaded ? loaded : null;
   const ch = w?.chapters.find((c) => c.id === r.chapter);
   const i = ch?.steps.findIndex((s) => s.id === r.step) ?? -1;
-  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This walkthrough step no longer exists');
+  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This guided walkthrough slide no longer exists');
   const step = ch.steps[i];
   const text = h('div', { class: 'rr-prose rr-slide__text' });
   text.innerHTML = sanitizeProse(step.text); // a walkthrough can come from a PR
@@ -205,7 +205,7 @@ async function slide(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: { 
   const code = opts.compact
     ? refs.length ? [h('div', { class: 'rr-slide__refs' }, ...refs.map((x) => h('span', { class: 'rr-slide__ref' }, refIcon(parseRef(x)!), app.label(x))))] : []
     : await Promise.all(refs.map((x) => renderPreview(app, x, { compact: true })));
-  const title = 'Play the walkthrough from this step';
+  const title = 'Play the guided walkthrough from this slide';
   const play = h('button', {
     class: 'rr-icon-btn',
     title,
@@ -217,7 +217,7 @@ async function slide(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: { 
     },
   }, icon('play', 14));
   // the play button sits on top: an embed shows a preview's first lines only
-  return h('div', { class: 'rr-slide' }, h('div', { class: 'rr-slide__where' }, h('span', null, `${ch.title} · step ${i + 1} of ${ch.steps.length}`), play), text, ...code);
+  return h('div', { class: 'rr-slide' }, h('div', { class: 'rr-slide__where' }, h('span', null, `${ch.title} · slide ${i + 1} of ${ch.steps.length}`), play), text, ...code);
 }
 
 class RREmbed extends HTMLElement {

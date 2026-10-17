@@ -135,7 +135,7 @@ Interactive widgets can drive the reviewer straight into the code:
 
 ## Guided walkthrough: `walkthrough.json`
 
-An optional guided tour of the diff, played over the workbench: chapters of slides (`steps`), narration
+The optional guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
 on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
 review directory and is validated against `schema/walkthrough.schema.json`. The demo has a full
 one: `examples/habit-events/walkthrough.json`.
@@ -163,7 +163,7 @@ one: `examples/habit-events/walkthrough.json`.
 |---|---|
 | chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
 | `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-flow>` |
-| step `text` | HTML for this step; it changes as the reviewer steps, the lead does not |
+| step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
 | no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |
 
@@ -172,8 +172,8 @@ link in the text shows that code in the pane without leaving the slide. Scripts 
 stripped (a guided walkthrough can come from a PR). Aim for one concept per chapter and 2 to 5 slides each.
 The commands and the file keep the short name: `reviewroom walkthrough …`, `walkthrough.json`.
 
-- `reviewroom check` validates the file first, then every link in it, then whether it works as a tour
-  (changed files no slide shows, chapter sizes, empty panes); problems name the chapter/step.
+- `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
+  (changed files no slide shows, chapter sizes, empty panes); problems name the slide (chapter/step).
 - `reviewroom walkthrough lint` plays every slide in a headless browser and reports what does not fit:
   narration that needs scrolling, highlighted lines off screen, stacked chunks too short, content wider
   than its box, prose the sanitizer strips, page errors. Each finding says how to fix it.

@@ -29,9 +29,9 @@ export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => {
       return `symbol ${a.name}`;
     case 'tour': {
       const [c, s] = tourPosition(a, walkthrough);
-      if (s < 0) return `walkthrough step ${a.chapter}/${a.step}${walkthrough ? ' (step no longer in the walkthrough)' : ''}`;
+      if (s < 0) return `guided walkthrough slide ${a.chapter}/${a.step}${walkthrough ? ' (no longer in the guided walkthrough)' : ''}`;
       const ch = walkthrough!.chapters[c];
-      return `walkthrough "${ch.title}" step ${s + 1}/${ch.steps.length}: "${plain(ch.steps[s].text)}"`;
+      return `guided walkthrough "${ch.title}" slide ${s + 1}/${ch.steps.length}: "${plain(ch.steps[s].text)}"`;
     }
     default:
       return 'general';

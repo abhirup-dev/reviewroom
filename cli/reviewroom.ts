@@ -43,7 +43,7 @@ cli
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Remote to fetch from', { default: 'origin' })
-  .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s)')
+  .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s guided walkthrough)')
   .option('--detach', 'Serve in the background, print the URL and return')
   .option('--wait', 'Then block like `review` until the round ends')
   .option('--port <n>', 'Port (default: 4848)')
@@ -88,7 +88,7 @@ cli
   .action(run(cmdCheck));
 
 cli
-  .command('walkthrough <action> [step]', 'lint: measure every step on screen; shot <chapter>/<step>: a screenshot; publish: post it to the PR')
+  .command('walkthrough <action> [step]', 'The guided walkthrough (walkthrough.json). lint: measure every slide on screen; shot <chapter>/<step>: a screenshot of one slide; publish: post it to the PR')
   .option('--viewport <WxH,...>', 'lint: viewports to measure at (default 1280x800,1440x900); shot: one (default 1280x800)')
   .option('--theme <light|dark>', 'shot: the theme (default light)')
   .option('--out <file>', 'shot: where to write the PNG (default: a temp file, printed)')
@@ -106,17 +106,17 @@ cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
   walkthrough: [
-    '  lint runs `check` (schema, links, what the tour leaves out, its pacing), then plays every step in a headless',
+    '  lint runs `check` (schema, links, what the guided walkthrough leaves out, its pacing), then plays every slide in a headless',
     '  browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) on the review as built now, and reports',
     '  what the reviewer would hit: narration that needs scrolling, highlighted lines off screen, stacked chunks too',
     '  short to read, content wider than its box, prose the sanitizer strips, page errors. Each finding names the',
-    '  chapter/step and how to fix it; exit 1 while any warning is left. Nothing is written.',
-    '  shot renders one step (after it settles) and prints the PNG\'s path, then that step\'s findings.',
+    '  slide (chapter/step) and how to fix it; exit 1 while any warning is left. Nothing is written.',
+    '  shot renders one slide (after it settles) and prints the PNG\'s path, then that slide\'s findings.',
     '  publish runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
   ].join('\n'),
-  pr: '  A PR that carries a walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `walkthrough publish`) gets it as walkthrough.json when the review has none. Newest wins.',
+  pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `walkthrough publish`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   check: [
@@ -125,10 +125,10 @@ const notes: Record<string, string> = {
     '    changed   code at those lines changed, or moved further, or a symbol lost its definition',
     '              -> re-read the code; fix the link and the prose around it (or --accept if both still hold)',
     '    broken    the file, symbol or section (rr:doc/<id>) is gone -> fix or remove the link',
-    '  walkthrough.json, when present, must match schema/walkthrough.schema.json (checked first); its step refs and',
-    '  the links in its prose are checked like the narrative\'s, and problems name the chapter/step they are in.',
-    '  Then whether it works as a tour (notes, exit code unaffected): changed files no step shows, chapters of one',
-    '  step or more than 6, a step whose code pane is empty, and estimates of steps too long to fit (over 120 words,',
+    '  walkthrough.json, when present, must match schema/walkthrough.schema.json (checked first); its slide refs and',
+    '  the links in its prose are checked like the walkthrough\'s, and problems name the slide (chapter/step) they are in.',
+    '  Then whether it works as a guided walkthrough (notes, exit code unaffected): changed files no slide shows,',
+    '  chapters of one slide or more than 6, a slide whose code pane is empty, and estimates of slides too long to fit (over 120 words,',
     '  over 60 highlighted lines). Each note says how to fix it.',
     '  The server also checks on start and on every save of review.html or walkthrough.json. Links in HTML comments are ignored.',
   ].join('\n'),
@@ -152,11 +152,11 @@ cli.help((sections) => {
       ].join('\n'),
     },
     {
-      title: 'A walkthrough (when wanted)',
+      title: 'A guided walkthrough (when wanted)',
       body: [
-        '  walkthrough.json next to review.html: a guided tour of the change, played over the workbench',
-        '  reviewroom walkthrough lint       check it, then measure every step on screen; repeat until clean',
-        '  reviewroom walkthrough shot <chapter>/<step>   one step as a PNG, to look at what a finding names',
+        '  walkthrough.json next to review.html: the main story of the diff as slides, played over the workbench',
+        '  reviewroom walkthrough lint       check it, then measure every slide on screen; repeat until clean',
+        '  reviewroom walkthrough shot <chapter>/<step>   one slide as a PNG, to look at what a finding names',
         '  reviewroom walkthrough publish    post it to the PR, where `reviewroom pr <n>` picks it up',
       ].join('\n'),
     },

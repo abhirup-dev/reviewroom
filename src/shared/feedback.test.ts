@@ -22,7 +22,7 @@ test('tour threads come last, in tour order, with their slide; a removed step is
   const anchors = md.split('\n').filter((l) => l.startsWith('Anchor: '));
   expect(anchors).toEqual([
     'Anchor: general',
-    'Anchor: walkthrough step why/old (step no longer in the walkthrough)  (rr:tour/why/old)',
-    'Anchor: walkthrough "Why this change" step 2/2: "The fetcher & its deadline."  (rr:tour/why/s2)',
+    'Anchor: guided walkthrough slide why/old (no longer in the guided walkthrough)  (rr:tour/why/old)',
+    'Anchor: guided walkthrough "Why this change" slide 2/2: "The fetcher & its deadline."  (rr:tour/why/s2)',
   ]);
 });
