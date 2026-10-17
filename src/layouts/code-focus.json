@@ -1,0 +1,11 @@
+{
+  "title": "Code focus",
+  "hint": "Code centre, narrative as a side column",
+  "root": {
+    "row": [
+      { "size": 264, "tabs": ["files", "toc"], "active": "files" },
+      { "tabs": ["code"] },
+      { "size": 0.3, "column": [{ "size": 0.4, "tabs": ["description"] }, { "tabs": ["narrative"] }, { "tabs": ["threads", "ci"] }] }
+    ]
+  }
+}

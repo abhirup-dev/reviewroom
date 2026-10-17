@@ -296,5 +296,5 @@
     "threads"
   ],
   "$id": "reviewroom/state.schema.json",
-  "title": "reviewroom review state (.reviewroom/<branch>/state.json)"
+  "title": "reviewroom review state (~/.reviewroom/reviews/<owner>-<repo>/<branch>/state.json)"
 }

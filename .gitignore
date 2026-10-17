@@ -8,6 +8,7 @@ dist/
 docs/plans/
 examples/*/server.json
 examples/*/state.lock
+examples/*/layout.json
 examples/*/.state.json.*.tmp
 examples/*/state.json.corrupt-*
 

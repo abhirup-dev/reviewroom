@@ -2,15 +2,17 @@
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
-// The review dir defaults to <repo>/.reviewroom/<branch>/ (`pr <n>` uses pr-<n>/) and holds:
+// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch) and holds:
 //   review.html            the narrative (written by the agent, any HTML)
 //   state.json             threads, rounds, viewed files, sign-offs
-//   config.json            repo/base/head/title
+//   config.json            repoPath/base/head/title
+//   layout.json            the panel layout as the reviewer left it (written by the browser)
 //   rounds/<n>/            snapshot of review.html + feedback.md for every finished round
 import path from 'node:path';
 import { cac } from 'cac';
 import { die } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
+import { readConfig } from './lib/config.ts';
 import { cmdPr, type PrOpts } from './commands/pr.ts';
 import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
@@ -21,7 +23,7 @@ import { ReviewroomError } from '../src/shared/ops.ts';
 const cli = cac('reviewroom');
 cli
   .option('--repo <path>', 'Git repo to review (default: the repo of the cwd)')
-  .option('--dir <path>', 'Review dir (default: <repo>/.reviewroom/<branch>; `status --json` prints it)');
+  .option('--dir <path>', 'Review dir (default: ~/.reviewroom/reviews/<owner>-<repo>/<branch>; `status --json` prints it)');
 
 // cac's options, except that text stays text (cac turns "42" into 42) and a repeated flag keeps its last value
 const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => async (...args: unknown[]) => {
@@ -32,12 +34,14 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
     o[k] = typeof last === 'number' ? String(last) : last;
   }
   const pos = args.filter((a) => a !== undefined) as string[];
-  await fn(repoRoot(typeof o.repo === 'string' ? path.resolve(o.repo) : process.cwd()), o as O, pos);
+  // the repo: --repo, else the one a --dir review was made from (none if it is gone: never the cwd's instead), else the cwd's
+  const made = typeof o.dir === 'string' ? readConfig(path.resolve(o.dir)).repoPath : undefined;
+  await fn(typeof o.repo === 'string' ? repoRoot(path.resolve(o.repo)) : repoRoot(made || process.cwd()), o as O, pos);
 };
 
 cli
   .command('pr [target]', 'Create the review (fetching a PR if given one) and serve it')
-  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): .reviewroom/pr-<n> for a PR, .reviewroom/<branch> otherwise.')
+  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): ~/.reviewroom/reviews/<owner>-<repo>/<branch> (for a PR, its head branch).')
   .option('--base <ref>', 'Base to diff against (default: the PR base, else the default branch)')
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
@@ -123,9 +127,10 @@ cli.help((sections) => {
     {
       title: 'The review dir',
       body: [
-        '  <repo>/.reviewroom/<name>/, excluded from git. review.html and any assets next to it are yours;',
-        '  everything else (state.json, config.json, rounds/) belongs to reviewroom: read and change it',
-        '  through these commands only.',
+        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (REVIEWROOM_HOME moves ~/.reviewroom), outside',
+        '  the repo. review.html and any assets next to it are yours; everything else (state.json,',
+        '  config.json, layout.json, rounds/) belongs to reviewroom: read and change it through these',
+        '  commands only.',
       ].join('\n'),
     },
   ];

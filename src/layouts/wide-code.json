@@ -1,0 +1,10 @@
+{
+  "title": "Wide code",
+  "hint": "Code below, full width; description beside the narrative",
+  "root": {
+    "row": [
+      { "size": 264, "column": [{ "tabs": ["toc"] }, { "tabs": ["files", "threads", "ci"], "active": "files" }] },
+      { "column": [{ "row": [{ "size": 0.33, "tabs": ["description"] }, { "tabs": ["narrative"] }] }, { "size": 0.52, "tabs": ["code"] }] }
+    ]
+  }
+}

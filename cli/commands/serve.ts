@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
-import { ensureExcluded } from '../lib/git.ts';
 import { resolveDir, loadConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { takeLock, releaseLock } from '../lib/lock.ts';
@@ -36,7 +35,6 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const prev = await stopServer(dir);
   const portFlag = o.port || (prev ? String(prev.port) : undefined);
   fs.mkdirSync(dir, { recursive: true });
-  if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
   if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
