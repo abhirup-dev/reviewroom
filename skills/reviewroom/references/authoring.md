@@ -1,6 +1,6 @@
-# Authoring reference: the review page
+# Authoring reference: the walkthrough
 
-The building blocks of `review.html`. For what to write and in what order see `review-craft.md`.
+The building blocks of the walkthrough, `review.html`. For what to write and in what order see `review-craft.md`.
 
 ## The file
 
@@ -24,7 +24,7 @@ extra assets (images, js, css) next to `review.html` and reference them relative
 |---|---|
 | `<section id="request-path"><h2>Request path</h2>…</section>` | Contents entry, scroll-spy, `rr:doc/request-path` links, section-level comments |
 | `<section … data-round="2">` | "new in R2" marker (use the round you are writing for) |
-| `data-baseline` on any block | "what already exists" context, set apart visually from the change |
+| `data-baseline` on any block | "what already exists" context, set apart visually from the diff |
 | `id` or `data-rr-block` on any element | A stable, linkable block (the reviewer can comment on anything anyway) |
 | `<p class="rr-lede">` | Larger summary paragraph |
 
@@ -39,16 +39,16 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:code/pkg/x.go` | The file in the diff; its preview shows the changed hunks |
 | `rr:file/pkg/y.go@head#L10` | A file **outside** the diff, full view (any rev: `@base`, `@<sha>`) |
 | `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
-| `rr:doc/request-path` | A section or element id in the narrative |
+| `rr:doc/request-path` | A section or element id in the walkthrough |
 | `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
-| `rr:thread/t_ab12cd` | A comment thread (`gh_<n>`: a GitHub thread on the PR) |
-| `rr:round/2` | The narrative as it was at the end of round 2 |
+| `rr:thread/t_ab12cd` | An agent thread (`gh_<n>`: a team thread on the PR) |
+| `rr:round/2` | The walkthrough as it was at the end of round 2 |
 
 Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
 `reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
 Hovering any link shows a live preview of its target; clicking it opens the target in the code or
-narrative panel. Give every link a human label; never show the raw `rr:` string. Link a thing
+walkthrough panel. Give every link a human label; never show the raw `rr:` string. Link a thing
 where it first comes up, not on every mention: within the next few paragraphs, plain text is fine.
 
 ## Symbols
@@ -75,19 +75,19 @@ Never paste diff code into the page; it goes stale and duplicates the code panel
 In thread replies, `![](rr:code/…#L10-20)` or `![](rr:doc/<id>)` on its own line embeds the same
 live preview.
 
-## Comments and earlier rounds
+## Threads and earlier rounds
 
-Never paraphrase or quote a comment; point at it. The same forms work for reviewer threads from any
-round (`rr:thread/t_…`) and GitHub comments on the PR (`rr:thread/gh_<n>`, `gh_conversation`):
+Never paraphrase or quote a thread; point at it. The same forms work for agent threads from any
+round (`rr:thread/t_…`) and team threads on the PR (`rr:thread/gh_<n>`, `gh_conversation`):
 
 ```html
 <a href="rr:thread/t_seq01">your question on sequencing</a>          <!-- inline mention: link, hover = preview -->
-<rr-embed ref="rr:thread/gh_812"></rr-embed>                         <!-- the comment itself matters: card -->
-<a href="rr:round/1">the round 1 version of this section</a>         <!-- what the narrative said before -->
+<rr-embed ref="rr:thread/gh_812"></rr-embed>                         <!-- the thread itself matters: card -->
+<a href="rr:round/1">the round 1 version of this section</a>         <!-- what the walkthrough said before -->
 ```
 
 In a reply: `[your question on sequencing](rr:thread/t_seq01)` inline, or `![](rr:thread/gh_812)` on
-its own line for the card. Link when the comment is context; embed when the reader needs its words
+its own line for the card. Link when the thread is context; embed when the reader needs its words
 next to your answer. A link covers the whole thread, not a single message.
 
 ## Diagrams and other helpers
@@ -99,7 +99,7 @@ next to your answer. A link covers the whole thread, not a single message.
   <rr-node state="changed">RankerRequest</rr-node>                                     <!-- new changed removed baseline -->
 </rr-flow>
 <rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
-<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- reviewer sign-off -->
+<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- open question -->
 <rr-markdown>## Markdown blocks work too</rr-markdown>
 ```
 
