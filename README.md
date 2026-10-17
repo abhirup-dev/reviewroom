@@ -45,6 +45,14 @@ Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`
 `review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
 `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
 
+## Walkthroughs
+
+An agent can also write `walkthrough.json`: a chaptered tour the reviewer plays over the workbench,
+narration on the left, the step's code (one chunk or several, across files) on the right, ← → to step,
+pause to a pill to dig around, and **Comment** on a step to start a thread anchored to it. A PR author
+can ship one with the PR (`reviewroom walkthrough publish`); `reviewroom pr <n>` pulls it. The demo
+(`bun run demo`, then **Walkthrough** in the header) has one.
+
 ## GitHub threads and team reviews
 
 For a PR reviewed with `reviewroom pr <n>` (and `gh` logged in), the PR's own comment threads show

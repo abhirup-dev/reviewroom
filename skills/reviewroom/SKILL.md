@@ -67,6 +67,11 @@ Before writing, read:
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
 
+When the change has a path to follow or touches more than a few files, also write `walkthrough.json`
+(see "Walkthrough" in `references/authoring.md`): a few chapters, one concept each, whose steps move
+through the code in the order a reader should see it. Skip it for small PRs. Run `reviewroom check --dir
+<dir>` until it is clean, and look at a step or two at `<url>/?walkthrough=<chapter>/<step>`.
+
 Tell the user: **"The narrative is ready. Leave comments, then click Send feedback (or Approve)."**
 
 ## Step 5: Wait for the reviewer

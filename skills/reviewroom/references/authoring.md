@@ -121,6 +121,7 @@ Interactive widgets can drive the reviewer straight into the code:
 | API | |
 |---|---|
 | `rr.open(ref)` | Navigate to any `rr:` ref |
+| `rr.walkthrough(chapter?, step?)` | Play the walkthrough (ids; none: from the start) |
 | `rr.findSymbol(name)` | Jump to a definition |
 | `rr.read(path, 'head' \| 'base' \| sha)` | File contents (string) |
 | `rr.files()` / `rr.search(q, symbol?)` | Changed files / repo search hits |
@@ -130,6 +131,50 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
 | `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus')` | Switch layout |
 | `rr.theme()` | `'light'` or `'dark'` |
+
+## Walkthrough: `walkthrough.json`
+
+An optional guided tour of the change, played over the workbench: narration on the left, the step's
+code on the right, chapters and steps the reviewer moves through with ← →. It sits next to `review.html`
+in the review directory and is validated against `schema/walkthrough.schema.json`. The demo has a full
+one: `examples/habit-events/walkthrough.json`.
+
+```json
+{
+  "version": 1,
+  "title": "Attach recent HABIT events to the ranker request",
+  "chapters": [
+    {
+      "id": "why",
+      "title": "Why this change",
+      "lead": "<p class=\"rr-lede\">…</p><rr-flow>…</rr-flow>",
+      "steps": [
+        { "id": "s1", "text": "<p>Before this PR, <a href=\"rr:sym/Build\">Builder.Build</a> …</p>", "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39" },
+        { "id": "s2", "text": "<p>A TFS error comes back wrapped (top); the builder degrades (below).</p>", "ref": ["rr:code/pkg/features/habit/fetcher.go#L23-26", "rr:code/pkg/ranker/request_builder.go#L50-54"] },
+        { "id": "s3", "text": "<p>That is the whole path.</p>" }
+      ]
+    }
+  ]
+}
+```
+
+| Field | |
+|---|---|
+| chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
+| `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-flow>` |
+| step `text` | HTML for this step; it changes as the reviewer steps, the lead does not |
+| step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
+| no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |
+
+Prose is narrative HTML with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code link in the
+text shows that code in the pane without leaving the step. Scripts and event handlers are stripped
+(a walkthrough can come from a PR). Aim for one concept per chapter and 2 to 5 steps each.
+
+- `reviewroom check` validates the file first, then every link in it; problems name the chapter/step.
+- `/?walkthrough=<chapter>/<step>` opens the page at a step: screenshot it to see what the reviewer sees.
+- `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a step.
+- `reviewroom walkthrough publish` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
+  comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 
 ## Typography and colour
 
