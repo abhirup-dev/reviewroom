@@ -4,7 +4,7 @@ import { h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/d
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
-import { applyPreset, canUndoLayout, closePanel, ensurePanel, hasPanel, panelDefs, presets, resetLayout, saveDefaultLayout, undoLayout } from './layout';
+import { applyLayout, canUndoLayout, closePanel, deleteLayout, ensurePanel, hasPanel, layouts, panelDefs, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 import type { GitHubAction } from '../shared/schema';
 
@@ -97,6 +97,19 @@ export function sendDialog(app: ReviewApp) {
       [h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(go('approve')) }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: act(go('feedback')) }, icon('send', 12), 'Send feedback')],
     ],
   );
+}
+
+// ---------------------------------------------------------------- save a named layout
+/** Name the panels as they are now; as the default, the name starts as “Default” (taken: pick another). */
+export function saveLayoutDialog(app: ReviewApp, asDefault = false) {
+  const name = h('input', { class: 'rr-composer__input', placeholder: 'Layout name', 'aria-label': 'Layout name', value: asDefault ? 'Default' : '', onkeydown: (e: KeyboardEvent) => e.key === 'Enter' && save.click() });
+  const save = h('button', { class: 'rr-btn rr-btn--primary', title: 'Save the panels as they are now' }, 'Save');
+  const what = asDefault ? 'The panels as they are now, for reviews without a layout of their own to open with.' : 'The panels as they are now, to pick from the layout menu in any review.';
+  noteDialog('Save layout', asDefault ? 'Save layout as default' : 'Save layout as', name, (act, close) => {
+    save.onclick = act(() => saveLayout(app, name.value.trim(), asDefault));
+    return [[h('p', { class: 'rr-muted' }, what + ' Names already in use are refused.'), name], [h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), save]];
+  });
+  name.select();
 }
 
 // ---------------------------------------------------------------- submit GitHub review
@@ -195,20 +208,25 @@ export function buildHeader(app: ReviewApp): HTMLElement {
             ),
           ),
       ]);
-    const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layout presets and which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
-    layoutBtn.onclick = () =>
+    const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layouts: pick, save or reset one, and choose which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
+    const mine = () => Object.keys(app.layouts);
+    layoutBtn.onclick = () => {
+      const def = app.defaultLayout ? layouts(app)[app.defaultLayout] : undefined;
       popMenu(layoutBtn, (close) => [
         canUndoLayout() ? menuItem('Undo layout change', () => (close(), undoLayout(app)), { icon: 'undo', hint: 'back to how it was' }) : null,
-        menuItem('Reset layout', () => (close(), resetLayout(app)), { icon: 'round', hint: app.defaultLayout ? 'back to your default' : 'every panel back in place' }),
-        app.backend.saveDefaultLayout ? menuItem('Save layout as default', () => (close(), saveDefaultLayout(app)), { icon: 'pin', hint: 'new reviews open like this' }) : null,
-        app.defaultLayout ? menuItem('Forget default layout', () => (close(), saveDefaultLayout(app, true)), { icon: 'close', hint: 'back to the presets' }) : null,
-        menuLabel('Layout presets'),
-        ...presets.map((p, i) => menuItem(p.title, () => (close(), applyPreset(app, p.id)), { hint: keyLabel(`alt+${i + 1}`) })),
+        menuItem('Reset layout', () => (close(), resetLayout(app)), { icon: 'round', hint: def ? `back to “${def.title}”` : 'every panel back in place' }),
+        menuItem('Save layout as default…', () => (close(), saveLayoutDialog(app, true)), { icon: 'pin', hint: 'new reviews open like this' }),
+        def ? menuItem('Forget default layout', () => (close(), void setDefaultLayout(app, null)), { icon: 'close', hint: `“${def.title}” stays saved` }) : null,
+        menuItem('Save layout as…', () => (close(), saveLayoutDialog(app)), { hint: 'pick it here in any review' }),
+        mine().length ? menuItem('Delete a saved layout…', () => (close(), popMenu(layoutBtn, (done) => mine().map((id) => menuItem(app.layouts[id].title, () => (done(), void deleteLayout(app, id)), { icon: 'close' }))))) : null,
+        menuLabel('Layouts'),
+        ...Object.entries(layouts(app)).map(([id, l], i) => menuItem(l.title, () => (close(), applyLayout(app, id)), { checked: id === app.defaultLayout, hint: [id === app.defaultLayout ? 'default' : '', i < 9 ? keyLabel(`alt+${i + 1}`) : ''].filter(Boolean).join(' · ') || undefined })),
         menuLabel('Panels'),
         ...panelDefs()
           .filter((d) => !d.onDemand)
           .map((d) => menuItem(d.title, () => (close(), hasPanel(app, d.id) ? closePanel(app, d.id) : ensurePanel(app, d.id)), { checked: hasPanel(app, d.id) })),
       ]);
+    };
     bar.replaceChildren(
       h(
         'div',

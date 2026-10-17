@@ -9,8 +9,9 @@ import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, writeState } from './state.ts';
-import { DIST, PKG, hubLog, layoutFile } from './paths.ts';
+import { DIST, PKG, hubLog, defaultLayoutFile, layoutsDir } from './paths.ts';
 import { ensureHub } from './registry.ts';
+import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
@@ -195,12 +196,59 @@ export function startServer({ repo, dir, cfg, onFinish }: ServerOpts) {
     const url = await ensureHub();
     return url ? c.redirect(url) : json(c, { error: `the hub did not start; see ${hubLog()}` }, 500);
   });
-  app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
-  app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
-  // a dockview layout, kept whole (loose: unknown keys stay)
-  app.put('/api/layout', body(z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) })), (c) => {
-    fs.mkdirSync(path.dirname(layoutFile()), { recursive: true });
-    fs.writeFileSync(layoutFile(), JSON.stringify(c.req.valid('json')));
+  // this review's dock as the reviewer left it (dockview JSON, kept whole) and the PR panels already offered
+  const lastLayout = path.join(dir, 'layout.json');
+  app.get('/api/layout', (c) => json(c, fs.existsSync(lastLayout) ? JSON.parse(fs.readFileSync(lastLayout, 'utf8')) : null));
+  app.put('/api/layout', body(z.object({ dock: z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) }), offered: z.array(z.string()), layout: z.string().optional() })), (c) => {
+    fs.writeFileSync(lastLayout, JSON.stringify(c.req.valid('json')));
+    return json(c, { ok: true });
+  });
+  // the reviewer's layout files by name, and which one is their default; a file that no longer parses is skipped, not fatal
+  const defaultLayout = (): string | null => {
+    try {
+      return z.object({ layout: LayoutId }).parse(JSON.parse(fs.readFileSync(defaultLayoutFile(), 'utf8'))).layout;
+    } catch {
+      return null;
+    }
+  };
+  const setDefault = (id: string | null) => (id ? fs.writeFileSync(defaultLayoutFile(), JSON.stringify({ layout: id }) + '\n') : fs.rmSync(defaultLayoutFile(), { force: true }));
+  app.get('/api/layouts', (c) => {
+    const files = fs.existsSync(layoutsDir()) ? fs.readdirSync(layoutsDir()).filter((f) => f.endsWith('.json')) : [];
+    const read = (f: string) => {
+      try {
+        return Layout.parse(JSON.parse(fs.readFileSync(path.join(layoutsDir(), f), 'utf8')));
+      } catch (e) {
+        console.error(`reviewroom: skipping layout ${f}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+    const layouts = Object.fromEntries(files.flatMap((f) => {
+      const id = f.slice(0, -5);
+      const l = LayoutId.safeParse(id).success && !(id in builtinLayouts) && read(f);
+      return l ? [[id, l]] : [];
+    }));
+    return json(c, { layouts, default: defaultLayout() });
+  });
+  app.put('/api/default-layout', body(z.object({ layout: LayoutId.nullable() })), (c) => {
+    fs.mkdirSync(path.dirname(defaultLayoutFile()), { recursive: true });
+    setDefault(c.req.valid('json').layout);
+    return json(c, { ok: true });
+  });
+  const layoutId = zValidator('param', z.object({ id: LayoutId }), (r, c) => {
+    if (!r.success) return json(c, { error: 'layout names are lowercase letters, digits and dashes', code: 'bad_op' }, 400);
+  });
+  // saving never replaces a layout: a shipped one's name or one already saved is taken
+  app.put('/api/layouts/:id', layoutId, body(Layout), (c) => {
+    const { id } = c.req.valid('param');
+    const file = path.join(layoutsDir(), id + '.json');
+    if (id in builtinLayouts || fs.existsSync(file)) return json(c, { error: `a layout named ${id} already exists`, code: 'taken' }, 409);
+    fs.mkdirSync(layoutsDir(), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(c.req.valid('json'), null, 2) + '\n', { flag: 'wx' });
+    return json(c, { ok: true });
+  });
+  app.delete('/api/layouts/:id', layoutId, (c) => {
+    const { id } = c.req.valid('param');
+    fs.rmSync(path.join(layoutsDir(), id + '.json'), { force: true });
+    if (defaultLayout() === id) setDefault(null);
     return json(c, { ok: true });
   });
   app.get('/api/github', async (c) => json(c, await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
