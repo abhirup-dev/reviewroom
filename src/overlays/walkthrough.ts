@@ -3,16 +3,17 @@
 // this file renders snapshots and implements the pane's actions (resolve links, fade, mount, glide, unmount).
 // A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack. Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
-import { createActor, fromPromise } from 'xstate';
+import { createActor, fromPromise, waitFor } from 'xstate';
 import { h, icon } from '../core/dom';
-import { sanitizeProse } from '../core/markdown';
+import { proseRemoved, sanitizeProse } from '../core/markdown';
 import { parseRef, refIcon } from '../core/refs';
 import { renderPreview } from '../elements';
-import { current, deepLink, paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from '../flows/walkthrough';
+import { current, deepLink, paneMachine, target, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from '../flows/walkthrough';
 import type { ReviewApp } from '../shell/app';
 import { menuItem, popMenu } from '../shell/chrome';
 import { panelDefs, type PanelInstance } from '../shell/layout';
-import { stepRefs, type Walkthrough } from '../shared/walkthrough';
+import { stepRefs, type StepAudit, type Walkthrough } from '../shared/walkthrough';
+import { measure, settle } from './walkthrough-audit';
 
 const LINK = 'a[href^="rr:"], rr-ref, rr-node[ref]';
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
@@ -250,7 +251,7 @@ export function mountWalkthrough(app: ReviewApp) {
     if (!app.walkthrough) return app.toast('No walkthrough for this review');
     actor.send({ type: 'open', chapter, step });
   });
-  void app.backend.walkthrough?.().then(
+  const loaded = app.backend.walkthrough?.().then(
     (w) => {
       app.walkthrough = w && 'version' in w ? w : null;
       app.walkthroughIssues = w && 'issues' in w ? w.issues : null;
@@ -261,5 +262,24 @@ export function mountWalkthrough(app: ReviewApp) {
     },
     () => {},
   );
-  return actor;
+
+  /** For `reviewroom walkthrough lint`: open a step in a theme, wait until the pane shows it and its code has
+   *  landed, measure what is on screen. */
+  async function audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit> {
+    await loaded;
+    if (!ctx().doc) throw new Error(app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'no walkthrough.json');
+    if (theme) {
+      document.documentElement.dataset.theme = theme; // the host's choice: the reviewer's own pref stays as it is
+      app.applyTheme();
+    }
+    actor.send({ type: 'open', chapter, step });
+    const want = JSON.stringify(target(ctx()));
+    const shown = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context.shown;
+    // the entrance; an author's endless animation would never finish
+    await Promise.all(left.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished));
+    const settled = await settle(pane, shown?.kind === 'refs' ? shown.slots.map((s) => !!s.code?.start) : []);
+    const { chapter: ch, step: st } = current(ctx());
+    return measure({ left, lead, pane }, shown, proseRemoved((ch.lead ?? '') + st.text), settled);
+  }
+  return { actor, audit };
 }

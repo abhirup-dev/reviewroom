@@ -78,6 +78,26 @@ export const walkthroughJsonSchema = () => ({
   title: 'reviewroom walkthrough (.reviewroom/<branch>/walkthrough.json)',
 });
 
+// ------------------------------------------------------------------ measuring a step (`walkthrough lint`)
+// The page measures (src/overlays/walkthrough-audit.ts), the CLI judges (cli/lib/tour-lint.ts). Sizes in CSS px.
+
+/** One chunk of the code pane: `lines` highlighted, of which `hidden` are off screen when it lands; `visible`: lines
+ *  the chunk shows at once. No code (a preview card: a section, an unknown symbol): `code: false`. */
+export type ChunkAudit = { ref: string; code: boolean; lines: number; visible: number; hidden: number };
+export type StepAudit = {
+  /** the narration's visible and full height, and the chapter lead's height */
+  left: { visible: number; content: number; lead: number };
+  /** what the code pane shows */
+  pane: 'refs' | 'diagram' | 'empty';
+  chunks: ChunkAudit[];
+  /** content wider than its box (sideways scrolling): 'narration', 'diagram', or a tag inside the narration */
+  wide: string[];
+  /** what the sanitizer took out of the step's text and the lead */
+  stripped: string[];
+  /** false: the code had not settled when the page gave up waiting (the numbers may be off) */
+  settled: boolean;
+};
+
 // ------------------------------------------------------------------ the PR block
 // A walkthrough travels in a PR comment or description as a fenced ```reviewroom-walkthrough block
 // (`reviewroom walkthrough publish` writes it, `reviewroom pr` reads it). The HTML comment marks the comment we own.

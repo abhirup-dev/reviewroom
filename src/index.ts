@@ -142,7 +142,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountSelectionRelease(app);
   mountHoverCards(app);
   mountThreadPopup(app);
-  mountWalkthrough(app);
+  const tour = mountWalkthrough(app);
   mountDock(app, dockHost);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
@@ -198,6 +198,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     open: (ref: string) => app.open(ref),
     /** Play the walkthrough, at a chapter and step (ids) or from the start. */
     walkthrough: (chapter?: string, step?: string) => app.bus.emit('walkthrough-open', { chapter, step }),
+    /** For `reviewroom walkthrough lint`, not for review authors: measure a step on screen. */
+    auditWalkthrough: tour.audit,
     findSymbol: (name: string) => app.findSymbol(name),
     read: (path: string, rev: Rev = 'head') => app.read(path, rev === 'base' || rev === 'head' ? app.revFor(rev) : rev),
     files: () => app.files,

@@ -62,6 +62,12 @@ export function sanitizeProse(html: string): string {
   });
 }
 
+/** What `sanitizeProse` takes out of `html`: `<script>`, `onclick on <a>`, … (once each). */
+export function proseRemoved(html: string): string[] {
+  sanitizeProse(html);
+  return [...new Set(DOMPurify.removed.map((r) => ('element' in r ? `<${r.element.nodeName.toLowerCase()}>` : `${r.attribute?.name} on <${r.from.nodeName.toLowerCase()}>`)))];
+}
+
 export function plainExcerpt(src: string, n = 90): string {
   const s = src
     .replace(/<!--[\s\S]*?(-->|$)/g, '')
