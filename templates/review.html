@@ -13,22 +13,13 @@
 <rr-app>
   <script type="application/json" id="rr-meta">{}</script>
   <rr-review>
-    <!--
-      Freeform. Write the review as HTML: any markup, CSS, SVG, canvas, <script>.
-      Conventions that make the tooling light up (all optional):
-        <section id="…"><h2>…</h2> … </section>   → table of contents, scroll-spy, section links
-        data-round="2" on a section              → "new in R2" marker after a feedback round
-        data-baseline on any block                → toggleable "what already exists" context
-        <a href="rr:code/path#L10-20">            → jump links (also rr:doc/<id>, rr:sym/<name>, rr:thread/<id>)
-        <rr-ref>, <rr-embed>, <rr-code>, <rr-flow>, <rr-callout>, <rr-checklist>  → helpers: skills/reviewroom/references/authoring.md
-        window.rr (after 'reviewroom:ready')    → rr.open(), rr.findSymbol(), rr.read(), rr.comment(), …
-    -->
+    <!-- Freeform HTML. Building blocks and rr: links: skills/reviewroom/references/authoring.md -->
     <h1>{{TITLE}}</h1>
     <p class="rr-lede">One-paragraph summary of what this change does and why.</p>
 
     <section id="overview">
       <h2>What changed</h2>
-      <rr-flow>
+      <rr-flow direction="column">
         <rr-node state="baseline">Existing entry point</rr-node>
         <rr-node state="new">New piece</rr-node>
         <rr-node>Downstream</rr-node>
@@ -39,7 +30,7 @@
     </section>
 
     <section id="risks">
-      <h2>Risks &amp; sign-off</h2>
+      <h2>Open questions</h2>
       <rr-checklist>
         <rr-check id="compat">Backwards compatible</rr-check>
         <rr-check id="tests">Tests cover the new paths</rr-check>

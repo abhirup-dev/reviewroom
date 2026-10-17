@@ -160,7 +160,7 @@ class NarrativePanel implements PanelInstance {
       [...links].map(async (a) => {
         const r = parseRef(a.getAttribute('href')!);
         let target: string | string[] | undefined;
-        if (r?.type === 'sym') target = (await this.app.search(r.name, true).catch(() => [])).find((x) => x.kind === 'definition')?.text;
+        if (r?.type === 'sym') target = (await this.app.searchSymbol(r.name).catch(() => [])).find((x) => x.kind === 'definition')?.text;
         else if ((r?.type === 'code' || r?.type === 'file') && r.start)
           target = (await this.app.read(r.path, this.app.revOf(r.rev)))?.split('\n').slice(r.start - 1, Math.max(r.end ?? r.start, r.start + 8));
         const kind = target && linkedSymbol(a.textContent ?? '', target);

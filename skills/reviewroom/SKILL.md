@@ -57,7 +57,9 @@ verbatim:
 
 ## Step 3: Understand the diff
 
-Read `git diff <base>...<head> --stat`, then the files. Find the entry point, the new pieces,
+Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status --json`,
+not your checkout: every line number you link is the head sha's, so read files with
+`git show <head>:<path>`. Find the entry point, the new pieces,
 storage / proto / config changes, failure paths and what the tests cover. Read the PR description
 when `gh` is available.
 
@@ -77,6 +79,9 @@ Before writing, read:
 1. `references/review-craft.md`: what to say and in what order (with a guided walkthrough, "The guided
    walkthrough and the walkthrough" first: outline the story once, then write both from it).
 2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
+
+The walkthrough is usually read in a narrow side panel (about 400px), and later on phones: design every
+diagram, table and widget for that width, never for a wide page.
 
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
@@ -112,8 +117,8 @@ read threads early. The command exiting is how you know the reviewer has finishe
 ## Step 6: Read the feedback
 
 The command prints the round's feedback as markdown: one block per thread with new messages, each
-with its anchor (`narrative` there means the walkthrough), then the state of the walkthrough's open
-questions (under `Sign-off checklist`) and the reviewer's overall note. Its opening lines give the
+with its anchor, then the state of the walkthrough's open questions (under `Open questions`) and the
+reviewer's overall note. Its opening lines give the
 exact commands to answer and to start the next round.
 
 If its heading says `APPROVED`, tell the reviewer and stop. Leave open threads alone unless they ask.
@@ -140,7 +145,10 @@ For each thread in the feedback:
 6. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the reviewer
    explicitly asks.
 
-If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports.
+If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports. For a PR
+fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
+push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
+(`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
 
 A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
 the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a
