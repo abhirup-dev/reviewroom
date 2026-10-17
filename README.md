@@ -108,7 +108,7 @@ src/
   index.ts            boot(), window.rr API, commands
   core/               types, rr: refs, commands/keys, markdown, emitter, dom helpers
   providers/          LocalProvider + ServerState (CLI), GitHubProvider, StaticProvider, BrowserState
-  shell/              ReviewApp (shared context), dockview layout + presets, header
+  shell/              ReviewApp (shared context), dockview layout (layouts in src/layouts/), header
   panels/             narrative, code (@pierre/diffs), files/contents/threads
   overlays/           thread popup/panel + composer, palette, hover previews, toasts
   elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>

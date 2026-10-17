@@ -9,5 +9,7 @@ const homeDir = () => process.env.REVIEWROOM_HOME || path.join(os.homedir(), '.r
 export const registryDir = () => path.join(homeDir(), 'sessions');
 /** Every review on this machine: reviews/<owner>-<repo>/<branch>/ (resolveDir). */
 export const reviewsDir = () => path.join(homeDir(), 'reviews');
-/** The reviewer's named layout files (`default.json` is their default), shared by every review on this machine. */
+/** The reviewer's saved layouts (<name>.json), shared by every review on this machine. */
 export const layoutsDir = () => path.join(homeDir(), 'layouts');
+/** Which saved layout is the reviewer's default: { "layout": "<name>" }. */
+export const defaultLayoutFile = () => path.join(homeDir(), 'default-layout.json');

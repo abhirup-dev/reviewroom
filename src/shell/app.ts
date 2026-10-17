@@ -86,8 +86,9 @@ export class ReviewApp {
   meta!: ReviewMeta;
   provider!: CodeProvider;
   backend!: StateBackend;
-  /** The reviewer's layout files by name (`default` is their default), beside the built-in ones. */
+  /** The reviewer's saved layouts by id, beside the shipped ones; defaultLayout: the one reviews start from. */
   layouts: Record<string, Layout> = {};
+  defaultLayout: string | null = null;
   state: ReviewState = emptyState();
   /** The PR's GitHub threads, when the review is a GitHub PR and the server can reach it. */
   github: GitHubSnapshot | null = null;

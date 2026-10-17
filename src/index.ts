@@ -15,9 +15,9 @@ import { parseRef, formatRef } from './core/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
-import { mountDock, applyLayout, canUndoLayout, definePanel, saveDefaultLayout, ensurePanel, layoutCommand, offerGitHubPanels, pickableLayouts, resetLayout, undoLayout, type PanelDef } from './shell/layout';
+import { mountDock, applyLayout, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import type { LastLayout } from './shared/layout';
-import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
+import { buildHeader, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
@@ -122,7 +122,10 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     if (!document.title) document.title = meta.title;
     app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined);
     app.state = { ...emptyState(), ...(await app.backend.load()) };
-    [app.layouts, lastLayout] = await Promise.all([app.backend.layouts().catch(() => ({})), app.backend.lastLayout().catch(() => null)]);
+    let saved;
+    [saved, lastLayout] = await Promise.all([app.backend.layouts().catch(() => null), app.backend.lastLayout().catch(() => null)]);
+    app.layouts = saved?.layouts ?? {};
+    app.defaultLayout = saved?.default ?? null;
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
     await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
@@ -236,10 +239,10 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
-    { id: 'layout.saveDefault', title: 'Save layout as default', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveDefaultLayout(app) },
+    { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
-    ...pickableLayouts(app).map(([id]) => layoutCommand(app, id)),
+    ...Object.keys(layouts(app)).map((id) => layoutCommand(app, id)),
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },
     { id: 'theme.system', title: 'Theme: follow system', group: 'View', run: () => app.setPref('theme', 'system') },
     { id: 'diff.split', title: 'Toggle split / unified diff', group: 'Code', keys: ['s'], scope: 'code', run: () => app.setPref('diffStyle', app.prefs.diffStyle === 'split' ? 'unified' : 'split') },
