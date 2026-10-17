@@ -27,7 +27,8 @@ import { getBunServer, serveStatic } from '@hono/bun';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
-  const text = prov.read(anchor.sha ?? (anchor.rev === 'base' ? prov.base : prov.head), anchor.path);
+  const at = prov.layers?.find((l) => l.number === anchor.pr) ?? prov; // a stack PR's layer, else the whole range
+  const text = prov.read(anchor.sha ?? (anchor.rev === 'base' ? at.base : at.head), anchor.path);
   if (!text) return null;
   const lines = text.split('\n');
   return lines.slice(anchor.start - 1, anchor.end).map((l, i) => `${String(anchor.start + i).padStart(4)}  ${l}`).join('\n');

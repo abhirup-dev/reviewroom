@@ -18,6 +18,22 @@ test('a thread made on one commit shows where its side shows that commit, nowher
   expect(ranges.map((r) => showsOn(code('base', C1), r, ranges))).toEqual([false, false, true]);
 });
 
+test("in a stack, a thread is at its layer's lines, or the whole stack's", () => {
+  // #1: B..C1, #2: C1..C2 (the top); the whole stack B..C2; each layer is also a range
+  const stack = { layers: [{ number: 1, base: B, head: C1 }, { number: 2, base: C1, head: C2 }], all };
+  const layered = [all, first, second];
+  const on = (a: ReturnType<typeof code> & { pr?: number }) => layered.map((r) => showsOn(a, r, layered, stack));
+  expect(on({ ...code('head'), pr: 1 })).toEqual([false, true, false]);
+  // the top layer's head is the whole stack's
+  expect(on({ ...code('head'), pr: 2 })).toEqual([true, false, true]);
+  expect(homeRange({ ...code('head'), pr: 1 }, layered, stack)).toBe(first);
+  // no PR: the whole stack's lines, not the same numbers in a lower layer
+  expect(on(code('head'))).toEqual([true, false, true]);
+  expect(on(code('base'))).toEqual([true, true, false]);
+  // a PR no longer in the stack: everywhere
+  expect(on({ ...code('head'), pr: 9 })).toEqual([true, true, true]);
+});
+
 test('without a sha, or once its commit is gone, a thread shows everywhere', () => {
   expect(ranges.every((r) => showsOn(code('head'), r, ranges))).toBe(true);
   expect(ranges.every((r) => showsOn(code('head', 'e'.repeat(40)), r, ranges))).toBe(true);

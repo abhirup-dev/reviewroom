@@ -12,7 +12,7 @@ import { PR_DESCRIPTION } from '../shared/feedback';
 import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
 import { applyOp } from '../shared/ops';
-import { homeRange, showsOn, sideSha } from '../core/anchors';
+import { homeRange, showsOn, sideSha, type StackSides } from '../core/anchors';
 import { emptyState } from '../core/types';
 import type { CodeProvider, StateBackend } from '../providers';
 import type { GitHubAction } from '../shared/schema';
@@ -176,15 +176,33 @@ export class ReviewApp {
   }
   ranges(): DiffRange[] {
     const all: DiffRange = { base: this.meta.base, head: this.meta.head, label: 'All changes', key: 'all' };
-    return [all, ...this.commits.map((c) => ({ base: c.parent ?? c.sha + '^', head: c.sha, label: `${c.short} · ${c.subject}`, key: c.sha }))];
+    return [all, ...this.commits.map((c) => ({ base: c.parent ?? c.sha + '^', head: c.sha, label: `${c.short} · ${c.subject}`, key: c.sha, pr: c.pr }))];
+  }
+  /** A stack PR's layer: from the head of the PR below to its own. */
+  prRange(n: number): DiffRange | undefined {
+    const p = this.meta.stack?.find((x) => x.number === n);
+    return p && { base: p.base, head: p.head, label: `#${p.number} · ${p.title}`, key: `pr-${p.number}`, pr: p.number };
+  }
+  /** Every range a thread can be made on: the ranges offered, and each stack PR's layer (before its commits: a thread
+   *  on a layer's last commit is at the layer's lines too, and goes home to the layer). */
+  private allRanges() {
+    const [all, ...rest] = this.ranges();
+    return [all, ...(this.meta.stack ?? []).map((p) => this.prRange(p.number)!), ...rest];
+  }
+  private get stackSides(): StackSides {
+    return this.meta.stack && { layers: this.meta.stack, all: this.meta };
   }
   /** Whether a code thread is drawn on the active range (or `range`): see src/core/anchors.ts. */
   codeShows(a: Anchor, range: Pick<DiffRange, 'base' | 'head'> = this.range) {
-    return a.kind === 'code' && showsOn(a, range, this.ranges());
+    return a.kind === 'code' && showsOn(a, range, this.allRanges(), this.stackSides);
+  }
+  /** The range a code thread was made on, while it exists. */
+  homeOf(a: Anchor) {
+    return a.kind === 'code' ? homeRange(a, this.allRanges(), this.stackSides) : undefined;
   }
   /** Switch to the range a code thread was made on, when the active one doesn't draw it. */
   async showRangeOf(a: Anchor) {
-    const home = a.kind === 'code' && !this.codeShows(a) ? homeRange(a, this.ranges()) : undefined;
+    const home = !this.codeShows(a) && this.homeOf(a);
     if (home) await this.setRange(home);
   }
   visibleFiles(): ChangedFile[] {
@@ -304,7 +322,7 @@ export class ReviewApp {
     if (a.kind === 'general') return 'General';
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
     // a thread on one commit's diff names that commit
-    const home = a.kind === 'code' && homeRange(a, this.ranges());
+    const home = this.homeOf(a);
     return this.label(anchorRef(a)!) + (home && home.key !== 'all' ? ` · ${home.label.split(' · ')[0]}` : '');
   }
 
@@ -407,6 +425,8 @@ export class ReviewApp {
     // made on one commit's diff: pinned to that commit, so other ranges don't draw it on their same line numbers.
     // Not on All changes: a push moves its head, and its threads must stay on it.
     if (anchor.kind === 'code' && !anchor.sha && this.commits.some((c) => c.sha === this.range.key)) anchor = { ...anchor, sha: sideSha(this.range, anchor.rev) };
+    // made on a stack PR's layer (or a commit in it): that PR's
+    if (anchor.kind === 'code' && anchor.pr === undefined && this.range.pr !== undefined) anchor = { ...anchor, pr: this.range.pr };
     if (author === 'you' && toGitHub)
       return anchor.kind === 'code' ? this.githubAct({ action: 'comment', anchor, body }) : this.githubAct({ action: 'conversation', body });
     const id = uid('t_');

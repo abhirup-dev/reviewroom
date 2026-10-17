@@ -143,9 +143,15 @@
                     "maximum": 9007199254740991
                   },
                   "sha": {
-                    "description": "The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head",
+                    "description": "The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head (or its layer's, with pr)",
                     "type": "string",
                     "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "pr": {
+                    "description": "A stack of PRs: the PR whose layer the thread was made on; base and head are that layer's. Missing: the whole stack, or a review of one diff",
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [

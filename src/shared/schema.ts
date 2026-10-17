@@ -19,7 +19,8 @@ const CodeAnchor = z.object({
   rev: z.enum(['base', 'head']),
   start: int,
   end: int,
-  sha: sha.optional().describe("The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head"),
+  sha: sha.optional().describe("The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head (or its layer's, with pr)"),
+  pr: int.positive().optional().describe("A stack of PRs: the PR whose layer the thread was made on; base and head are that layer's. Missing: the whole stack, or a review of one diff"),
 });
 export const Anchor = z.discriminatedUnion('kind', [
   z.object({
