@@ -61,7 +61,7 @@ test('judge: one finding per problem across viewports; the lead is named when it
 
 test('lock, generated and doc files are only mentioned; the line budget depends on how many refs stack', () => {
   const lint = (steps: ReturnType<typeof step>[], files: ChangedFile[] = []) => lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps }] }, files, () => undefined);
-  const skipped = ['bun.lock', 'go.sum', 'README.md', 'api/x.pb.go', 'pkg/types_generated.ts', 'ui/x.gen.ts', 'dist/a.js'].map((p) => file(p, 50));
+  const skipped = ['bun.lock', 'go.sum', 'go.mod', 'package.json', 'svc/requirements-dev.txt', 'README.md', 'api/x.pb.go', 'pkg/types_generated.ts', 'ui/x.gen.ts', 'dist/a.js'].map((p) => file(p, 50));
   expect(lint([step('s1', 'rr:code/x.go#L1')], skipped).map((f) => f.level)).toEqual(['info']);
   const wide = (steps: ReturnType<typeof step>[]) => lint(steps).map((f) => `${f.check} ${f.message}`);
   expect(wide([step('s1', 'rr:code/x.go#L1-25')])).toEqual([]);
