@@ -13,9 +13,9 @@ import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestRe
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorOf } from '../../src/shared/refs.ts';
-import type { Provider } from './git.ts';
+import { blame, type Layer, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
-import type { CiCommit, CiState, GitHubComment, GitHubPrPart, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
+import type { Anchor, CiCommit, CiState, GitHubComment, GitHubPrPart, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
 import { ReviewroomError } from '../../src/shared/ops.ts';
 import type { GitHubAction } from '../../src/shared/schema.ts';
 import { fail } from './args.ts';
@@ -221,8 +221,9 @@ export function ciOf(commits: PullRequestCommit[]): CiCommit[] {
     .reverse();
 }
 
-/** rr: links mean nothing on github.com: code links become blob links at the reviewed commit, the rest plain text. */
-export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string; head: string }) {
+/** rr: links mean nothing on github.com: code links become blob links at the reviewed commit (a @pr:<n> link: at that
+ *  PR's layer, of `shas.layers`), the rest plain text. */
+export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string; head: string; layers?: Layer[] }) {
   const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
   return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label: string, ref: string) => {
     // a link to a GitHub thread keeps pointing at it there
@@ -230,9 +231,26 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
     if (gh) return `[${label || 'thread'}](${gh[2] ? pr.replace(/\d+$/, gh[2]) : gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
     const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
-    const sha = a.sha ?? (a.rev === 'base' ? shas.base : shas.head);
+    const at = (a.pr && shas.layers?.find((l) => l.number === a.pr)) || shas;
+    const sha = a.sha ?? (a.rev === 'base' ? at.base : at.head);
     return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path.split('/').map(encodeURIComponent).join('/')}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
   });
+}
+
+/** A line comment made on the whole stack goes to the one PR that changes the file; of several, to the topmost when
+ *  it last changed those lines (its head has the file as the whole stack does, so the line numbers hold). Else (a
+ *  string) why no PR can take it from here. `owners`: the PR that last changed each line (undefined: before the stack). */
+export function routeLine(an: { path: string; rev: 'base' | 'head'; end: number }, layers: { number: number }[], touches: (n: number) => boolean, owners: () => (number | undefined)[]): number | string {
+  const touching = layers.filter((l) => touches(l.number)).map((l) => l.number);
+  if (!touching.length) return `no PR of the stack changes ${an.path}`;
+  if (touching.length === 1) return touching[0];
+  const top = touching.at(-1)!;
+  const from = touching.map((n) => `#${n}`).join(', ');
+  if (an.rev === 'base') return `${an.path} changes in ${from}: comment on its old lines from one PR's layer`;
+  const who = [...new Set(owners())];
+  if (who.length === 1 && who[0] === top) return top;
+  const by = who.filter((n) => n !== undefined).map((n) => `#${n}`);
+  return by.length ? `${an.path} changes in ${from}; these lines were last changed in ${by.join(', ')}: comment from that PR's layer` : `${an.path} changes in ${from}, but not these lines: no PR's diff has them`;
 }
 
 const M = {
@@ -299,34 +317,45 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
     const s = live(snap) ? snap : await refresh();
     if (!live(s)) throw new ReviewroomError(s.error || 'GitHub is not reachable', 502);
     const run = (query: string, vars: Record<string, unknown>) => gql<Mutation>(repo, target.host, query, vars);
-    const md = (body: string) => toGitHubMarkdown(body, target, { base: prov.base, head: localHead || s.headSha });
-    const thread = (id: string) => s.threads.find((t) => t.id === id)?.gh?.node ?? fail(`no GitHub thread ${id}`, 404);
-    const comment = (id: string) => s.threads.flatMap((t) => t.messages).find((m) => m.id === id)?.gh ?? fail(`no GitHub comment ${id}`, 404);
+    // the PR an action is on: in a stack, its own part of the snapshot and its layer; else the review's one PR
+    const on = (n = target.number) => {
+      if (s.prs && !s.prs[n]) fail(`PR #${n} is not in this review's stack`, 404);
+      const layer = prov.layers?.find((l) => l.number === n);
+      const p = s.prs?.[n];
+      return { t: { ...target, number: n }, node: p?.pr ?? s.pr, pending: p ? p.pending : s.pending, base: layer?.base ?? prov.base, head: layer?.head ?? (localHead || s.headSha) };
+    };
+    const md = (body: string, p = on()) => toGitHubMarkdown(body, p.t, { base: p.base, head: p.head, layers: prov.layers ?? undefined });
+    const ghThread = (id: string) => s.threads.find((t) => t.id === id) ?? fail(`no GitHub thread ${id}`, 404);
+    const thread = (id: string) => ghThread(id).gh?.node ?? fail(`no GitHub thread ${id}`, 404);
+    const owner = (id: string) => s.threads.find((t) => t.messages.some((m) => m.id === id));
+    const comment = (id: string) => owner(id)?.messages.find((m) => m.id === id)?.gh ?? fail(`no GitHub comment ${id}`, 404);
     switch (a.action) {
       case 'comment': {
-        // a new line comment: a draft in the viewer's pending review (started on the commit being reviewed)
+        // a new line comment: a draft in the viewer's pending review on the PR whose layer holds the line
         const an = a.anchor;
+        const n = an.pr ?? (prov.layers ? stackLine(an) : target.number);
+        const p = on(n);
         // GitHub's line numbers are the PR's whole diff: a line of one commit's diff may be another line there
-        if (an.sha && an.sha !== (an.rev === 'base' ? prov.base : (localHead || s.headSha))) fail("GitHub takes comments on the PR's whole diff only: comment from All changes, or send this one to the agent", 422);
-        const review = s.pending?.id ?? (await run(M.startReview, { pr: s.pr, commit: localHead })).addPullRequestReview?.pullRequestReview?.id;
+        if (an.sha && an.sha !== (an.rev === 'base' ? p.base : p.head)) fail(`GitHub takes comments on the PR's whole diff only: comment from ${prov.layers ? `#${n}'s layer` : 'All changes'}, or send this one to the agent`, 422);
+        const review = p.pending?.id ?? (await run(M.startReview, { pr: p.node, commit: p.head })).addPullRequestReview?.pullRequestReview?.id;
         const side = an.rev === 'base' ? 'LEFT' : 'RIGHT';
         const multi = an.start < an.end;
-        const r = await run(M.thread, { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: md(a.body) });
+        const r = await run(M.thread, { review, path: an.path, line: an.end, side, startLine: multi ? an.start : null, startSide: multi ? side : null, body: md(a.body, p) });
         // GitHub answers a line outside the diff with no thread and no error
         if (!r.addPullRequestReviewThread?.thread) {
-          if (!s.pending) await run(M.discard, { review }).catch(() => {});
-          fail(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one`, 422);
+          if (!p.pending) await run(M.discard, { review }).catch(() => {});
+          fail(`GitHub only takes comments on lines in the PR's diff (changed lines and the few around them); ${an.path}:${an.end} is not one${prov.layers ? ` of #${n}'s` : ''}`, 422);
         }
         return;
       }
       case 'reply':
-        return void (await run(M.reply, { thread: thread(a.thread), body: md(a.body) }));
+        return void (await run(M.reply, { thread: thread(a.thread), body: md(a.body, on(ghThread(a.thread).pr)) }));
       case 'conversation':
-        return void (await run(M.comment, { pr: s.pr, body: md(a.body) }));
+        return void (await run(M.comment, { pr: on(a.pr).node, body: md(a.body, on(a.pr)) }));
       case 'edit': {
         const c = comment(a.message);
         if (!c.canEdit || !Object.hasOwn(M, `edit:${c.kind}`)) fail('you cannot edit that comment', 403); // github.json is a cache: check the kind
-        return void (await run(M[`edit:${c.kind}`], { id: c.node, body: md(a.body) }));
+        return void (await run(M[`edit:${c.kind}`], { id: c.node, body: md(a.body, on(owner(a.message)?.pr)) }));
       }
       case 'delete': {
         const c = comment(a.message);
@@ -336,12 +365,28 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       case 'resolve':
         return void (await run(a.resolved ? M.resolve : M.unresolve, { thread: thread(a.thread) }));
       case 'submit': {
-        const vars = { event: EVENT[a.event], body: a.body?.trim() ? md(a.body.trim()) : null };
-        return void (await (s.pending ? run(M.submit, { review: s.pending.id, ...vars }) : run(M.review, { pr: s.pr, commit: localHead, ...vars })));
+        // one GitHub review per PR; the others are left alone
+        for (const n of a.prs ?? [a.pr ?? target.number]) {
+          const p = on(n);
+          const vars = { event: EVENT[a.event], body: a.body?.trim() ? md(a.body.trim(), p) : null };
+          await (p.pending ? run(M.submit, { review: p.pending.id, ...vars }) : run(M.review, { pr: p.node, commit: p.head, ...vars }));
+        }
+        return;
       }
-      case 'discard':
-        if (s.pending) await run(M.discard, { review: s.pending.id });
+      case 'discard': {
+        const p = on(a.pr);
+        if (p.pending) await run(M.discard, { review: p.pending.id });
+      }
     }
+  }
+
+  /** A line comment from the whole stack: the PR it goes to, or a refusal saying which layer to comment from. */
+  function stackLine(an: Extract<Anchor, { kind: 'code' }>) {
+    const layers = prov.layers!;
+    const touches = (n: number) => { const l = layers.find((x) => x.number === n)!; return prov.files(l.base, l.head).some((f) => f.path === an.path || f.prevPath === an.path); };
+    const pr = new Map(prov.commits().map((c) => [c.sha, c.pr]));
+    const r = routeLine(an, layers, touches, () => blame(repo, prov.base, prov.head, an.path, an.start, an.end).map((sha) => pr.get(sha)));
+    return typeof r === 'number' ? r : fail(r, 422);
   }
 
   return { target, cached: () => snap, snapshot: () => snap ?? refresh(), refresh, act };

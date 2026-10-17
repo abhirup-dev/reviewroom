@@ -92,12 +92,12 @@ const ghBody = z.string().trim().min(1, 'body must be a non-empty string');
 export const GitHubAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('comment'), anchor: CodeAnchor, body: ghBody }),
   z.object({ action: z.literal('reply'), thread: z.string(), body: ghBody }),
-  z.object({ action: z.literal('conversation'), body: ghBody }),
+  z.object({ action: z.literal('conversation'), body: ghBody, pr: int.positive().optional().describe('A stack: the PR whose conversation (default: the one the review was opened on)') }),
   z.object({ action: z.literal('edit'), message: z.string(), body: ghBody }),
   z.object({ action: z.literal('delete'), message: z.string() }),
   z.object({ action: z.literal('resolve'), thread: z.string(), resolved: z.boolean() }),
-  z.object({ action: z.literal('submit'), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().optional() }),
-  z.object({ action: z.literal('discard') }),
+  z.object({ action: z.literal('submit'), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().optional(), pr: int.positive().optional().describe('A stack: the PR to review'), prs: z.array(int.positive()).optional().describe('A stack: one review each, with the same event and body') }),
+  z.object({ action: z.literal('discard'), pr: int.positive().optional() }),
 ]);
 export type GitHubAction = z.infer<typeof GitHubAction>;
 

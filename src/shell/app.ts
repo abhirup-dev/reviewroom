@@ -450,7 +450,7 @@ export class ReviewApp {
   }
   reply(threadId: string, body: string, author: Author = 'you') {
     const t = this.thread(threadId);
-    if (t?.gh) return this.githubAct(t.gh.conversation ? { action: 'conversation', body } : { action: 'reply', thread: t.id, body });
+    if (t?.gh) return this.githubAct(t.gh.conversation ? { action: 'conversation', body, pr: t.pr } : { action: 'reply', thread: t.id, body });
     this.apply({ op: 'addMessage', threadId, id: uid('m_'), body, author, at: new Date().toISOString() });
   }
   editMessage(threadId: string, msgId: string, body: string) {

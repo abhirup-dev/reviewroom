@@ -103,6 +103,10 @@ export function parseDiff(numstat: string, nameStatus: string): ChangedFile[] {
 
 export type Provider = ReturnType<typeof makeProvider>;
 
+/** The commit that last changed each line start..end of `p` at `head`, within base..head (older: '^<sha>'). */
+export const blame = (repo: string, base: string, head: string, p: string, start: number, end: number) =>
+  git(['blame', '-s', '-l', '--root', '-L', `${start},${end}`, `${checkRev(base)}..${checkRev(head)}`, '--', p], repo).split('\n').filter(Boolean).map((l) => l.split(' ')[0]);
+
 /** What a provider shows, for Round.heads: the whole range's base and head, and each stack PR's head as `#<n>`, in
  *  stack order (`#`: JSON keys that look like integers would be reordered). */
 export const headsOf = (prov: Pick<Provider, 'base' | 'head' | 'layers'>): Record<string, string> => ({ base: prov.base, head: prov.head, ...Object.fromEntries((prov.layers ?? []).map((l) => [`#${l.number}`, l.head])) });
