@@ -6,11 +6,25 @@ import { takeLock, releaseLock } from './lock.ts';
 import { emptyState, type Op, type ReviewState } from '../../src/core/types.ts';
 import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/shared/ops.ts';
 import { StoredState, issueText } from '../../src/shared/schema.ts';
+import { parseWalkthrough, type Parsed } from '../../src/shared/walkthrough.ts';
 
 export const statePath = (dir: string) => path.join(dir, 'state.json');
+export const walkthroughPath = (dir: string) => path.join(dir, 'walkthrough.json');
 
-/** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently. */
-export function readState(dir: string): ReviewState {
+/** The review's walkthrough.json, parsed; null when there is none. */
+export function readWalkthrough(dir: string): Parsed | null {
+  const f = walkthroughPath(dir);
+  return fs.existsSync(f) ? parseWalkthrough(fs.readFileSync(f, 'utf8')) : null;
+}
+/** The walkthrough if there is a valid one (context for tour threads). */
+export const validWalkthrough = (dir: string) => {
+  const r = readWalkthrough(dir);
+  return r?.ok ? r.value : null;
+};
+
+/** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently.
+ *  `repair: false` (a read-only reader) never moves anything: the error just says so. */
+export function readState(dir: string, { repair = true } = {}): ReviewState {
   let raw: string;
   try {
     raw = fs.readFileSync(statePath(dir), 'utf8');
@@ -25,13 +39,14 @@ export function readState(dir: string): ReviewState {
   try {
     data = JSON.parse(raw);
   } catch (e) {
-    return moveAside(dir, `is not valid JSON (${(e as Error).message})`);
+    return moveAside(dir, repair, `is not valid JSON (${(e as Error).message})`);
   }
   const checked = StoredState.safeParse(data);
-  if (!checked.success) moveAside(dir, `does not match schema/state.schema.json (${issueText(checked.error)})`);
+  if (!checked.success) moveAside(dir, repair, `does not match schema/state.schema.json (${issueText(checked.error)})`);
   return { ...checked.data, ...data }; // the file as read (keys this version doesn't know survive), plus the schema's defaults (an older file has no pins)
 }
-function moveAside(dir: string, why: string): never {
+function moveAside(dir: string, repair: boolean, why: string): never {
+  if (!repair) throw new ReviewroomError(`${statePath(dir)} ${why}. Fix it or delete it to start the review over.`);
   const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   try {
     fs.renameSync(statePath(dir), bad);

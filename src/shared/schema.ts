@@ -23,6 +23,7 @@ export const Anchor = z.discriminatedUnion('kind', [
   CodeAnchor,
   z.object({ kind: z.literal('symbol'), name: z.string() }),
   z.object({ kind: z.literal('general') }),
+  z.object({ kind: z.literal('tour'), chapter: z.string(), step: z.string() }).describe('A slide of the guided walkthrough, walkthrough.json (chapter and step ids)'),
 ]);
 
 export const Author = z.enum(['you', 'agent']);
@@ -113,8 +114,10 @@ export type Round = z.infer<typeof Round>;
 export type StoredState = z.infer<typeof StoredState>;
 export type Op = z.infer<typeof Op>;
 
+/** Zod's issues as `path: message` lines. */
+export const issueList = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`);
 /** Zod's issues as one line: `path: message; ...`. */
-export const issueText = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.join('.') || 'value'}: ${i.message}`).join('; ');
+export const issueText = (e: z.core.$ZodError) => issueList(e).join('; ');
 
 /** schema/state.schema.json, generated (scripts/schema.ts writes it; a test fails when the committed file is stale). */
 export const stateJsonSchema = () => ({

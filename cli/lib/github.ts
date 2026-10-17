@@ -102,7 +102,6 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor:
           comments(first: 100) { nodes { ${COMMENT} state pullRequestReview { id } } }
         }
       }
-      comments(first: 100) { nodes { ${COMMENT} } }
       reviews(last: 100) { nodes { id databaseId body state createdAt url viewerCanUpdate ${AUTHOR} } }
       commits(last: 30) { nodes { commit { oid abbreviatedOid messageHeadline committedDate url statusCheckRollup { contexts(first: 100) { nodes {
         __typename
@@ -113,12 +112,20 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor:
   }
 }`;
 
-/** Fetch everything and normalize. shortcut: conversation comments and reviews stop at 100 each, page them if a PR ever has more. */
+// the conversation is its own query: a pagination follows one connection, and "newest guided walkthrough wins" needs them all
+const COMMENTS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { comments(first: 100, after: $cursor) { pageInfo { hasNextPage endCursor } nodes { ${COMMENT} } } }
+  }
+}`;
+
+/** Fetch everything and normalize. shortcut: reviews stop at the last 100, page them if a PR ever has more. */
 export async function fetchPr(cwd: string, t: PrTarget, localHead: string | null) {
-  const data = await gql<Pick<Query, 'viewer' | 'repository'>>(cwd, t.host, PR_QUERY, { owner: t.owner, name: t.name, number: t.number }, { paginate: true });
+  const vars = { owner: t.owner, name: t.name, number: t.number };
+  const [data, conv] = await Promise.all([gql<Pick<Query, 'viewer' | 'repository'>>(cwd, t.host, PR_QUERY, vars, { paginate: true }), gql<Pick<Query, 'repository'>>(cwd, t.host, COMMENTS_QUERY, vars, { paginate: true })]);
   const pr = data.repository?.pullRequest;
   if (!pr) throw new Error(`PR #${t.number} not found in ${t.owner}/${t.name}`);
-  return normalize(pr, data.viewer.login, localHead);
+  return normalize({ ...pr, comments: conv.repository?.pullRequest?.comments ?? pr.comments }, data.viewer.login, localHead);
 }
 
 const VERDICT: Record<string, string | undefined> = { APPROVED: '**Approved**', CHANGES_REQUESTED: '**Requested changes**', DISMISSED: '_Review dismissed_' };
@@ -291,4 +298,21 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
   }
 
   return { target, cached: () => snap, snapshot: () => snap ?? refresh(), refresh, act };
+}
+
+/** The viewer's own newest PR conversation comment containing `marker` (someone else's is never theirs to update). */
+export const ownMarked = (s: Pick<GitHubSnapshot, 'threads'>, marker: string) =>
+  s.threads.find((t) => t.gh?.conversation)?.messages.findLast((m) => m.gh?.kind === 'issue' && m.gh.mine && m.body.includes(marker));
+
+/** Post `body` to the PR conversation, or update the viewer's comment carrying `marker` in place; the comment's URL.
+ */
+export async function upsertComment(cwd: string, t: PrTarget, marker: string, body: string) {
+  const s = await fetchPr(cwd, t, null);
+  const mine = ownMarked(s, marker);
+  if (mine?.gh) {
+    const r = await gql<Mutation>(cwd, t.host, 'mutation($id: ID!, $body: String!) { updateIssueComment(input: {id: $id, body: $body}) { issueComment { url } } }', { id: mine.gh.node, body });
+    return r.updateIssueComment?.issueComment?.url ?? mine.gh.url;
+  }
+  const r = await gql<Mutation>(cwd, t.host, 'mutation($pr: ID!, $body: String!) { addComment(input: {subjectId: $pr, body: $body}) { commentEdge { node { url } } } }', { pr: s.pr, body });
+  return r.addComment?.commentEdge?.node?.url ?? s.url;
 }

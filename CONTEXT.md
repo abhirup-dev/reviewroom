@@ -33,6 +33,16 @@ _Avoid_: session, workspace
 The agent's freeform explanation of the diff, written for the reviewer to read alongside the diff.
 _Avoid_: narrative, review, review page, review.html
 
+**Guided walkthrough**:
+The optional main story of the diff, played over the workbench: chapters of slides, narration beside the code each slide
+shows. The reviewer sees it first; the walkthrough is where they dig in. Its file and commands keep the short name
+(`walkthrough.json`, `reviewroom walkthrough …`), and its links are `rr:tour/<chapter>/<step>`.
+_Avoid_: walkthrough (bare), tour, slideshow, presentation
+
+**Slide**:
+One step of a guided walkthrough: its narration and the code it shows (`steps` in `walkthrough.json`).
+_Avoid_: page, card
+
 **GitHub review**:
 The reviewer's pending or submitted review on the PR in GitHub. Separate from the review in reviewroom.
 

@@ -73,6 +73,8 @@ export const icons = {
   arrowUp: P('M8 13V3M4 7l4-4 4 4'),
   arrowDown: P('M8 3v10M4 9l4 4 4-4'),
   dots: '<circle cx="4" cy="8" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/><circle cx="12" cy="8" r="1.1" fill="currentColor"/>',
+  play: P('M5 3.5v9l7.5-4.5z'),
+  pause: P('M5.5 3.5v9M10.5 3.5v9'),
   round: P('M13 8a5 5 0 1 1-1.5-3.5M13 2.5v3h-3'),
   smile: P('M8 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM5.5 9.5c1.2 1.4 3.8 1.4 5 0M6 6.2v.1M10 6.2v.1'),
   undo: P('M5.5 3 2.5 6l3 3M3 6h6.5a3.5 3.5 0 0 1 0 7H7'),

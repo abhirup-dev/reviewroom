@@ -34,6 +34,8 @@ export class Commands {
   private pending = '';
   private pendingTimer: ReturnType<typeof setTimeout> | undefined;
   scopeOf: (target: EventTarget | null) => 'global' | 'code' | 'narrative' = () => 'global';
+  /** true while a modal overlay owns the keyboard: only mod chords (the palette) run */
+  held: () => boolean = () => false;
 
   register(...cmds: Command[]) {
     for (const c of cmds) this.list.set(c.id, c);
@@ -63,7 +65,7 @@ export class Commands {
     const shift = ev.shiftKey && (ev.key.length > 1 || /^[a-z]$/i.test(ev.key));
     if (ev.altKey && /^Digit\d$/.test(ev.code)) k = ev.code.slice(5);
     const chord = [mod && 'mod', shift && 'shift', ev.altKey && 'alt', k].filter(Boolean).join('+');
-    if (typing && !mod) return;
+    if ((typing || this.held()) && !mod) return;
     // open modal dialogs and menus close on Esc themselves: leave the key to the platform
     if (k === 'escape' && document.querySelector('dialog:modal, [popover=auto]:popover-open')) return;
     const scope = this.scopeOf(t ?? null);
