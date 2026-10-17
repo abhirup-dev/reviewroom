@@ -27,7 +27,7 @@ export async function openCentered(app: ReviewApp, ref: string | Ref) {
     case 'code':
       return openFileCentered(app, r.path, r.start ? { side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end ?? r.start } : undefined);
     case 'sym': {
-      const def = (await app.search(r.name, true).catch(() => [])).find((x) => x.kind === 'definition');
+      const def = (await app.searchSymbol(r.name).catch(() => [])).find((x) => x.kind === 'definition');
       return def ? openFileCentered(app, def.path, { side: 'head', start: def.line, end: def.line }) : app.open(`rr:sym/${r.name}`);
     }
     case 'doc': {

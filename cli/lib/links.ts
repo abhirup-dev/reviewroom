@@ -4,7 +4,7 @@
 // Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
-import { parseRef } from '../../src/shared/refs.ts';
+import { parseRef, symbolHits, symbolQuery } from '../../src/shared/refs.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
 
 export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
@@ -66,12 +66,12 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     }
     if (r.type === 'doc') {
       if (new RegExp(`\\bid=["']?${esc(r.id)}["'\\s>]`).test(html)) out(ref, 'ok');
-      else out(ref, 'broken', 'no element with this id in the narrative');
+      else out(ref, 'broken', 'no element with this id in the walkthrough');
       continue;
     }
     if (r.type === 'sym') {
       // definitions come first; only a symbol that had one is held to it (the search misses some forms)
-      const hit = prov.search(r.name, prov.head, true, 1)[0];
+      const hit = symbolHits(prov.search(symbolQuery(r.name).word, prov.head, true, 500), r.name)[0];
       if (!hit) out(ref, 'broken', 'symbol not found at head');
       else if (known[ref] && hit.kind !== 'definition') out(ref, 'changed', 'its definition is gone, only references are left');
       else out(ref, known[ref] || hit.kind !== 'definition' ? 'ok' : 'new');

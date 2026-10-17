@@ -37,7 +37,20 @@ Someone who reads only this should know where to look and what to worry about.
 - End with the open questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle
   before approving (compatibility, latency, migrations, observability, rollout).
 - Interpret the PR description and connect it to the code; don't restate it.
-- Keep the structure the same across reviews. Don't over-build.
+- Keep the structure the same across reviews. Don't over-build: for a typical diff, a lede, one flow,
+  four to seven sections and one checklist. A section is one concern, not one file.
+
+## Design for a narrow column
+
+The walkthrough usually sits in a side panel about 400px wide, and reviewroom will get a phone view.
+Write for that width first; a wide window then just has margin.
+
+- Diagrams run top to bottom: `<rr-flow direction="column">` for more than three nodes, tall SVGs
+  rather than wide ones.
+- Tables of at most three short columns. Wider comparisons become a list per item, or a table with
+  the items as rows.
+- No side-by-side layouts. A before/after is two blocks, one under the other.
+- Long identifiers and paths go in links or chips, not in table cells or diagram nodes.
 
 ## When to build something interactive
 

@@ -36,6 +36,18 @@
       "prompt": "I approved it in reviewroom, we're done.",
       "expected_output": "Reads the APPROVED feedback, leaves open threads alone, and stops the review (`reviewroom stop --dir …` if a server is still running) without resolving anything.",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "In the reviewroom walkthrough for PR 412, point the reviewer at the Build method on the ranker's Builder (there are three Build methods in the repo) and at the existing retry config in pkg/config/retry.go, which the PR doesn't touch.",
+      "expected_output": "Links the method as rr:sym/Builder.Build (or rr:sym/<path>:Build), not a bare rr:sym/Build, and the untouched file as rr:code/pkg/config/retry.go#L… at head, line numbers checked with git show <head>:<path>. Uses empty <rr-ref> chips or <a> with a phrase, never shows a raw rr: string, and runs check --fix.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "The reviewer asked me to fix the nil check in PR 412. I committed the fix locally. Answer the thread in reviewroom.",
+      "expected_output": "Replies explaining the fix is committed but not in the review's diff (the head is fixed), links the fixed lines as rr:code/<path>@<new sha>#L…, does not resolve the thread, and starts the next round with reviewroom review in the background.",
+      "files": []
     }
   ]
 }

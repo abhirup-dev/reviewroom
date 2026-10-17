@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { anchorOf, anchorRef, formatRef, parseRef } from './refs';
+import { anchorOf, anchorRef, formatRef, parseRef, symbolHits, symbolQuery } from './refs';
 
 test('every rr: form parses, and formats back to itself', () => {
   for (const s of ['rr:doc/intro', 'rr:doc/intro/p%3Anth-of-type(2)', 'rr:code/a/b.go', 'rr:code/a.go#L4', 'rr:code/a.go#L4-9', 'rr:code/a.go@base#L4', 'rr:code/a.go@abc123', 'rr:file/a.go@head#L2-3', 'rr:sym/Build', 'rr:thread/t_1', 'rr:round/2', 'rr:code/my%20file.go#L1', 'rr:tour/why/s2'])
@@ -25,4 +25,23 @@ test('anchorOf: a one-line code link ends where it starts; a tour link has exact
   expect(anchorOf('rr:code/a.go#L12')).toMatchObject({ kind: 'code', start: 12, end: 12 });
   expect(anchorOf('rr:code/a.go#L3-9')).toMatchObject({ start: 3, end: 9 });
   expect(anchorOf('rr:tour/a/b/c')).toEqual({ kind: 'general' });
+});
+
+test('rr:sym qualifiers narrow the search hits', () => {
+  expect(symbolQuery('Build')).toEqual({ word: 'Build', path: undefined });
+  expect(symbolQuery('Builder.Build')).toEqual({ word: 'Build', path: undefined, owner: 'Builder' });
+  expect(symbolQuery('pkg/x.go:Build')).toEqual({ word: 'Build', path: 'pkg/x.go' });
+  const hits = [
+    { path: 'pkg/a/use.go', text: 'b.Build(ctx)', kind: 'reference' as const },
+    { path: 'pkg/cache/cache.go', text: 'func (c *Cache) Build() error {', kind: 'definition' as const },
+    { path: 'pkg/ranker/builder.go', text: 'func (b *Builder) Build(ctx context.Context) {', kind: 'definition' as const },
+    { path: 'pkg/habit/fetcher.go', text: 'func (f *Fetcher) Build() {', kind: 'definition' as const },
+  ];
+  const paths = (name: string) => symbolHits(hits, name).map((h) => h.path);
+  expect(paths('Build')[0]).toBe('pkg/cache/cache.go'); // definitions first
+  expect(paths('Build').at(-1)).toBe('pkg/a/use.go');
+  expect(paths('Builder.Build')).toEqual(['pkg/ranker/builder.go']); // receiver, not "Builder" inside other words
+  expect(paths('habit.Build')).toEqual(['pkg/habit/fetcher.go']); // package = path segment
+  expect(paths('ranker/builder.go:Build')).toEqual(['pkg/ranker/builder.go']);
+  expect(paths('Nope.Build')).toEqual([]); // a qualified symbol that's gone is broken, not some other Build
 });

@@ -2,7 +2,7 @@
 // the agent from rebuilding common review widgets. Light DOM throughout so the
 // author's own CSS can style them.
 //
-//   <rr-ref ref="rr:code/pkg/x.go#L45-54">Build()</rr-ref>      inline jump chip (hover = preview)
+//   <rr-ref ref="rr:code/pkg/x.go#L45-54"></rr-ref>             inline jump chip, labelled automatically when empty (hover = preview)
 //   <rr-embed ref="rr:doc/request-path"></rr-embed>              mini preview card of anything linkable
 //   <rr-code ref="rr:code/pkg/x.go@head#L40-60"></rr-code>        highlighted snippet pulled live from the repo
 //   <rr-code lang="sql">SELECT ...</rr-code>                        highlighted inline snippet
@@ -156,7 +156,7 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
     case 'file':
       return snippet(app, r, opts.compact ? 1 : 2);
     case 'sym': {
-      const hits = await app.search(r.name, true);
+      const hits = await app.searchSymbol(r.name);
       const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
       if (!d) return h('div', { class: 'rr-empty' }, `No definition of ${r.name}`);
       const text = await app.read(d.path, d.rev);
@@ -333,7 +333,7 @@ class RRNode extends HTMLElement {
     this.setAttribute('role', 'listitem');
     const ref = this.getAttribute('ref');
     const state = this.getAttribute('state');
-    if (state && state !== 'same') this.append(h('span', { class: 'rr-node__badge', title: { new: 'Added in this PR', changed: 'Changed in this PR', removed: 'Removed in this PR', baseline: 'Already existed before this PR' }[state] ?? state }, state));
+    if (state) this.append(h('span', { class: 'rr-node__badge', title: { new: 'Added in this PR', changed: 'Changed in this PR', removed: 'Removed in this PR', baseline: 'Already existed before this PR' }[state] ?? state }, state));
     if (ref) {
       this.tabIndex = 0;
       this.classList.add('is-link');
@@ -364,7 +364,7 @@ class RRCheck extends HTMLElement {
   connectedCallback() {
     if (this.dataset.ready) return this.listen(); // re-attached (panel reopened or moved)
     this.dataset.ready = '1';
-    const id = this.id || this.getAttribute('key') || (this.textContent || '').trim().slice(0, 40);
+    const id = this.id || (this.textContent || '').trim().slice(0, 40);
     const authored = (this.getAttribute('state') as (typeof CYCLE)[number]) || 'todo';
     const btn = h('button', { class: 'rr-check__box', 'aria-label': 'Change sign-off state' });
     this.prepend(btn);

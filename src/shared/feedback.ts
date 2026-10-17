@@ -21,7 +21,7 @@ const describeAnchor = (a: Anchor, walkthrough?: Walkthrough | null) => {
     case 'doc':
       if (a.target === PR_DESCRIPTION)
         return `PR description (the author's text on GitHub; you cannot edit it, answer in the thread)${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
-      return `narrative ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
+      return `walkthrough ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
     case 'code':
       return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'})`;
     case 'symbol':
@@ -89,7 +89,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
     `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
-    `(leave resolving to the reviewer), change code and/or the narrative (review.html) as needed,`,
+    `(leave resolving to the reviewer), change code and/or the walkthrough (review.html) as needed,`,
     `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom review${at}\` again to start round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
     `![](rr:...) on its own line embeds a live preview in the thread.`,
@@ -108,7 +108,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   lines.push(...githubContext(opts.github));
   const viewed = Object.keys(state.viewed || {}).length;
   const checks = Object.entries(state.checks || {});
-  if (checks.length) lines.push('## Sign-off checklist', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
+  if (checks.length) lines.push('## Open questions', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
   lines.push(`_Files marked viewed: ${viewed}. Open threads overall: ${open.length}._`);
   return lines.join('\n');
 }
