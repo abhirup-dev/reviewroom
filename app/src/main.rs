@@ -103,7 +103,7 @@ fn wake(app: &AppHandle, label: &str) {
 }
 
 /// Unloads the pages of tabs in the background for longer than idle_after(); the tab shown in a window never is.
-/// Drafts and layout survive (the page keeps them in localStorage), threads and rounds are on the server. Main thread.
+/// Drafts survive (the page keeps them in localStorage); layout, threads and rounds are on the server. Main thread.
 fn unload_idle(app: &AppHandle) {
     let st = app.state::<State>();
     for (label, w) in app.windows() {
