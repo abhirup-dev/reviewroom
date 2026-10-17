@@ -206,7 +206,16 @@ async function slide(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: { 
     ? refs.length ? [h('div', { class: 'rr-slide__refs' }, ...refs.map((x) => h('span', { class: 'rr-slide__ref' }, refIcon(parseRef(x)!), app.label(x))))] : []
     : await Promise.all(refs.map((x) => renderPreview(app, x, { compact: true })));
   const title = 'Play the walkthrough from this step';
-  const play = h('button', { class: 'rr-icon-btn', title, 'aria-label': title, onclick: () => app.bus.emit('walkthrough-open', { chapter: r.chapter, step: r.step }) }, icon('play', 14));
+  const play = h('button', {
+    class: 'rr-icon-btn',
+    title,
+    'aria-label': title,
+    onclick: (e: MouseEvent) => {
+      // from inside a thread popup: the player opens under the page, not behind the modal
+      (e.currentTarget as Element).closest('dialog')?.close();
+      app.bus.emit('walkthrough-open', { chapter: r.chapter, step: r.step });
+    },
+  }, icon('play', 14));
   // the play button sits on top: an embed shows a preview's first lines only
   return h('div', { class: 'rr-slide' }, h('div', { class: 'rr-slide__where' }, h('span', null, `${ch.title} · step ${i + 1} of ${ch.steps.length}`), play), text, ...code);
 }
@@ -223,6 +232,15 @@ class RREmbed extends HTMLElement {
     const ref = this.getAttribute('ref') || '';
     const r = parseRef(ref);
     const caption = this.getAttribute('caption');
+    // embeds inside embeds (a slide whose text embeds itself, a section embedding a slide that shows it) stop at a
+    // link: the content can come from a PR
+    let depth = 0;
+    for (let p = this.parentElement?.closest('rr-embed'); p; p = p.parentElement?.closest('rr-embed')) depth++;
+    if (depth >= 2) {
+      this.replaceChildren(h('a', { href: ref }, caption || ref));
+      withApp((app) => !caption && (this.firstElementChild!.textContent = app.label(ref)));
+      return;
+    }
     const body = h('div', { class: 'rr-embed__body' }, h('div', { class: 'rr-skeleton' }));
     const head = h(
       'button',
