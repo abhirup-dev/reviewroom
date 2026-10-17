@@ -36,6 +36,18 @@ describe('api', () => {
     expect(await status('api/walkthrough', { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403);
     fs.rmSync(file);
   });
+  test('saved layouts: shipped and taken names are refused, deleting the default clears it', async () => {
+    const put = (p: string, body: unknown) => fetch(url + p, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const mine = { title: 'Mine', root: { tabs: ['narrative'] } };
+    expect((await put('api/layouts/reading', mine)).status).toBe(409);
+    expect((await put('api/layouts/mine', mine)).status).toBe(200);
+    expect((await put('api/layouts/mine', mine)).status).toBe(409);
+    expect((await put('api/layouts/..%2Fx', mine)).status).toBe(400);
+    expect((await put('api/default-layout', { layout: 'mine' })).status).toBe(200);
+    expect(await (await fetch(url + 'api/layouts')).json()).toEqual({ layouts: { mine }, default: 'mine' });
+    expect(await status('api/layouts/mine', { method: 'DELETE' })).toBe(200);
+    expect(await (await fetch(url + 'api/layouts')).json()).toEqual({ layouts: {}, default: null });
+  });
 
   // security regressions
   test('search query starting with - is a pattern, not a git option', async () => {

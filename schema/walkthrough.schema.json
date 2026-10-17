@@ -80,5 +80,5 @@
     "chapters"
   ],
   "$id": "reviewroom/walkthrough.schema.json",
-  "title": "reviewroom guided walkthrough (.reviewroom/<branch>/walkthrough.json)"
+  "title": "reviewroom guided walkthrough (walkthrough.json in the review dir)"
 }

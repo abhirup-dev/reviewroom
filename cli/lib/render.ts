@@ -2,7 +2,7 @@
 // user's own, even with remote debugging on) at an exact viewport, else on macOS the system WebKit. Bun.WebView is
 // experimental: every use of it stays in this file.
 import { fail } from './args.ts';
-import { loadConfig, repoOf } from './config.ts';
+import { loadConfig } from './config.ts';
 import { listen, startServer } from './server.ts';
 import type { StepAudit } from '../../src/shared/walkthrough.ts';
 
@@ -19,7 +19,7 @@ export function parseViewports(s: string): Viewport[] {
 /** The review served from this process while `fn` runs: the current build (whatever a running server has), read-only
  *  (the page is the author's HTML; it must not write the review or call GitHub behind a live server's back). */
 export async function withServer<T>(repo: string | null, dir: string, fn: (url: string) => Promise<T>): Promise<T> {
-  const r = repoOf(dir, repo);
+  const r = repo ?? fail('not inside a git repository (use --repo)');
   const { app, close } = startServer({ repo: r, dir, cfg: loadConfig(dir, r), readOnly: true });
   const server = listen(app, 0);
   try {

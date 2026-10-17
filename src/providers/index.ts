@@ -2,9 +2,10 @@
 // Order of preference: local CLI server (git on your clone) -> GitHub -> static fixture.
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, ...).
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
-import { loadRaw } from '../core/store';
+import { loadRaw, saveLocal } from '../core/store';
 import { StoredState, type GitHubAction } from '../shared/schema';
 import { parseWalkthrough, type Walkthrough } from '../shared/walkthrough';
+import type { LastLayout, Layout, SavedLayouts } from '../shared/layout';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import { roundStatus, syncMachine, unsent } from '../flows/sync';
 
@@ -36,9 +37,15 @@ export interface StateBackend {
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
-  /** The reviewer's default panel layout (dockview JSON) for reviews without one of their own; null clears it. */
-  defaultLayout?(): Promise<object | null>;
-  saveDefaultLayout?(layout: object | null): Promise<boolean>;
+  /** The reviewer's saved layouts and their default, shared by every review. */
+  layouts(): Promise<SavedLayouts>;
+  /** Save a new layout as `id` (false if that name is taken), or delete it (null). */
+  saveLayout(id: string, layout: Layout | null): Promise<boolean>;
+  /** Make saved layout `id` the default, or have none (null). */
+  setDefaultLayout(id: string | null): Promise<boolean>;
+  /** This review's dock as the reviewer left it. */
+  lastLayout(): Promise<LastLayout | null>;
+  saveLastLayout(layout: LastLayout): Promise<void>;
   /** The PR's GitHub threads (cached by the server unless refresh). */
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */
@@ -189,13 +196,24 @@ export class ServerState implements StateBackend {
     const r = await fetch(`${this.api}/rounds/${n}/review.html`);
     return r.ok ? r.text() : null;
   }
-  // kept by the server for every review on this machine (ports change, so localStorage wouldn't follow)
-  defaultLayout() {
+  // files kept by the server (ports change, so localStorage wouldn't follow)
+  layouts() {
+    return fetch(`${this.api}/layouts`).then(json);
+  }
+  async saveLayout(id: string, layout: Layout | null) {
+    const r = await fetch(`${this.api}/layouts/${id}`, layout ? { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout) } : { method: 'DELETE' });
+    return r.ok;
+  }
+  async setDefaultLayout(id: string | null) {
+    const r = await fetch(`${this.api}/default-layout`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layout: id }) });
+    return r.ok;
+  }
+  lastLayout() {
     return fetch(`${this.api}/layout`).then(json);
   }
-  async saveDefaultLayout(layout: object | null) {
-    const r = await fetch(`${this.api}/layout`, layout ? { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout) } : { method: 'DELETE' });
-    return r.ok;
+  // one at a time (flows/layout.ts); keepalive: a save made while leaving the page still lands
+  async saveLastLayout(layout: LastLayout) {
+    await fetch(`${this.api}/layout`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout), keepalive: true });
   }
   async walkthrough(): Promise<WalkthroughLoad> {
     const r = await fetch(`${this.api}/walkthrough`);
@@ -331,17 +349,29 @@ export class BrowserState implements StateBackend {
       /* ignore */
     }
   }
-  async defaultLayout() {
-    return JSON.parse(loadRaw(DEFAULT_LAYOUT_KEY) ?? 'null');
+  async layouts(): Promise<SavedLayouts> {
+    const v = JSON.parse(loadRaw(LAYOUTS_KEY) ?? 'null');
+    return v?.layouts ? (v as SavedLayouts) : { layouts: {}, default: null };
   }
-  async saveDefaultLayout(layout: object | null) {
-    try {
-      if (layout) localStorage.setItem(DEFAULT_LAYOUT_KEY, JSON.stringify(layout));
-      else localStorage.removeItem(DEFAULT_LAYOUT_KEY);
-      return true;
-    } catch {
-      return false;
-    }
+  async saveLayout(id: string, layout: Layout | null) {
+    const all = await this.layouts();
+    if (layout && all.layouts[id]) return false;
+    if (layout) all.layouts[id] = layout;
+    else delete all.layouts[id];
+    if (!layout && all.default === id) all.default = null;
+    saveLocal(LAYOUTS_KEY, all);
+    return true;
+  }
+  async setDefaultLayout(id: string | null) {
+    saveLocal(LAYOUTS_KEY, { ...(await this.layouts()), default: id });
+    return true;
+  }
+  async lastLayout() {
+    const v = JSON.parse(loadRaw(`reviewroom:layout:${this.id}`) ?? 'null');
+    return v?.dock ? (v as LastLayout) : null; // an older build kept the bare dock here
+  }
+  async saveLastLayout(layout: LastLayout) {
+    saveLocal(`reviewroom:layout:${this.id}`, layout);
   }
 }
-const DEFAULT_LAYOUT_KEY = 'reviewroom:default-layout';
+const LAYOUTS_KEY = 'reviewroom:layouts';

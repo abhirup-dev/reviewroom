@@ -16,8 +16,9 @@ import { anchorOf } from './shared/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
-import { mountDock, applyPreset, canUndoLayout, definePanel, saveDefaultLayout, ensurePanel, offerGitHubPanels, presets, resetLayout, undoLayout, type PanelDef } from './shell/layout';
-import { buildHeader, sendDialog, submitReviewDialog } from './shell/chrome';
+import { mountDock, applyLayout, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
+import type { LastLayout } from './shared/layout';
+import { buildHeader, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
@@ -110,6 +111,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.doc = doc;
   root.replaceChildren(h('div', { class: 'rr-loading' }, h('div', { class: 'rr-skeleton' }), 'Loading review…'));
 
+  let lastLayout: LastLayout | null = null;
   try {
     const { provider, backend } = await pickProvider(root, authored, fixture);
     app.provider = provider;
@@ -123,7 +125,10 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     if (!document.title) document.title = meta.title;
     app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined, seedTour);
     app.state = { ...emptyState(), ...(await app.backend.load()) };
-    app.defaultLayout = (await app.backend.defaultLayout?.().catch(() => null)) ?? null;
+    let saved;
+    [saved, lastLayout] = await Promise.all([app.backend.layouts().catch(() => null), app.backend.lastLayout().catch(() => null)]);
+    app.layouts = saved?.layouts ?? {};
+    app.defaultLayout = saved?.default ?? null;
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
     await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
@@ -143,7 +148,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountHoverCards(app);
   mountThreadPopup(app);
   const tour = mountWalkthrough(app);
-  mountDock(app, dockHost);
+  mountDock(app, dockHost, lastLayout);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.commands.attach(document);
@@ -212,7 +217,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     commands: app.commands,
     definePanel,
     addPanel: (id: string, params?: Record<string, unknown>) => ensurePanel(app, id, params),
-    layout: (name: (typeof presets)[number]['id']) => applyPreset(app, name),
+    layout: (name: string) => applyLayout(app, name),
     toast: (t: string) => app.toast(t),
     theme: () => app.resolvedTheme(),
     markdown: renderMarkdown,
@@ -235,16 +240,17 @@ function registerCommands(app: ReviewApp) {
     { id: 'palette.commands', title: 'Show all commands', group: 'Navigate', keys: ['mod+shift+p', '?'], run: pal('>') },
     { id: 'palette.symbols', title: 'Find symbol', group: 'Navigate', keys: ['mod+shift+o', '#'], run: pal('#') },
     { id: 'palette.search', title: 'Search code', group: 'Navigate', keys: ['mod+shift+f', '/'], run: pal('/') },
+    { id: 'hub', title: 'All reviews', group: 'Navigate', hint: 'Every review running on this machine', when: () => app.backend.kind === 'server', run: () => window.open('/api/hub', '_blank') },
     { id: 'focus.narrative', title: 'Focus narrative', group: 'Panels', keys: ['g n'], run: () => (ensurePanel(app, 'narrative'), (document.querySelector('.rr-narrative-scroll') as HTMLElement)?.focus()) },
     { id: 'focus.code', title: 'Focus code', group: 'Panels', keys: ['g c'], run: () => (ensurePanel(app, 'code'), (document.querySelector('.rr-code-scroll') as HTMLElement)?.focus()) },
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
     { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
-    { id: 'layout.saveDefault', title: 'Save layout as default', group: 'Layout', hint: 'Reviews without a layout of their own open like this', when: () => !!app.backend.saveDefaultLayout, run: () => saveDefaultLayout(app) },
+    { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
-    ...presets.map((p, i) => ({ id: 'layout.' + p.id, title: `Layout: ${p.title}`, group: 'Layout', hint: p.hint, keys: [`alt+${i + 1}`], run: () => applyPreset(app, p.id) })),
+    ...Object.keys(layouts(app)).map((id) => layoutCommand(app, id)),
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },
     { id: 'theme.system', title: 'Theme: follow system', group: 'View', run: () => app.setPref('theme', 'system') },
     { id: 'diff.split', title: 'Toggle split / unified diff', group: 'Code', keys: ['s'], scope: 'code', run: () => app.setPref('diffStyle', app.prefs.diffStyle === 'split' ? 'unified' : 'split') },

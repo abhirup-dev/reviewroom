@@ -3,9 +3,9 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from '../lib/args.ts';
-import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, ensureExcluded, makeProvider } from '../lib/git.ts';
+import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, resolveDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
+import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, prTarget as prOf } from '../lib/github.ts';
 import { walkthroughPath } from '../lib/state.ts';
@@ -49,7 +49,7 @@ function prTarget(repo: string, o: PrOpts, n: string): Target {
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
   const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
-  return { dir: path.join(repo, '.reviewroom', `pr-${n}`), cfg };
+  return { dir: branchDir(repo, info?.headRefName || `pr-${n}`), cfg }; // pr-<n> only when gh can't name the branch
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
@@ -60,7 +60,7 @@ function branchTarget(repo: string, o: PrOpts, branch: string): Target {
     head = `${o.remote}/${branch}`;
     if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) fail(`no branch or PR called "${branch}"`);
   }
-  return { dir: path.join(repo, '.reviewroom', branch.replace(/[^\w.-]+/g, '-')), cfg: { base: o.base ?? defaultBase(repo), head, title: o.title } };
+  return { dir: branchDir(repo, branch), cfg: { base: o.base ?? defaultBase(repo), head, title: o.title } };
 }
 
 /** `pr`: the current branch (or --base/--head), nothing fetched. */
@@ -93,9 +93,8 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const t = n ? prTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
   const dir = o.dir ? path.resolve(o.dir) : t.dir;
   fs.mkdirSync(dir, { recursive: true });
-  ensureExcluded(repo);
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
-  const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)) } as ReviewConfig;
+  const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);

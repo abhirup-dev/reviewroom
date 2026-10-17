@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, repoOf } from '../lib/config.ts';
+import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
@@ -21,7 +21,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const tourFile = walkthroughPath(dir);
   const value = tour?.ok ? tour.value : null; // past the schema check, a walkthrough that is there is valid
   const tourRaw = value ? fs.readFileSync(tourFile, 'utf8') : '';
-  const r = repoOf(dir, repo);
+  const r = repo ?? fail('not inside a git repository (use --repo)');
   const raw = makeProvider(r, loadConfig(dir, r));
   const found = new Map<string, ReturnType<typeof raw.search>>(); // the link check and the notes resolve the same symbols
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };

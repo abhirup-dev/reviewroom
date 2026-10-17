@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
-import { ensureExcluded } from '../lib/git.ts';
 import { resolveDir, loadConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { takeLock, releaseLock } from '../lib/lock.ts';
@@ -9,6 +8,7 @@ import { undelivered } from '../../src/shared/ops.ts';
 import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
 import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
+import { agentAncestor } from '../hub/proc.ts';
 
 const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
 
@@ -36,7 +36,6 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const prev = await stopServer(dir);
   const portFlag = o.port || (prev ? String(prev.port) : undefined);
   fs.mkdirSync(dir, { recursive: true });
-  if (dir.startsWith(path.join(repo, '.reviewroom'))) ensureExcluded(repo);
   if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
@@ -49,8 +48,9 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const holder = await takeLock(dir, port);
   if (holder) fail(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
   const startedAt = new Date().toISOString();
+  const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));
-  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt });
+  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt, agent, author: cfg.number ? (cfg.author ?? null) : null });
   const cleanup = () => {
     releaseLock(dir);
     unregister(process.pid);

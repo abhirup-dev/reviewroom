@@ -41,9 +41,10 @@ Contributing to reviewroom itself (`bun run setup`, `bun run demo`): [AGENTS.md]
    (`reviewroom reply <id> "…"`), adds `data-round="2"` sections for bigger answers, changes code,
    and runs `reviewroom review` again. Your open tab reconnects and shows round 2.
 
-Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`):
-`review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, and
-`rounds/<n>/{review.html,feedback.md}` — browse old rounds from the **Round** menu.
+Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`:
+`review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, `layout.json`
+(the panels as you left them), and `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the
+**Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 
 ## Guided walkthroughs
 
@@ -120,7 +121,7 @@ src/
   index.ts            boot(), window.rr API, commands
   core/               types, rr: refs, commands/keys, markdown, emitter, dom helpers
   providers/          LocalProvider + ServerState (CLI), GitHubProvider, StaticProvider, BrowserState
-  shell/              ReviewApp (shared context), dockview layout + presets, header
+  shell/              ReviewApp (shared context), dockview layout (layouts in src/layouts/), header
   panels/             narrative, code (@pierre/diffs), files/contents/threads
   overlays/           thread popup/panel + composer, palette, hover previews, toasts
   elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>

@@ -8,12 +8,16 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, state, GitHub (Octokit, as the `gh` user).
 - `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
   `shared/` is used by the CLI too (no DOM, no Node): Zod schema, op reducer, `rr:` grammar, feedback text.
-  `flows/` holds the XState machines (thread popup, server sync, the guided walkthrough player and its code pane,
+  `flows/` holds the XState machines (thread popup, server sync, layout save, the guided walkthrough player and its code pane,
   a code panel's reveal); views subscribe.
 - The guided walkthrough (`walkthrough.json`): schema and PR block in `src/shared/walkthrough.ts`, player in
   `src/overlays/walkthrough.ts`, CLI in `cli/commands/walkthrough.ts` (publish, lint, shot) with `cli/lib/tour-lint.ts`
   (its checks) and `cli/lib/render.ts` (the headless browser, `Bun.WebView`: its only user).
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
+
+## Where reviews live
+
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo.
 
 ## Contracts (change deliberately, update the skill when you do)
 
@@ -25,8 +29,10 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `src/shared/walkthrough.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/shared/schema.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `sessions/<pid>.json` per running server, read by other local tools
-  (agent-annotation-hub); `layout.json` is the reviewer's default panel layout.
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
+  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
+  `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/shared/layout.ts` like the shipped ones
+  in `src/layouts/` (whose names they can't take); `default-layout.json` names their default.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 

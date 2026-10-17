@@ -8,12 +8,14 @@ import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
-import { DIST, PKG, layoutFile } from './paths.ts';
+import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
+import { ensureHub } from './registry.ts';
+import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
 import { tourText } from './walkthrough.ts';
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
@@ -80,6 +82,27 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
   };
 }
 
+// Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too (no-cors GETs, form POSTs,
+// DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
+function allowed(c: Context) {
+  const port = getBunServer<Bun.Server<undefined>>(c)?.port;
+  const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
+  if (!origins.includes(c.req.header('host') ?? '')) return false;
+  if (!c.req.path.startsWith('/api/')) return true;
+  const site = c.req.header('sec-fetch-site');
+  if (site && site !== 'same-origin' && site !== 'none') return false;
+  const origin = c.req.header('origin');
+  return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
+}
+
+/** Every response says which process sent it (lock.ts `answers`); the hub's server uses this too. */
+export const localOnly: MiddlewareHandler = async (c, next) => {
+  c.header('x-reviewroom-pid', String(process.pid));
+  c.header('cache-control', 'no-store'); // unless a route says otherwise
+  if (!allowed(c)) return c.json({ error: 'forbidden' }, 403);
+  await next();
+};
+
 /** `readOnly`: a server that only shows the review (`walkthrough lint`): no writes, no GitHub calls; it holds no lock. */
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
 export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
@@ -127,27 +150,9 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         if (edited) checkNarrative();
       });
 
-  // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
-  // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
-  const allowed = (c: Context) => {
-    const port = getBunServer<Bun.Server<undefined>>(c)?.port;
-    const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
-    if (!origins.includes(c.req.header('host') ?? '')) return false;
-    if (!c.req.path.startsWith('/api/')) return true;
-    const site = c.req.header('sec-fetch-site');
-    if (site && site !== 'same-origin' && site !== 'none') return false;
-    const origin = c.req.header('origin');
-    return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
-  };
-
   const app = new Hono();
-  app.use(async (c, next) => {
-    c.header('x-reviewroom-pid', String(process.pid));
-    c.header('cache-control', 'no-store'); // unless a route says otherwise
-    if (!allowed(c)) return json(c, { error: 'forbidden' }, 403);
-    if (readOnly && c.req.method !== 'GET' && c.req.method !== 'HEAD') return json(c, { error: 'read-only server' }, 403);
-    await next();
-  });
+  app.use(localOnly);
+  if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
     if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
@@ -203,12 +208,64 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const r = readWalkthrough(dir);
     return !r ? json(c, { error: 'no walkthrough.json' }, 404) : r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
   });
-  app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
-  app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
-  // a dockview layout, kept whole (loose: unknown keys stay)
-  app.put('/api/layout', body(z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) })), (c) => {
-    fs.mkdirSync(path.dirname(layoutFile()), { recursive: true });
-    fs.writeFileSync(layoutFile(), JSON.stringify(c.req.valid('json')));
+  // the hub: every review running on this machine; started on first use
+  app.get('/api/hub', async (c) => {
+    const url = await ensureHub();
+    return url ? c.redirect(url) : json(c, { error: `the hub did not start; see ${hubLog()}` }, 500);
+  });
+  // this review's dock as the reviewer left it (dockview JSON, kept whole) and the PR panels already offered
+  const lastLayout = path.join(dir, 'layout.json');
+  app.get('/api/layout', (c) => json(c, fs.existsSync(lastLayout) ? JSON.parse(fs.readFileSync(lastLayout, 'utf8')) : null));
+  app.put('/api/layout', body(z.object({ dock: z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) }), offered: z.array(z.string()), layout: z.string().optional() })), (c) => {
+    fs.writeFileSync(lastLayout, JSON.stringify(c.req.valid('json')));
+    return json(c, { ok: true });
+  });
+  // the reviewer's layout files by name, and which one is their default; a file that no longer parses is skipped, not fatal
+  const defaultLayout = (): string | null => {
+    try {
+      return z.object({ layout: LayoutId }).parse(JSON.parse(fs.readFileSync(defaultLayoutFile(), 'utf8'))).layout;
+    } catch {
+      return null;
+    }
+  };
+  const setDefault = (id: string | null) => (id ? fs.writeFileSync(defaultLayoutFile(), JSON.stringify({ layout: id }) + '\n') : fs.rmSync(defaultLayoutFile(), { force: true }));
+  app.get('/api/layouts', (c) => {
+    const files = fs.existsSync(layoutsDir()) ? fs.readdirSync(layoutsDir()).filter((f) => f.endsWith('.json')) : [];
+    const read = (f: string) => {
+      try {
+        return Layout.parse(JSON.parse(fs.readFileSync(path.join(layoutsDir(), f), 'utf8')));
+      } catch (e) {
+        console.error(`reviewroom: skipping layout ${f}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+    const layouts = Object.fromEntries(files.flatMap((f) => {
+      const id = f.slice(0, -5);
+      const l = LayoutId.safeParse(id).success && !(id in builtinLayouts) && read(f);
+      return l ? [[id, l]] : [];
+    }));
+    return json(c, { layouts, default: defaultLayout() });
+  });
+  app.put('/api/default-layout', body(z.object({ layout: LayoutId.nullable() })), (c) => {
+    fs.mkdirSync(path.dirname(defaultLayoutFile()), { recursive: true });
+    setDefault(c.req.valid('json').layout);
+    return json(c, { ok: true });
+  });
+  const layoutId = zValidator('param', z.object({ id: LayoutId }), (r, c) => {
+    if (!r.success) return json(c, { error: 'layout names are lowercase letters, digits and dashes', code: 'bad_op' }, 400);
+  });
+  // saving never replaces a layout: a shipped one's name or one already saved is taken
+  app.put('/api/layouts/:id', layoutId, body(Layout), (c) => {
+    const { id } = c.req.valid('param');
+    const file = path.join(layoutsDir(), id + '.json');
+    if (id in builtinLayouts || fs.existsSync(file)) return json(c, { error: `a layout named ${id} already exists`, code: 'taken' }, 409);
+    fs.mkdirSync(layoutsDir(), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(c.req.valid('json'), null, 2) + '\n', { flag: 'wx' });
+    return json(c, { ok: true });
+  });
+  app.delete('/api/layouts/:id', layoutId, (c) => {
+    const { id } = c.req.valid('param');
+    fs.rmSync(path.join(layoutsDir(), id + '.json'), { force: true });
+    if (defaultLayout() === id) setDefault(null);
     return json(c, { ok: true });
   });
   app.get('/api/github', async (c) => json(c, readOnly ? (github.cached() ?? { ok: false, threads: [], error: 'not fetched (read-only server)' }) : await (c.req.query('refresh') ? github.refresh() : github.snapshot())));

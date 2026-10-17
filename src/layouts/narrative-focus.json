@@ -1,0 +1,10 @@
+{
+  "title": "Narrative focus",
+  "hint": "Just the narrative; code opens on demand",
+  "root": {
+    "row": [
+      { "size": 264, "tabs": ["toc", "threads", "files", "ci"], "active": "toc" },
+      { "column": [{ "size": 0.4, "tabs": ["description"] }, { "tabs": ["narrative", "code"], "active": "narrative" }] }
+    ]
+  }
+}
