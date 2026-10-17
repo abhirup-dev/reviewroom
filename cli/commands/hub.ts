@@ -19,7 +19,7 @@ const readHub = (): ServerRecord | null => {
 
 // One hub per machine: a second `hub` points at the running one.
 export async function cmdHub(o: HubOpts) {
-  const show = (url: string) => (console.log(url), o.open && openBrowser(url));
+  const show = (url: string) => (console.log(url), o.open && openBrowser(url, true));
   const live = await liveHub();
   if (o.stop) {
     if (live) process.kill(live.pid, 'SIGTERM');

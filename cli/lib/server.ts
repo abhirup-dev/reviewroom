@@ -1,4 +1,5 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
+import { execFile } from 'node:child_process';
 import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -316,4 +317,7 @@ export function listen(app: Hono, port: number) {
   }
 }
 
-export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
+const openUrl = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
+// `app`: hand the page to the macOS app (app/), which opens it in a tab; the browser when it isn't installed.
+export const openBrowser = (url: string, app = false) =>
+  app && process.platform === 'darwin' ? execFile('open', ['-b', 'dev.reviewroom.mac', url], (e) => e && openUrl(url)) : openUrl(url);

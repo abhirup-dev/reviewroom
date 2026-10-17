@@ -1,11 +1,10 @@
-// The menu bar. Reviews lists every running review (also those started with --browser or --no-open) with
-// Cmd-1..9, then the settings; shortcuts the review page itself uses (Cmd-K, Shift-Cmd-O/P/F, Option-1..9) stay free.
+// The menu bar. Reviews: All Reviews (the hub's tab), then the open tabs with Cmd-1..9, then the settings; shortcuts the review page itself uses (Cmd-K, Shift-Cmd-O/P/F, Option-1..9) stay free.
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
-    AppHandle, Manager, Url, Window,
+    AppHandle, Manager, Window,
 };
 
-use crate::{bring_forward, open_external, open_review, page, reopen_closed, save_settings, session_of, show_hub, title, State, HUB};
+use crate::{bring_forward, is_hub, open_external, page, reopen_closed, save_settings, show_hub, State};
 
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let sep = || PredefinedMenuItem::separator(app);
@@ -31,7 +30,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         "File",
         true,
         &[
-            &item("reopen", "Reopen Closed Reviews", "CmdOrCtrl+Shift+T")?,
+            &item("reopen", "Reopen Closed Tab", "CmdOrCtrl+Shift+T")?,
             &sep()?,
             &item("browser", "Open in Browser", "CmdOrCtrl+Shift+B")?,
             &item("github", "Open on GitHub", "CmdOrCtrl+Shift+G")?,
@@ -88,7 +87,7 @@ fn current(app: &AppHandle) -> Option<Window> {
     app.get_window(&label)
 }
 
-/// Rebuilds the Reviews menu from the running reviews; the shown tab gets the check mark. Main thread only.
+/// Rebuilds the Reviews menu from the open tabs; the shown tab gets the check mark. Main thread only.
 pub fn refresh(app: &AppHandle) {
     let Some(menu) = app.state::<State>().reviews_menu.lock().unwrap().clone() else { return };
     if let Err(e) = fill(app, &menu) {
@@ -97,24 +96,24 @@ pub fn refresh(app: &AppHandle) {
 }
 
 fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
-    let sessions = app.state::<State>().sessions.lock().unwrap().clone();
+    let tabs = app.state::<State>().tabs.lock().unwrap().clone();
     let settings = *app.state::<State>().settings.lock().unwrap();
     let shown = current(app).map(|w| w.label().to_string());
     for it in menu.items()? {
         menu.remove(&it)?;
     }
-    let hub = CheckMenuItem::with_id(app, "hub", "All Reviews", true, shown.as_deref() == Some(HUB), Some("CmdOrCtrl+Shift+H"))?;
+    let on_hub = shown.as_deref().is_some_and(|l| is_hub(app, l));
+    let hub = CheckMenuItem::with_id(app, "hub", "All Reviews", true, on_hub, Some("CmdOrCtrl+Shift+H"))?;
     menu.append_items(&[&hub, &PredefinedMenuItem::separator(app)?])?;
-    if sessions.is_empty() {
-        menu.append(&MenuItem::new(app, "No Running Reviews", false, None::<&str>)?)?;
+    let reviews: Vec<_> = tabs.iter().filter(|(l, _)| !is_hub(app, l)).filter_map(|(l, _)| app.get_window(l)).collect();
+    if reviews.is_empty() {
+        menu.append(&MenuItem::new(app, "No Open Reviews", false, None::<&str>)?)?;
     }
-    for (i, (label, s)) in sessions.iter().enumerate() {
-        let text = match app.get_window(label) {
-            Some(_) => title(s),
-            None => format!("{} (not open)", title(s)),
-        };
+    for (i, w) in reviews.iter().enumerate() {
+        let label = w.label();
+        let text = app.state::<State>().titles.lock().unwrap().get(label).cloned().unwrap_or(w.title()?);
         let keys = (i < 9).then(|| format!("CmdOrCtrl+{}", i + 1));
-        let on = shown.as_deref() == Some(label.as_str());
+        let on = shown.as_deref() == Some(label);
         menu.append(&CheckMenuItem::with_id(app, format!("review:{label}"), text, true, on, keys.as_deref())?)?;
     }
     menu.append_items(&[
@@ -122,7 +121,7 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
         &MenuItem::with_id(app, "next", "Next Review", true, Some("CmdOrCtrl+Shift+BracketRight"))?,
         &MenuItem::with_id(app, "prev", "Previous Review", true, Some("CmdOrCtrl+Shift+BracketLeft"))?,
         &PredefinedMenuItem::separator(app)?,
-        &CheckMenuItem::with_id(app, "set:auto_open", "Open New Reviews Automatically", true, settings.auto_open, None::<&str>)?,
+        &CheckMenuItem::with_id(app, "set:auto_open", "Open New Reviews Here (Off: in the Browser)", true, settings.auto_open, None::<&str>)?,
         &CheckMenuItem::with_id(app, "set:focus_new", "Bring Reviewroom to the Front for New Reviews", true, settings.focus_new, None::<&str>)?,
         &CheckMenuItem::with_id(app, "set:unload_idle", "Unload Background Tabs After 10 Minutes", true, settings.unload_idle, None::<&str>)?,
     ])
@@ -131,19 +130,22 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
 pub fn handle(app: &AppHandle, e: MenuEvent) {
     let st = app.state::<State>();
     let id = e.id().as_ref();
-    let session = |label: &str| session_of(app, label);
     let cur = current(app);
     match id {
         "reopen" => reopen_closed(app),
         "hub" => {
-            show_hub(app);
+            show_hub(app, true);
             refresh(app); // the click toggled its check mark
         }
-        "browser" | "github" => {
-            let s = cur.as_ref().and_then(|w| session(w.label()));
-            let url = s.and_then(|s| if id == "browser" { Some(s.url) } else { s.pr_url });
-            if let Some(u) = url.and_then(|u| u.parse::<Url>().ok()) {
+        "browser" => {
+            if let Some(u) = cur.and_then(|w| page(app, w.label())).and_then(|p| p.url().ok()) {
                 open_external(&u);
+            }
+        }
+        // the review's server knows its PR; leaving the page for GitHub goes to the browser (route)
+        "github" => {
+            if let Some(p) = cur.and_then(|w| page(app, w.label())) {
+                let _ = p.eval("fetch('/api/meta').then((r) => r.json()).then((m) => { if (m.url) location.href = m.url; }, () => {})");
             }
         }
         "reload" => {
@@ -169,7 +171,7 @@ pub fn handle(app: &AppHandle, e: MenuEvent) {
             }
         }
         "next" | "prev" => {
-            let labels: Vec<String> = st.sessions.lock().unwrap().iter().map(|(l, _)| l.clone()).collect();
+            let labels: Vec<String> = st.tabs.lock().unwrap().iter().map(|(l, _)| l.clone()).collect();
             let open: Vec<Window> = labels.iter().filter_map(|l| app.get_window(l)).collect();
             if !open.is_empty() {
                 let n = open.len();
@@ -195,8 +197,8 @@ pub fn handle(app: &AppHandle, e: MenuEvent) {
         }
         _ => {
             if let Some(label) = id.strip_prefix("review:") {
-                if let Some(s) = session(label) {
-                    let _ = open_review(app, label, &s, true);
+                if let Some(w) = app.get_window(label) {
+                    bring_forward(w);
                 }
                 refresh(app); // the click toggled its check mark
             }

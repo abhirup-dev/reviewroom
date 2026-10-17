@@ -10,6 +10,8 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `shared/` is used by the CLI too (no DOM, no Node): Zod schema, op reducer, `rr:` grammar, feedback text.
   `flows/` holds the XState machines (thread popup, server sync, layout save); views subscribe.
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
+- `app/` (Tauri, Rust): the macOS app. `reviewroom` hands it each review (`open -b dev.reviewroom.mac <url>`); it shows
+  the hub and each review in native tabs, and polls nothing. `bun run app`; `bun run setup` installs it.
 
 ## Where reviews live
 

@@ -52,7 +52,7 @@ cli
   .option('--wait', 'Then block like `review` until the round ends')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
-  .option('--browser', 'Open in the browser even when the macOS app is installed; the app leaves this review alone')
+  .option('--browser', 'Open in the browser even when the macOS app is installed')
   .example('  reviewroom pr 4821 --wait')
   .example('  reviewroom pr --head worktree --wait')
   .action(run<PrOpts>((repo, o, pos) => cmdPr(repo, o, pos[0])));
@@ -62,7 +62,7 @@ cli
   .option('--forever', 'Keep serving; never wait for a round (for a long-running session)')
   .option('--port <n>', 'Port (default: the previous one, else 4848)')
   .option('--no-open', 'Do not open the browser')
-  .option('--browser', 'Open in the browser even when the macOS app is installed; the app leaves this review alone')
+  .option('--browser', 'Open in the browser even when the macOS app is installed')
   .action(run<ServeOpts>((repo, o) => cmdServe(repo, o, !o.forever)));
 
 cli
