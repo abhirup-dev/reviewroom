@@ -37,6 +37,7 @@ let warnings: string[] = [];
 const selected = new Set<string>();
 const sort: { key: SortKey; dir: 1 | -1 } = { key: 'startedAt', dir: -1 };
 let painted = '';
+const seen = new Set<string>(); // sessions already shown: only new ones fade in
 
 // ------------------------------------------------------------ elements
 const input = (attrs: Record<string, unknown>) => h('input', { class: 'rr-input', oninput: () => paint(), ...attrs });
@@ -62,11 +63,11 @@ const selectOptions: [HTMLSelectElement, string, (s: SessionInfo) => string | nu
 const meta = h('div', { class: 'rr-header__meta' });
 const banners = h('div', { class: 'rr-hub__banners' });
 const count = h('span', { class: 'rr-hub__count' });
-const openBtn = h('button', { class: 'rr-btn rr-btn--small', title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
-const closeBtn = h('button', { class: 'rr-btn rr-btn--small', title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
+const openBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
+const closeBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
 const all = h('input', { type: 'checkbox', class: 'rr-hub__check', 'aria-label': 'Select all shown', title: 'Select every session shown', onchange: () => (visible().forEach((s) => (all.checked ? selected.add(s.id) : selected.delete(s.id))), paint()) });
 const body = h('tbody');
-const empty = h('div', { class: 'rr-empty rr-hub__empty' });
+const empty = h('div', { class: 'rr-empty rr-hub__empty' }, 'Looking for running reviews…');
 
 const columns: [SortKey | null, string, string, string?][] = [
   // where the review stands first; where it runs (repository, directory, processes) after, scrolled to on narrow screens
@@ -87,7 +88,7 @@ const columns: [SortKey | null, string, string, string?][] = [
 const heads = columns.map(([key, label, tip, cls]) =>
   h('th', { class: cls, title: tip ? (key ? `${tip}. Click to sort` : tip) : undefined, onclick: key ? () => ((sort.dir = sort.key === key ? (-sort.dir as 1 | -1) : 1), (sort.key = key), paint()) : undefined, 'data-sort': key ?? undefined }, label),
 );
-const table = h('table', { class: 'rr-hub__table' }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
+const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
 
 mountTooltips();
 document.body.append(
@@ -144,7 +145,7 @@ function row(s: SessionInfo) {
   const comments = s.commentCount == null ? h('span', { title: 'Not reported by this tool' }, '–') : s.unresolvedCommentCount != null ? h('span', { title: `${s.unresolvedCommentCount} open of ${s.commentCount}` }, String(s.commentCount)) : String(s.commentCount);
   return h(
     'tr',
-    { class: on ? 'is-selected' : undefined, ondblclick: (e: MouseEvent) => !(e.target as Element).closest('a, button, input') && open(s) },
+    { class: [on && 'is-selected', !seen.has(s.id) && 'is-new'].filter(Boolean).join(' ') || undefined, ondblclick: (e: MouseEvent) => !(e.target as Element).closest('a, button, input') && open(s) },
     h('td', { class: 'rr-hub__sel' }, h('input', { type: 'checkbox', class: 'rr-hub__check', checked: on, 'aria-label': `Select ${subject(s)}`, title: 'Select for Open or Close', onchange: () => (on ? selected.delete(s.id) : selected.add(s.id), paint()) })),
     h('td', null, TOOLS[s.tool] ?? s.tool),
     h('td', { class: 'rr-hub__subject', title: s.target ?? subject(s) }, subject(s)),
@@ -195,6 +196,7 @@ function paint() {
   all.indeterminate = picked.length > 0 && picked.length < rows.length;
   heads.forEach((th) => (th.dataset.sort === sort.key ? th.setAttribute('aria-sort', sort.dir > 0 ? 'ascending' : 'descending') : th.removeAttribute('aria-sort')));
   body.replaceChildren(...rows.map(row));
+  for (const s of rows) seen.add(s.id);
   table.hidden = !rows.length;
   empty.hidden = !!rows.length;
   empty.textContent = total ? 'No sessions match the filters.' : 'No reviews running. Start one with `reviewroom pr`; Crit and Plannotator sessions show up here too.';

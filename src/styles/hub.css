@@ -92,6 +92,7 @@
 }
 .rr-hub__table th[data-sort] {
   cursor: pointer;
+  transition: color 0.12s ease-out;
 }
 .rr-hub__table th[data-sort]:hover,
 .rr-hub__table th[aria-sort] {
@@ -104,13 +105,33 @@
   content: ' ▼';
 }
 .rr-hub__table td {
+  transition: background-color 0.12s ease-out, color 0.12s ease-out;
   height: 32px;
   padding: 0 8px;
   border-bottom: 1px solid var(--rr-line);
   white-space: nowrap;
 }
+.rr-hub__table tbody tr {
+  transition: background-color 0.12s ease-out;
+}
 .rr-hub__table tbody tr:hover {
   background: var(--rr-hover);
+}
+/* a hairline marks the row under the pointer or focus */
+.rr-hub__table tbody tr:is(:hover, :focus-within) td:first-child {
+  box-shadow: inset 2px 0 0 var(--rr-line-strong);
+}
+.rr-hub__table tbody tr.is-selected td:first-child {
+  box-shadow: inset 2px 0 0 var(--rr-ink-2);
+}
+.rr-hub__table tbody tr.is-new {
+  animation: rr-hub-in 0.24s ease-out;
+}
+@keyframes rr-hub-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
 }
 .rr-hub__table tbody tr.is-selected {
   background: var(--rr-active);
@@ -180,6 +201,33 @@
 }
 .rr-hub__actions a.rr-icon-btn {
   text-decoration: none;
+}
+/* the row's actions recede until the row is in play */
+.rr-hub__actions .rr-icon-btn {
+  opacity: 0.55;
+  transition: opacity 0.12s ease-out, background-color 0.12s ease-out, color 0.12s ease-out;
+}
+tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
+  opacity: 1;
+}
+.rr-hub__actions .rr-icon-btn:hover {
+  color: var(--rr-ink);
+}
+.rr-hub__banner {
+  animation: rr-fade 0.16s ease-out;
+}
+.rr-hub__count:not(:empty) {
+  animation: rr-fade 0.12s ease-out;
+}
+.rr-hub__bar .rr-btn {
+  transition: opacity 0.12s ease-out, background-color 0.12s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-hub *,
+  .rr-hub *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 .rr-hub__empty {
   padding: 32px 14px;
