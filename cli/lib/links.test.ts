@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
 import type { SearchHit } from '../../src/core/types.ts';
+import type { Walkthrough } from '../../src/shared/walkthrough.ts';
+import { locate } from './walkthrough.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
 const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (_rev: string, p: string) => files[p] ?? null, search: (q: unknown) => (q === 'Build' ? [{ kind: 'definition' } as SearchHit] : []) });
@@ -58,4 +60,21 @@ test('--fix moves each link once, even when one lands where another was', () => 
     expect(fixed.html).toContain('rr:code/a.go#L10"');
     expect(problems(checkLinks(fixed.html, after, fixed.links).results)).toEqual([]);
   }
+});
+
+test('walkthrough.json text: step refs and prose links inside JSON strings are checked, located and fixed', () => {
+  const w = { version: 1, title: 'T', chapters: [{ id: 'why', title: 'W', lead: '<a href="rr:doc/intro">i</a>', steps: [{ id: 's1', text: '<p>See <a href="rr:code/a.go#L4-6">x</a>.</p>', ref: 'rr:code/a.go#L4-6' }, { id: 's2', text: 'y', ref: 'rr:doc/nope' }] }] };
+  const text = JSON.stringify(w, null, 2) + '\n';
+  const { links } = checkLinks(html(), prov({ 'a.go': body.join('\n') }), {}, text);
+  expect(Object.keys(links)).toEqual(['rr:code/a.go#L4-6']);
+  const after = prov({ 'a.go': ['new', 'new', ...body].join('\n') });
+  const { results } = checkLinks(html(), after, links, text);
+  const bad = locate(problems(results), w as Walkthrough);
+  expect(bad.map((x) => [x.ref, x.status, x.where])).toEqual([
+    ['rr:code/a.go#L4-6', 'moved', ['why/s1']],
+    ['rr:doc/nope', 'broken', ['why/s2']],
+  ]);
+  const fixed = applyFixes(text, results, links).html;
+  expect(JSON.parse(fixed).chapters[0].steps[0]).toMatchObject({ ref: 'rr:code/a.go#L6-8', text: expect.stringContaining('rr:code/a.go#L6-8') });
+  expect(fixed.endsWith('}\n')).toBe(true);
 });

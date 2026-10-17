@@ -1,4 +1,4 @@
-// Stale-link check for the rr: links in review.html. A link with a line range is fingerprinted (a hash
+// Stale-link check for the rr: links in review.html and walkthrough.json. A link with a line range is fingerprinted (a hash
 // of the lines it points at) the first time it is seen, a symbol link by having a definition; later
 // checks compare against the current code.
 // Used by the server (on start and whenever review.html changes) and by `reviewroom check`.
@@ -11,6 +11,8 @@ export interface LinkResult {
   ref: string;
   status: LinkStatus;
   why?: string;
+  /** where it is in walkthrough.json (`<chapter>/<step>`, or `<chapter>` for a lead) */
+  where?: string[];
   /** for `moved`: the fixed link */
   to?: string;
 }
@@ -18,7 +20,7 @@ export interface LinkResult {
 export type Links = Record<string, string>;
 
 const DRIFT = 5; // a block that moved further than this is reported for the agent to fix, not healed
-const LINK = /rr:(?:code|file|sym|doc)\/[^\s"'<>`)]+/g;
+const LINK = /rr:(?:code|file|sym|doc)\/[^\s"'<>`)\\]+/g; // no backslash: links inside JSON strings end at \"
 const LINES = /#L(\d+)(?:-L?(\d+))?$/;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1').update(lines.slice(s - 1, e).join('\n')).digest('hex').slice(0, 16);
@@ -29,12 +31,12 @@ const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 
 /**
- * Check every link in `html` against the code. `known` is the ref -> hash map from the last check
+ * Check every link in `html`, and in `extra` (walkthrough.json's text), against the code. `known` is the ref -> hash map from the last check
  * (state.json `links`); the returned `links` is the new one (links no longer in the narrative drop out).
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
-export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}) {
+export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '') {
   html = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
@@ -49,7 +51,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     return files.get(sha + ':' + p);
   };
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
-  for (const ref of extractLinks(html)) {
+  for (const ref of extractLinks(html + '\n' + extra)) {
     const r = parseRef(ref);
     if (!r || r.type === 'thread' || r.type === 'round' || r.type === 'tour') {
       out(ref, 'broken', 'not a valid link');
@@ -106,7 +108,8 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
 export const problems = (results: LinkResult[]) => results.filter((x) => x.status === 'moved' || x.status === 'changed' || x.status === 'broken');
 
 /** One line per problem, for the agent. */
-export const report = (bad: LinkResult[]) => bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}`).join('\n');
+export const report = (bad: LinkResult[]) =>
+  bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}${x.where ? `  [walkthrough ${x.where.join(', ')}]` : ''}`).join('\n');
 
 /** Rewrite moved links in one pass (so #L4->#L7 and #L7->#L10 can't chain) and move their fingerprints along. */
 export function applyFixes(html: string, results: LinkResult[], links: Links) {

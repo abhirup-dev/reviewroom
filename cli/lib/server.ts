@@ -39,14 +39,14 @@ export interface Finished {
   round: number;
 }
 
-/** Watch the review dir for review.html, walkthrough.json and assets (debounced); `edited` = review.html itself changed.
+/** Watch the review dir for review.html, walkthrough.json and assets (debounced); `edited` = review.html or walkthrough.json changed.
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
 function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   let t: NodeJS.Timeout | undefined, edited = false;
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
     if (f === 'review.html' || f === 'walkthrough.json' || (f && /\.(css|js|svg|png)$/.test(f))) {
-      edited ||= f === 'review.html';
+      edited ||= f === 'review.html' || f === 'walkthrough.json';
       clearTimeout(t);
       t = setTimeout(() => {
         onChange(edited);
@@ -67,10 +67,11 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       if (!fs.existsSync(reviewFile)) return;
       const known = readState(dir).links ?? {};
       // the current head, not the one this server started on: `check` must fingerprint the same code
-      const { results, links } = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known);
+      const tour = fs.existsSync(walkthroughPath(dir)) ? fs.readFileSync(walkthroughPath(dir), 'utf8') : '';
+      const { results, links } = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour);
       if (JSON.stringify(links) !== JSON.stringify(known)) commit([{ op: 'setLinks', links }]);
       const bad = problems(results);
-      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
+      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html or walkthrough.json; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
       if (text && text !== lastReport) console.error(text);
       lastReport = text;
     } catch (e) {

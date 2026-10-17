@@ -80,7 +80,7 @@ cli
   .action(run(cmdComment));
 
 cli
-  .command('check', 'Check rr: links in review.html against the code (exit 1 while any need attention)')
+  .command('check', 'Check rr: links in review.html and walkthrough.json against the code (exit 1 while any need attention)')
   .option('--fix', 'Rewrite links whose code moved a few lines')
   .option('--accept', 'Take every link as it is now')
   .option('--json', 'Print problems as JSON')
@@ -99,7 +99,9 @@ const notes: Record<string, string> = {
     '    changed   code at those lines changed, or moved further, or a symbol lost its definition',
     '              -> re-read the code; fix the link and the prose around it (or --accept if both still hold)',
     '    broken    the file, symbol or section (rr:doc/<id>) is gone -> fix or remove the link',
-    '  The server also checks on start and on every save of review.html. Links in HTML comments are ignored.',
+    '  walkthrough.json, when present, must match schema/walkthrough.schema.json (checked first); its step refs and',
+    '  the links in its prose are checked like the narrative\'s, and problems name the chapter/step they are in.',
+    '  The server also checks on start and on every save of review.html or walkthrough.json. Links in HTML comments are ignored.',
   ].join('\n'),
 };
 // top level: one line instead of a --help line per command, the round loop and the review dir
