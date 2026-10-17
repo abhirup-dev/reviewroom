@@ -37,7 +37,7 @@ skills/reviewroom/   the skill agents use to run reviews (entry point + referenc
 templates/            review.html scaffold
 examples/             demo review + script that creates the demo git repo
 scripts/              build (Bun), static demo builder
-e2e/                  end-to-end tests (`bun run smoke`): the built CLI under Node against the demo repo
+e2e/                  end-to-end tests (`bun run smoke`): the built CLI under Bun against the demo repo
 ```
 
 ## Contracts (change deliberately, update the skill when you do)
@@ -68,7 +68,7 @@ e2e/                  end-to-end tests (`bun run smoke`): the built CLI under No
 ## Working on it
 
 Bun is the toolchain: it installs dependencies (`bun.lock`, pinned by `packageManager`), bundles the client and the
-CLI, and runs the scripts and tests. Node (>= 20) only runs the built CLI. Every library is bundled into `dist/`, so all
+CLI, runs the scripts and tests, and runs the built CLI (Bun >= 1.3.12). Every library is bundled into `dist/`, so all
 of them are `devDependencies`; the published package has no runtime dependencies.
 
 ```bash

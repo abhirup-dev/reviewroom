@@ -1,6 +1,4 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
 import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,8 +20,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { FinishRound, GitHubAction, issueText } from '../../src/shared/schema.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
-import { createAdaptorServer } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
+import { getBunServer, serveStatic } from '@hono/bun';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
@@ -128,7 +125,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too
   // (no-cors GETs, form POSTs, DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
   const allowed = (c: Context) => {
-    const port = (server.address() as AddressInfo | null)?.port;
+    const port = getBunServer<Bun.Server<undefined>>(c)?.port;
     const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
     if (!origins.includes(c.req.header('host') ?? '')) return false;
     if (!c.req.path.startsWith('/api/')) return true;
@@ -241,29 +238,37 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
   app.get('/api/rounds/:n{[0-9]+}/review.html', serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
   // anything else: static files next to review.html (images, extra css/js the agent wrote). serveStatic refuses
   // `..`, `//` and `\`; it decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F),
-  // so `a%231.png` finds `a#1.png`. The review's own state files are never served ('\0' is a path nothing has).
+  // so `a%231.png` finds `a#1.png`. The review's own state files are never served: checked on the fully decoded path.
+  const stateFile = (p: string) => {
+    try {
+      return /(^|\/)\.?state\.(json|lock)[^/]*$/i.test(decodeURIComponent(p));
+    } catch {
+      return true; // malformed escapes: serveStatic would refuse them anyway
+    }
+  };
   app.get(
     '*',
+    async (c, next) => (stateFile(c.req.path) ? c.notFound() : next()),
     serveStatic({
       root: dir,
       allowPercentInPath: true,
-      rewriteRequestPath: (p) => (/(^|\/)\.?state\.(json|lock)[^/]*$/i.test(p) ? '\0' : p.replace(/%(23|24|26|2B|2C|3A|3B|3D|3F|40)/gi, decodeURIComponent)),
+      rewriteRequestPath: (p) => p.replace(/%(23|24|26|2B|2C|3A|3B|3D|3F|40)/gi, decodeURIComponent),
     }),
   );
 
-  const server = createAdaptorServer({ fetch: app.fetch, overrideGlobalObjects: false }) as http.Server;
-  return { server, prov, commit, github, checkNarrative };
+  return { app, prov, commit, github, checkNarrative };
 }
 
-export function listen(server: http.Server, port: number) {
-  return new Promise<number>((resolve, reject) => {
-    const tryPort = (p: number, left: number) => {
-      server.once('error', (e: NodeJS.ErrnoException) => (e.code === 'EADDRINUSE' && left > 0 ? tryPort(p + 1, left - 1) : reject(e)));
-      // the callback of a failed attempt stays registered and fires on the next success: report the real port
-      server.listen(p, '127.0.0.1', () => resolve((server.address() as AddressInfo).port));
-    };
-    tryPort(port, 20);
-  });
+/** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */
+export function listen(app: Hono, port: number) {
+  for (let p = port; ; p++) {
+    try {
+      // idleTimeout 0: an SSE stream is quiet for 20 s between pings, past Bun's 10 s default
+      return Bun.serve({ fetch: app.fetch, hostname: '127.0.0.1', port: p, idleTimeout: 0 });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE' || p >= port + 20) throw e;
+    }
+  }
 }
 
 export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
