@@ -52,6 +52,8 @@ describe('a stacked review', () => {
     const r = await cli(['walkthrough', 'publish', '--dry-run', ...d]);
     expect([r.code, [...r.stdout.matchAll(/^--- PR #(\d+)$/gm)].map((m) => m[1])]).toEqual([0, ['1', '2', '3']]);
     expect((await cli(['walkthrough', 'publish', '--dry-run', '--pr', '3', ...d])).stdout.match(/^--- PR #\d+$/gm)).toEqual(['--- PR #3']);
+    // #3 changes store/store.go too; its chapter shows only cache.go
+    expect((await cli(['check', '--json', ...d])).stdout).toMatch(/PR #3's chapters: [^"]*store\/store\.go/);
     fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'T', chapters: [ch('x', 9), ch('y', 2)] }));
     expect((await cli(['check', '--json', ...d])).stdout).toContain("PR #9 is not in this review's stack");
     fs.rmSync(path.join(dir, 'walkthrough.json'));

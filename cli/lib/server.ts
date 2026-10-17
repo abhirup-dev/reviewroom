@@ -15,7 +15,7 @@ import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, finishKind, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
-import { tourText } from './walkthrough.ts';
+import { tourPieces } from './walkthrough.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -71,7 +71,7 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       const known = readState(dir).links ?? {};
       // the current head, not the one this server started on: `check` must fingerprint the same code
       const w = readWalkthrough(dir);
-      const tour = w?.ok ? tourText(w.value) : '';
+      const tour = w?.ok ? tourPieces(w.value) : '';
       const checked = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour, w?.ok ? w.value : null);
       const { results } = checked;
       // a walkthrough.json that is broken for now hides its links: keep their fingerprints, or fixing it re-baselines moved code

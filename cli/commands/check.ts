@@ -5,7 +5,7 @@ import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
-import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
+import { fixTour, locate, tourPieces } from '../lib/walkthrough.ts';
 import { findingReport, lintTour, type Finding } from '../lib/tour-lint.ts';
 import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
@@ -29,7 +29,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir, { repair: o.store !== false }).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourText(value) : '', value);
+  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourPieces(value) : '', value);
   let fixed = html, fixedTour = tourRaw;
   if (o.fix && results.some((x) => x.status === 'moved')) {
     if (value) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below
@@ -38,9 +38,16 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   if (fixed !== html) fs.writeFileSync(file, fixed);
   if (fixedTour !== tourRaw) fs.writeFileSync(tourFile, fixedTour);
   const healed = fixed !== html || fixedTour !== tourRaw;
-  if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : '', value));
+  if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourPieces(JSON.parse(fixedTour)) : '', value));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const notes = value && o.notes !== false ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
+  // a stack: per PR, the files its layer changes that its own chapters leave out
+  for (const l of value && o.notes !== false ? (prov.layers ?? []) : []) {
+    const own = value!.chapters.filter((c) => c.pr === l.number);
+    if (!own.length) continue;
+    const unshown = lintTour({ ...value!, chapters: own }, prov.files(l.base, l.head), (n) => prov.search(n, l.head, true, 1)[0]?.path, { estimates: false }).filter((f) => f.check === 'unshown-file');
+    notes.push(...unshown.map((f) => ({ ...f, message: `PR #${l.number}'s chapters: ${f.message}` })));
+  }
   // a chapter about a PR: one of this review's stack
   for (const c of value?.chapters ?? []) if (c.pr && !cfg.stack?.prs.some((p) => p.number === c.pr)) notes.push({ check: 'chapter-pr', level: 'warn', where: c.id, message: `PR #${c.pr} is not in this review's ${cfg.stack ? 'stack' : 'diff (it is not a stack of PRs)'}`, fix: 'Set the chapter\'s pr to a PR of the stack, or drop it for a chapter about the whole stack.' });
   return { tour: value, results, bad: locate(problems(results), value), healed, notes };

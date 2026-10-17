@@ -90,3 +90,21 @@ test("@pr:<n> links read that PR's layer; a PR not in the stack is broken", () =
   // a review without a stack: every @pr: link is broken, not a crash
   expect(checkLinks(html('rr:code/a.go@pr:1#L1'), prov({ 'a.go': 'x' })).results[0].status).toBe('broken');
 });
+
+test("a stack: a link in a PR's chapter or data-pr section is checked at that PR's layer", () => {
+  const shifted = ['n1', 'n2', 'n3', ...body].join('\n');
+  // #1's head has the file as written; the top of the stack (#2) moved those lines down 3
+  const at = (top: string) => ({ head: 'h', base: 'b', read: (rev: string) => (rev === 'L1' ? body.join('\n') : top), search: () => [], layers: [{ number: 1, base: 'b', head: 'L1' }, { number: 2, base: 'L1', head: 'h' }] });
+  const pieces = (ref: string) => [{ text: `<a href="${ref}">x</a>`, pr: 1 }, { text: `<a href="${ref}">x</a>` }];
+  const { links } = checkLinks(html(), at(body.join('\n')), {}, pieces('rr:code/a.go#L4'));
+  expect(Object.keys(links).sort()).toEqual(['rr:code/a.go#L4', 'rr:code/a.go@pr:1#L4']);
+  const { results } = checkLinks(html(), at(shifted), links, pieces('rr:code/a.go#L4'));
+  expect(results.map((x) => [x.ref, x.pr, x.status])).toEqual([['rr:code/a.go#L4', 1, 'ok'], ['rr:code/a.go#L4', undefined, 'moved']]);
+  // checked at two layers with two answers: not rewritten
+  expect(applyFixes('<a href="rr:code/a.go#L4">', results, links).html).toBe('<a href="rr:code/a.go#L4">');
+  // review.html: the innermost data-pr section
+  const page = `<rr-review><section data-pr="1"><a href="rr:code/a.go#L4">a</a><div data-pr="2"><a href="rr:code/a.go#L5">b</a></div></section><a href="rr:code/a.go#L6">c</a></rr-review>`;
+  expect(checkLinks(page, at(body.join('\n'))).results.map((x) => [x.ref, x.pr])).toEqual([['rr:code/a.go#L4', 1], ['rr:code/a.go#L5', 2], ['rr:code/a.go#L6', undefined]]);
+  // not a stack: data-pr means nothing, keys are as before
+  expect(Object.keys(checkLinks(page, prov({ 'a.go': body.join('\n') })).links)).toEqual(['rr:code/a.go#L4', 'rr:code/a.go#L5', 'rr:code/a.go#L6']);
+});
