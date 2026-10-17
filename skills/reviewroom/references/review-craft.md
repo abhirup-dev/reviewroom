@@ -45,6 +45,24 @@ Use HTML, SVG or script when a picture or a widget answers a question faster tha
 budget, a state machine, the shape of rows in a table, a query plan, a before/after of a data
 structure. Make widget parts clickable into the code with `rr.open(…)`.
 
+## The walkthrough and the narrative
+
+When the user wants a walkthrough, it and the narrative tell **one story at two depths**:
+
+- **The walkthrough is the first thing the reviewer sees.** It tells the main story of the change: why,
+  the path through the code, what can go wrong. A few chapters, one concept each, 2 to 5 steps each;
+  a step says one thing about the code on screen in two or three sentences. It is written once and
+  kept stable: the reviewer comes back to it and replays it.
+- **The narrative is where they dig in.** The same story in depth: every claim linked, risks,
+  tests, the sign-off checklist. It grows round by round as threads come in.
+- **Outline once, then write both from it.** Chapters and sections in the same order with the same
+  names. A chapter's lead or last step links its section (`rr:doc/<id>`) for the detail; a section can
+  link back to its slide (`rr:tour/<chapter>/<step>`).
+- **Don't duplicate.** Detail, tables, numbers and caveats go in the narrative, not on a slide.
+- **Each slide fits the screen**: no scrolling in the narration, the highlighted lines visible.
+  `reviewroom walkthrough lint` measures it; split a step rather than squeeze it.
+- **Feedback on a slide grows the narrative.** See "Answering threads".
+
 ## Answering threads
 
 Never repeat the same content across narrative, reply and thread:
@@ -55,5 +73,8 @@ Never repeat the same content across narrative, reply and thread:
 - Refer to code with links or embeds rather than quoting it.
 - When the answer is already in the narrative, link that section instead of re-explaining it.
 - A section written because of a thread links that thread at its top; the reply links the section.
+- A thread on a walkthrough step that needs more than a short reply becomes such a section, with the
+  slide embedded at its top (`<rr-embed ref="rr:tour/<chapter>/<step>">`): the walkthrough stays as it
+  was, and the discussion continues in the narrative.
 - When the answer builds on an earlier thread, a GitHub comment or what the narrative said in an
   earlier round, link it rather than restating it.

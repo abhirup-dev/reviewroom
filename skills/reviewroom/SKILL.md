@@ -1,6 +1,6 @@
 ---
 name: reviewroom
-description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive narrative of a PR next to its live diff and answer the reviewer's comment threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided/walkthrough review of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
+description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive narrative of a PR next to its live diff (and, when asked, a guided walkthrough of it) and answer the reviewer's comment threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided review, walkthrough or tour of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
 ---
 
 # Review with reviewroom
@@ -67,12 +67,29 @@ Before writing, read:
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
 
-When the change has a path to follow or touches more than a few files, also write `walkthrough.json`
-(see "Walkthrough" in `references/authoring.md`): a few chapters, one concept each, whose steps move
-through the code in the order a reader should see it. Skip it for small PRs. Run `reviewroom check --dir
-<dir>` until it is clean, and look at a step or two at `<url>/?walkthrough=<chapter>/<step>`.
-
 Tell the user: **"The narrative is ready. Leave comments, then click Send feedback (or Approve)."**
+
+## Step 4b: The walkthrough, when wanted
+
+A walkthrough (`walkthrough.json` next to `review.html`) is a guided tour played over the workbench:
+chapters of slides, narration on the left, the step's code on the right. When there is one, it is the
+first thing the reviewer sees, so it tells the main story; the narrative is where they dig in.
+
+- Write one when the user asked for a walkthrough, guided review or tour.
+- If they didn't, and the change has a path to follow across files or touches more than about five,
+  ask once while you write the narrative: **"Want a guided walkthrough of this change too?"** Write it
+  only on a yes.
+
+Before writing, read "The walkthrough and the narrative" in `references/review-craft.md` and
+"Walkthrough" in `references/authoring.md`. Then loop until `lint` is clean:
+
+```bash
+reviewroom check --dir <dir>                              # schema, links, what the tour leaves out, pacing
+reviewroom walkthrough lint --dir <dir>                   # every step measured on screen; exit 1 while warnings remain
+reviewroom walkthrough shot <chapter>/<step> --dir <dir>  # look at a step a finding names (prints a PNG path)
+```
+
+Each finding names the chapter/step and how to fix it. Take a screenshot only of steps you need to see.
 
 ## Step 5: Wait for the reviewer
 
@@ -112,8 +129,12 @@ For each thread in the feedback:
 If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports.
 
 A thread anchored on a walkthrough step (`rr:tour/<chapter>/<step>`; its anchor line quotes the
-slide) means that slide was unclear. Answer in the thread, and if the slide was wrong or confusing,
-edit that step in `walkthrough.json` for the next round. `reviewroom check` validates it again.
+slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a deeper
+explanation, a table, a sketch), grow the narrative instead of the slide: a new `data-round` section
+that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its top and
+expands on it; the reply links that section, and the discussion continues there. Edit the step
+itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and run
+`reviewroom walkthrough lint` again.
 
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):
@@ -144,7 +165,8 @@ when ready."** Then return to Step 5.
   reviewer acts. Never run `reviewroom pr` without `--wait` or `--detach`: it serves forever.
 - Do not stop or kill the background command to "finish" a round; wait for it to exit.
 - Do not pass `--resolve` unless the user explicitly asks.
-- Do not edit anything in the review directory except `review.html` and assets you add next to it.
+- Do not edit anything in the review directory except `review.html`, `walkthrough.json` and assets
+  you add next to them.
 - Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
   any round, GitHub comment, earlier round) in plain text, and do not paraphrase or quote a comment:
   link or embed it. Link a thing where it first comes up; when the same thing appears again within

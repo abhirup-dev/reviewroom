@@ -49,9 +49,13 @@ Everything is kept in `.reviewroom/<branch>/` (auto-added to `.git/info/exclude`
 
 An agent can also write `walkthrough.json`: a chaptered tour the reviewer plays over the workbench,
 narration on the left, the step's code (one chunk or several, across files) on the right, ← → to step,
-pause to a pill to dig around, and **Comment** on a step to start a thread anchored to it. A PR author
-can ship one with the PR (`reviewroom walkthrough publish`); `reviewroom pr <n>` pulls it. The demo
-(`bun run demo`, then **Walkthrough** in the header) has one.
+pause to a pill to dig around, and **Comment** on a step to start a thread anchored to it. It tells
+the main story; the narrative is where the reviewer digs in, and a slide that draws questions gets a
+narrative section of its own with the slide embedded (`<rr-embed ref="rr:tour/…">`).
+`reviewroom walkthrough lint` plays every step in a headless browser (Chrome, or Safari's engine on
+macOS) and reports what does not fit the screen; `reviewroom walkthrough shot` renders one step. A PR
+author can ship one with the PR (`reviewroom walkthrough publish`); `reviewroom pr <n>` pulls it. The
+demo (`bun run demo`, then **Walkthrough** in the header) has one.
 
 ## GitHub threads and team reviews
 

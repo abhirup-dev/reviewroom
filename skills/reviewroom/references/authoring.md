@@ -43,6 +43,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
 | `rr:thread/t_ab12cd` | A comment thread (`gh_<n>`: a GitHub thread on the PR) |
 | `rr:round/2` | The narrative as it was at the end of round 2 |
+| `rr:tour/latency/s3` | A walkthrough step; `<rr-embed>` shows it as a slide card (its text, its code, a play button) |
 
 Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
 `reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
@@ -170,9 +171,14 @@ Prose is narrative HTML with the same links, `<rr-ref>`, `<rr-code>` and `<rr-fl
 text shows that code in the pane without leaving the step. Scripts and event handlers are stripped
 (a walkthrough can come from a PR). Aim for one concept per chapter and 2 to 5 steps each.
 
-- `reviewroom check` validates the file first, then every link in it; problems name the chapter/step.
-- `/?walkthrough=<chapter>/<step>` opens the page at a step: screenshot it to see what the reviewer sees.
-- `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a step.
+- `reviewroom check` validates the file first, then every link in it, then whether it works as a tour
+  (changed files no step shows, chapter sizes, empty panes); problems name the chapter/step.
+- `reviewroom walkthrough lint` plays every step in a headless browser and reports what does not fit:
+  narration that needs scrolling, highlighted lines off screen, stacked chunks too short, content wider
+  than its box, prose the sanitizer strips, page errors. Each finding says how to fix it.
+- `reviewroom walkthrough shot <chapter>/<step>` renders one step to a PNG (`--theme dark`, `--viewport`).
+- `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a step,
+  and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the narrative.
 - `reviewroom walkthrough publish` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
   comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 

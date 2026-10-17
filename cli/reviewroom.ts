@@ -152,11 +152,20 @@ cli.help((sections) => {
       ].join('\n'),
     },
     {
+      title: 'A walkthrough (when wanted)',
+      body: [
+        '  walkthrough.json next to review.html: a guided tour of the change, played over the workbench',
+        '  reviewroom walkthrough lint       check it, then measure every step on screen; repeat until clean',
+        '  reviewroom walkthrough shot <chapter>/<step>   one step as a PNG, to look at what a finding names',
+        '  reviewroom walkthrough publish    post it to the PR, where `reviewroom pr <n>` picks it up',
+      ].join('\n'),
+    },
+    {
       title: 'The review dir',
       body: [
-        '  <repo>/.reviewroom/<name>/, excluded from git. review.html and any assets next to it are yours;',
-        '  everything else (state.json, config.json, rounds/) belongs to reviewroom: read and change it',
-        '  through these commands only.',
+        '  <repo>/.reviewroom/<name>/, excluded from git. review.html, walkthrough.json and any assets next to',
+        '  them are yours; everything else (state.json, config.json, rounds/) belongs to reviewroom: read and',
+        '  change it through these commands only.',
       ].join('\n'),
     },
   ];
