@@ -8,7 +8,8 @@ import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, writeState } from './state.ts';
-import { DIST, PKG, layoutFile } from './paths.ts';
+import { DIST, PKG, layoutsDir } from './paths.ts';
+import { Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
@@ -185,14 +186,38 @@ export function startServer({ repo, dir, cfg, onFinish, onClient }: ServerOpts) 
     if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
   });
-  app.get('/api/layout', (c) => json(c, fs.existsSync(layoutFile()) ? JSON.parse(fs.readFileSync(layoutFile(), 'utf8')) : null));
-  app.delete('/api/layout', (c) => (fs.rmSync(layoutFile(), { force: true }), json(c, { ok: true })));
-  // a dockview layout, kept whole (loose: unknown keys stay)
-  app.put('/api/layout', body(z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) })), (c) => {
-    fs.mkdirSync(path.dirname(layoutFile()), { recursive: true });
-    fs.writeFileSync(layoutFile(), JSON.stringify(c.req.valid('json')));
+  // this review's dock as the reviewer left it (dockview JSON, kept whole) and the PR panels already offered
+  const lastLayout = path.join(dir, 'layout.json');
+  app.get('/api/layout', (c) => json(c, fs.existsSync(lastLayout) ? JSON.parse(fs.readFileSync(lastLayout, 'utf8')) : null));
+  app.put('/api/layout', body(z.object({ dock: z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) }), offered: z.array(z.string()), layout: z.string().optional() })), (c) => {
+    fs.writeFileSync(lastLayout, JSON.stringify(c.req.valid('json')));
     return json(c, { ok: true });
   });
+  // the reviewer's layout files by name; one that no longer parses is skipped, not fatal
+  app.get('/api/layouts', (c) => {
+    const files = fs.existsSync(layoutsDir()) ? fs.readdirSync(layoutsDir()).filter((f) => f.endsWith('.json')) : [];
+    const read = (f: string) => {
+      try {
+        return Layout.parse(JSON.parse(fs.readFileSync(path.join(layoutsDir(), f), 'utf8')));
+      } catch (e) {
+        console.error(`reviewroom: skipping layout ${f}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+    return json(c, Object.fromEntries(files.flatMap((f) => {
+      const id = f.slice(0, -5);
+      const l = LayoutId.safeParse(id).success && read(f);
+      return l ? [[id, l]] : [];
+    })));
+  });
+  const layoutId = zValidator('param', z.object({ id: LayoutId }), (r, c) => {
+    if (!r.success) return json(c, { error: 'layout names are lowercase letters, digits and dashes', code: 'bad_op' }, 400);
+  });
+  app.put('/api/layouts/:id', layoutId, body(Layout), (c) => {
+    fs.mkdirSync(layoutsDir(), { recursive: true });
+    fs.writeFileSync(path.join(layoutsDir(), c.req.valid('param').id + '.json'), JSON.stringify(c.req.valid('json'), null, 2) + '\n');
+    return json(c, { ok: true });
+  });
+  app.delete('/api/layouts/:id', layoutId, (c) => (fs.rmSync(path.join(layoutsDir(), c.req.valid('param').id + '.json'), { force: true }), json(c, { ok: true })));
   app.get('/api/github', async (c) => json(c, await (c.req.query('refresh') ? github.refresh() : github.snapshot())));
   app.post('/api/github', body(GitHubAction), async (c) => json(c, await github.act(c.req.valid('json'))));
   app.get('/api/events', (c) =>

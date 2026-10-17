@@ -128,7 +128,7 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.on(event, fn)` | `state`, `theme`, `active-section`, `active-file`, `selection`… |
 | `rr.commands.register({ id, title, keys, run })` | Add palette commands / shortcuts |
 | `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
-| `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus')` | Switch layout |
+| `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus' \| <saved name>)` | Switch layout (false if there's no such layout) |
 | `rr.theme()` | `'light'` or `'dark'` |
 
 ## Typography and colour

@@ -120,5 +120,5 @@ export const issueText = (e: z.core.$ZodError) => e.issues.map((i) => `${i.path.
 export const stateJsonSchema = () => ({
   ...z.toJSONSchema(StoredState, { target: 'draft-2020-12', io: 'input' }),
   $id: 'reviewroom/state.schema.json',
-  title: 'reviewroom review state (.reviewroom/<branch>/state.json)',
+  title: 'reviewroom review state (~/.reviewroom/reviews/<owner>-<repo>/<branch>/state.json)',
 });

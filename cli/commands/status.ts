@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Global } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, readConfig, repoOf } from '../lib/config.ts';
+import { dirForEdit, loadConfig, readConfig } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 
@@ -16,9 +16,7 @@ export function cmdStatus(repo: string | null, o: StatusOpts) {
     const cfg = readConfig(dir);
     let base, head;
     try {
-      const r = repoOf(dir, repo);
-      const p = makeProvider(r, loadConfig(dir, r)); // no repo, or git fails: no base/head
-      ({ base, head } = p);
+      if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
     } catch {}
     console.log(JSON.stringify({ dir, review: path.join(dir, 'review.html'), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
     return;

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { setup } from './fixture.ts';
 
 describe('discovery', () => {
-  const { repo, dir, d, cli, serve, git, sessions } = setup();
+  const { repo, reviews, dir, d, cli, serve, git, sessions } = setup();
   let thread = '';
   beforeAll(async () => {
     await serve();
@@ -15,8 +15,8 @@ describe('discovery', () => {
 
   test('bare `threads` on another branch finds the only review', async () => expect((await cli(['status', '--threads', '--all', '--repo', repo])).stdout).toContain(thread));
   test('bare `threads` with several reviews asks for --dir', async () => {
-    fs.mkdirSync(path.join(repo, '.reviewroom', 'other'));
-    fs.writeFileSync(path.join(repo, '.reviewroom', 'other', 'review.html'), '<rr-review></rr-review>');
+    fs.mkdirSync(path.join(reviews, 'other'));
+    fs.writeFileSync(path.join(reviews, 'other', 'review.html'), '<rr-review></rr-review>');
     expect(await cli(['status', '--threads', '--repo', repo])).toMatchObject({ code: 1, stderr: expect.stringContaining('--dir') });
   });
   test('stop finds and stops the server and releases the lock', async () => {
