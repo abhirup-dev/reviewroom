@@ -80,6 +80,9 @@ Before writing, read:
    walkthrough and the walkthrough" first: outline the story once, then write both from it).
 2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
 
+The walkthrough is usually read in a narrow side panel (about 400px), and later on phones: design every
+diagram, table and widget for that width, never for a wide page.
+
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
 

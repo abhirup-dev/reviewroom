@@ -110,7 +110,7 @@ next to your answer. A link covers the whole thread, not a single message.
 ## Diagrams and other helpers
 
 ```html
-<rr-flow>                                                                              <!-- left→right flow -->
+<rr-flow direction="column">                                                           <!-- top→bottom; omit for left→right -->
   <rr-node state="baseline">FeedRequest</rr-node>
   <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L20-28">habit.RecentEvents</rr-node>
   <rr-node state="changed">RankerRequest</rr-node>                                     <!-- new changed removed baseline -->
@@ -121,7 +121,9 @@ next to your answer. A link covers the whole thread, not a single message.
 ```
 
 `<rr-flow>` is for the one diagram every review should have: the delta against the baseline. Give
-every node a `ref` so it is clickable.
+every node a `ref` so it is clickable. The panel is narrow (see "Design for a narrow column" in
+`review-craft.md`): a left-to-right flow of more than three nodes wraps and its arrows stop lining up,
+so use `direction="column"` for it.
 
 Each `<rr-check>` is one **open question**; the reviewer marks it settled or not, and the feedback
 lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
@@ -214,3 +216,7 @@ inside `<rr-review>` are already styled: write plain semantic HTML. In your own 
 - Colours: `--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-surface-doc-2` (figure background), `--rr-accent` (links only), `--rr-add`, `--rr-del`, `--rr-comment`.
 
 They switch with light and dark mode, so widgets built on them follow the theme.
+
+Size widgets to their container, not the window: no fixed pixel widths, `max-width: 100%`, an SVG
+with a `viewBox` and `width="100%"` (no fixed `width`), and stack rather than sit side by side. Check
+they read at about 360px wide.

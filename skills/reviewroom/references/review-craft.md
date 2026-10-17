@@ -40,6 +40,18 @@ Someone who reads only this should know where to look and what to worry about.
 - Keep the structure the same across reviews. Don't over-build: for a typical diff, a lede, one flow,
   four to seven sections and one checklist. A section is one concern, not one file.
 
+## Design for a narrow column
+
+The walkthrough usually sits in a side panel about 400px wide, and reviewroom will get a phone view.
+Write for that width first; a wide window then just has margin.
+
+- Diagrams run top to bottom: `<rr-flow direction="column">` for more than three nodes, tall SVGs
+  rather than wide ones.
+- Tables of at most three short columns. Wider comparisons become a list per item, or a table with
+  the items as rows.
+- No side-by-side layouts. A before/after is two blocks, one under the other.
+- Long identifiers and paths go in links or chips, not in table cells or diagram nodes.
+
 ## When to build something interactive
 
 Use HTML, SVG or script when a picture or a widget answers a question faster than prose: a latency
