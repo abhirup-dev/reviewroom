@@ -273,13 +273,39 @@ export function mountWalkthrough(app: ReviewApp) {
     (w) => {
       app.walkthrough = w && 'version' in w ? w : null;
       app.walkthroughIssues = w && 'issues' in w ? w.issues : null;
+      const link = deepLink(location.search); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
-      const link = deepLink(location.search);
       if (link && app.walkthrough) actor.send({ type: 'open', ...link });
     },
     () => {},
   );
+
+  // The slide rides in the URL (?walkthrough=<chapter>/<step>), so a reload, or the macOS app reloading a tab it
+  // unloaded, comes back to it. The app (app/src/main.rs) also hears the player's state, for its menu.
+  const native = (window as { __TAURI_INTERNALS__?: { invoke(cmd: string, args: object): Promise<unknown> } }).__TAURI_INTERNALS__;
+  let told = '';
+  actor.subscribe((s) => {
+    if (s.context.doc) {
+      const u = new URL(location.href);
+      if (s.matches('open')) {
+        const { chapter, step } = current(s.context);
+        u.searchParams.set('walkthrough', `${chapter.id}/${step.id}`);
+      } else u.searchParams.delete('walkthrough');
+      if (u.href !== location.href) history.replaceState(history.state, '', u);
+    }
+    const state = !s.context.doc ? 'none' : s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
+    if (native && state !== told) native.invoke('walkthrough_state', { state: (told = state) }).catch(() => {});
+  });
+  // the app's Reviews menu: play (or resume), next and previous slide
+  if (native)
+    (window as { reviewroomWalkthrough?: (cmd: 'play' | 'next' | 'prev') => void }).reviewroomWalkthrough = (cmd) => {
+      const s = actor.getSnapshot();
+      if (cmd === 'play') {
+        if (s.matches({ open: 'paused' })) actor.send({ type: 'resume' });
+        else if (!s.matches('open')) app.bus.emit('walkthrough-open', {});
+      } else if (s.matches('open')) actor.send({ type: cmd });
+    };
 
   /** For `reviewroom walkthrough lint`: open a step in a theme, wait until the pane shows it and its code has
    *  landed, measure what is on screen. */

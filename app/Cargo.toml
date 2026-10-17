@@ -1,0 +1,22 @@
+[package]
+name = "reviewroom-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable"] } # unstable: a window holding a separate web view (tab unloading)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+objc2 = "0.6"
+dispatch2 = "0.3" # the main queue: AppKit work after the current event (see after_event)
+# the native tab bar: joining tabs, which tab is shown
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSWindow", "NSWindowTabGroup"] }
+
+# shortcut: macOS 27's ld (27037) + rustc 1.94 can emit proc-macro dylibs dyld rejects ("mis-aligned LINKEDIT
+# string pool"), depending on the target path's length; debug info sidesteps it. Drop once a toolchain fixes it.
+[profile.release.build-override]
+debug = true

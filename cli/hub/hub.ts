@@ -226,6 +226,7 @@ export class Hub {
           info.unresolvedCommentCount = num(body?.open);
           info.resolvedCommentCount = info.commentCount !== null && info.unresolvedCommentCount !== null ? info.commentCount - info.unresolvedCommentCount : null;
           info.browserClients = num(body?.browserClients);
+          info.walkthrough = body?.walkthrough === true;
           info.interacted = (info.commentCount ?? 0) > 0 || (info.reviewRound ?? 1) > 1 || (info.browserClients ?? 0) > 0;
         }
         await this.withGit(info, r.repo);

@@ -1,4 +1,5 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
+import { execFile } from 'node:child_process';
 import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -200,7 +201,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = s.rounds.find((r) => r.n === s.round);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
+    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
@@ -340,4 +341,7 @@ export function listen(app: Hono, port: number) {
   }
 }
 
-export const openBrowser = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
+const openUrl = (url: string) => void open(url).catch(() => {}); // best effort: the URL is printed anyway
+// `app`: hand the page to the macOS app (app/), which opens it in a tab; the browser when it isn't installed.
+export const openBrowser = (url: string, app = false) =>
+  app && process.platform === 'darwin' ? execFile('open', ['-b', 'dev.reviewroom.mac', url], (e) => e && openUrl(url)) : openUrl(url);

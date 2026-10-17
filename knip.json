@@ -16,5 +16,9 @@
     "@fontsource-variable/.+",
     "emoji-picker-element-data"
   ],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": [
+    "pgrep",
+    "osascript"
+  ]
 }

@@ -36,7 +36,8 @@ Run it **in the background** (`run_in_background: true`):
 reviewroom pr <n | url | branch> --repo <path> --wait
 ```
 
-It creates the review, serves it, opens the browser, and then blocks until the reviewer clicks
+It creates the review, serves it, opens it (in the macOS app when installed, else the browser; `--browser`
+forces the browser), and then blocks until the reviewer clicks
 *Send feedback* or *Approve*. That can take hours. In Claude Code, a background command is stopped
 after 30 minutes unless you also pass a longer `timeout` (up to `7200000` ms). If it is stopped by a
 time limit, run `reviewroom review --dir <dir>` in the background: nothing is lost (re-running
