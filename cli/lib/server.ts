@@ -201,7 +201,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = s.rounds.find((r) => r.n === s.round);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size });
+    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {

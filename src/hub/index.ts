@@ -220,6 +220,7 @@ function row(s: SessionInfo) {
         'div',
         { class: 'rr-hub__actions' },
           s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : h('span', { class: 'rr-icon-btn', title: `Cannot open: ${s.urlNote ?? 'no loopback URL'}` }, '–'),
+        s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the guided walkthrough', 'aria-label': `Play the guided walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
         // #rr-browser: the app hands this one to the browser instead
         inApp && s.url ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in the browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
         h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),

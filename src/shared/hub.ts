@@ -93,6 +93,8 @@ export interface SessionInfo {
   unresolvedCommentCount: number | null;
   reviewRound: number | null;
   browserClients: number | boolean | null;
+  /** reviewroom: the review has a guided walkthrough (walkthrough.json) */
+  walkthrough?: boolean;
   interacted: boolean | null;
   /** When the hub first saw this session (kept across polls). */
   firstSeenAt: string;

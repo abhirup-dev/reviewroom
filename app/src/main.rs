@@ -22,7 +22,7 @@ use objc2_app_kit::{NSWindow, NSWindowTabbingMode};
 use serde::{Deserialize, Serialize};
 use tauri::{
     menu::Submenu,
-    webview::NewWindowResponse, AppHandle, Manager, PhysicalPosition, RunEvent, Url, Webview,
+    webview::{NewWindowResponse, PageLoadEvent}, AppHandle, Manager, PhysicalPosition, RunEvent, Url, Webview,
     WebviewBuilder, WebviewUrl, Window, WindowBuilder, WindowEvent, Wry,
 };
 
@@ -48,6 +48,8 @@ struct State {
     tabs: Mutex<Vec<(String, Url)>>,
     /// each tab's page title, by window label (the window's own title lags behind)
     titles: Mutex<HashMap<String, String>>,
+    /// each tab's guided walkthrough, as its page reports it: "none", "closed", "paused" or "playing"
+    walkthrough: Mutex<HashMap<String, String>>,
     /// pages of closed tabs, last closed last: File > Reopen Closed Tab
     closed: Mutex<Vec<Url>>,
     settings: Mutex<Settings>,
@@ -83,6 +85,14 @@ fn url_of(app: &AppHandle, label: &str) -> Option<Url> {
     tabs.iter().find(|(l, _)| l == label).map(|(_, u)| u.clone())
 }
 
+fn set_url(app: &AppHandle, label: &str, u: Url) {
+    let st = app.state::<State>();
+    let mut tabs = st.tabs.lock().unwrap();
+    if let Some(t) = tabs.iter_mut().find(|(l, _)| l == label) {
+        t.1 = u;
+    }
+}
+
 fn is_hub(app: &AppHandle, label: &str) -> bool {
     app.state::<State>().hub_port.lock().unwrap().is_some_and(|p| label == format!("tab-{p}"))
 }
@@ -112,6 +122,9 @@ fn unload_idle(app: &AppHandle) {
             && st.asleep.lock().unwrap().insert(label.clone())
         {
             if let Some(p) = page(app, &label) {
+                if let Ok(u) = p.url() {
+                    set_url(app, &label, u); // where it was: a walkthrough keeps its slide in the URL
+                }
                 let _ = p.close(); // ends its WebKit process; a blank page would keep ~70 MB
             }
         }
@@ -179,6 +192,28 @@ fn route(app: &AppHandle, u: &Url) {
 fn open_tab(app: &AppHandle, u: &Url, focus: bool) -> tauri::Result<()> {
     let label = label_of(u);
     if let Some(w) = app.get_window(&label) {
+        let tour = |u: &Url| u.query_pairs().find(|(k, _)| k == "walkthrough").map(|(_, v)| !v.is_empty());
+        if tour(u) == Some(false) {
+            // the hub's Play (?walkthrough, no slide): play this tab's walkthrough, or resume it where it is;
+            // a page that hasn't reported one yet (still loading) is loaded with the link, which plays once ready
+            let ready = app.state::<State>().walkthrough.lock().unwrap().get(&label).is_some_and(|t| t != "none");
+            match page(app, &label) {
+                Some(p) if ready => drop(p.eval("window.reviewroomWalkthrough?.('play')")),
+                Some(p) => {
+                    set_url(app, &label, u.clone());
+                    let _ = p.navigate(u.clone());
+                }
+                // unloaded: it comes back on its slide if it had one (unload_idle kept the URL), else plays from the start
+                None if url_of(app, &label).is_some_and(|v| tour(&v) != Some(true)) => set_url(app, &label, u.clone()),
+                None => {}
+            }
+        } else if u.query().is_some() || u.path() != "/" {
+            // a link to a place in the page (?walkthrough=<chapter>/<step>) goes there, not just to the tab
+            set_url(app, &label, u.clone());
+            if let Some(p) = page(app, &label) {
+                let _ = p.navigate(u.clone());
+            } // an unloaded page loads it when its tab is shown
+        }
         if focus {
             bring_forward(w);
         }
@@ -241,6 +276,14 @@ fn attach(w: &Window, u: &Url) -> tauri::Result<()> {
         .on_new_window(move |u, _| {
             route(&app2, &u);
             NewWindowResponse::Deny
+        })
+        .on_page_load(|p, e| {
+            // a new page reports its own walkthrough, if any; until then the menu has none
+            if e.event() == PageLoadEvent::Started {
+                let w = p.window();
+                w.app_handle().state::<State>().walkthrough.lock().unwrap().remove(w.label());
+                after_event(move || menu::refresh(w.app_handle()));
+            }
         })
         .on_document_title_changed(|p, title| {
             // the tab is named by its page (`<rr-app>` sets the PR's title)
@@ -322,6 +365,14 @@ fn show_hub(app: &AppHandle, focus: bool) {
     });
 }
 
+/// A page's guided walkthrough changed state (src/overlays/walkthrough.ts): the Reviews menu follows.
+#[tauri::command]
+fn walkthrough_state(webview: Webview, state: String) {
+    let w = webview.window();
+    w.app_handle().state::<State>().walkthrough.lock().unwrap().insert(w.label().to_string(), state);
+    after_event(move || menu::refresh(w.app_handle()));
+}
+
 /// `reviewroom` handed the app a review (`open -b dev.reviewroom.mac <url>`). Main thread.
 fn opened(app: &AppHandle, urls: Vec<Url>) {
     let settings = *app.state::<State>().settings.lock().unwrap();
@@ -372,6 +423,7 @@ fn main() {
             });
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![walkthrough_state])
         .on_menu_event(menu::handle)
         .on_window_event(|w, e| {
             let app = w.app_handle();
@@ -391,6 +443,7 @@ fn main() {
                     };
                     st.closed.lock().unwrap().extend(gone);
                     st.titles.lock().unwrap().remove(w.label());
+                    st.walkthrough.lock().unwrap().remove(w.label());
                 }
                 _ => {}
             }

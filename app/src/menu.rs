@@ -99,6 +99,8 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
     let tabs = app.state::<State>().tabs.lock().unwrap().clone();
     let settings = *app.state::<State>().settings.lock().unwrap();
     let shown = current(app).map(|w| w.label().to_string());
+    let tour = shown.as_ref().and_then(|l| app.state::<State>().walkthrough.lock().unwrap().get(l).cloned()).unwrap_or_default();
+    let tour = tour.as_str();
     for it in menu.items()? {
         menu.remove(&it)?;
     }
@@ -111,7 +113,8 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
     }
     for (i, w) in reviews.iter().enumerate() {
         let label = w.label();
-        let text = app.state::<State>().titles.lock().unwrap().get(label).cloned().unwrap_or(w.title()?);
+        // a window being closed can't answer for its title: one tab must not cost the whole menu
+        let text = app.state::<State>().titles.lock().unwrap().get(label).cloned().unwrap_or_else(|| w.title().unwrap_or_default());
         let keys = (i < 9).then(|| format!("CmdOrCtrl+{}", i + 1));
         let on = shown.as_deref() == Some(label);
         menu.append(&CheckMenuItem::with_id(app, format!("review:{label}"), text, true, on, keys.as_deref())?)?;
@@ -120,6 +123,11 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
         &PredefinedMenuItem::separator(app)?,
         &MenuItem::with_id(app, "next", "Next Review", true, Some("CmdOrCtrl+Shift+BracketRight"))?,
         &MenuItem::with_id(app, "prev", "Previous Review", true, Some("CmdOrCtrl+Shift+BracketLeft"))?,
+        &PredefinedMenuItem::separator(app)?,
+        // the shown review's guided walkthrough, as its page reports it (walkthrough_state)
+        &MenuItem::with_id(app, "wt:play", if tour == "paused" { "Resume Guided Walkthrough" } else { "Play Guided Walkthrough" }, matches!(tour, "closed" | "paused"), Some("CmdOrCtrl+Alt+P"))?,
+        &MenuItem::with_id(app, "wt:next", "Next Slide", tour == "playing", Some("CmdOrCtrl+Alt+Right"))?,
+        &MenuItem::with_id(app, "wt:prev", "Previous Slide", tour == "playing", Some("CmdOrCtrl+Alt+Left"))?,
         &PredefinedMenuItem::separator(app)?,
         &CheckMenuItem::with_id(app, "set:auto_open", "Open New Reviews Here (Off: in the Browser)", true, settings.auto_open, None::<&str>)?,
         &CheckMenuItem::with_id(app, "set:focus_new", "Bring Reviewroom to the Front for New Reviews", true, settings.focus_new, None::<&str>)?,
@@ -146,6 +154,11 @@ pub fn handle(app: &AppHandle, e: MenuEvent) {
         "github" => {
             if let Some(p) = cur.and_then(|w| page(app, w.label())) {
                 let _ = p.eval("fetch('/api/meta').then((r) => r.json()).then((m) => { if (m.url) location.href = m.url; }, () => {})");
+            }
+        }
+        "wt:play" | "wt:next" | "wt:prev" => {
+            if let Some(p) = cur.and_then(|w| page(app, w.label())) {
+                let _ = p.eval(format!("window.reviewroomWalkthrough?.('{}')", &id[3..]));
             }
         }
         "reload" => {
