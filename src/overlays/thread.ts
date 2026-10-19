@@ -251,6 +251,64 @@ async function anchorContext(app: ReviewApp, a: Anchor, quote?: string): Promise
 }
 
 // ------------------------------------------------------------------ the view
+/** Messages as the thread popup shows them, a separator where the round changes; `actions` adds a message's own
+ *  controls (given its body, for editing in place). */
+export function messageList(app: ReviewApp, msgs: Thread['messages'], actions?: (m: Thread['messages'][number], body: HTMLElement) => HTMLElement | null) {
+  const list = h('div', { class: 'rr-thread__msgs' });
+  let round = 0;
+  for (const m of msgs) {
+    if (m.round && m.round !== round) {
+      round = m.round;
+      list.append(h('div', { class: 'rr-round-sep' }, h('span', null, `Round ${round}`)));
+    }
+    const body = h('div', { class: 'rr-msg__body rr-prose', html: renderMarkdown(m.body) });
+    // a link to another comment on this PR opens its thread here instead of on github.com
+    body.addEventListener('click', (e) => {
+      const a = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
+      const id = a && !e.metaKey && !e.ctrlKey && app.githubThreadFor(a.href);
+      if (id) {
+        e.preventDefault();
+        app.bus.emit('open-thread', { id });
+      }
+    });
+    list.append(
+      h(
+        'article',
+        { class: `rr-msg rr-msg--${m.author}` },
+        m.gh?.avatar
+          ? h('img', { class: 'rr-avatar rr-avatar--gh', src: m.gh.avatar + (m.gh.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' })
+          : h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.gh ? m.gh.login[0].toUpperCase() : m.author === 'agent' ? 'AI' : 'Y'),
+        h(
+          'div',
+          { class: 'rr-msg__main' },
+          h(
+            'div',
+            { class: 'rr-msg__meta' },
+            h('strong', null, m.gh ? m.gh.login : m.author === 'agent' ? 'Agent' : 'You'),
+            m.gh ? h('a', { class: 'rr-muted', href: m.gh.url, target: '_blank', rel: 'noopener', title: 'Open this comment on GitHub' }, relTime(m.at)) : h('span', { class: 'rr-muted' }, relTime(m.at)),
+            m.gh?.pending ? h('span', { class: 'rr-pill rr-pill--draft', title: 'In your GitHub review: only you can see it until you submit the review' }, 'draft') : null,
+            actions?.(m, body),
+          ),
+          body,
+        ),
+      ),
+    );
+  }
+  return list;
+}
+
+/** What a thread is about, as a chip that goes there; `title` names a thread on no rr: link. */
+export function anchorChip(app: ReviewApp, anchor: Anchor, title?: string) {
+  const ref = anchorRef(anchor);
+  const r = ref ? parseRef(ref) : null;
+  return h(
+    'button',
+    { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: () => ref && app.open(ref) },
+    h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
+    ref ? app.label(ref) : (title ?? app.anchorLabel(anchor)),
+  );
+}
+
 export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose: () => void } {
   const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') + (o.id ? '' : ' is-new') });
   let off: (() => void) | undefined;
@@ -271,17 +329,11 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
   const header = (t: Thread | undefined, anchor: Anchor) => {
     const ref = anchorRef(anchor);
     const bare = ref && anchorRef({ ...anchor, quote: undefined } as Anchor);
-    const r = ref ? parseRef(ref) : null;
     return h(
       'header',
       { class: 'rr-thread__head' },
-      h(
-        'button',
-        { class: 'rr-chip rr-chip--anchor', title: ref ? 'Go to ' + app.label(ref) : 'A comment about the whole PR', disabled: !ref, onclick: () => ref && app.open(ref) },
-        h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
-        // the quote itself is shown below; the chip says where it is
-        ref ? app.label(ref) : (t?.title ?? app.anchorLabel(anchor)),
-      ),
+      // the quote itself is shown below; the chip says where it is
+      anchorChip(app, anchor, t?.title),
       t?.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok', title: 'Still listed under Threads › Resolved' }, 'resolved') : null,
       t?.gh ? h('span', { class: 'rr-pill rr-pill--gh', title: 'This thread is on GitHub: replies post there, for everyone on the PR' }, 'GitHub') : null,
       t?.gh?.outdated ? h('span', { class: 'rr-pill', title: 'The code this was written on has changed since; the line shown is where it was' }, 'outdated') : null,
@@ -302,25 +354,9 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 
   const resolve = (t: Thread) => (t.status === 'open' && o.onResolve ? o.onResolve() : app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open'));
 
-  const messages = (t: Thread) => {
-    const list = h('div', { class: 'rr-thread__msgs' });
-    let round = 0;
-    for (const m of t.messages) {
-      if (m.round && m.round !== round) {
-        round = m.round;
-        list.append(h('div', { class: 'rr-round-sep' }, h('span', null, `Round ${round}`)));
-      }
-      const body = h('div', { class: 'rr-msg__body rr-prose', html: renderMarkdown(m.body) });
-      // a link to another comment on this PR opens its thread here instead of on github.com
-      body.addEventListener('click', (e) => {
-        const a = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
-        const id = a && !e.metaKey && !e.ctrlKey && app.githubThreadFor(a.href);
-        if (id) {
-          e.preventDefault();
-          app.bus.emit('open-thread', { id });
-        }
-      });
-      const actions = m.gh
+  const messages = (t: Thread) =>
+    messageList(app, t.messages, (m, body) =>
+        m.gh
         ? githubActions(m, body)
         : m.author === 'you' && m.round === app.state.round
           ? h(
@@ -350,32 +386,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
                 },
               }, 'delete'),
             )
-          : null;
-      list.append(
-        h(
-          'article',
-          { class: `rr-msg rr-msg--${m.author}` },
-          m.gh?.avatar
-            ? h('img', { class: 'rr-avatar rr-avatar--gh', src: m.gh.avatar + (m.gh.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' })
-            : h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.gh ? m.gh.login[0].toUpperCase() : m.author === 'agent' ? 'AI' : 'Y'),
-          h(
-            'div',
-            { class: 'rr-msg__main' },
-            h(
-              'div',
-              { class: 'rr-msg__meta' },
-              h('strong', null, m.gh ? m.gh.login : m.author === 'agent' ? 'Agent' : 'You'),
-              m.gh ? h('a', { class: 'rr-muted', href: m.gh.url, target: '_blank', rel: 'noopener', title: 'Open this comment on GitHub' }, relTime(m.at)) : h('span', { class: 'rr-muted' }, relTime(m.at)),
-              m.gh?.pending ? h('span', { class: 'rr-pill rr-pill--draft', title: 'In your GitHub review: only you can see it until you submit the review' }, 'draft') : null,
-              actions,
-            ),
-            body,
-          ),
-        ),
-      );
-    }
-    return list;
-  };
+          : null,
+  );
 
   // Your GitHub comments: edit in place; delete always asks, since a posted comment can't come back
   const githubActions = (m: Thread['messages'][number], body: HTMLElement) => {

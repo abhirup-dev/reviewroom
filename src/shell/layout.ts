@@ -43,7 +43,7 @@ const github = ['ci', 'description'];
 let offered = new Set<string>();
 const hasGitHub = (app: ReviewApp, id: string) => !!(id === 'ci' ? app.github?.ci?.length : app.github?.description);
 // the panels reviewroom itself defines; any other a layout leaves out (an agent's own) joins the narrative's tabs
-const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'];
+const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap'];
 
 /** Back to the review's starting layout. */
 export function resetLayout(app: ReviewApp) {
