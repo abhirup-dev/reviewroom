@@ -1,9 +1,10 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
-import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
+import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange, type FileDiffOptions } from '@pierre/diffs';
 import { h, icon, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
+import { isMarkdown } from '../core/file-kind';
 import { oldToNewLine } from '../core/hunks';
 import type { ChangedFile, Thread } from '../core/types';
 import { addPanelAt, definePanel, setPanelTitle, type PanelInstance, type Placement } from '../shell/layout';
@@ -112,6 +113,15 @@ class CodePanel implements PanelInstance {
   private head?: HTMLElement;
   /** Reveals (src/flows/reveal.ts): a new one cancels the last one's wait, unfold and glow. */
   private revealer: Actor<typeof revealMachine>;
+  private markdown?: ReturnType<typeof import('../markdown/view').markdownView>;
+  private markdownHost = h('div', { class: 'rr-scroll rr-markdown-scroll', hidden: true });
+  private markdownTarget?: CodeTarget;
+  private sourceMarkdown = new Set<string>();
+  private markdownGeneration = 0;
+  private mixed?: InstanceType<typeof import('./mixed-diff').MixedDiffList>;
+  private mixedHost = h('div', { class: 'rr-scroll rr-mixed-scroll', hidden: true, tabindex: '0', 'data-rr-scope': 'code' });
+  private mixedGeneration = 0;
+  private mixedReady: Promise<void> = Promise.resolve();
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
     this.isPrimary = panelId === 'code';
@@ -121,7 +131,9 @@ class CodePanel implements PanelInstance {
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
     this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' });
-    this.element = h('div', { class: 'rr-code-panel' }, this.toolbar, this.empty, this.scroller);
+    this.element = h('div', { class: 'rr-code-panel' }, this.toolbar, this.empty, this.scroller, this.markdownHost, this.mixedHost);
+    this.mixedHost.addEventListener('scroll', () => requestAnimationFrame(() => this.trackActive()), { passive: true });
+    this.mixedHost.addEventListener('pointerup', (e) => (this.lastPointer = { x: e.clientX, y: e.clientY }), true);
     this.scroller.addEventListener('pointerup', (e) => (this.lastPointer = { x: e.clientX, y: e.clientY }), true);
     this.cv = new CodeView<Meta>(this.options());
     this.cv.setup(this.scroller);
@@ -146,7 +158,7 @@ class CodePanel implements PanelInstance {
     this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => this.trackActive()), { passive: true });
 
     this.offs.push(
-      app.bus.on('files', () => this.rebuild()),
+      app.bus.on('files', () => { const target = this.markdownTarget; if (target) void this.openMarkdown(target); else void this.rebuild(); }),
       app.bus.on('prefs', () => this.refreshOptions(true)),
       app.bus.on('theme', () => this.cv.setOptions(this.options())),
       app.bus.on('state', () => this.refreshItems()),
@@ -155,7 +167,7 @@ class CodePanel implements PanelInstance {
       }),
       app.bus.on('selection', (sel) => {
         // Esc / clearing the selection also clears the highlighted line range; the walkthrough's highlight is its own
-        if (!sel && !this.embedded) this.cv.clearSelectedLines({ notify: false });
+        if (!sel && !this.embedded) { this.cv.clearSelectedLines({ notify: false }); this.mixed?.clearSelection(); }
       }),
     );
     this.element.addEventListener('rr-code-cmd', (e) => {
@@ -172,6 +184,22 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ toolbar
   private renderToolbar() {
+    if (this.markdownTarget) {
+      const t = this.markdownTarget;
+      this.toolbar.replaceChildren(
+        h('div', { class: 'rr-toolbar__group' },
+          this.pin ? null : h('button', { class: 'rr-tool', title: 'Back to all file diffs', onclick: () => { this.closeMarkdown(); this.setMode('diff'); } }, icon('chevron', 14), 'All files'),
+          h('span', { class: 'rr-toolbar__path', title: t.path }, t.path.split('/').pop()),
+          h('span', { class: 'rr-pill' }, t.view === 'file' ? (t.side === 'base' ? 'Before' : 'After') : 'Diff')),
+        h('div', { class: 'rr-toolbar__spacer' }),
+        seg([
+          ['Rendered', 'Read formatted Markdown with block and word changes', true, () => {}],
+          ['Source', 'Inspect Markdown source with Pierre', false, () => { this.sourceMarkdown.add(t.path); this.closeMarkdown(); this.reveal(t); }],
+        ]),
+        tog('thread', 'Show threads beside their Markdown blocks', this.app.prefs.inlineThreads, () => this.app.setPref('inlineThreads', !this.app.prefs.inlineThreads)),
+      );
+      return;
+    }
     const left: (HTMLElement | null)[] = [this.embedded ? (this.head ?? null) : null];
     if (this.pin) {
       const f = this.app.files.find((x) => x.path === this.pin);
@@ -216,6 +244,7 @@ class CodePanel implements PanelInstance {
         { class: 'rr-toolbar__group' },
         // the walkthrough pane has one set of these for all its files
         ...(this.embedded ? [] : displayTools(this.app, this.mode)),
+        this.mode === 'file' && this.fileView && isMarkdown(this.fileView.path) ? h('button', { class: 'rr-tool', title: 'Read this file as rendered Markdown', onclick: () => this.openMarkdown({ path: this.fileView!.path, side: this.fileView!.side, rev: this.fileView!.rev, view: 'file' }) }, 'Rendered') : null,
         this.mode === 'diff' && !this.embedded
           ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
           : null,
@@ -224,6 +253,7 @@ class CodePanel implements PanelInstance {
   }
 
   private setMode(m: 'diff' | 'file') {
+    this.closeMarkdown();
     this.mode = m;
     if (m === 'diff') {
       this.fileView = undefined;
@@ -249,6 +279,7 @@ class CodePanel implements PanelInstance {
     // a new range: drop the old one's lines rather than leave them clickable while the new one loads
     const key = `${r.base}..${r.head}`;
     if (key !== this.rangeKey) {
+      this.closeMixed();
       this.rangeKey = key;
       this.files = new Map();
       this.cv.setItems([]);
@@ -283,6 +314,11 @@ class CodePanel implements PanelInstance {
 
   /** Hand CodeView the current items; a new version makes it re-render each (threads, header, collapse). */
   private refreshItems() {
+    if (this.mode === 'diff' && [...this.files.values()].some((entry) => isMarkdown(entry.file.path) && !entry.file.binary)) {
+      this.mixedReady = this.refreshMixed();
+      return;
+    }
+    this.closeMixed();
     const items: CodeViewItem<Meta>[] = [];
     const fv = this.fileView;
     if (this.mode === 'file') {
@@ -327,6 +363,10 @@ class CodePanel implements PanelInstance {
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
+      isMarkdown(f.path) ? h('button', { class: 'rr-tool', title: this.sourceMarkdown.has(f.path) ? 'Render this Markdown file inline' : 'Show Markdown source for this file', onclick: () => {
+        if (this.sourceMarkdown.has(f.path)) this.sourceMarkdown.delete(f.path); else this.sourceMarkdown.add(f.path);
+        this.refreshItems();
+      } }, this.sourceMarkdown.has(f.path) ? 'Rendered' : 'Source') : null,
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
       this.pin ? null : popoutButton(app, f, this.panelId),
       h('label', { class: 'rr-viewed', title: 'Mark as viewed: collapses the file and counts toward your progress', 'data-keys': 'v' }, cb, 'Viewed'),
@@ -428,6 +468,7 @@ class CodePanel implements PanelInstance {
 
   /** The whole file at a side or sha; true once it is on screen (false: gone, or another view replaced it). */
   async openFile(path: string, side: 'base' | 'head', rev?: string) {
+    if (isMarkdown(path) && !this.sourceMarkdown.has(path)) { await this.openMarkdown({ path, side, rev, view: 'file' }); return false; }
     this.mode = 'file';
     this.loadToken++;
     const fv = (this.fileView = { path, side, rev } as NonNullable<CodePanel['fileView']>);
@@ -452,6 +493,11 @@ class CodePanel implements PanelInstance {
    *  highlight. `signal`: a newer reveal took over, leave the view alone. */
   private async prepare(t: CodeTarget, signal: AbortSignal): Promise<Prepared> {
     this.app.showPanel(this.panelId);
+    if (isMarkdown(t.path) && !this.sourceMarkdown.has(t.path) && (t.view === 'file' || t.rev || !this.app.files.some((f) => f.path === t.path))) {
+      await this.openMarkdown(t);
+      return 'nothing';
+    }
+    this.closeMarkdown();
     if (t.view === 'file' || t.rev || !this.app.files.some((f) => f.path === t.path)) return (await this.openFile(t.path, t.side, t.rev)) && t.start && !signal.aborted ? 'lines' : 'nothing';
     if (this.mode !== 'diff') this.setMode('diff');
     if (!this.pin && !this.app.visibleFiles().some((f) => f.path === t.path)) {
@@ -461,13 +507,15 @@ class CodePanel implements PanelInstance {
     }
     // wait for the newest rebuild (lifting a filter or leaving the file view starts one)
     for (let r = this.ready; ; r = this.ready) if ((await r, r === this.ready)) break;
+    await this.mixedReady;
     const f = this.files.get(t.path);
     if (signal.aborted || !f) return 'nothing';
-    if (f.collapsed) this.toggleCollapse(t.path, false);
+    if (f.collapsed) { this.toggleCollapse(t.path, false); await this.mixedReady; }
     if (!this.embedded) {
       this.app.activeFile = t.path;
       this.app.bus.emit('active-file', t.path);
     }
+    if (this.mixed) { await this.mixed.reveal(t.path, t.start, t.end, t.side, signal); return 'nothing'; }
     if (t.start) return 'lines';
     this.cv.scrollTo({ type: 'item', id: t.path, align: 'start' });
     return 'nothing';
@@ -523,6 +571,20 @@ class CodePanel implements PanelInstance {
   }
 
   jumpChange(dir: 1 | -1) {
+    if (this.mixed && !this.markdownTarget) {
+      const current = this.mixedHost.scrollTop + 70;
+      const stops = this.mixed.changeStops();
+      const next = dir > 0 ? stops.find((top) => top > current + 2) : stops.filter((top) => top < current - 2).pop();
+      if (next !== undefined) this.mixedHost.scrollTo({ top: next - 70, behavior: 'smooth' }); else this.jumpFile(dir);
+      return;
+    }
+    if (this.markdownTarget) {
+      const blocks = [...this.markdownHost.querySelectorAll<HTMLElement>('[data-change]:not([data-change="equal"])')];
+      const top = this.markdownHost.getBoundingClientRect().top;
+      const next = dir > 0 ? blocks.find((b) => b.getBoundingClientRect().top > top + 8) : blocks.filter((b) => b.getBoundingClientRect().top < top - 8).pop();
+      next?.scrollIntoView({ block: 'start' });
+      return;
+    }
     const offset = this.scroller.clientHeight * 0.3;
     // where scrollTo puts a line: below the sticky file header, `offset` down
     const cur = this.cv.getScrollTop() + HEADER_HEIGHT + offset;
@@ -535,6 +597,7 @@ class CodePanel implements PanelInstance {
 
   /** Index of the file at the top of the view (tops only grow down the list). */
   private fileAt(slack: number) {
+    if (this.mixed && !this.markdownTarget) return [...this.files.keys()].findLastIndex((path) => this.mixed!.top(path) <= this.mixedHost.scrollTop + slack);
     const top = this.cv.getScrollTop() + slack;
     return [...this.files.keys()].findLastIndex((id) => (this.cv.getTopForItem(id) ?? 0) <= top);
   }
@@ -573,9 +636,93 @@ class CodePanel implements PanelInstance {
     this.trackActive();
   }
   dispose() {
+    this.closeMixed();
+    this.closeMarkdown();
     this.revealer.stop();
     this.offs.forEach((f) => f());
     this.cv.cleanUp();
+  }
+
+  private closeMarkdown() {
+    this.markdownGeneration++;
+    this.markdown?.dispose();
+    this.markdown = undefined;
+    this.markdownTarget = undefined;
+    this.markdownHost.replaceChildren();
+    this.markdownHost.hidden = true;
+    this.scroller.hidden = !!this.mixed;
+    this.mixedHost.hidden = !this.mixed;
+  }
+
+  private async openMarkdown(target: CodeTarget) {
+    this.sourceMarkdown.delete(target.path);
+    this.closeMarkdown();
+    this.markdownTarget = target;
+    const generation = this.markdownGeneration;
+    this.scroller.hidden = true;
+    this.mixedHost.hidden = true;
+    this.empty.hidden = true;
+    this.markdownHost.hidden = false;
+    this.markdownHost.replaceChildren(h('div', { class: 'rr-empty', role: 'status' }, 'Rendering Markdown…'));
+    this.renderToolbar();
+    const { markdownView } = await import('../markdown/view');
+    if (generation !== this.markdownGeneration) return;
+    const f = this.app.files.find((file) => file.path === target.path);
+    const single = target.view === 'file' || !!target.rev || !f;
+    const before = single ? (target.side === 'base' ? target.rev ?? this.app.revFor('base') : null) : f.status === 'added' ? null : this.app.range.base;
+    const after = single ? (target.side === 'head' ? target.rev ?? this.app.revFor('head') : null) : f.status === 'deleted' ? null : this.app.range.head;
+    this.markdown = markdownView(this.app, target.path, { before, after, single, ...target });
+    this.markdownHost.replaceChildren(this.markdown.element);
+    if (this.isPrimary) { this.app.activeFile = target.path; this.app.bus.emit('active-file', target.path); }
+    await this.markdown.ready;
+  }
+
+  private closeMixed() {
+    this.mixedGeneration++;
+    this.mixed?.dispose();
+    this.mixed = undefined;
+    this.mixedHost.hidden = true;
+    this.scroller.hidden = !!this.markdownTarget;
+  }
+
+  private async refreshMixed() {
+    const generation = ++this.mixedGeneration;
+    try {
+      const { MixedDiffList } = await import('./mixed-diff');
+      if (generation !== this.mixedGeneration) return;
+      if (!this.mixed) {
+        this.cv.setItems([]);
+        this.mixed = new MixedDiffList(this.mixedHost, {
+          options: (path) => this.mixedOptions(path),
+          header: (path) => this.fileHeader(path),
+          markdown: async (path) => {
+            const { markdownView } = await import('../markdown/view');
+            const f = this.files.get(path)!.file;
+            return markdownView(this.app, path, { before: f.status === 'added' ? null : this.app.range.base, after: f.status === 'deleted' ? null : this.app.range.head });
+          },
+        });
+      }
+      this.scroller.hidden = true;
+      this.mixedHost.hidden = !!this.markdownTarget;
+      this.mixed.setItems([...this.files].map(([path, f]) => ({ path, diff: f.diff ?? NO_DIFF(path), collapsed: f.collapsed, markdown: isMarkdown(path) && !f.file.binary && !this.sourceMarkdown.has(path), annotations: this.annotations(path) })));
+    } catch {
+      this.closeMixed();
+      this.showEmpty('The mixed diff could not be loaded. Reopen the Code panel to retry.');
+    }
+  }
+
+  private mixedOptions(path: string): FileDiffOptions<Meta, undefined> {
+    const o = this.options();
+    return {
+      theme: o.theme, themeType: o.themeType, diffStyle: o.diffStyle, overflow: o.overflow,
+      lineDiffType: o.lineDiffType, hunkSeparators: o.hunkSeparators, expansionLineCount: o.expansionLineCount,
+      lineHoverHighlight: o.lineHoverHighlight, enableLineSelection: true, enableGutterUtility: true,
+      unsafeCSS: o.unsafeCSS, loadDiffFiles: o.loadDiffFiles, stickyHeader: true,
+      renderCustomHeader: () => this.fileHeader(path),
+      renderAnnotation: (annotation) => { const thread = this.app.thread(annotation.metadata.threadId); return thread ? threadCard(this.app, thread) : undefined; },
+      onLineSelected: (range) => range && this.onSelect(path, range),
+      onGutterUtilityClick: (range) => this.onGutter(path, range),
+    };
   }
 }
 

@@ -9,6 +9,15 @@ test('a bare rr: line embeds', () => {
   expect(renderMarkdown('see\n\nrr:code/a.go#L1\t\n\nafter')).toContain('<rr-embed ref="rr:code/a.go#L1"></rr-embed>');
 });
 
+test('Mermaid fences become inert diagram elements with escaped source; other code stays code', () => {
+  const html = renderMarkdown('```mermaid\nflowchart TD\nA["<img src=x onerror=alert(1)>"] --> B\n```');
+  expect(html).toContain('<rr-mermaid>');
+  expect(html).toContain('&lt;img');
+  expect(html).not.toContain('<img');
+  expect(renderMarkdown('```ts\nconst x = 1;\n```')).toContain('<pre><code class="language-ts">');
+  expect(sanitizeProse('<rr-mermaid>flowchart TD\nA --> B</rr-mermaid>')).toContain('<rr-mermaid>');
+});
+
 test('rr: links and images become chips and embeds', () => {
   expect(renderMarkdown('[x](rr:code/a.go#L1)')).toContain('<rr-ref ref="rr:code/a.go#L1">x</rr-ref>');
   expect(renderMarkdown('![cap](rr:doc/s)')).toContain('<rr-embed ref="rr:doc/s" caption="cap"></rr-embed>');

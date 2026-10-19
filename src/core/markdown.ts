@@ -28,6 +28,9 @@ md.use({
   ],
   // anything that isn't an rr: link falls through (false) to marked's own renderer
   renderer: {
+    code(token) {
+      return token.lang?.trim().split(/\s+/)[0].toLowerCase() === 'mermaid' && `<rr-mermaid>${esc(token.text)}</rr-mermaid>\n`;
+    },
     link(token) {
       return token.href.startsWith('rr:') && `<rr-ref ref="${esc(token.href)}">${this.parser.parseInline(token.tokens)}</rr-ref>`;
     },
@@ -49,7 +52,7 @@ export function renderMarkdown(src: string): string {
   return DOMPurify.sanitize(md.parse(src, { async: false }), {
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|rr):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
     // only the two elements markdown emits: a body from GitHub must not plant working <rr-check>s and the like
-    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed)$/, attributeNameCheck: /^(ref|caption)$/, allowCustomizedBuiltInElements: false },
+    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|mermaid)$/, attributeNameCheck: /^(ref|caption)$/, allowCustomizedBuiltInElements: false },
   });
 }
 
@@ -65,7 +68,7 @@ export function sanitizeProse(html: string): string {
     // other allowed attributes are checked as URLs: plain words for these, only http(s)/rr: for href and ref
     ADD_URI_SAFE_ATTR: ['caption', 'kind', 'lang', 'state', 'direction'],
     ALLOWED_URI_REGEXP: /^(?:https?|rr):/i,
-    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title|direction)$/, allowCustomizedBuiltInElements: false },
+    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout|mermaid)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title|direction)$/, allowCustomizedBuiltInElements: false },
   });
 }
 

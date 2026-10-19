@@ -1,3 +1,51 @@
+/* Markdown files share the workbench tokens and keep their content separate from thread UI. */
+rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(--rr-panel); --pele-fg: var(--rr-ink); --pele-muted: var(--rr-muted); --pele-line: var(--rr-ink-2); --pele-surface: var(--rr-panel-2); --pele-surface-alt: var(--rr-panel); --pele-border: var(--rr-line); --pele-accent: var(--rr-accent); --pele-font: var(--rr-font); --pele-font-mono: var(--rr-mono); --pele-radius: var(--rr-radius-sm); }
+.rr-mermaid__diagram { width: 100%; min-width: 0; overflow: hidden; }
+.rr-mermaid__diagram svg { max-width: 100%; height: auto; }
+.rr-mermaid__source { font: var(--rr-text-sm)/1.5 var(--rr-font); margin-top: 8px; color: var(--rr-muted); }
+.rr-mermaid__source summary { cursor: pointer; width: fit-content; }
+.rr-mermaid__source pre { overflow: auto; max-height: 280px; font-family: var(--rr-mono); color: var(--rr-ink); }
+.rr-markdown-scroll { flex: 1; min-height: 0; overflow: auto; background: var(--rr-panel); container-type: inline-size; }
+.rr-mixed-scroll { flex: 1; min-height: 0; overflow: auto; background: var(--rr-panel); container-type: inline-size; }
+.rr-mixed-scroll[hidden] { display: none; }
+.rr-mixed-file { min-width: 0; border-bottom: 1px solid var(--rr-line); }
+.rr-mixed-file > .rr-file__head { position: sticky; top: 0; z-index: 2; background: var(--rr-panel); }
+.rr-mixed-body[hidden] { display: none; }
+.rr-markdown-scroll[hidden], .rr-code-scroll[hidden] { display: none; }
+.rr-markdown-view { padding: 20px clamp(12px, 3vw, 36px) 48px; color: var(--rr-ink); }
+.rr-md-pair { max-width: 1100px; margin: 0 auto 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.rr-md-pair--modified { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.rr-markdown-view[data-style="unified"] .rr-md-pair--modified { grid-template-columns: minmax(0, 1fr); }
+.rr-markdown-view:not([data-focus="all"]) .rr-md-pair--modified { grid-template-columns: minmax(0, 1fr); }
+.rr-markdown-view[data-focus="additions"] :is(.rr-md-pair--removed,.rr-md-pair--modified > [data-side="base"]), .rr-markdown-view[data-focus="deletions"] :is(.rr-md-pair--added,.rr-md-pair--modified > [data-side="head"]) { display: none; }
+.rr-md-block { min-width: 0; padding: 10px 14px; border: 1px solid transparent; scroll-margin: 16px; }
+.rr-md-pair--added .rr-md-block, .rr-md-pair--modified [data-side="head"] { background: color-mix(in srgb, var(--rr-add) 7%, var(--rr-panel)); border-color: color-mix(in srgb, var(--rr-add) 24%, transparent); }
+.rr-md-pair--removed .rr-md-block, .rr-md-pair--modified [data-side="base"] { background: color-mix(in srgb, var(--rr-del) 7%, var(--rr-panel)); border-color: color-mix(in srgb, var(--rr-del) 24%, transparent); }
+.rr-md-block.is-selected { outline: 2px solid var(--rr-accent); outline-offset: 2px; }
+.rr-md-block__tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 20px; }
+.rr-md-label { margin-right: auto; color: var(--rr-muted); font: var(--rr-text-xs) var(--rr-font); }
+.rr-md-block__tools .rr-icon-btn { opacity: 0; }
+.rr-md-block:hover .rr-icon-btn, .rr-md-block:focus-within .rr-icon-btn { opacity: 1; }
+.rr-md-prose.rr-prose { font: var(--rr-text-prose)/var(--rr-leading-prose) var(--rr-font); font-variant-numeric: normal; }
+.rr-md-prose.rr-prose :where(h1,h2,h3,h4,h5,h6) { font-family: var(--rr-font); margin: 12px 0; }
+.rr-md-prose.rr-prose :where(h1) { font-size: calc(var(--rr-text-prose) * 1.75); }
+.rr-md-prose.rr-prose :where(h2) { font-size: calc(var(--rr-text-prose) * 1.4); }
+.rr-md-prose.rr-prose > :last-child { margin-bottom: 0; }
+.rr-md-prose li:has(> input[type="checkbox"]) { list-style: none; }
+.rr-md-prose.rr-prose :where(pre,table) { display: block; max-width: 100%; overflow-x: auto; }
+.rr-md-prose :where(ins,del) { color: inherit; padding: 1px 0; }
+.rr-md-prose ins { background: color-mix(in srgb, var(--rr-add) 22%, transparent); text-decoration: underline; text-decoration-color: var(--rr-add); }
+.rr-md-prose del { background: color-mix(in srgb, var(--rr-del) 18%, transparent); text-decoration: line-through; text-decoration-color: var(--rr-del); }
+.rr-md-threads:empty { display: none; }
+.rr-md-threads { margin-top: 12px; }
+.rr-md-scope { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1100px; margin: 0 auto 12px; font: var(--rr-text-sm) var(--rr-font); }
+.rr-md-context { max-width: 1100px; margin: 0 auto 14px; }
+.rr-md-context > summary { cursor: pointer; padding: 8px 12px; border: 1px solid var(--rr-line); color: var(--rr-muted); font: var(--rr-text-sm) var(--rr-font); }
+.rr-md-context[open] > summary { margin-bottom: 10px; }
+.rr-snippet .rr-markdown-view, .rr-code__body .rr-markdown-view { padding: 8px; }
+.rr-snippet .rr-md-pair--modified, .rr-code__body .rr-md-pair--modified { grid-template-columns: minmax(0, 1fr); }
+@container (max-width: 600px) { .rr-md-pair--modified { grid-template-columns: minmax(0, 1fr); } }
+
 /* Default typography for the narrative and for markdown in threads.
    Authors can override anything: these are low-specificity element styles under .rr-prose. */
 .rr-prose {

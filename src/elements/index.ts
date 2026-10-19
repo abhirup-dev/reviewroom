@@ -13,6 +13,7 @@ import { FileDiff, File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { h, icon } from '../core/dom';
 import { parseRef, refIcon, refLabel, type Ref } from '../core/refs';
 import { plainExcerpt, renderMarkdown, sanitizeProse } from '../core/markdown';
+import { isMarkdown } from '../core/file-kind';
 import { stepRefs } from '../shared/walkthrough';
 import type { ReviewApp } from '../shell/app';
 import { PIERRE_CSS } from '../panels/code';
@@ -73,6 +74,18 @@ const range = (start: number, end: number) => ({ startingLine: start - 1, totalL
 
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, opts: { endAt?: number } = {}): Promise<HTMLElement> {
   const rev = app.revOf(r.rev);
+  if (isMarkdown(r.path)) {
+    const { markdownView } = await import('../markdown/view');
+    const f = app.files.find((file) => file.path === r.path);
+    const diff = r.type === 'code' && r.rev === 'head' && !!f;
+    const view = markdownView(app, r.path, {
+      before: diff && f.status !== 'added' ? app.range.base : !diff && r.rev === 'base' ? rev : null,
+      after: diff ? f.status === 'deleted' ? null : app.range.head : r.rev === 'base' ? null : rev,
+      side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: opts.endAt ?? r.end, compact: true, single: !diff,
+    });
+    track(view.element, { cleanUp: view.dispose });
+    return view.element;
+  }
   const text = await app.read(r.path, rev);
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
   const box = h('div', { class: 'rr-snippet' });
@@ -140,13 +153,13 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
       clone.removeAttribute('id');
       clone.querySelectorAll('script').forEach((n) => n.remove());
       // widgets that render into shadow DOM don't survive cloneNode: re-run them from source
-      clone.querySelectorAll('rr-code, rr-embed').forEach((n) => {
+      clone.querySelectorAll('rr-code, rr-embed, rr-mermaid').forEach((n) => {
         const el = n as HTMLElement;
         if (el.dataset.src === undefined) return;
         delete el.dataset.ready;
         el.replaceChildren(el.dataset.src);
       });
-      if (clone.matches('rr-code, rr-embed') && clone.dataset.src !== undefined) {
+      if (clone.matches('rr-code, rr-embed, rr-mermaid') && clone.dataset.src !== undefined) {
         delete clone.dataset.ready;
         clone.replaceChildren(clone.dataset.src);
       }
@@ -267,6 +280,7 @@ class RREmbed extends HTMLElement {
 // ------------------------------------------------------------------ rr-code
 class RRCode extends HTMLElement {
   private file?: InstanceType<typeof PierreFile>;
+  private markdownCleanup?: () => void;
   private gen = 0;
   connectedCallback() {
     if (this.dataset.ready) return; // re-attached (panel reopened or moved)
@@ -302,6 +316,21 @@ class RRCode extends HTMLElement {
       );
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
+      if (isMarkdown(name)) {
+        const { markdownView } = await import('../markdown/view');
+        if (gen !== this.gen) return;
+        if (r && (r.type === 'code' || r.type === 'file')) {
+          const base = r.rev === 'base';
+          const view = markdownView(app, r.path, { before: base ? app.revOf(r.rev) : null, after: base ? null : app.revOf(r.rev), side: base ? 'base' : 'head', start: r.start, end: r.end, compact: true, single: true });
+          this.markdownCleanup = view.dispose;
+          body.replaceChildren(view.element);
+          return;
+        }
+        const view = markdownView(app, name, { before: null, after: null, contents, single: true, compact: true });
+        this.markdownCleanup = view.dispose;
+        body.replaceChildren(view.element);
+        return;
+      }
       this.file = new PierreFile(codeOptions('--rr-panel-2'));
       this.file.render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
     });
@@ -310,6 +339,8 @@ class RRCode extends HTMLElement {
     // moved (a panel dragged) is back by the next microtask; gone for good, release pierre and start over if re-added
     queueMicrotask(() => {
       if (this.isConnected) return;
+      this.markdownCleanup?.();
+      this.markdownCleanup = undefined;
       this.gen++;
       this.file?.cleanUp();
       this.file = undefined;
@@ -397,6 +428,40 @@ class RRCheck extends HTMLElement {
 }
 
 // ------------------------------------------------------------------ rr-markdown (author convenience)
+class RRMermaid extends HTMLElement {
+  private generation = 0;
+  private mounted?: Awaited<ReturnType<typeof import('../markdown/diagram').mountDiagram>>;
+  connectedCallback() {
+    if (this.mounted) return;
+    const generation = ++this.generation;
+    const source = this.dataset.src ?? this.textContent ?? '';
+    this.dataset.src = source;
+    const diagram = h('div', { class: 'rr-mermaid__diagram', role: 'img', 'aria-label': 'Mermaid diagram', 'aria-busy': 'true' });
+    const status = h('div', { class: 'rr-muted', role: 'status' }, 'Rendering diagram…');
+    diagram.append(status);
+    this.replaceChildren(diagram, h('details', { class: 'rr-mermaid__source' }, h('summary', null, 'Diagram source'), h('pre', null, h('code', null, source))));
+    void import('../markdown/diagram').then(async ({ mountDiagram }) => {
+      if (generation !== this.generation || !this.isConnected) return;
+      const mounted = await mountDiagram(diagram, source);
+      if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
+      this.mounted = mounted;
+      diagram.setAttribute('aria-busy', 'false');
+    }).catch(() => {
+      if (generation !== this.generation) return;
+      diagram.replaceChildren(h('div', { class: 'rr-muted', role: 'status' }, 'Diagram could not be rendered. Expand Diagram source to inspect it.'));
+      diagram.setAttribute('aria-busy', 'false');
+    });
+  }
+  disconnectedCallback() {
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      this.generation++;
+      this.mounted?.destroy();
+      this.mounted = undefined;
+    });
+  }
+}
+
 class RRMarkdown extends HTMLElement {
   connectedCallback() {
     if (this.dataset.ready) return;
@@ -416,4 +481,5 @@ export function defineElements() {
   def('rr-callout', RRCallout);
   def('rr-check', RRCheck);
   def('rr-markdown', RRMarkdown);
+  def('rr-mermaid', RRMermaid);
 }

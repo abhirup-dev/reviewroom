@@ -1,0 +1,7 @@
+flowchart LR
+  a["ranker_re (cap 2, postId)"] --> m[MergeSpecs]
+  b["habit_re (cap 3, postId+watchTime)"] --> m
+  m --> g["one GetRecentEvents(user, merged)"]
+  g --> r[response]
+  r -->|BuildBatch · ranker_re| ba[ranker_re batch]
+  r -->|BuildBatch · habit_re| bb[habit_re batch]
