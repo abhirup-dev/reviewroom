@@ -37,7 +37,8 @@ attributed and linked; it is never evidence for a claim about this PR. Otherwise
 
 **Every slide about code.** First sentence the claim, second the evidence on screen, an optional
 third the "therefore" or "but" into the next slide. Every noun is on screen now or was set up by an earlier
-slide. If "and then" fits between two slides, they are a list: reorder or cut. Present tense, the code
+slide. When a slide touches something a later chapter explains, say so with a link, so the
+question waits: "<a href="rr:tour/convergence/s1">chapter 3</a> shows why this cache exists". If "and then" fits between two slides, they are a list: reorder or cut. Present tense, the code
 as subject, verbs that move data or control (reads, writes, calls, guards, drops), not "updates",
 "refactors", "improves". Introduce a file by its role, then its name, once.
 
