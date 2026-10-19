@@ -63,6 +63,14 @@
                       }
                     }
                   ]
+                },
+                "focus": {
+                  "description": "Labels of the <rr-node>s that light up on this step, in the lead or the text. Omitted: nodes whose ref overlaps the code the pane shows; [] lights none",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               },
               "required": [

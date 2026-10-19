@@ -46,6 +46,11 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
     c.steps.forEach((s, si) => {
       const where = `${c.id}/${s.id}`;
       if (target({ doc: w, chapter: ci, step: si }).kind === 'empty') out.push({ check: 'empty-pane', level: 'warn', where, message: 'the code pane is empty on this slide', fix: 'Give the slide (or an earlier one) a ref, or the chapter lead an <rr-flow>.' });
+      if (s.focus) {
+        const labels = [...((c.lead ?? '') + s.text).matchAll(/<rr-node\b[^>]*>([\s\S]*?)<\/rr-node>/g)].map((m) => plain(m[1]));
+        const gone = s.focus.filter((l) => !labels.includes(l));
+        if (gone.length) out.push({ check: 'unknown-focus', level: 'warn', where, message: `focus names no diagram node: ${gone.join(', ')}`, fix: 'Use an <rr-node> label from the chapter lead or this slide, exactly as written.' });
+      }
       if (!estimates) return;
       const words = plain(s.text).split(' ').filter(Boolean).length;
       if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: 'Split the slide, or move the detail to the walkthrough (review.html) and link it. `reviewroom walkthrough lint` measures it.' });

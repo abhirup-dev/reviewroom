@@ -189,6 +189,7 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 | step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
 | no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |
+| step `focus` | Labels of the `<rr-node>`s (in the lead or the slide's text) that light up on this slide, as written; the rest dim. Omitted: nodes whose `ref` overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
 
 Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { encodeBlock, findBlocks, parseWalkthrough, stepRefs, type Walkthrough } from './walkthrough';
+import { encodeBlock, findBlocks, inFocus, parseWalkthrough, stepRefs, type Walkthrough } from './walkthrough';
 
 const demo = readFileSync(new URL('../../examples/habit-events/walkthrough.json', import.meta.url), 'utf8');
 const valid = () => ({
@@ -76,4 +76,18 @@ test('a step ref is one link or a non-empty list of them', () => {
   expect(issues(w)).toContain('chapters.0.steps.0.ref.1');
   expect(stepRefs({ ref: 'rr:code/a.go' })).toEqual(['rr:code/a.go']);
   expect(stepRefs({})).toEqual([]);
+});
+
+test('a diagram node lights up when its code is on screen, or when the step names it', () => {
+  const node = (ref: string | null, label = 'Builder') => ({ label, ref });
+  const pane = ['rr:code/pkg/b.go#L20-30'];
+  expect(inFocus(node('rr:code/pkg/b.go#L28-40'), undefined, pane)).toBe(true);
+  expect(inFocus(node('rr:code/pkg/b.go'), undefined, pane)).toBe(true); // the whole file
+  expect(inFocus(node('rr:code/pkg/b.go#L31-40'), undefined, pane)).toBe(false);
+  expect(inFocus(node('rr:code/pkg/b.go@base#L20'), undefined, pane)).toBe(false); // other revision
+  expect(inFocus(node('rr:file/pkg/b.go#L25'), undefined, pane)).toBe(true);
+  expect(inFocus(node('rr:sym/Build'), undefined, ['rr:sym/Build'])).toBe(true);
+  expect(inFocus(node(null), undefined, pane)).toBe(false);
+  expect(inFocus(node(null, 'TFS'), ['TFS'], [])).toBe(true); // named, no code
+  expect(inFocus(node('rr:code/pkg/b.go#L20'), [], pane)).toBe(false); // [] lights none
 });

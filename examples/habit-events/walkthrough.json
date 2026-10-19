@@ -36,12 +36,19 @@
         {
           "id": "s1",
           "text": "<p>The new call starts only after <a href=\"rr:code/pkg/ranker/request_builder.go#L46-49\">Tardis.Fetch</a> returns. Both need only the user id, so they could share an errgroup.</p>",
-          "ref": "rr:code/pkg/ranker/request_builder.go#L46-54"
+          "ref": "rr:code/pkg/ranker/request_builder.go#L46-54",
+          "focus": [
+            "Tardis.Fetch · 18 ms",
+            "habit.RecentEvents · 12 ms"
+          ]
         },
         {
           "id": "s2",
           "text": "<p>The fetcher caps itself with a <a href=\"rr:code/pkg/features/habit/fetcher.go#L21-22\">30 ms deadline</a>, which bounds the worst case at roughly 48 ms p99.</p>",
-          "ref": "rr:code/pkg/features/habit/fetcher.go#L21-22"
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L21-22",
+          "focus": [
+            "habit.RecentEvents · 12 ms"
+          ]
         },
         {
           "id": "s3",

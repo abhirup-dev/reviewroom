@@ -14,7 +14,7 @@ import type { ReviewApp } from '../shell/app';
 import { menuItem, popMenu } from '../shell/chrome';
 import { panelDefs, type PanelInstance } from '../shell/layout';
 import { displayTools } from '../panels/code';
-import { stepRefs, type StepAudit, type Walkthrough } from '../shared/walkthrough';
+import { inFocus, stepRefs, type StepAudit, type Walkthrough } from '../shared/walkthrough';
 import { measure, settle } from './walkthrough-audit';
 
 const LINK = 'a[href^="rr:"], rr-ref, rr-node[ref]';
@@ -77,6 +77,7 @@ export function mountWalkthrough(app: ReviewApp) {
       const flow = h('div', { class: 'rr-tour__diagram rr-prose' });
       flow.innerHTML = sanitizeProse(s.html);
       pane.replaceChildren(flow);
+      paintFocus();
     } else pane.replaceChildren(h('div', { class: 'rr-empty' }, 'Nothing to show for this slide'));
   };
   const pane$ = paneMachine.provide({
@@ -109,6 +110,38 @@ export function mountWalkthrough(app: ReviewApp) {
   const position = h('span', { class: 'rr-tour__pos' });
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
+  // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back
+  let leadOpen = true;
+  const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
+  const paintLead = () => {
+    const has = !!current(ctx()).chapter.lead;
+    lead.hidden = !has || !leadOpen;
+    leadToggle.hidden = !has;
+    leadToggle.classList.toggle('is-closed', !leadOpen);
+    leadToggle.title = leadOpen ? 'Hide the chapter intro' : 'Show the chapter intro';
+    leadToggle.setAttribute('aria-label', leadToggle.title);
+    leadToggle.setAttribute('aria-expanded', String(leadOpen));
+  };
+  // the diagram nodes this slide is about light up (the rest dim); a frame later, so the change animates
+  const label = (n: Element) => [...n.childNodes].filter((c) => !(c instanceof Element && c.classList.contains('rr-node__badge'))).map((c) => c.textContent).join('').trim();
+  const paintFocus = () => {
+    const c = ctx();
+    if (!c.doc) return;
+    const want = target(c);
+    const refs = want.kind === 'refs' ? want.refs : [];
+    const { focus } = current(c).step;
+    requestAnimationFrame(() =>
+      root.querySelectorAll('rr-flow').forEach((flow) => {
+        let any = false;
+        flow.querySelectorAll('rr-node').forEach((n) => {
+          const on = inFocus({ label: label(n), ref: n.getAttribute('ref') }, focus, refs);
+          n.classList.toggle('is-focus', on);
+          any ||= on;
+        });
+        flow.classList.toggle('has-focus', any);
+      }),
+    );
+  };
   const stepText = h('div', { class: 'rr-tour__text rr-prose' });
   const chips = h('div', { class: 'rr-tour__refs' });
   const stepBox = h('div', { class: 'rr-tour__step' }, stepText, chips);
@@ -129,7 +162,7 @@ export function mountWalkthrough(app: ReviewApp) {
     badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
     progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
-  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
+  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
   const openHere = btn('popout', 'Pause and open this in the workbench', () => {
     const [ref] = shownRefs();
     actor.send({ type: 'pause' });
@@ -218,7 +251,7 @@ export function mountWalkthrough(app: ReviewApp) {
     if (chapter !== last.chapter || d !== last.doc) {
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
       prose(lead, ch.lead ?? '');
-      lead.hidden = !ch.lead;
+      paintLead();
       enter(lead);
     }
     position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
@@ -226,6 +259,7 @@ export function mountWalkthrough(app: ReviewApp) {
     chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);
     divider.textContent = `Slide ${step + 1} of ${n}`;
     prose(stepText, cur.step.text);
+    paintFocus();
     const refs = stepRefs(cur.step);
     chips.replaceChildren(
       ...refs.map((ref) => h('button', { class: 'rr-tour__ref', title: refs.length > 1 ? 'Show only this in the code pane' : 'Show this in the code pane', onclick: () => actor.send({ type: 'focus', refs: [ref] }) }, refIcon(parseRef(ref)!), h('span', null, app.label(ref)))),
