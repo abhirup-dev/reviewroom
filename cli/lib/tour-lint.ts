@@ -92,7 +92,7 @@ export function judge(ms: Measured[]): Finding[] {
       if (c.hidden) {
         const fit = c.lines - c.hidden;
         const narrow = (r?.type === 'code' || r?.type === 'file') && r.start ? ` such as ${c.ref.replace(/#.*$/, '')}#L${r.start}-${r.start + fit - 1}` : '';
-        add({ check: 'hidden-lines', level: 'warn', where, message: `highlighted lines of ${c.ref} are off screen`, fix: `About ${fit} lines fit: point at fewer${narrow}, or split them over slides (each can show a part).` }, viewport, `${c.hidden} of ${c.lines}, ${fit} fit`);
+        add({ check: 'hidden-lines', level: 'warn', where, message: `highlighted lines of ${c.ref} are off screen`, fix: `About ${fit} lines fit: point at fewer${narrow}, or split them over slides (each can show a part). ast-grep outline gives exact declaration ranges.` }, viewport, `${c.hidden} of ${c.lines}, ${fit} fit`);
       }
       else if (c.code && a.chunks.length > 1 && c.visible < MIN_VISIBLE)
         add({ check: 'short-chunk', level: 'warn', where, message: `${a.chunks.length} stacked chunks leave ${c.ref} too little room`, fix: 'Stack at most 2 or 3 chunks, or split the slide.' }, viewport, `${c.visible} lines visible`);
