@@ -136,6 +136,23 @@
 .rr-tour__divider-row .rr-tour__divider {
   flex: 1;
 }
+.rr-tour__lead-toggle svg {
+  transition: transform 0.15s ease;
+}
+.rr-tour__lead-toggle.is-closed svg {
+  transform: rotate(-90deg);
+}
+/* the diagram nodes a slide is about light up; the rest dim (a lead's diagram stays put, so the change animates) */
+.rr-tour rr-node {
+  transition: opacity 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+.rr-tour rr-flow.has-focus rr-node:not(.is-focus) {
+  opacity: 0.45;
+}
+.rr-tour rr-node.is-focus {
+  border-color: var(--rr-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--rr-accent) 35%, transparent), 0 0 14px color-mix(in srgb, var(--rr-accent) 40%, transparent);
+}
 .rr-tour__badge {
   display: inline-flex;
   align-items: center;
@@ -415,6 +432,10 @@ span.rr-tour__chunk-head {
   .rr-tour__lead.is-in,
   .rr-tour__step.is-in {
     animation: none;
+  }
+  .rr-tour rr-node,
+  .rr-tour__lead-toggle svg {
+    transition: none;
   }
 }
 

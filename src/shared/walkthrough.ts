@@ -2,7 +2,7 @@
 // here; the server, `reviewroom check`, `pr`, `walkthrough publish` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
 import { z } from 'zod';
-import { parseRef } from './refs';
+import { parseRef, type Ref } from './refs';
 import { issueList } from './schema';
 
 const nonEmpty = z.string().min(1, 'must be a non-empty string');
@@ -32,10 +32,26 @@ export const Step = z.object({
     .union([PaneRef, z.array(PaneRef).min(1, 'needs at least one link')])
     .optional()
     .describe('What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (or the lead diagram)'),
+  focus: z
+    .array(nonEmpty)
+    .optional()
+    .describe('Labels of the <rr-node>s that light up on this step, in the lead or the text. Omitted: nodes whose ref overlaps the code the pane shows; [] lights none'),
 });
 
 /** A step's pane links as a list (`ref` may be one link or several). */
 export const stepRefs = (s: Pick<Step, 'ref'>): string[] => (s.ref === undefined ? [] : [s.ref].flat());
+
+// the same code: one file at one revision, lines overlapping (a link without lines covers the file)
+const overlaps = (a: Ref | null, b: Ref | null): boolean => {
+  if ((a?.type === 'code' || a?.type === 'file') && (b?.type === 'code' || b?.type === 'file'))
+    return a.path === b.path && a.rev === b.rev && (!a.start || !b.start || (a.start <= b.end! && b.start <= a.end!));
+  if (a?.type === 'sym' && b?.type === 'sym') return a.name === b.name;
+  return a?.type === 'doc' && b?.type === 'doc' && a.id === b.id;
+};
+
+/** Whether a diagram node lights up on a step: one its `focus` names, else one whose ref overlaps the pane's links. */
+export const inFocus = (node: { label: string; ref: string | null }, focus: string[] | undefined, paneRefs: string[]): boolean =>
+  focus ? focus.includes(node.label) : !!node.ref && paneRefs.some((r) => overlaps(parseRef(node.ref!), parseRef(r)));
 
 const Chapter = z
   .object({

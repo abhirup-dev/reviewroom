@@ -70,6 +70,13 @@ test('lock, generated and doc files are only mentioned; the line budget depends 
   expect(wide([step('s1', ['rr:code/x.go#L1', 'rr:code/y.go#L1', 'rr:code/z.go#L1'])])).toEqual(['short-chunk 3 refs stacked']);
 });
 
+test('a step\'s focus must name a diagram node in the chapter lead or the slide', () => {
+  const lead = '<rr-flow><rr-node state="new">habit.<b>RecentEvents</b></rr-node><rr-node>TFS</rr-node></rr-flow>';
+  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['habit.RecentEvents', 'TFS'] }, { id: 's2', text: '<rr-flow><rr-node>Cache</rr-node></rr-flow>', focus: ['Cache', 'Ranker'] }];
+  const fs = lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', lead, steps }] }, [], () => undefined).filter((f) => f.check === 'unknown-focus');
+  expect(fs.map((f) => `${f.where} ${f.message}`)).toEqual(['a/s2 focus names no diagram node: Ranker']);
+});
+
 test('judge: a step without its own ref does not repeat the pane findings of the step before', () => {
   const audit: StepAudit = { left: { visible: 600, content: 600, lead: 0 }, chunks: [{ ref: 'rr:code/a.go#L1-50', code: true, lines: 50, visible: 30, hidden: 20 }], wide: [], stripped: { lead: [], text: [] }, settled: true };
   const fs = judge([

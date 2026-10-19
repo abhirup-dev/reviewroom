@@ -53,6 +53,15 @@ chapter opens on its flow, then walks it line by line. Slides take `<rr-flow>`, 
 `<rr-callout>` directly, and `<rr-embed ref="rr:doc/<id>">` for any richer figure you drew in
 `review.html`, so draw once and show it in both. Build every figure for the narrow pane.
 
+**A map that stays while the slides walk it.** A chapter that walks several parts of one system
+draws the whole system once, as the lead's `<rr-flow>`, with each node's `ref` on its code. The
+diagram stays put while ← → move through the slides, and the node each slide is about lights up
+(the rest dim): any node whose `ref` overlaps the code the pane shows does so on its own. A slide's
+`focus` names the nodes outright when they have no code (a service, a queue, a concept), or to pick
+among several. The reader can fold a tall lead away. When the map would crowd every slide, put the
+same `<rr-flow>` in each slide's text instead; the same rule lights it there. This is the chapter's
+picture, so give each node the name the slides use.
+
 **Anti-patterns**, all from one real walkthrough: chapters named after review categories (Why,
 Validation, Failure modes, Tests) instead of parts of the change; slides about what the PR is *not*;
 a thread introduced on slide 2 that vanishes until chapter 4; the critical contract spread over four
