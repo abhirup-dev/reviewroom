@@ -63,6 +63,19 @@ not your checkout: every line number you link is the head sha's, so read files w
 storage / proto / config changes, failure paths and what the tests cover. Read the PR description
 when `gh` is available.
 
+**Take line numbers from ast-grep, not by counting.** A range that is off by a few lines cuts a
+function in half or highlights the wrong statement, and the reviewer has to fix it. Pipe the head
+revision in:
+
+```bash
+git show <head>:<path> | ast-grep outline --stdin --lang <lang>             # each declaration and its first line
+git show <head>:<path> | ast-grep outline --stdin --lang <lang> --json=stream  # with end lines (0-based: add 1)
+git show <head>:<path> | ast-grep run --stdin --lang <lang> -p '<pattern>'   # a call or statement by shape
+```
+
+No `ast-grep` on PATH: `bunx @ast-grep/cli` runs the same thing (the `ast-grep` skill, when
+installed, has the pattern syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
+
 **Decide on a guided walkthrough now.** A guided walkthrough (`walkthrough.json` next to
 `review.html`) is the main story of the diff played over the workbench: chapters of slides, narration on
 the left, the slide's code on the right. When there is one, the reviewer opens it first, so it tells the
@@ -196,5 +209,5 @@ when ready."** Then return to Step 5.
   link or embed it. Link a thing where it first comes up; when the same thing appears again within
   the next few paragraphs (roughly 10 to 15 lines), plain mention is fine. Don't repeat links.
 - Do not paste diff code into the walkthrough or replies; link or embed it.
-- Do not cite a line number you have not checked against the head revision.
+- Do not cite a line number you have not checked against the head revision (ast-grep, Step 3).
 - Do not guess flags; run `reviewroom <command> --help`.
