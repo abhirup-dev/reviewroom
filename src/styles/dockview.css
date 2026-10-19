@@ -148,3 +148,7 @@
 .dv-split-view-container.dv-vertical > .dv-sash-container > .dv-sash::before {
   inset: -4px 0;
 }
+/* Threads from last round, floated as a feed: no tab bar, so no tiled frame either */
+.dockview-theme-rr .dv-resize-container.rr-feed-window {
+  border-color: var(--rr-line);
+}

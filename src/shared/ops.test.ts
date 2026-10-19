@@ -72,15 +72,15 @@ test('delivery tracking: null until printed; legacy rounds count as delivered', 
   expect(undelivered(applyOp(s, { op: 'markDelivered', round: 2 }))).toEqual([]);
 });
 
-test('recap: active (written in last round) beats stale (open over two rounds); resolved ones are left out', () => {
-  const msg = (author: 'you' | 'agent', round: number) => ({ id: `${author}${round}`, author, round, body: 'x', at: '' });
+test('recap: active (written in last round), the rest, stale (open over two rounds), latest first; resolved left out', () => {
+  const msg = (author: 'you' | 'agent', round: number, at = '') => ({ id: `${author}${round}`, author, round, body: 'x', at });
   const thread = (id: string, status: 'open' | 'resolved', ...messages: ReturnType<typeof msg>[]) => ({ id, status, anchor: { kind: 'general' as const }, createdRound: 1, messages });
   const t = (id: string, createdRound: number, status: 'open' | 'resolved', ...m: ReturnType<typeof msg>[]) => ({ ...thread(id, status, ...m), createdRound });
   const s = {
     ...empty(),
     round: 3,
-    threads: [t('stale', 1, 'open', msg('you', 1), msg('agent', 2)), t('active', 1, 'open', msg('you', 2), msg('agent', 3)), t('rest', 2, 'open', msg('agent', 2)), t('done', 1, 'resolved', msg('you', 1))],
+    threads: [t('stale', 1, 'open', msg('you', 1), msg('agent', 2)), t('active', 1, 'open', msg('you', 2), msg('agent', 3)), t('rest', 2, 'open', msg('agent', 2, '2026-01-01')), t('later', 2, 'open', msg('agent', 2, '2026-01-02')), t('done', 1, 'resolved', msg('you', 1))],
   };
   const ids = Object.values(recapThreads(s)).map((ts) => ts.map((x) => x.id));
-  expect(ids).toEqual([['active'], ['stale'], ['rest']]);
+  expect(ids).toEqual([['active'], ['later', 'rest'], ['stale']]);
 });
