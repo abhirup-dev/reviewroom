@@ -140,13 +140,13 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: { compact
       clone.removeAttribute('id');
       clone.querySelectorAll('script').forEach((n) => n.remove());
       // widgets that render into shadow DOM don't survive cloneNode: re-run them from source
-      clone.querySelectorAll('rr-code, rr-embed').forEach((n) => {
+      clone.querySelectorAll('rr-code, rr-embed, rr-mermaid').forEach((n) => {
         const el = n as HTMLElement;
         if (el.dataset.src === undefined) return;
         delete el.dataset.ready;
         el.replaceChildren(el.dataset.src);
       });
-      if (clone.matches('rr-code, rr-embed') && clone.dataset.src !== undefined) {
+      if (clone.matches('rr-code, rr-embed, rr-mermaid') && clone.dataset.src !== undefined) {
         delete clone.dataset.ready;
         clone.replaceChildren(clone.dataset.src);
       }
@@ -396,6 +396,41 @@ class RRCheck extends HTMLElement {
   }
 }
 
+// ------------------------------------------------------------------ rr-mermaid
+class RRMermaid extends HTMLElement {
+  private generation = 0;
+  private mounted?: Awaited<ReturnType<typeof import('../markdown/diagram').mountDiagram>>;
+  connectedCallback() {
+    if (this.mounted) return;
+    const generation = ++this.generation;
+    const source = this.dataset.src ?? this.textContent ?? '';
+    this.dataset.src = source;
+    const diagram = h('div', { class: 'rr-mermaid__diagram', role: 'img', 'aria-label': 'Mermaid diagram', 'aria-busy': 'true' });
+    const status = h('div', { class: 'rr-muted', role: 'status' }, 'Rendering diagram…');
+    diagram.append(status);
+    this.replaceChildren(diagram, h('details', { class: 'rr-mermaid__source' }, h('summary', null, 'Diagram source'), h('pre', null, h('code', null, source))));
+    void import('../markdown/diagram').then(async ({ mountDiagram }) => {
+      if (generation !== this.generation || !this.isConnected) return;
+      const mounted = await mountDiagram(diagram, source);
+      if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
+      this.mounted = mounted;
+      diagram.setAttribute('aria-busy', 'false');
+    }).catch(() => {
+      if (generation !== this.generation) return;
+      diagram.replaceChildren(h('div', { class: 'rr-muted', role: 'status' }, 'Diagram could not be rendered. Expand Diagram source to inspect it.'));
+      diagram.setAttribute('aria-busy', 'false');
+    });
+  }
+  disconnectedCallback() {
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      this.generation++;
+      this.mounted?.destroy();
+      this.mounted = undefined;
+    });
+  }
+}
+
 // ------------------------------------------------------------------ rr-markdown (author convenience)
 class RRMarkdown extends HTMLElement {
   connectedCallback() {
@@ -416,4 +451,5 @@ export function defineElements() {
   def('rr-callout', RRCallout);
   def('rr-check', RRCheck);
   def('rr-markdown', RRMarkdown);
+  def('rr-mermaid', RRMermaid);
 }
