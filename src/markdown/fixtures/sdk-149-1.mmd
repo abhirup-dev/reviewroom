@@ -1,0 +1,6 @@
+flowchart TD
+  bf["BuildFutures()"] --> g{group by SetKind}
+  g -->|default| p1[perSetPlanner — one future per set]
+  g -->|recent_events| p2[recentEventsPlanner — coalesce]
+  p1 --> c[completeness check]
+  p2 --> c

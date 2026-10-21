@@ -1,3 +1,11 @@
+/* Mermaid diagrams follow the active review theme. */
+rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(--rr-panel); --pele-fg: var(--rr-ink); --pele-muted: var(--rr-muted); --pele-line: var(--rr-ink-2); --pele-surface: var(--rr-panel-2); --pele-surface-alt: var(--rr-panel); --pele-border: var(--rr-line); --pele-accent: var(--rr-accent); --pele-font: var(--rr-font); --pele-font-mono: var(--rr-mono); --pele-radius: var(--rr-radius-sm); }
+.rr-mermaid__diagram { width: 100%; min-width: 0; overflow: hidden; }
+.rr-mermaid__diagram svg { max-width: 100%; height: auto; }
+.rr-mermaid__source { font: var(--rr-text-sm)/1.5 var(--rr-font); margin-top: 8px; color: var(--rr-muted); }
+.rr-mermaid__source summary { cursor: pointer; width: fit-content; }
+.rr-mermaid__source pre { overflow: auto; max-height: 280px; font-family: var(--rr-mono); color: var(--rr-ink); }
+
 /* Default typography for the narrative and for markdown in threads.
    Authors can override anything: these are low-specificity element styles under .rr-prose. */
 .rr-prose {
