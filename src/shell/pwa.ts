@@ -67,7 +67,7 @@ export function startUpdates(app?: ReviewApp) {
     if (!shouldHoldReload(busy(app))) return void reload();
     if (toast) return;
     const host = document.querySelector<HTMLElement>('.rr-toasts') ?? document.body.appendChild(h('div', { class: 'rr-toasts', 'aria-live': 'polite', popover: 'manual' }));
-    toast = h('div', { class: 'rr-toast rr-toast--action' }, 'Update ready', h('button', { class: 'rr-toast__action', type: 'button', title: 'Reload into the new version of reviewroom (drafts are kept)', onclick: () => void reload() }, 'Reload'));
+    toast = h('div', { class: 'rr-toast' }, 'Update ready', h('button', { class: 'rr-toast__action', type: 'button', title: 'Reload into the new version of reviewroom', onclick: () => void reload() }, 'Reload'));
     host.append(toast);
     host.hidePopover();
     host.showPopover();

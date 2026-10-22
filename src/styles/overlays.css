@@ -785,19 +785,3 @@ rr-ref .rr-icon {
   --button-hover-background: var(--rr-hover);
   --button-active-background: var(--rr-hover);
 }
-.rr-toast--action {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  pointer-events: auto;
-}
-.rr-toast__action {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-}
