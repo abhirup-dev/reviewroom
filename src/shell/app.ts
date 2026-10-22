@@ -319,6 +319,20 @@ export class ReviewApp {
   thread(id: string) {
     return this.threads().find((t) => t.id === id) ?? this.state.threads.find((t) => t.id.startsWith(id));
   }
+  /** The review mode, as far as thread lists go: without GitHub there is only one kind of thread. */
+  threadView() {
+    return this.github?.ok ? this.prefs.reviewMode : 'all';
+  }
+  /** Which threads the Threads list shows by default in this mode. */
+  threadSources() {
+    const v = this.threadView();
+    return new Set<'agent' | 'github'>(v === 'all' ? ['agent', 'github'] : v === 'team' ? ['github'] : ['agent']);
+  }
+  /** Open threads the Threads list shows by default (a phone's Threads badge). */
+  openThreadCount() {
+    const src = this.threadSources();
+    return this.threads().filter((t) => !t.gh?.conversation && t.status === 'open' && src.has(t.gh ? 'github' : 'agent')).length;
+  }
   /** Team mode: new code and general comments go to GitHub by default instead of the agent. */
   get teamMode() {
     return this.prefs.reviewMode === 'team' && !!this.github?.ok;

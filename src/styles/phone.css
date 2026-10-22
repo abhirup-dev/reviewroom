@@ -1,4 +1,5 @@
-/* Phone shell (shell/phone.ts): one panel at a time, tabs along the bottom, on-demand panels as sheets. */
+/* Phone shell (shell/phone.ts): four areas along the bottom, each a row of pages under its top tabs; on-demand
+   panels as sheets over them. */
 .rr-phone {
   display: flex;
   flex-direction: column;
@@ -8,9 +9,75 @@
   min-height: 0;
   position: relative;
 }
+/* areas stay laid out when not current (visibility, not display): their pages keep their scroll */
+.rr-phone-area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  background: var(--rr-bg);
+}
+.rr-phone-area.is-current {
+  visibility: visible;
+}
+.rr-phone-toptabs {
+  flex: none;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface);
+}
+.rr-phone-toptab {
+  flex: 1 0 auto;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  font: 500 var(--rr-text) / 1 var(--rr-font);
+  white-space: nowrap;
+}
+.rr-phone-toptab[aria-selected='true'] {
+  color: var(--rr-ink);
+  box-shadow: inset 0 -2px 0 var(--rr-ink);
+}
+/* the pages side by side: a sideways swipe scrolls (and snaps) between them */
+.rr-phone-pager {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.rr-phone-pager::-webkit-scrollbar {
+  display: none;
+}
+.rr-phone-page {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--rr-bg);
+}
+.rr-phone-page > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+/* a wide block scrolled to its end stays put rather than turning the page */
+.rr-phone-page :is(pre, table, .rr-toolbar) {
+  overscroll-behavior-x: contain;
+}
 .rr-phone-panel {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   background: var(--rr-bg);
@@ -38,21 +105,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rr-phone-tabs {
+.rr-phone-nav {
   flex: none;
   display: flex;
-  overflow-x: auto;
   border-top: 1px solid var(--rr-line-strong);
   background: var(--rr-surface);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .rr-phone-tab {
+  position: relative;
   flex: 1 0 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 7px 4px 6px;
+  padding: 8px 4px 7px;
   border: 0;
   background: none;
   color: var(--rr-muted);
@@ -62,25 +129,66 @@
   color: var(--rr-ink);
   box-shadow: inset 0 2px 0 var(--rr-accent);
 }
+.rr-phone-tab__badge {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 6px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  line-height: 16px;
+  font-size: 10px;
+}
+.rr-side-head__count {
+  flex: 1;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
 
-/* the header keeps what a round needs: jump, round, send; the rest is the dock's or needs a wide screen */
-.is-phone .rr-header {
-  gap: 6px;
-  padding: 0 8px;
+/* the status bar: menu, title over "repo · Round N", search, play, send */
+.rr-phonebar {
+  gap: 2px;
+  padding: 0 6px 0 4px;
 }
-.is-phone .rr-header__titles,
-.is-phone .rr-tour-btn > span,
-.is-phone .rr-search-btn span,
-.is-phone .rr-search-btn kbd,
-.is-phone .rr-send-btn > span:not(.rr-badge) {
-  display: none;
-}
-.is-phone .rr-header__actions {
-  gap: 4px;
-}
-.is-phone .rr-search-btn {
-  width: auto;
+.rr-phonebar__titles {
+  flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.rr-phonebar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 14px;
+}
+.rr-phonebar__sub {
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+}
+.rr-phonebar .rr-round-status,
+.rr-phonebar .rr-unsaved {
+  height: auto;
+  font-size: inherit;
+}
+.rr-phonebar .rr-send-btn {
+  margin-left: 4px;
+  padding: 0 10px;
+}
+.rr-phonebar .rr-send-btn > span:not(.rr-badge) {
+  display: none;
 }
 .rr-phone-comment {
   position: absolute;

@@ -22,7 +22,7 @@ import { isPhone } from './shell/phone';
 import { watchShell } from './shell/device';
 import { mountDock, mountPhone, applyLayout, canArrange, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import type { LastLayout } from './shared/layout';
-import { buildHeader, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
+import { buildHeader, buildPhoneBar, phoneMenu, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
@@ -148,7 +148,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
 
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
-  root.replaceChildren(buildHeader(app), dockHost);
+  root.replaceChildren(isPhone() ? buildPhoneBar(app, (anchor) => phoneMenu(app, anchor)) : buildHeader(app), dockHost);
   root.classList.add('rr-root');
   mountToasts(app);
   mountTooltips(app);
@@ -245,7 +245,7 @@ function registerCommands(app: ReviewApp) {
   const pal = (q = '') => () => app.openPalette(q);
   const codeCmd = (name: string) => () => {
     const scroller = (document.activeElement?.closest('.rr-code-panel') ?? document.querySelector('.rr-code-panel'));
-    if (scroller && !scroller.checkVisibility()) ensurePanel(app, 'code'); // on a phone, from another tab: show where it moves
+    if (scroller && !scroller.checkVisibility({ visibilityProperty: true })) ensurePanel(app, 'code'); // on a phone, from another tab: show where it moves
     scroller?.dispatchEvent(new CustomEvent('rr-code-cmd', { detail: name }));
   };
   C.register(

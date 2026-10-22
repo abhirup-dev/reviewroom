@@ -7,6 +7,7 @@ import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from '../flows/layout';
 import { PhoneShell } from './phone';
 import { isTablet } from './device';
+import { recapThreads } from '../shared/ops';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from '../shared/layout';
 
 export interface PanelDef {
@@ -320,8 +321,11 @@ let phone: PhoneShell | null = null;
 /** The phone shell in place of the dock (index.ts picks one at boot). */
 export function mountPhone(app: ReviewApp, host: HTMLElement) {
   app.root.classList.add('is-phone');
-  // Threads from last round floats over the dock once per round, so here it's a sheet, not a tab
-  phone = new PhoneShell(app, host, (id) => id !== 'recap' && (!github.includes(id) || hasGitHub(app, id)));
+  // Last round while a round has threads from the last one; the PR conversation for a GitHub PR that has one
+  const recap = () => app.state.round >= 2 && Object.values(recapThreads(app.state)).some((ts) => ts.length);
+  phone = new PhoneShell(app, host, (id) =>
+    id === 'recap' ? recap() : id === 'thread:gh_conversation' ? app.threads().some((t) => t.gh?.conversation) : !github.includes(id) || hasGitHub(app, id),
+  );
 }
 export const hasPanel = (app: ReviewApp, id: string) => (phone ? phone.has(id) : !!app.dock?.getPanel(id));
 export const closePanel = (app: ReviewApp, id: string) => (phone ? phone.close(id) : app.dock?.getPanel(id)?.api.close());

@@ -1,10 +1,9 @@
 // Top bar: identity, rounds, search, picker, layout, theme, send feedback.
-import { h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/dom';
+import { append, h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/dom';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
-import { isPhone } from './phone';
 import { applyLayout, canUndoLayout, closePanel, deleteLayout, ensurePanel, hasPanel, layouts, panelDefs, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 import { canInstall, install, installButton } from './install';
@@ -185,32 +184,83 @@ function githubControls(app: ReviewApp) {
 }
 
 // ---------------------------------------------------------------- header
+/** Review rounds: view the narrative as it was at the end of an earlier round. */
+function roundMenu(app: ReviewApp, anchor: HTMLElement) {
+  popMenu(anchor, (close) => [
+    menuLabel('Review rounds'),
+    ...app.state.rounds
+      .slice()
+      .reverse()
+      .map((r) =>
+        menuItem(
+          `Round ${r.n}`,
+          () => {
+            close();
+            app.bus.emit('round-view', r.n === app.state.round ? 0 : r.n);
+          },
+          { checked: (app.viewRound || app.state.round) === r.n, hint: r.status === 'open' ? 'current' : r.status },
+        ),
+      ),
+  ]);
+}
+
+/** Where the round is at (waiting, approved, offline, not saved); the root's classes show one. */
+const roundStatus = () => [
+  h('span', { class: 'rr-round-status rr-round-status--waiting', title: 'Your feedback went to the agent. The next round opens here when it is back' }, 'Waiting for the agent…'),
+  h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
+  h('span', { class: 'rr-pill rr-pill--draft rr-round-status rr-round-status--offline', title: 'The reviewroom server stopped. Changes stay in this tab and are saved when it is back' }, 'Disconnected'),
+  h('span', { class: 'rr-pill rr-pill--draft rr-unsaved', title: 'The reviewroom server has not stored your latest changes. Reviewroom keeps retrying; keep this tab open' }, 'Not saved yet'),
+];
+
+/** Send feedback (or, in Team mode, submit the GitHub review), with the count of what it sends. */
+function sendButton(app: ReviewApp) {
+  const round = app.state.rounds.find((r) => r.n === app.state.round);
+  const pending = app.pendingFeedback().length;
+  return app.teamMode
+    ? h(
+        'button',
+        { class: 'rr-btn rr-btn--primary rr-send-btn', title: 'Post your draft comments to GitHub as one review: comment, approve or request changes', onclick: () => submitReviewDialog(app) },
+        icon('send', 14),
+        h('span', null, 'Submit review'),
+        app.github?.pending?.drafts ? h('span', { class: 'rr-badge' }, String(app.github.pending.drafts)) : null,
+      )
+    : h(
+        'button',
+        { class: 'rr-btn rr-btn--primary rr-send-btn', title: app.backend.finish ? 'Finish this round: the agent gets your new comments and starts the next round' : 'Copy this round’s comments as markdown to paste to your agent', 'data-keys': 'mod+shift+enter', onclick: () => sendDialog(app), disabled: round?.status !== 'open' && !!round },
+        icon('send', 14),
+        h('span', null, app.backend.finish ? 'Send feedback' : 'Export feedback'),
+        pending ? h('span', { class: 'rr-badge' }, String(pending)) : null,
+      );
+}
+
+const themeName = (app: ReviewApp) => (app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme);
+const cycleTheme = (app: ReviewApp) => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system');
+const hubHref = () => (location.pathname.startsWith('/r/') ? '/' : '/api/hub');
+const playable = (app: ReviewApp) => !!(app.walkthrough || app.walkthroughIssues);
+const playTitle = (app: ReviewApp) => (app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide');
+
+/** Every header repaints on these. */
+function repaintOn(app: ReviewApp, paint: () => void) {
+  app.bus.on('state', paint);
+  app.bus.on('prefs', paint);
+  app.bus.on('theme', paint);
+  app.bus.on('files', paint);
+  app.bus.on('picker', (on) => {
+    app.root.classList.toggle('is-picking', on);
+    paint();
+  });
+  app.bus.on('round-view', () => setTimeout(paint));
+  app.bus.on('walkthrough', paint);
+  paint();
+}
+
 export function buildHeader(app: ReviewApp): HTMLElement {
   const m = app.meta;
-  const phone = isPhone();
   const bar = h('header', { class: 'rr-header' });
   const paint = () => {
-    const pending = app.pendingFeedback().length;
-    const round = app.state.rounds.find((r) => r.n === app.state.round);
     const themeIcon = app.resolvedTheme() === 'dark' ? 'moon' : 'sun';
     const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Review rounds: view the narrative as it was at the end of an earlier round' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
-    roundBtn.onclick = () =>
-      popMenu(roundBtn, (close) => [
-        menuLabel('Review rounds'),
-        ...app.state.rounds
-          .slice()
-          .reverse()
-          .map((r) =>
-            menuItem(
-              `Round ${r.n}`,
-              () => {
-                close();
-                app.bus.emit('round-view', r.n === app.state.round ? 0 : r.n);
-              },
-              { checked: (app.viewRound || app.state.round) === r.n, hint: r.status === 'open' ? 'current' : r.status },
-            ),
-          ),
-      ]);
+    roundBtn.onclick = () => roundMenu(app, roundBtn);
     const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layouts: pick, save or reset one, and choose which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
     const mine = () => Object.keys(app.layouts);
     layoutBtn.onclick = () => {
@@ -231,16 +281,6 @@ export function buildHeader(app: ReviewApp): HTMLElement {
       ]);
     };
     const picking = app.root.classList.contains('is-picking');
-    const themeName = app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme;
-    const cycleTheme = () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system');
-    const moreBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'More', title: 'More: pick an element to comment on, theme, install, all reviews', 'aria-haspopup': 'menu' }, icon('dots', 16));
-    moreBtn.onclick = () =>
-      popMenu(moreBtn, (close) => [
-        menuItem('Pick an element to comment on', () => (close(), app.bus.emit('picker', true)), { icon: 'target' }),
-        menuItem(`Theme: ${themeName}`, () => (close(), cycleTheme()), { icon: themeIcon, hint: 'switch' }),
-        canInstall() ? menuItem('Install app', () => (close(), void install()), { icon: 'install', hint: 'home screen' }) : null,
-        app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open(location.pathname.startsWith('/r/') ? '/' : '/api/hub', '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
-      ]);
     bar.replaceChildren(
       h(
         'div',
@@ -264,56 +304,66 @@ export function buildHeader(app: ReviewApp): HTMLElement {
       h(
         'div',
         { class: 'rr-header__actions' },
-        h('span', { class: 'rr-round-status rr-round-status--waiting', title: 'Your feedback went to the agent. The next round opens here when it is back' }, 'Waiting for the agent…'),
-        h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
-        h('span', { class: 'rr-pill rr-pill--draft rr-round-status rr-round-status--offline', title: 'The reviewroom server stopped. Changes stay in this tab and are saved when it is back' }, 'Disconnected'),
-        h('span', { class: 'rr-pill rr-pill--draft rr-unsaved', title: 'The reviewroom server has not stored your latest changes. Reviewroom keeps retrying; keep this tab open' }, 'Not saved yet'),
-        app.backend.kind === 'server' && !phone ? h('a', { class: 'rr-hbtn', href: location.pathname.startsWith('/r/') ? '/' : '/api/hub', target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
+        ...roundStatus(),
+        app.backend.kind === 'server' ? h('a', { class: 'rr-hbtn', href: hubHref(), target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
         h('button', { class: 'rr-search-btn', onclick: () => app.openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         ...githubControls(app),
-        app.walkthrough || app.walkthroughIssues
-          ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
+        playable(app)
+          ? h('button', { class: 'rr-hbtn rr-tour-btn', title: playTitle(app), 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
           : null,
         app.teamMode ? null : roundBtn,
-        // a phone keeps these in the More menu; while picking, Cancel takes its place (no Esc key there)
-        phone
-          ? picking
-            ? h('button', { class: 'rr-hbtn is-on', title: 'Stop picking', onclick: () => app.bus.emit('picker', false) }, icon('target', 16), h('span', null, 'Cancel'))
-            : moreBtn
-          : h('button', { class: 'rr-hbtn rr-hbtn--icon' + (picking ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
-        phone ? null : layoutBtn,
-        phone ? null : installButton(),
-        phone ? null : h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${themeName}. Click to switch`, 'aria-label': 'Toggle theme', onclick: cycleTheme }, icon(themeIcon, 16)),
-        app.teamMode
-          ? h(
-              'button',
-              { class: 'rr-btn rr-btn--primary rr-send-btn', title: 'Post your draft comments to GitHub as one review: comment, approve or request changes', onclick: () => submitReviewDialog(app) },
-              icon('send', 14),
-              h('span', null, 'Submit review'),
-              app.github?.pending?.drafts ? h('span', { class: 'rr-badge' }, String(app.github.pending.drafts)) : null,
-            )
-          : h(
-          'button',
-          { class: 'rr-btn rr-btn--primary rr-send-btn', title: app.backend.finish ? 'Finish this round: the agent gets your new comments and starts the next round' : 'Copy this round’s comments as markdown to paste to your agent', 'data-keys': 'mod+shift+enter', onclick: () => sendDialog(app), disabled: round?.status !== 'open' && !!round },
-          icon('send', 14),
-          h('span', null, app.backend.finish ? 'Send feedback' : 'Export feedback'),
-          pending ? h('span', { class: 'rr-badge' }, String(pending)) : null,
-        ),
+        h('button', { class: 'rr-hbtn rr-hbtn--icon' + (picking ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
+        layoutBtn,
+        installButton(),
+        h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${themeName(app)}. Click to switch`, 'aria-label': 'Toggle theme', onclick: () => cycleTheme(app) }, icon(themeIcon, 16)),
+        sendButton(app),
       ),
     );
   };
-  app.bus.on('state', paint);
-  app.bus.on('prefs', paint);
-  app.bus.on('theme', paint);
-  app.bus.on('files', paint);
-  app.bus.on('picker', (on) => {
-    app.root.classList.toggle('is-picking', on);
-    paint();
-  });
-  app.bus.on('round-view', () => setTimeout(paint));
-  app.bus.on('walkthrough', paint);
-  paint();
+  repaintOn(app, paint);
   return bar;
+}
+
+/** The phone's status bar: menu, the review's title over "repo · Round N" (tap: rounds), search, play, send. */
+export function buildPhoneBar(app: ReviewApp, openMenu: (anchor: HTMLElement) => void): HTMLElement {
+  const m = app.meta;
+  const bar = h('header', { class: 'rr-header rr-phonebar' });
+  const paint = () => {
+    const picking = app.root.classList.contains('is-picking');
+    const menuBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Menu', title: 'Menu: all reviews, theme, install, pick an element to comment on' }, icon('menu', 18));
+    menuBtn.onclick = () => openMenu(menuBtn);
+    const sub = [m.repo?.split('/').pop(), app.teamMode ? 'Team review' : `Round ${app.viewRound && app.viewRound !== app.state.round ? app.viewRound + ' of ' + app.state.round : app.state.round}`].filter(Boolean).join(' · ');
+    const titles = h(
+      'button',
+      { class: 'rr-phonebar__titles', 'aria-haspopup': app.teamMode ? null : 'menu', title: app.teamMode ? m.title : 'Review rounds: view the narrative as it was at the end of an earlier round' },
+      h('span', { class: 'rr-phonebar__title' }, m.title),
+      h('span', { class: 'rr-phonebar__sub' }, h('span', null, sub), ...roundStatus()),
+    );
+    titles.onclick = () => !app.teamMode && roundMenu(app, titles);
+    bar.replaceChildren();
+    append(bar, [
+      menuBtn,
+      titles,
+      // no Esc key on a phone: while picking, Cancel stands in for search
+      picking
+        ? h('button', { class: 'rr-hbtn is-on', title: 'Stop picking', onclick: () => app.bus.emit('picker', false) }, icon('target', 16), h('span', null, 'Cancel'))
+        : h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Search', title: 'Search files, sections, symbols, threads and actions', onclick: () => app.openPalette('') }, icon('search', 18)),
+      app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: playTitle(app), onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 18)) : null,
+      sendButton(app),
+    ]);
+  };
+  repaintOn(app, paint);
+  return bar;
+}
+
+/** The phone's menu (until the drawer): what the desktop header has that a phone still needs. */
+export function phoneMenu(app: ReviewApp, anchor: HTMLElement) {
+  popMenu(anchor, (close) => [
+    menuItem('Pick an element to comment on', () => (close(), app.bus.emit('picker', true)), { icon: 'target' }),
+    menuItem(`Theme: ${themeName(app)}`, () => (close(), cycleTheme(app)), { icon: app.resolvedTheme() === 'dark' ? 'moon' : 'sun', hint: 'switch' }),
+    canInstall() ? menuItem('Install app', () => (close(), void install()), { icon: 'install', hint: 'home screen' }) : null,
+    app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open(hubHref(), '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
+  ]);
 }
 
 const short = (s: string) => (/^[0-9a-f]{12,}$/.test(s) ? s.slice(0, 7) : s);

@@ -46,6 +46,7 @@ export const svg = (d: string, size = 16) => {
 const P = (d: string) => `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
 export const icons = {
   toc: P('M3 4h10M3 8h7M3 12h9'),
+  menu: P('M2.5 4h11M2.5 8h11M2.5 12h11'),
   files: P('M4 2.5h5l3 3v8H4z M9 2.5v3h3'),
   code: P('M6 4 2.5 8 6 12M10 4l3.5 4-3.5 4'),
   doc: P('M4 2.5h8v11H4zM6 5.5h4M6 8h4M6 10.5h2.5'),
