@@ -701,7 +701,8 @@ rr-embed {
 }
 /* no keyboard shortcuts to hint at on touch */
 @media (hover: none) {
-  .rr-tooltip kbd {
+  .rr-tooltip kbd,
+  .rr-composer__send-key {
     display: none;
   }
 }

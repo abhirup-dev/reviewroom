@@ -92,11 +92,14 @@
 
 /* the palette is a full-screen sheet: the <dialog> sits outside .rr-root, hence :has() */
 :root:has(.is-phone) .rr-palette {
-  margin: 0;
+  margin: var(--rr-kb-top, 0px) 0 0;
   width: 100%;
   max-width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
+  /* above the on-screen keyboard (shell/keyboard.ts) */
+  box-sizing: border-box;
+  height: calc(100dvh - var(--rr-kb-top, 0px));
+  max-height: none;
+  padding-bottom: var(--rr-kb, 0px);
   border: 0;
   border-radius: 0;
 }
@@ -116,4 +119,65 @@
 }
 :root:has(.is-phone) .rr-palette__cancel {
   display: inline-flex;
+}
+
+/* the thread popup is a bottom sheet (overlays/thread.ts), padded clear of the on-screen keyboard (shell/keyboard.ts) */
+.rr-modal.rr-sheet {
+  inset: auto 0 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  max-height: min(85dvh, calc(100dvh - var(--rr-kb-top, 0px)));
+  padding-bottom: calc(var(--rr-kb, 0px) + env(safe-area-inset-bottom));
+  border-width: 1px 0 0;
+  border-radius: var(--rr-radius-lg) var(--rr-radius-lg) 0 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rr-modal.rr-sheet {
+    animation: rr-sheet-up 0.18s ease-out;
+  }
+}
+@keyframes rr-sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+/* the drag-handle bar */
+.rr-modal.rr-sheet::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  margin: 6px 0 0;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+.rr-modal.rr-sheet > .rr-thread {
+  max-height: none;
+}
+.rr-modal.rr-sheet > .rr-thread > .rr-thread__head {
+  cursor: auto;
+}
+/* with the keyboard up, the messages and what it's about give way first, then the reply box, so its buttons stay on
+   screen (flex shrinks by basis times factor; the reply box's factor stays 1, as a sum under 1 shrinks only part way) */
+.rr-sheet .rr-thread__scroll,
+.rr-sheet .rr-thread__ctx {
+  flex-shrink: 1000;
+}
+.rr-sheet .rr-thread__ctx {
+  min-height: 48px;
+}
+.rr-sheet .rr-composer {
+  flex-shrink: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rr-sheet div.rr-composer__input {
+  flex-shrink: 1;
+  min-height: 44px;
+  max-height: 30dvh;
 }

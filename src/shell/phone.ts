@@ -18,6 +18,9 @@ export class PhoneShell {
   private tab = '';
   private stage = h('div', { class: 'rr-phone-stage' });
   private bar = h('nav', { class: 'rr-phone-tabs' });
+  private comment = h('button', { class: 'rr-btn rr-btn--primary rr-phone-comment', hidden: true });
+  /** the panel in front when the selection was made: Comment shows only while that panel is */
+  private selectedIn = '';
 
   constructor(
     private app: ReviewApp,
@@ -26,9 +29,10 @@ export class PhoneShell {
   ) {
     host.classList.add('rr-phone');
     // no c key on a phone: a selection (text in the narrative, lines in code) gets a button instead
-    const comment = h('button', { class: 'rr-btn rr-btn--primary rr-phone-comment', hidden: true, onclick: () => (app.commands.run('comment.selection'), (comment.hidden = true)) });
+    const comment = this.comment;
+    comment.onclick = () => (app.commands.run('comment.selection'), (comment.hidden = true));
     comment.append(icon('thread', 14), 'Comment');
-    app.bus.on('selection', (s) => (comment.hidden = !s));
+    app.bus.on('selection', (s) => ((this.selectedIn = s ? this.front() : ''), this.paint()));
     host.append(this.stage, comment, this.bar);
     this.paintBar();
     this.show('narrative');
@@ -112,8 +116,11 @@ export class PhoneShell {
     this.paint();
   }
 
+  private front = () => this.sheets.at(-1) ?? this.tab;
+
   private paint() {
-    const front = this.sheets.at(-1) ?? this.tab;
+    const front = this.front();
+    this.comment.hidden = this.selectedIn !== front || !front;
     for (const o of this.open.values()) {
       const shown = o.id === front || (o.id === this.tab && !!this.sheets.length); // the tab stays under a sheet
       const was = !o.host.hidden;

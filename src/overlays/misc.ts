@@ -6,6 +6,8 @@ import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
 import type { ReviewApp } from '../shell/app';
 import { renderPreview } from '../elements';
+import { isPhone } from '../shell/phone';
+import { trackKeyboard } from '../shell/keyboard';
 
 interface Item {
   kind: 'command' | 'file' | 'section' | 'thread' | 'symbol' | 'text' | 'link';
@@ -32,10 +34,13 @@ export function mountPalette(app: ReviewApp) {
   let pick: ((ref: string | null) => void) | null = null;
   let remote: Item[] = [];
   let reqId = 0;
+  let stopKb: (() => void) | undefined; // on a phone the full-screen palette keeps its list above the keyboard
 
   const close = (result: string | null = null) => {
     const p = pick;
     pick = null;
+    stopKb?.();
+    stopKb = undefined;
     box.close();
     p?.(result);
   };
@@ -160,6 +165,7 @@ export function mountPalette(app: ReviewApp) {
     input.value = initial;
     input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : 'Jump to a file, section, thread or command…';
     if (!box.open) box.showModal();
+    if (isPhone()) stopKb ??= trackKeyboard();
     paint();
     if (/^[#/]/.test(initial)) searchRemote(initial);
     requestAnimationFrame(() => {
