@@ -105,3 +105,9 @@ test("a @pr:<n> code link becomes a blob link at that PR's layer", () => {
     '[x](https://github.com/o/r/blob/H7/a.go#L2) [y](https://github.com/o/r/blob/B7/a.go#L2) [z](https://github.com/o/r/blob/H8/a.go#L2)',
   );
 });
+
+test("a GitHub thread link goes to that thread's own PR", () => {
+  const t = { host: 'github.com', owner: 'o', name: 'r', number: 368 };
+  const threadPr = (id: string) => (id === 'gh_42' ? 367 : undefined);
+  expect(toGitHubMarkdown('[a](rr:thread/gh_42) [b](rr:thread/gh_43)', t, { base: 'B', head: 'H', threadPr })).toBe('[a](https://github.com/o/r/pull/367#discussion_r42) [b](https://github.com/o/r/pull/368#discussion_r43)');
+});

@@ -221,14 +221,15 @@ export function ciOf(commits: PullRequestCommit[]): CiCommit[] {
     .reverse();
 }
 
-/** rr: links mean nothing on github.com: code links become blob links at the reviewed commit (a @pr:<n> link: at that
- *  PR's layer, of `shas.layers`), the rest plain text. */
-export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string; head: string; layers?: Layer[] }) {
+/** rr: links mean nothing on github.com: code links become blob links at the reviewed commit (`shas`: the whole
+ *  review's, the whole stack's in a stack; a @pr:<n> link: at that PR's layer, of `shas.layers`), the rest plain text.
+ *  A GitHub thread link goes to its own PR (`shas.threadPr`; missing: `t`'s). */
+export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string; head: string; layers?: Layer[]; threadPr?: (id: string) => number | undefined }) {
   const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
   return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label: string, ref: string) => {
     // a link to a GitHub thread keeps pointing at it there
     const gh = ref.match(/^rr:thread\/gh_(\d+|conversation(?:_(\d+))?)$/);
-    if (gh) return `[${label || 'thread'}](${gh[2] ? pr.replace(/\d+$/, gh[2]) : gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
+    if (gh) return `[${label || 'thread'}](${gh[2] ? pr.replace(/\d+$/, gh[2]) : gh[1] === 'conversation' ? pr : `${pr.replace(/\d+$/, String(shas.threadPr?.(`gh_${gh[1]}`) ?? t.number))}#discussion_r${gh[1]}`})`;
     const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
     const at = (a.pr && shas.layers?.find((l) => l.number === a.pr)) || shas;
@@ -324,7 +325,9 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       const p = s.prs?.[n];
       return { t: { ...target, number: n }, node: p?.pr ?? s.pr, pending: p ? p.pending : s.pending, base: layer?.base ?? prov.base, head: layer?.head ?? (localHead || s.headSha) };
     };
-    const md = (body: string, p = on()) => toGitHubMarkdown(body, p.t, { base: p.base, head: p.head, layers: prov.layers ?? undefined });
+    // a plain link means the whole review's range, the whole stack's in a stack, whichever PR the text is posted on
+    const whole = prov.layers ? { base: prov.base, head: localHead ?? prov.head } : on();
+    const md = (body: string, p = on()) => toGitHubMarkdown(body, p.t, { base: whole.base, head: whole.head, layers: prov.layers ?? undefined, threadPr: (id) => s.threads.find((t) => t.id === id)?.pr });
     const ghThread = (id: string) => s.threads.find((t) => t.id === id) ?? fail(`no GitHub thread ${id}`, 404);
     const thread = (id: string) => ghThread(id).gh?.node ?? fail(`no GitHub thread ${id}`, 404);
     const owner = (id: string) => s.threads.find((t) => t.messages.some((m) => m.id === id));
