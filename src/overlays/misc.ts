@@ -182,16 +182,16 @@ export function mountSelectionRelease(app: ReviewApp) {
   // (or extend) a new one, and clicks inside popups and menus belong to them
   const keeps = (n: EventTarget) =>
     n instanceof Element && (n.matches('dialog, .rr-menu, .rr-phone-comment') || ['data-column-number', 'data-selected-line', 'data-utility-button', 'data-gutter-utility-slot'].some((a) => n.hasAttribute(a)));
-  document.addEventListener(
-    'pointerdown',
-    (e) => {
-      if (e.composedPath().some(keeps)) return;
-      // not removeAllRanges(): that would break starting a text selection in the narrative
-      app.selection = null;
-      app.bus.emit('selection', null);
-    },
-    true,
-  );
+  const release = (e: Event) => {
+    if (e.composedPath().some(keeps)) return;
+    // not removeAllRanges(): that would break starting a text selection in the narrative
+    app.selection = null;
+    app.bus.emit('selection', null);
+  };
+  // a finger lets go on a tap, not on touching down: that may start a scroll, which keeps the selection
+  let touch = false;
+  document.addEventListener('pointerdown', (e) => (touch = e.pointerType === 'touch') || release(e), true);
+  document.addEventListener('click', (e) => touch && release(e), true);
 }
 
 // ================================================================ hover previews

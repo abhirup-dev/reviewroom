@@ -371,7 +371,7 @@ class CodePanel implements PanelInstance {
         const t = this.app.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
-      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => r && !fv?.rev && this.onSelect(ctx.item.id, side(r)),
+      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => !fv?.rev && (r ? this.onSelect(ctx.item.id, side(r)) : this.onDeselect(ctx.item.id)),
       onGutterUtilityClick: (r: SelectedLineRange, ctx: Ctx) => !fv?.rev && this.onGutter(ctx.item.id, side(r)),
       loadDiffFiles: async (d: FileDiffMetadata) => {
         const { base, head } = this.app.range;
@@ -562,6 +562,12 @@ class CodePanel implements PanelInstance {
     const side = r.side === 'deletions' ? 'base' : 'head';
     this.app.selection = { kind: 'code', path, side, start, end, ...this.lastPointer };
     this.app.bus.emit('selection', this.app.selection);
+  }
+  /** Tapping the selected line again unselects it: let go of it, so Comment (and c) don't act on what isn't shown. */
+  private onDeselect(path: string) {
+    if (this.app.selection?.kind !== 'code' || this.app.selection.path !== path) return;
+    this.app.selection = null;
+    this.app.bus.emit('selection', null);
   }
   private onGutter(path: string, r: SelectedLineRange) {
     const side = r.side === 'deletions' ? 'base' : 'head';
