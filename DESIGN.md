@@ -214,7 +214,8 @@ float above the page.
 
 Square. 2px radius on chips, buttons, inputs, cards and blocks; 4px on floating layers (menus, dialogs, palette,
 popovers). 1px hairline borders define controls and separate rows; strong hairlines outline buttons. Nothing is pill-
-shaped or fully rounded.
+shaped or fully rounded. The phone shell is the one exception: it takes Material 3 Expressive shapes and touch sizes
+on these same tokens (`docs/design/phone.md`).
 
 ## Components
 
