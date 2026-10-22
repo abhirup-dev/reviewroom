@@ -1,6 +1,7 @@
 // Command palette (⌘K), click-away selection release, link hover previews, toasts.
 import { single } from 'fuzzysort';
 import { h, icon, debounce, placeNear, backdropCloses, onLongPress } from '../core/dom';
+import { loadRaw, saveLocal } from '../core/store';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
@@ -15,9 +16,25 @@ interface Item {
   detail?: string;
   keys?: string[];
   ref?: string;
+  /** a command's id: a recent pick runs it again */
+  cmd?: string;
   score: number;
   run(): void;
 }
+type Recent = Pick<Item, 'kind' | 'label' | 'detail' | 'ref' | 'cmd'>;
+
+/** A phone's search chips: what each narrows the results to (a kind), in the order results are grouped. */
+const CHIPS = [
+  ['all', 'All'],
+  ['file', 'Files'],
+  ['section', 'Sections'],
+  ['symbol', 'Symbols'],
+  ['thread', 'Threads'],
+  ['command', 'Actions'],
+] as const;
+type Chip = (typeof CHIPS)[number][0];
+const GROUP: Partial<Record<Item['kind'], string>> = { link: 'Link', file: 'Files', section: 'Sections', symbol: 'Symbols', text: 'Code', thread: 'Threads', command: 'Actions' };
+const ORDER: Item['kind'][] = ['link', 'file', 'section', 'symbol', 'text', 'thread', 'command'];
 
 const KIND_ICON: Record<Item['kind'], Parameters<typeof icon>[0]> = { command: 'chevron', file: 'files', section: 'doc', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
 
@@ -27,7 +44,12 @@ export function mountPalette(app: ReviewApp) {
   const list = h('div', { class: 'rr-palette__list', role: 'listbox' });
   const hint = h('div', { class: 'rr-palette__hint' });
   // Esc and the backdrop close it too, without a pick
-  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, input, list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
+  // a phone's search: chips to narrow it, Recent and Actions before typing, results grouped by kind
+  const phone = isPhone();
+  const chips = h('div', { class: 'rr-palette__chips', role: 'group', 'aria-label': 'Show', hidden: true });
+  let chip: Chip = 'all';
+  const recentKey = () => `reviewroom:recent:${app.meta.id}`;
+  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, input, chips, list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
   document.body.append(box);
   let items: Item[] = [];
   let sel = 0;
@@ -63,7 +85,7 @@ export function mountPalette(app: ReviewApp) {
       out.push({ kind: 'link', label: 'Open ' + app.label(ref), ref, score: 999, run: () => app.open(ref) });
     }
     if (!pick && (mode === '>' || !/^[#/@]/.test(q)))
-      for (const c of app.commands.all()) if (c.id !== 'palette') add({ kind: 'command', label: c.title, detail: c.group, keys: c.keys, run: c.run }, c.title + ' ' + (c.group ?? ''));
+      for (const c of app.commands.all()) if (c.id !== 'palette') add({ kind: 'command', label: c.title, detail: c.group, keys: c.keys, cmd: c.id, run: c.run }, c.title + ' ' + (c.group ?? ''));
     if (mode === '>' && !pick) return out;
     if (!/^[#/]/.test(q)) {
       for (const f of app.files) {
@@ -107,21 +129,63 @@ export function mountPalette(app: ReviewApp) {
     paint();
   }, 160);
 
+  /** On a phone, outside pick mode and the typed modes (> # /): the chips, and what the list shows grouped. */
+  const grouped = () => phone && !pick && !/^[>#/]/.test(input.value);
+  // a list (loadLocal merges objects): anything else stored there is no list of recents
+  const stored = (): Recent[] => {
+    try {
+      const v: unknown = JSON.parse(loadRaw(recentKey()) ?? '[]');
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+  const recents = (): Item[] =>
+    stored().map((r) => ({ ...r, score: 0, run: () => (r.cmd ? app.commands.run(r.cmd) : r.ref && void app.open(r.ref)) }));
+  const remember = (it: Item) => {
+    if (!phone || (!it.ref && !it.cmd)) return;
+    const r: Recent = { kind: it.kind, label: it.label, detail: it.detail, ref: it.ref, cmd: it.cmd };
+    saveLocal(recentKey(), [r, ...stored().filter((x) => x.ref !== r.ref || x.cmd !== r.cmd)].slice(0, 6));
+  };
+  /** Items in their groups (by kind; Recent first before typing), each group under its label. */
+  let groups: [string, Item[]][] = [];
+
   const paint = () => {
     const q = input.value;
-    items = [...(/^[#/]/.test(q) ? remote : []), ...local(q)].filter((i) => !pick || i.ref).sort((a, b) => b.score - a.score).slice(0, 60);
-    sel = Math.min(sel, Math.max(0, items.length - 1));
-    list.replaceChildren(
-      ...items.map((it, i) =>
-        h(
-          'div',
-          { class: 'rr-palette__item' + (i === sel ? ' is-sel' : ''), role: 'option', 'aria-selected': String(i === sel), onmousemove: () => i !== sel && ((sel = i), paint()), onclick: () => choose(i) },
-          h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(KIND_ICON[it.kind], 12)),
-          h('span', { class: 'rr-palette__label' }, it.label),
-          it.detail ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
-          it.keys?.length ? h('kbd', null, keyLabel(it.keys[0])) : null,
+    const all = [...(/^[#/]/.test(q) || grouped() ? remote : []), ...local(q)].filter((i) => !pick || i.ref).sort((a, b) => b.score - a.score);
+    chips.hidden = !grouped();
+    if (grouped()) {
+      const typed = !!q.trim();
+      const count = (c: Chip) => (c === 'all' ? all.length : all.filter((i) => i.kind === c).length);
+      chips.replaceChildren(
+        ...CHIPS.map(([c, label]) =>
+          h('button', { class: 'rr-palette__chip' + (c === chip ? ' is-on' : ''), 'aria-pressed': String(c === chip), onclick: () => ((chip = c), (sel = 0), paint(), input.focus()) }, label, c === 'symbol' && !remote.length ? null : h('span', null, String(count(c)))),
         ),
-      ),
+      );
+      const shown = all.filter((i) => chip === 'all' || i.kind === chip);
+      groups = !typed && chip === 'all'
+        ? [['Recent', recents()], ['Actions', shown.filter((i) => i.kind === 'command')]]
+        : ORDER.map((k): [string, Item[]] => [GROUP[k]!, shown.filter((i) => i.kind === k).slice(0, 40)]);
+      groups = groups.filter(([, g]) => g.length);
+    } else groups = [['', all.slice(0, 60)]];
+    items = groups.flatMap(([, g]) => g);
+    sel = Math.min(sel, Math.max(0, items.length - 1));
+    let i = 0;
+    list.replaceChildren(
+      ...groups.flatMap(([label, g]) => [
+        label ? h('div', { class: 'rr-palette__group' }, label) : null,
+        ...g.map((it) => {
+          const n = i++;
+          return h(
+            'div',
+            { class: 'rr-palette__item' + (n === sel ? ' is-sel' : ''), role: 'option', 'aria-selected': String(n === sel), onmousemove: () => n !== sel && ((sel = n), paint()), onclick: () => choose(n) },
+            h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(KIND_ICON[it.kind], 12)),
+            h('span', { class: 'rr-palette__label' }, it.label),
+            it.detail ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
+            it.keys?.length ? h('kbd', null, keyLabel(it.keys[0])) : null,
+          );
+        }),
+      ].filter((x) => x !== null)),
     );
     if (!items.length) list.append(h('div', { class: 'rr-empty' }, /^[#/]/.test(q) && q.length < 3 ? 'Type to search the repo…' : 'No matches'));
     list.querySelector('.is-sel')?.scrollIntoView({ block: 'nearest' });
@@ -137,12 +201,14 @@ export function mountPalette(app: ReviewApp) {
     if (!it) return;
     if (pick) return close(it.ref ?? null);
     close();
+    remember(it);
     it.run();
   };
 
   input.addEventListener('input', () => {
     sel = 0;
     if (/^[#/]/.test(input.value)) searchRemote(input.value);
+    else if (grouped()) searchRemote('#' + input.value); // a phone's search finds symbols as you type
     paint();
   });
   input.addEventListener('keydown', (e) => {
@@ -162,6 +228,7 @@ export function mountPalette(app: ReviewApp) {
 
   const open = (initial = '') => {
     remote = [];
+    chip = 'all';
     input.value = initial;
     input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : 'Jump to a file, section, thread or command…';
     if (!box.open) box.showModal();
