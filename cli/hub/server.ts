@@ -4,11 +4,9 @@
 //   GET  /api/health                counters and the Crit/Plannotator versions against the verified ones
 //   POST /api/sessions/:id/close    SIGTERM a session a fresh poll still finds (needs x-reviewroom-action: close-session)
 import { Hono } from 'hono';
-import { serveStatic } from '@hono/bun';
 import { assessCompatibility } from './compat.ts';
 import type { Hub } from './hub.ts';
-import { localOnly } from '../lib/server.ts';
-import { DIST } from '../lib/paths.ts';
+import { localOnly, serveClient } from '../lib/server.ts';
 
 const PAGE = `<!doctype html>
 <html lang="en">
@@ -28,8 +26,8 @@ export function hubApp(hub: Hub) {
   const app = new Hono();
   app.use(localOnly);
   app.notFound((c) => c.json({ error: 'not found' }, 404));
-  app.get('/', (c) => c.html(PAGE));
-  app.get('/_rr/*', serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
+  app.get('/', (c) => c.html(PAGE, 200, { 'cache-control': 'no-cache' }));
+  serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204));
   app.get('/api/sessions', async (c) => {
     await hub.fresh();

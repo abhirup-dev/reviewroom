@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SearchHit } from '../src/core/types.ts';
-import { setup } from './fixture.ts';
+import { expectClientHeaders, setup } from './fixture.ts';
 
 describe('api', () => {
   const { tmp, repo, dir, serve, sessions } = setup();
@@ -74,5 +74,18 @@ describe('api', () => {
     fs.writeFileSync(path.join(dir, 'fig #1?.txt'), 'fig');
     const r = await fetch(url + encodeURIComponent('fig #1?.txt'));
     expect([r.status, await r.text()]).toEqual([200, 'fig']);
+  });
+  test('hashed chunks are immutable, the rest revalidates; every response names the build', () => expectClientHeaders(url, 'api/state'));
+  test('the build header follows a rebuild without a restart', async () => {
+    const f = path.join(import.meta.dir, '..', 'dist', 'build-info.json');
+    const saved = fs.readFileSync(f, 'utf8');
+    try {
+      fs.writeFileSync(f, JSON.stringify({ id: 'rebuilt' }));
+      expect((await fetch(url + 'api/state')).headers.get('x-reviewroom-build')).toBe('rebuilt');
+      fs.rmSync(f);
+      expect((await fetch(url + 'api/state')).headers.get('x-reviewroom-build')).toBeNull();
+    } finally {
+      fs.writeFileSync(f, saved);
+    }
   });
 });

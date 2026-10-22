@@ -1,6 +1,6 @@
 // End-to-end fixture: the demo repo with a scaffolded review, built once per test process. Each describe calls
 // setup() for its own copy, REVIEWROOM_HOME and servers on OS-assigned ports. Run with `bun run smoke` (builds first).
-import { afterAll } from 'bun:test';
+import { afterAll, expect } from 'bun:test';
 import { $, type Subprocess } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -33,6 +33,26 @@ export async function until<T>(fn: () => T | Promise<T>, ms = 5000): Promise<Non
 export const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 export const op = (url: string, o: object) => post(url + 'api/ops', { ops: [o] });
 export const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8');
+
+/** The client build's cache headers and the build id, the same on the review server and the hub (`api`: one of its API paths). */
+export async function expectClientHeaders(url: string, api: string) {
+  const id = JSON.parse(read(root, 'dist', 'build-info.json')).id;
+  const chunk = fs.readdirSync(path.join(root, 'dist', 'chunks'))[0];
+  const want: Record<string, string> = {
+    [`_rr/chunks/${chunk}`]: 'public, max-age=31536000, immutable',
+    '_rr/fonts/inter-latin-opsz-normal.woff2': 'max-age=86400',
+    '_rr/reviewroom.js': 'no-cache',
+    '_rr/build-info.json': 'no-cache',
+    'sw.js': 'no-cache',
+    '': 'no-cache',
+    [api]: 'no-store',
+  };
+  for (const [p, cache] of Object.entries(want)) {
+    const r = await fetch(url + p);
+    expect([p, r.status, r.headers.get('cache-control'), r.headers.get('x-reviewroom-build')]).toEqual([p, 200, cache, id]);
+    if (p === 'sw.js') expect(r.headers.get('service-worker-allowed')).toBe('/');
+  }
+}
 
 export function setup() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-'));

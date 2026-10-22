@@ -99,13 +99,39 @@ function allowed(c: Context) {
   return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
 }
 
-/** Every response says which process sent it (lock.ts `answers`); the hub's server uses this too. */
+// dist/build-info.json's id, read again when the file changes: a running server serves dist/ while `bun run dev` rebuilds it
+let build: { mtime: number; id?: string } = { mtime: -1 };
+const buildId = () => {
+  const f = path.join(DIST, 'build-info.json');
+  try {
+    const mtime = fs.statSync(f).mtimeMs;
+    if (mtime !== build.mtime) build = { mtime, id: JSON.parse(fs.readFileSync(f, 'utf8')).id };
+  } catch {
+    build = { mtime: -1 }; // missing or half-written: no header, try again next time
+  }
+  return build.id;
+};
+
+/** Every response says which process and which client build sent it (lock.ts `answers`); the hub's server uses this too. */
 export const localOnly: MiddlewareHandler = async (c, next) => {
   c.header('x-reviewroom-pid', String(process.pid));
+  const id = buildId();
+  if (id) c.header('x-reviewroom-build', id);
   c.header('cache-control', 'no-store'); // unless a route says otherwise
   if (!allowed(c)) return c.json({ error: 'forbidden' }, 403);
   await next();
 };
+
+/**
+ * The client build (/_rr/*) and its service worker (/sw.js), on the review server and the hub. Chunks are
+ * content-hashed, so immutable; fonts keep their file names across package upgrades, so a day; the rest (the entries,
+ * css, build-info.json, sw.js) revalidates so a new build never mixes with stale files.
+ */
+export function serveClient(app: Hono) {
+  const policy = (p: string) => (p.startsWith('/_rr/chunks/') ? 'public, max-age=31536000, immutable' : p.startsWith('/_rr/fonts/') ? 'max-age=86400' : 'no-cache');
+  app.get('/_rr/*', async (c, next) => (c.header('cache-control', policy(c.req.path)), next()), serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
+  app.get('/sw.js', async (c, next) => (c.header('cache-control', 'no-cache'), c.header('service-worker-allowed', '/'), next()), serveStatic({ root: DIST }));
+}
 
 /** `readOnly`: a server that only shows the review (`walkthrough lint`): no writes, no GitHub calls; it holds no lock. */
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
@@ -169,16 +195,11 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   const page = (c: Context) => {
     let html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
     if (!html.includes('/_rr/reviewroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/reviewroom.js"></script>\n</head>');
-    return c.html(html);
+    return c.html(html, 200, { 'cache-control': 'no-cache' });
   };
   app.get('/', page);
   app.get('/index.html', page);
-  // the client build; reviewroom.js is the entry and changes with every build, its chunks are content-hashed
-  app.get(
-    '/_rr/*',
-    async (c, next) => (c.header('cache-control', c.req.path.endsWith('/reviewroom.js') ? 'no-store' : 'max-age=3600'), next()),
-    serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }),
-  );
+  serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
   app.get('/api/meta', (c) => json(c, prov.meta()));
   app.get('/api/commits', (c) => json(c, prov.commits()));

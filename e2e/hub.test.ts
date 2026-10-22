@@ -2,7 +2,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, until } from './fixture.ts';
+import { expectClientHeaders, setup, until } from './fixture.ts';
 
 describe('hub', () => {
   const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup();
@@ -21,6 +21,8 @@ describe('hub', () => {
     expect(await (await fetch(hub)).text()).toContain('/_rr/hub.js');
     expect((await fetch(hub + '_rr/hub.css')).status).toBe(200);
   });
+
+  test('serves the client with the same cache and build headers as a review', () => expectClientHeaders(hub, 'api/sessions'));
 
   test('lists the running review with its round and threads', async () => {
     const [s] = (await list()).filter((x) => x.tool === 'reviewroom');
