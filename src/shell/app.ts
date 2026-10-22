@@ -385,6 +385,12 @@ export class ReviewApp {
   prOf(t: Thread): number | undefined {
     return this.meta.stack ? threadPr(t, this.walkthrough) : undefined;
   }
+  /** Your draft comments on GitHub, per PR (a stack: each PR's pending review; else the PR's, under its number). */
+  drafts(): Map<number, number> {
+    const g = this.github;
+    if (!this.meta.stack || !g?.prs) return new Map(g?.pending?.drafts ? [[Number(this.meta.number), g.pending.drafts]] : []);
+    return new Map(Object.entries(g.prs).flatMap(([n, p]) => (p.pending?.drafts ? [[+n, p.pending.drafts] as [number, number]] : [])));
+  }
   /** The GitHub conversation of the PR in scope (in a stack: the scoped PR's, else the requested one's). */
   conversation() {
     const n = this.range?.pr ?? Number(this.meta.number);
