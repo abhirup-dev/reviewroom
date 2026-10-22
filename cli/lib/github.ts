@@ -368,11 +368,19 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
       case 'resolve':
         return void (await run(a.resolved ? M.resolve : M.unresolve, { thread: thread(a.thread) }));
       case 'submit': {
-        // one GitHub review per PR; the others are left alone
+        // one GitHub review per PR; the others are left alone. Not atomic: on a failure, say which went, so a retry
+        // names only the rest (sending one again would post a second review on it)
+        const done: number[] = [];
         for (const n of a.prs ?? [a.pr ?? target.number]) {
           const p = on(n);
           const vars = { event: EVENT[a.event], body: a.body?.trim() ? md(a.body.trim(), p) : null };
-          await (p.pending ? run(M.submit, { review: p.pending.id, ...vars }) : run(M.review, { pr: p.node, commit: p.head, ...vars }));
+          try {
+            await (p.pending ? run(M.submit, { review: p.pending.id, ...vars }) : run(M.review, { pr: p.node, commit: p.head, ...vars }));
+          } catch (e) {
+            if (!done.length) throw e;
+            fail(`submitted ${done.map((d) => `#${d}`).join(', ')}; #${n} failed (${e instanceof Error ? e.message : String(e)}): submit it and the rest again without those`, 502);
+          }
+          done.push(n);
         }
         return;
       }
