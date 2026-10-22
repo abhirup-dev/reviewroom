@@ -181,6 +181,7 @@ kbd {
   display: none;
   font-size: var(--rr-text-sm);
   color: var(--rr-muted);
+  white-space: nowrap;
 }
 .is-waiting .rr-round-status--waiting,
 .is-approved .rr-round-status--approved,
