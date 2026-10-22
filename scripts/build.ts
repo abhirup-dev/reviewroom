@@ -68,6 +68,7 @@ async function build() {
     outdir: at('dist'),
     splitting: true,
     sourcemap: 'linked',
+    metafile: true,
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
   writeFileSync(at('dist/hub.css'), hubCss());
@@ -80,15 +81,32 @@ async function build() {
     throw new Error('build failed');
   }
   chmodSync(at('dist/cli/reviewroom.js'), 0o755);
-  await buildWorker();
+  await buildWorker(staticImports(res.metafile!, './reviewroom.js'));
   console.log(`built dist/ in ${Math.round(performance.now() - t)}ms`);
 }
 
 /**
- * The build id (a hash of the client's files), dist/build-info.json, and dist/sw.js with the id and precache list baked in.
- * emoji.json (~1MB, only the emoji picker reads it) is left to runtime caching.
+ * The chunks `entry` loads before it runs (its static imports, transitively), as dist/-relative paths.
  */
-async function buildWorker() {
+function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, entry: string) {
+  const seen = new Set<string>();
+  const walk = (out: string) => {
+    for (const i of meta.outputs[out]?.imports ?? []) {
+      if (i.kind !== 'import-statement' || seen.has(i.path)) continue;
+      seen.add(i.path);
+      walk(i.path);
+    }
+  };
+  walk(entry);
+  return new Set([...seen].map((p) => p.replace(/^\.\//, '')));
+}
+
+/**
+ * The build id (a hash of the client's files), dist/build-info.json, and dist/sw.js with the id and precache list baked in.
+ * The worker precaches the app shell: entries, CSS, fonts and the chunks the entry imports statically. The lazy chunks
+ * (~900, mostly syntax grammars) and emoji.json (~0.4MB, only the emoji picker reads it) are cached at runtime.
+ */
+async function buildWorker(shellChunks: Set<string>) {
   const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.map$/;
   const files = readdirSync(at('dist'), { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile())
@@ -107,7 +125,7 @@ async function buildWorker() {
     entrypoints: [at('src/sw.ts')],
     target: 'browser',
     minify: true,
-    define: { __RR_BUILD__: JSON.stringify(id), __RR_PRECACHE__: JSON.stringify(files.map((f) => `/_rr/${f}`)) },
+    define: { __RR_BUILD__: JSON.stringify(id), __RR_PRECACHE__: JSON.stringify(files.filter((f) => !f.startsWith('chunks/') || shellChunks.has(f)).map((f) => `/_rr/${f}`)) },
     outdir: at('dist'),
     naming: 'sw.js',
   });
