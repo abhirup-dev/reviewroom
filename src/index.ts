@@ -239,6 +239,7 @@ function registerCommands(app: ReviewApp) {
   const pal = (q = '') => () => app.openPalette(q);
   const codeCmd = (name: string) => () => {
     const scroller = (document.activeElement?.closest('.rr-code-panel') ?? document.querySelector('.rr-code-panel'));
+    if (scroller && !scroller.checkVisibility()) ensurePanel(app, 'code'); // on a phone, from another tab: show where it moves
     scroller?.dispatchEvent(new CustomEvent('rr-code-cmd', { detail: name }));
   };
   C.register(
@@ -296,6 +297,7 @@ function stepSection(app: ReviewApp, dir: 1 | -1) {
   const secs = [...(app.doc?.querySelectorAll('section[id]') ?? [])].filter((s) => !s.parentElement?.closest('section[id]'));
   const sc = document.querySelector('.rr-narrative-scroll') as HTMLElement;
   if (!sc || !secs.length) return;
+  if (!sc.checkVisibility()) ensurePanel(app, 'narrative'); // on a phone, from another tab: hidden, it measures nothing
   const top = sc.getBoundingClientRect().top + 60;
   const idx = secs.findIndex((s) => s.getBoundingClientRect().top > top + 2);
   const cur = idx < 0 ? secs.length : idx;

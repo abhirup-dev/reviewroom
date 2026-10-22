@@ -25,7 +25,7 @@ export function mountPalette(app: ReviewApp) {
   const list = h('div', { class: 'rr-palette__list', role: 'listbox' });
   const hint = h('div', { class: 'rr-palette__hint' });
   // Esc and the backdrop close it too, without a pick
-  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, input, list, hint);
+  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, input, list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
   document.body.append(box);
   let items: Item[] = [];
   let sel = 0;

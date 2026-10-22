@@ -4,6 +4,7 @@ import { h, icon, copyText, relTime, placeNear, backdropCloses } from '../core/d
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
+import { isPhone } from './phone';
 import { applyLayout, canUndoLayout, closePanel, deleteLayout, ensurePanel, hasPanel, layouts, panelDefs, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 import type { GitHubAction } from '../shared/schema';
@@ -185,6 +186,7 @@ function githubControls(app: ReviewApp) {
 // ---------------------------------------------------------------- header
 export function buildHeader(app: ReviewApp): HTMLElement {
   const m = app.meta;
+  const phone = isPhone();
   const bar = h('header', { class: 'rr-header' });
   const paint = () => {
     const pending = app.pendingFeedback().length;
@@ -227,6 +229,16 @@ export function buildHeader(app: ReviewApp): HTMLElement {
           .map((d) => menuItem(d.title, () => (close(), hasPanel(app, d.id) ? closePanel(app, d.id) : ensurePanel(app, d.id)), { checked: hasPanel(app, d.id) })),
       ]);
     };
+    const picking = app.root.classList.contains('is-picking');
+    const themeName = app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme;
+    const cycleTheme = () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system');
+    const moreBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'More', title: 'More: pick an element to comment on, theme, all reviews', 'aria-haspopup': 'menu' }, icon('dots', 16));
+    moreBtn.onclick = () =>
+      popMenu(moreBtn, (close) => [
+        menuItem('Pick an element to comment on', () => (close(), app.bus.emit('picker', true)), { icon: 'target' }),
+        menuItem(`Theme: ${themeName}`, () => (close(), cycleTheme()), { icon: themeIcon, hint: 'switch' }),
+        app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open('/api/hub', '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
+      ]);
     bar.replaceChildren(
       h(
         'div',
@@ -254,16 +266,21 @@ export function buildHeader(app: ReviewApp): HTMLElement {
         h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
         h('span', { class: 'rr-pill rr-pill--draft rr-round-status rr-round-status--offline', title: 'The reviewroom server stopped. Changes stay in this tab and are saved when it is back' }, 'Disconnected'),
         h('span', { class: 'rr-pill rr-pill--draft rr-unsaved', title: 'The reviewroom server has not stored your latest changes. Reviewroom keeps retrying; keep this tab open' }, 'Not saved yet'),
-        app.backend.kind === 'server' ? h('a', { class: 'rr-hbtn', href: '/api/hub', target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
+        app.backend.kind === 'server' && !phone ? h('a', { class: 'rr-hbtn', href: '/api/hub', target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
         h('button', { class: 'rr-search-btn', onclick: () => app.openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         ...githubControls(app),
         app.walkthrough || app.walkthroughIssues
           ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
           : null,
         app.teamMode ? null : roundBtn,
-        h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
-        layoutBtn,
-        h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme}. Click to switch`, 'aria-label': 'Toggle theme', onclick: () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system') }, icon(themeIcon, 16)),
+        // a phone keeps these in the More menu; while picking, Cancel takes its place (no Esc key there)
+        phone
+          ? picking
+            ? h('button', { class: 'rr-hbtn is-on', title: 'Stop picking', onclick: () => app.bus.emit('picker', false) }, icon('target', 16), h('span', null, 'Cancel'))
+            : moreBtn
+          : h('button', { class: 'rr-hbtn rr-hbtn--icon' + (picking ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
+        phone ? null : layoutBtn,
+        phone ? null : h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${themeName}. Click to switch`, 'aria-label': 'Toggle theme', onclick: cycleTheme }, icon(themeIcon, 16)),
         app.teamMode
           ? h(
               'button',

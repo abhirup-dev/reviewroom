@@ -262,7 +262,7 @@ class NarrativePanel implements PanelInstance {
 
   private pickToggle = false;
   private setPicking(on: boolean) {
-    this.pickToggle = on;
+    this.pickToggle = this.picking = on; // a tap brings no pointermove first to set picking
     this.wrap.classList.toggle('is-picking', on);
   }
 
