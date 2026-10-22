@@ -205,7 +205,7 @@ class CodePanel implements PanelInstance {
       left.push(
         h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, `${vis.length} file${vis.length === 1 ? '' : 's'}`),
         h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels)),
-        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
+        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: this.app.range.key.startsWith('pr-') ? `Showing ${this.app.range.label}: its own changes, on top of the PR below. Pick “Whole stack” in the header to see every PR.` : 'Showing one commit: ' + this.app.range.label + `. Pick “${this.app.meta.stack ? 'Whole stack' : 'All changes'}” in Files to see the whole ${this.app.meta.stack ? 'stack' : 'PR'}.` }, this.app.range.label.split(' · ')[0]) : null,
       );
     }
     this.toolbar.replaceChildren(

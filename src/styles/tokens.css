@@ -70,6 +70,7 @@
   --rr-warn-soft: #fff3dc;
   --rr-risk: #b42318;
   --rr-risk-soft: #fdecea;
+  --rr-merged: #6e40c9; /* a merged PR of a stack */
   --rr-shadow-sm: 0 1px 2px rgba(27, 26, 23, 0.06);
   --rr-shadow: 0 6px 24px rgba(27, 26, 23, 0.1), 0 1px 3px rgba(27, 26, 23, 0.08);
   --rr-shadow-lg: 0 24px 64px rgba(27, 26, 23, 0.22), 0 4px 12px rgba(27, 26, 23, 0.1);
@@ -117,6 +118,7 @@
   --rr-warn-soft: #2e2414;
   --rr-risk: #f58b80;
   --rr-risk-soft: #351b19;
+  --rr-merged: #b394f5;
   --rr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --rr-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.4);
   --rr-shadow-lg: 0 24px 72px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);

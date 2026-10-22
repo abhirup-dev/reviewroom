@@ -28,6 +28,9 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
+  // a stack of PRs: the layer switch a chapter waits for; the whole walkthrough (app.walkthrough) or this PR's chapters
+  let layer: Promise<void> = Promise.resolve();
+  let scope: 'pr' | 'stack' = 'stack';
   // the display toggles, once for every chunk (prefs: each panel follows them); hidden when no code is shown
   const tools = h('div', { class: 'rr-toolbar rr-tour__tools', hidden: true });
   let toolsMode: 'diff' | 'file' = 'diff';
@@ -42,7 +45,6 @@ export function mountWalkthrough(app: ReviewApp) {
   async function codeAt(ref: string): Promise<CodeAt | null> {
     const r = parseRef(ref);
     if (r?.type === 'code' || r?.type === 'file') {
-      // shortcut: a @pr:<n> ref shows the file at that layer's commit; playing a chapter in its PR's layer is rr-n45.4.3
       const rev = r.pr ? app.refRev(r) : /^(base|head)$/.test(r.rev) ? undefined : r.rev;
       return { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev, view: r.type === 'file' ? 'file' : 'diff' };
     }
@@ -81,7 +83,13 @@ export function mountWalkthrough(app: ReviewApp) {
     } else pane.replaceChildren(h('div', { class: 'rr-empty' }, 'Nothing to show for this slide'));
   };
   const pane$ = paneMachine.provide({
-    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(ref) }))) } : input)) },
+    actors: {
+      resolve: fromPromise(async ({ input }) => {
+        await Promise.resolve(); // the subscriber below may switch the stack layer for this chapter; its code resolves there
+        await layer;
+        return input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(ref) }))) } : input;
+      }),
+    },
     actions: {
       fadeOut: () => pane.classList.add('is-out'),
       fadeIn: () => pane.classList.remove('is-out'),
@@ -108,6 +116,12 @@ export function mountWalkthrough(app: ReviewApp) {
   chapterPrev.classList.add('rr-tour__flip');
   const chapterBtn = h('button', { class: 'rr-tour__chapter', title: 'Jump to a chapter', 'aria-haspopup': 'menu', onclick: () => chapterMenu() });
   const position = h('span', { class: 'rr-tour__pos' });
+  const prChip = h('span', { class: 'rr-tour__pr', hidden: true });
+  const scopeSeg = h('div', { class: 'rr-seg rr-seg--small rr-tour__scope', role: 'group', 'aria-label': 'Walkthrough of this PR or the whole stack', hidden: true });
+  const paintScope = () =>
+    scopeSeg.replaceChildren(
+      ...(['pr', 'stack'] as const).map((k) => h('button', { class: scope === k ? 'is-on' : '', 'aria-pressed': String(scope === k), title: k === 'pr' ? "Only this PR's chapters" : 'One story across every PR of the stack', onclick: () => scope !== k && setScope(k) }, k === 'pr' ? 'This PR' : 'Whole stack')),
+    );
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
   const stepText = h('div', { class: 'rr-tour__text rr-prose' });
@@ -144,7 +158,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
+    h('div', { class: 'rr-tour__top' }, chapterPrev, prChip, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), scopeSeg, openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
     h('div', { class: 'rr-tour__body' }, left, right),
     h('div', { class: 'rr-tour__bottom' }, prev, progress, next),
   );
@@ -155,6 +169,11 @@ export function mountWalkthrough(app: ReviewApp) {
   app.root.append(root);
 
   const ctx = () => actor.getSnapshot().context;
+  const forPr = (n: number) => ({ ...app.walkthrough!, chapters: app.walkthrough!.chapters.filter((c) => c.pr === n) });
+  const setScope = (to: 'pr' | 'stack') => {
+    const { chapter, step } = current(ctx());
+    app.bus.emit('walkthrough-open', { scope: to, chapter: chapter.id, step: step.id });
+  };
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
   const chapterMenu = () =>
     popMenu(chapterBtn, (close) =>
@@ -217,12 +236,25 @@ export function mountWalkthrough(app: ReviewApp) {
     if (chapter === last.chapter && step === last.step && d === last.doc) return;
 
     if (chapter !== last.chapter || d !== last.doc) {
+      const stack = app.meta.stack;
+      if (stack) {
+        const want = ch.pr ? app.prRange(ch.pr) : app.ranges()[0];
+        if (want && want.key !== app.range.key) layer = app.setRange(want);
+        const p = stack.find((x) => x.number === ch.pr);
+        prChip.hidden = !p;
+        if (p) prChip.replaceChildren(h('span', { class: `rr-stack-dot is-${p.state}` }), `#${p.number}`);
+        prChip.title = p ? `${p.title}: the code pane shows this PR's changes only` : '';
+        scopeSeg.hidden = false;
+        paintScope();
+      }
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
       prose(lead, ch.lead ?? '');
       lead.hidden = !ch.lead;
       enter(lead);
     }
-    position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
+    const prs = app.meta.stack;
+    const pi = prs && ch.pr ? prs.findIndex((x) => x.number === ch.pr) : -1;
+    position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}` + (pi >= 0 && scope === 'stack' ? ` · PR ${pi + 1} of ${prs!.length}` : '');
     chapterPrev.toggleAttribute('disabled', chapter === 0);
     chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);
     divider.textContent = `Slide ${step + 1} of ${n}`;
@@ -240,8 +272,8 @@ export function mountWalkthrough(app: ReviewApp) {
       ...d!.chapters.map((c, ci) =>
         h(
           'div',
-          { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : ''), style: `flex:${c.steps.length}` },
-          h('span', { class: 'rr-tour__seg-title', title: c.title }, c.title),
+          { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : '') + (c.pr && c.pr !== d!.chapters[ci - 1]?.pr ? ' is-pr-start' : '') + (app.meta.stack?.find((x) => x.number === c.pr)?.state === 'merged' ? ' is-merged' : ''), style: `flex:${c.steps.length}` },
+          h('span', { class: 'rr-tour__seg-title', title: c.title }, c.pr && scope === 'stack' ? h('b', null, `#${c.pr} `) : null, c.title),
           h(
             'div',
             { class: 'rr-tour__ticks' },
@@ -277,8 +309,19 @@ export function mountWalkthrough(app: ReviewApp) {
     true,
   );
 
-  app.bus.on('walkthrough-open', ({ chapter, step }) => {
+  app.bus.on('walkthrough-open', ({ chapter, step, scope: to }) => {
     if (!app.walkthrough) return app.toast('No guided walkthrough for this review');
+    const p = app.stackPr;
+    if (app.meta.stack && to) {
+      // this PR's chapters, or the whole stack resuming at this PR
+      scope = to === 'pr' && p && forPr(p.number).chapters.length ? 'pr' : 'stack';
+      actor.send({ type: 'load', doc: scope === 'pr' ? forPr(p!.number) : app.walkthrough });
+      if (!chapter && scope === 'stack' && p) chapter = app.walkthrough.chapters.find((c) => c.pr === p.number)?.id;
+      if (scope === 'pr' && !forPr(p!.number).chapters.some((c) => c.id === chapter)) {
+        chapter = undefined;
+        step = undefined;
+      }
+    }
     actor.send({ type: 'open', chapter, step });
   });
   const loaded = app.backend.walkthrough?.().then(

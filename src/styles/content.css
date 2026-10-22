@@ -454,3 +454,13 @@ rr-code {
   --diffs-font-family: var(--rr-mono);
   --diffs-font-size: 12.5px;
 }
+
+/* a stack scoped to one PR: the other PRs' sections (data-pr, written by the agent) step back */
+[data-rr-out] {
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+}
+[data-rr-out]:hover,
+[data-rr-out]:focus-within {
+  opacity: 0.8;
+}

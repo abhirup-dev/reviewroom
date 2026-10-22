@@ -75,8 +75,8 @@ export interface AppEvents extends Record<string, unknown> {
   'active-section': string;
   'active-file': string;
   'round-view': number;
-  /** play the walkthrough at a step (ids; missing: the first) */
-  'walkthrough-open': { chapter?: string; step?: string };
+  /** play the walkthrough at a step (ids; missing: the first); in a stack, this PR's chapters or the whole stack's */
+  'walkthrough-open': { chapter?: string; step?: string; scope?: 'pr' | 'stack' };
   /** walkthrough.json loaded (null: none, or invalid) */
   walkthrough: Walkthrough | null;
   toast: { text: string; kind?: 'info' | 'error' };
@@ -156,6 +156,11 @@ export class ReviewApp {
   revOf(rev: string) {
     return rev === 'base' || rev === 'head' ? this.revFor(rev) : rev;
   }
+  /** In a stack, a plain code or file link inside a `data-pr` element means that PR's layer, as `reviewroom check` reads it. */
+  inLayer(r: Ref, from?: Element | null): Ref {
+    const n = this.meta.stack && from?.closest('[data-pr]')?.getAttribute('data-pr');
+    return n && (r.type === 'code' || r.type === 'file') && !r.pr && /^(base|head)$/.test(r.rev) ? { ...r, pr: +n } : r;
+  }
   /** A code or file ref's revision: with @pr:<n>, that side of the PR's layer (undefined: no such PR in the stack). */
   refRev(r: { rev: string; pr?: number }) {
     if (!r.pr) return this.revOf(r.rev);
@@ -180,31 +185,44 @@ export class ReviewApp {
     this.bus.emit('range', r);
     this.bus.emit('files', this.files);
   }
+  /** The ranges offered, and every range a thread can be made on: all changes (the whole stack), then in a stack each
+   *  PR's layer before its commits (a thread on a layer's last commit is at the layer's lines too, and goes home to it). */
   ranges(): DiffRange[] {
-    const all: DiffRange = { base: this.meta.base, head: this.meta.head, label: 'All changes', key: 'all' };
-    return [all, ...this.commits.map((c) => ({ base: c.parent ?? c.sha + '^', head: c.sha, label: `${c.short} · ${c.subject}`, key: c.sha, pr: c.pr }))];
+    const commit = (c: Commit): DiffRange => ({ base: c.parent ?? c.sha + '^', head: c.sha, label: `${c.short} · ${c.subject}`, key: c.sha, pr: c.pr });
+    const stack = this.meta.stack;
+    if (!stack) return [{ base: this.meta.base, head: this.meta.head, label: 'All changes', key: 'all' }, ...this.commits.map(commit)];
+    return [
+      { base: this.meta.base, head: this.meta.head, label: `Whole stack · ${stack.length} PRs`, key: 'all' },
+      ...stack.flatMap((p) => [this.prRange(p.number)!, ...this.commits.filter((c) => c.pr === p.number).map(commit)]),
+    ];
   }
   /** A stack PR's layer: from the head of the PR below to its own. */
   prRange(n: number): DiffRange | undefined {
     const p = this.meta.stack?.find((x) => x.number === n);
     return p && { base: p.base, head: p.head, label: `#${p.number} · ${p.title}`, key: `pr-${p.number}`, pr: p.number };
   }
-  /** Every range a thread can be made on: the ranges offered, and each stack PR's layer (before its commits: a thread
-   *  on a layer's last commit is at the layer's lines too, and goes home to the layer). */
-  private allRanges() {
-    const [all, ...rest] = this.ranges();
-    return [all, ...(this.meta.stack ?? []).map((p) => this.prRange(p.number)!), ...rest];
+  /** The stack PR the panes show (undefined: the whole stack, or no stack). */
+  get stackPr() {
+    return this.meta.stack?.find((p) => p.number === this.range?.pr);
+  }
+  /** Show the next (+1) or previous (-1) PR of the stack; from the whole stack, the bottom or top one. */
+  stepPr(d: number) {
+    const s = this.meta.stack;
+    if (!s) return;
+    const i = s.findIndex((p) => p.number === this.range.pr);
+    const to = s[i < 0 ? (d > 0 ? 0 : s.length - 1) : Math.min(s.length - 1, Math.max(0, i + d))];
+    if (to.number !== this.range.pr || this.range.key !== `pr-${to.number}`) void this.setRange(this.prRange(to.number)!);
   }
   private get stackSides(): StackSides {
     return this.meta.stack && { layers: this.meta.stack, all: this.meta };
   }
   /** Whether a code thread is drawn on the active range (or `range`): see src/core/anchors.ts. */
   codeShows(a: Anchor, range: Pick<DiffRange, 'base' | 'head'> = this.range) {
-    return a.kind === 'code' && showsOn(a, range, this.allRanges(), this.stackSides);
+    return a.kind === 'code' && showsOn(a, range, this.ranges(), this.stackSides);
   }
   /** The range a code thread was made on, while it exists. */
   homeOf(a: Anchor) {
-    return a.kind === 'code' ? homeRange(a, this.allRanges(), this.stackSides) : undefined;
+    return a.kind === 'code' ? homeRange(a, this.ranges(), this.stackSides) : undefined;
   }
   /** Switch to the range a code thread was made on, when the active one doesn't draw it. */
   async showRangeOf(a: Anchor) {
@@ -241,10 +259,11 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ navigation
-  /** Open anything addressable. Accepts an rr: string or a parsed Ref. */
-  async open(ref: string | Ref) {
-    const r = typeof ref === 'string' ? parseRef(ref) : ref;
-    if (!r) return this.toast(`Unknown link: ${ref as string}`, 'error'); // a Ref always resolves
+  /** Open anything addressable. Accepts an rr: string or a parsed Ref; `from`, the element it was clicked in. */
+  async open(ref: string | Ref, from?: Element | null) {
+    const p = typeof ref === 'string' ? parseRef(ref) : ref;
+    if (!p) return this.toast(`Unknown link: ${ref as string}`, 'error'); // a Ref always resolves
+    const r = this.inLayer(p, from);
     switch (r.type) {
       case 'doc':
         this.bus.emit('reveal-doc', { id: r.id, path: r.path });

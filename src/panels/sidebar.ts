@@ -36,8 +36,16 @@ class FilesPanel implements PanelInstance {
     const types = [...new Set(app.files.map((f) => fileType(f.path)))].sort();
     const hasTests = app.files.some((f) => isTestFile(f.path));
     const ranges = app.range ? app.ranges() : [];
-    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' });
-    ranges.forEach((r) => select.append(h('option', { value: r.key, selected: r.key === app.range?.key }, r.label)));
+    const stack = app.meta.stack;
+    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: stack ? 'Review the whole stack, one PR, or one commit' : 'Review all changes or one commit' });
+    const opt = (r: (typeof ranges)[number], label = r.label) => h('option', { value: r.key, selected: r.key === app.range?.key }, label);
+    if (!stack) ranges.forEach((r) => select.append(opt(r)));
+    // a stack: one group per PR, its whole layer first, then its commits
+    else
+      select.append(
+        opt(ranges[0]),
+        ...stack.map((p) => h('optgroup', { label: `#${p.number} · ${p.title}` }, ...ranges.filter((r) => r.pr === p.number).map((r) => opt(r, r.key === `pr-${p.number}` ? `All of #${p.number}` : r.label)))),
+      );
     select.addEventListener('change', () => app.setRange(ranges.find((r) => r.key === select.value)!));
     const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' });
     search.addEventListener('input', () => {
@@ -182,6 +190,7 @@ class TocPanel implements PanelInstance {
     this.offs.push(
       app.bus.on('state', r),
       app.bus.on('prefs', r),
+      app.bus.on('range', r),
       app.bus.on('active-section', (id) => {
         this.active = id;
         this.body.querySelectorAll('.rr-toc-item').forEach((el) => el.classList.toggle('is-active', (el as HTMLElement).dataset.id === id));
@@ -203,22 +212,36 @@ class TocPanel implements PanelInstance {
         const target = a.target ? doc.querySelector(`#${CSS.escape(a.target)}`) : null;
         return target ? el === target || el.contains(target) : false;
       });
+    // a stack: sections grouped under their PR (the nearest data-pr), the PRs not in scope dimmed
+    const stack = app.meta.stack;
+    let lastPr: string | null = null;
     sections.forEach((s) => {
       if (s.parentElement?.closest('section[id]')) return; // nested handled below
       const title = app.docTitle(s.id) ?? s.id;
+      const pr = stack ? s.closest('[data-pr]')?.getAttribute('data-pr') ?? null : null;
+      const p = pr ? stack!.find((x) => String(x.number) === pr) : undefined;
+      const out = !!pr && !!app.range?.pr && pr !== String(app.range.pr);
+      if (stack && pr !== lastPr) {
+        lastPr = pr;
+        items.push(
+          p
+            ? h('button', { class: 'rr-group-label rr-toc-pr' + (out ? ' is-out' : ''), title: `Show #${p.number}'s changes`, onclick: () => app.setRange(app.prRange(p.number)!) }, `#${p.number} · ${p.title}`)
+            : h('div', { class: 'rr-group-label' }, pr ? `#${pr}` : 'Whole stack'),
+        );
+      }
       const round = s.getAttribute('data-round');
       const n = threadsIn(s);
       items.push(
         h(
           'button',
-          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }), ondblclick: () => openCentered(app, { type: 'doc', id: s.id }) },
+          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : '') + (out ? ' is-out' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }), ondblclick: () => openCentered(app, { type: 'doc', id: s.id }) },
           h('span', { class: 'rr-toc-item__title' }, title),
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
           ...threadCounts(n, 'in this section'),
         ),
       );
       s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
-        items.push(h('button', { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id, onclick: () => app.bus.emit('reveal-doc', { id: sub.id }), ondblclick: () => openCentered(app, { type: 'doc', id: sub.id }) }, h('span', { class: 'rr-toc-item__title' }, app.docTitle(sub.id) ?? sub.id)));
+        items.push(h('button', { class: 'rr-toc-item rr-toc-item--sub' + (out ? ' is-out' : ''), 'data-id': sub.id, onclick: () => app.bus.emit('reveal-doc', { id: sub.id }), ondblclick: () => openCentered(app, { type: 'doc', id: sub.id }) }, h('span', { class: 'rr-toc-item__title' }, app.docTitle(sub.id) ?? sub.id)));
       });
     });
     if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));

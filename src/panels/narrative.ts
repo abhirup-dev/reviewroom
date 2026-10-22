@@ -124,6 +124,7 @@ class NarrativePanel implements PanelInstance {
       app.bus.on('state', () => (this.renderHead(), this.decorate())),
       app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
       app.bus.on('picker', (on: boolean) => this.setPicking(on)),
+      app.bus.on('range', () => this.decorate()),
     );
     if (!isDesc) {
       this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)));
@@ -158,7 +159,8 @@ class NarrativePanel implements PanelInstance {
     const links = doc.querySelectorAll<HTMLAnchorElement>('a[href^="rr:code/"], a[href^="rr:file/"], a[href^="rr:sym/"]');
     await Promise.all(
       [...links].map(async (a) => {
-        const r = parseRef(a.getAttribute('href')!);
+        const p = parseRef(a.getAttribute('href')!);
+        const r = p && this.app.inLayer(p, a);
         let target: string | string[] | undefined;
         if (r?.type === 'sym') target = (await this.app.searchSymbol(r.name).catch(() => [])).find((x) => x.kind === 'definition')?.text;
         else if ((r?.type === 'code' || r?.type === 'file') && r.start)
@@ -307,7 +309,7 @@ class NarrativePanel implements PanelInstance {
     const link = t.closest('a[href^="rr:"], rr-ref');
     if (link) {
       e.preventDefault();
-      void this.app.open(link.getAttribute('href') ?? link.getAttribute('ref')!);
+      void this.app.open(link.getAttribute('href') ?? link.getAttribute('ref')!, link);
       return;
     }
     if (this.picking && this.doc.contains(t) && !t.closest('.rr-block-handle')) {
@@ -350,6 +352,9 @@ class NarrativePanel implements PanelInstance {
 
   private decorate() {
     this.current.querySelectorAll('[data-rr-anchored]').forEach((el) => el.removeAttribute('data-rr-anchored'));
+    // a stack scoped to one PR: the other PRs' sections are dimmed (an attribute only; the content stays the agent's)
+    const pr = this.app.range?.pr;
+    this.current.querySelectorAll('[data-pr]').forEach((el) => el.toggleAttribute('data-rr-out', !!pr && el.getAttribute('data-pr') !== String(pr)));
     const ranges: Range[] = [];
     for (const t of this.docThreads()) {
       if (t.status === 'resolved') continue;

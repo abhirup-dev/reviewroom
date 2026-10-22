@@ -131,7 +131,9 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     app.defaultLayout = saved?.default ?? null;
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
-    await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
+    // a stack opens on the PR asked for (or ?pr=<n>, the hub's link to one PR), not the whole stack
+    const pr = Number(new URLSearchParams(location.search).get('pr')) || Number(meta.number);
+    await app.setRange((meta.stack && app.prRange(pr)) || app.ranges()[0]);
   } catch (e) {
     root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
     throw e;
@@ -247,6 +249,9 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
     { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
+    { id: 'stack.next', title: 'Next PR in the stack', group: 'Navigate', keys: ['shift+n'], when: () => !!app.meta.stack, run: () => app.stepPr(1) },
+    { id: 'stack.prev', title: 'Previous PR in the stack', group: 'Navigate', keys: ['shift+p'], when: () => !!app.meta.stack, run: () => app.stepPr(-1) },
+    { id: 'stack.all', title: 'Whole stack', group: 'Navigate', hint: 'Every PR of the stack as one diff', when: () => !!app.meta.stack, run: () => app.setRange(app.ranges()[0]) },
     { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
