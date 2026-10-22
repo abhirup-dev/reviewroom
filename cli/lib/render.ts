@@ -1,4 +1,4 @@
-// The review page in a headless browser, for `walkthrough lint` and `walkthrough shot`: a fresh Chrome (never the
+// The review page in a headless browser, for `walkthrough lint`, `walkthrough shot` and `shot`: a fresh Chrome (never the
 // user's own, even with remote debugging on) at an exact viewport, else on macOS the system WebKit. Bun.WebView is
 // experimental: every use of it stays in this file.
 import { fail } from './args.ts';
@@ -39,7 +39,7 @@ const within = <T>(p: Promise<T>, ms: number, what: string) => {
   return Promise.race([p, new Promise<never>((_, no) => void (t = setTimeout(() => no(new Error(`${what} timed out after ${ms / 1000} s`)), ms).unref()))]).finally(() => clearTimeout(t));
 };
 
-export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit>; errors(): string[]; screenshot(): Promise<Blob>; close(): Promise<void> };
+export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit>; errors(): string[]; screenshot(): Promise<Blob>; evaluate<T>(js: string): Promise<T>; resize(width: number, height: number): Promise<void>; close(): Promise<void> };
 
 /** The review page at `url` in a browser at `vp` (`scale`: device pixels per CSS px), once its walkthrough can be measured. */
 export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Page> {
@@ -76,6 +76,8 @@ export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Pa
     audit: (...at) => within(view.evaluate(`window.rr.auditWalkthrough(...${JSON.stringify(at)})`), 30_000, 'measuring the slide') as Promise<StepAudit>,
     errors: () => errors.splice(0),
     screenshot: () => within(view.screenshot({ format: 'png' }), 30_000, 'the screenshot'),
+    evaluate: (js) => within(view.evaluate(js), 30_000, 'the page') as Promise<never>,
+    resize: (width, height) => within(engine === 'chrome' ? view.cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }).then(() => {}) : view.resize(width, height), 10_000, 'sizing the browser'),
     close: async () => view.close(),
   };
 }

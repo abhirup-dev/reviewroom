@@ -14,7 +14,8 @@ open question and round is kept from one round to the next.
 
 The CLI's help is the command reference: `reviewroom --help`, and `reviewroom <command> --help`
 for flags and notes. Read it before your first command. If `reviewroom` is not on PATH, use
-`bunx reviewroom …`.
+`bunx reviewroom …`. This skill covers the usual path; `reviewroom --help` lists every capability
+(screenshots, the hub, …).
 
 ## Choose the command
 
@@ -98,6 +99,8 @@ diagram, table and widget for that width, never for a wide page.
 
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
+Optionally, to see it as the reviewer will (or to fix a layout problem they report), run
+`reviewroom shot [section] --dir <dir>`: PNGs of the Review panel, one per section, no browser needed.
 
 ## Step 4b: Write the guided walkthrough, when wanted
 
