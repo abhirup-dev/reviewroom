@@ -3,7 +3,7 @@
 // Implement CodeProvider to plug in anything else (GitLab, a monorepo index, ...).
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../core/types';
 import { loadRaw, saveLocal } from '../core/store';
-import { StoredState, type GitHubAction } from '../shared/schema';
+import { StoredState, type GitHubAction, type Verdicts } from '../shared/schema';
 import { parseWalkthrough, type Walkthrough } from '../shared/walkthrough';
 import type { LastLayout, Layout, SavedLayouts } from '../shared/layout';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
@@ -34,7 +34,7 @@ export interface StateBackend {
   /** Live updates (agent replied, review.html changed, GitHub threads refetched) and save problems. */
   subscribe?(on: BackendEvents): void;
   /** End round `round`: send feedback to the agent, or approve. */
-  finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
+  finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number, verdicts?: Verdicts): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
   /** The reviewer's saved layouts and their default, shared by every review. */
@@ -183,9 +183,9 @@ export class ServerState implements StateBackend {
     });
     sync.send({ type: 'connect' });
   }
-  async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number) {
+  async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number, verdicts?: Verdicts) {
     if (!(await this.flush())) return { ok: false, message: 'some changes are not saved yet' };
-    const r = await fetch(`${this.api}/finish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, note, round }) });
+    const r = await fetch(`${this.api}/finish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, note, round, verdicts }) });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) return { ok: false, message: b.error || `${r.status} ${r.statusText}` };
     // the finish broadcast may have been missed, and this run of the server stops right after: take the state from the answer

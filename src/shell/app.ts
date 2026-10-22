@@ -8,7 +8,7 @@ import { parseRef, refLabel, type Ref } from '../core/refs';
 import { anchorRef, symbolHits, symbolQuery } from '../shared/refs';
 import { h, uid } from '../core/dom';
 import { renderMarkdown } from '../core/markdown';
-import { PR_DESCRIPTION } from '../shared/feedback';
+import { PR_DESCRIPTION, threadPr } from '../shared/feedback';
 import { describeElement, findDocElement } from '../core/describe';
 import type { Anchor, Author, ChangedFile, Commit, DiffRange, GitHubSnapshot, Op, ReviewMeta, ReviewState, SearchHit, Thread } from '../core/types';
 import { applyOp } from '../shared/ops';
@@ -355,7 +355,8 @@ export class ReviewApp {
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
     // a thread on one commit's diff names that commit
     const home = this.homeOf(a);
-    return this.label(anchorRef(a)!) + (home && home.key !== 'all' ? ` · ${home.label.split(' · ')[0]}` : '');
+    // (a layer's own label already names its PR)
+    return this.label(anchorRef(a)!) + (home && home.key !== 'all' && home.key !== `pr-${home.pr}` ? ` · ${home.label.split(' · ')[0]}` : '');
   }
 
   // ------------------------------------------------------------ threads
@@ -379,6 +380,15 @@ export class ReviewApp {
     // a link from before stacks to the PR conversation: the requested PR's, in a stack
     const old = id === 'gh_conversation' && this.meta.stack ? this.threads().find((t) => t.gh?.conversation && t.pr === +this.meta.number!) : undefined;
     return old ?? this.threads().find((t) => t.id === id) ?? this.state.threads.find((t) => t.id.startsWith(id));
+  }
+  /** In a stack: the PR a thread is about (its GitHub PR, its layer, its walkthrough chapter's PR); undefined: the whole stack. */
+  prOf(t: Thread): number | undefined {
+    return this.meta.stack ? threadPr(t, this.walkthrough) : undefined;
+  }
+  /** The GitHub conversation of the PR in scope (in a stack: the scoped PR's, else the requested one's). */
+  conversation() {
+    const n = this.range?.pr ?? Number(this.meta.number);
+    return this.threads().find((t) => t.gh?.conversation && (!this.meta.stack || t.pr === n));
   }
   /** Team mode: new code and general comments go to GitHub by default instead of the agent. */
   get teamMode() {

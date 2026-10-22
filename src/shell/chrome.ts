@@ -6,7 +6,7 @@ import { keyLabel, modLabel } from '../core/commands';
 import { feedbackMarkdown } from '../shared/feedback';
 import { applyLayout, canUndoLayout, closePanel, deleteLayout, ensurePanel, hasPanel, layouts, panelDefs, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
-import type { GitHubAction } from '../shared/schema';
+import type { GitHubAction, Verdicts } from '../shared/schema';
 
 // ---------------------------------------------------------------- tiny menu
 export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTMLElement | null)[]) {
@@ -66,19 +66,23 @@ function noteDialog(label: string, title: string, note: HTMLElement, content: (a
 export function sendDialog(app: ReviewApp) {
   const pending = app.pendingFeedback();
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
-  const go = (kind: 'feedback' | 'approve') => async () => {
+  // a stack: a verdict per open PR, wanting changes where this round has new comments
+  const open = app.meta.stack?.filter((p) => p.state !== 'merged' && p.state !== 'closed');
+  const verdicts: Verdicts | undefined = open && Object.fromEntries(open.map((p) => [String(p.number), pending.some((t) => app.prOf(t) === p.number) ? 'changes' : 'comment']));
+  const go = (asked: 'feedback' | 'approve') => async () => {
     const n = app.state.round;
     const text = note.value.trim() || undefined;
+    const kind = verdicts ? (Object.values(verdicts).every((v) => v === 'approve') ? 'approve' : 'feedback') : asked;
     if (app.backend.finish) {
-      const res = await app.backend.finish(kind, text, n).catch((e) => ({ ok: false, message: String(e) }));
+      const res = await app.backend.finish(kind, text, n, verdicts).catch((e) => ({ ok: false, message: String(e) }));
       if (!res.ok) {
         app.toast('Failed: ' + (res.message ?? 'unknown'), 'error');
         return false;
       }
       app.toast(kind === 'approve' ? 'Approved' : `Round ${n} sent`);
     } else {
-      await copyText(feedbackMarkdown(app.state, { kind, note: text, walkthrough: app.walkthrough }));
-      app.apply({ op: 'finishRound', kind, note: text, round: n });
+      await copyText(feedbackMarkdown(app.state, { kind, note: text, walkthrough: app.walkthrough, stack: app.meta.stack, verdicts }));
+      app.apply({ op: 'finishRound', kind, note: text, round: n, verdicts });
       app.toast('Feedback copied — paste it to your agent');
     }
     return true;
@@ -91,12 +95,34 @@ export function sendDialog(app: ReviewApp) {
       [
         h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
         h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
+        verdicts ? verdictRows(app, verdicts) : null,
         note,
         app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
       ],
-      [h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(go('approve')) }, icon('check', 12), 'Approve'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: act(go('feedback')) }, icon('send', 12), 'Send feedback')],
+      [...(verdicts ? [] : [h('button', { class: 'rr-btn rr-btn--ghost', onclick: act(go('approve')) }, icon('check', 12), 'Approve')]), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), h('button', { class: 'rr-btn rr-btn--primary', onclick: act(go('feedback')) }, icon('send', 12), 'Send feedback')],
     ],
   );
+}
+
+const VERDICT = { approve: 'Approve', changes: 'Changes', comment: 'Comment' } as const;
+/** One row per open PR of a stack: its verdict for the agent (edits `verdicts` in place). */
+function verdictRows(app: ReviewApp, verdicts: Verdicts) {
+  const box = h('div', { class: 'rr-verdicts', role: 'group', 'aria-label': 'Verdict per PR' });
+  const paint = () =>
+    box.replaceChildren(
+      ...Object.keys(verdicts).map((n) => {
+        const p = app.meta.stack!.find((x) => String(x.number) === n)!;
+        return h(
+          'div',
+          { class: 'rr-verdicts__row' },
+          h('span', { class: 'rr-stack-row__n' }, `#${n}`),
+          h('span', { class: 'rr-verdicts__t', title: p.title }, p.title),
+          h('div', { class: 'rr-seg rr-seg--small' }, ...(['approve', 'changes', 'comment'] as const).map((v) => h('button', { class: verdicts[n] === v ? 'is-on' : '', 'aria-pressed': String(verdicts[n] === v), title: { approve: `#${n} is good to merge`, changes: `#${n} needs the agent's changes`, comment: `Comments on #${n}, no verdict` }[v], onclick: () => ((verdicts[n] = v), paint()) }, VERDICT[v]))),
+        );
+      }),
+    );
+  paint();
+  return box;
 }
 
 // ---------------------------------------------------------------- save a named layout
@@ -336,11 +362,15 @@ function stackControl(app: ReviewApp) {
 function stackMenu(app: ReviewApp, anchor: HTMLElement) {
   const s = app.meta.stack!;
   const chapters = (n: number) => app.walkthrough?.chapters.filter((c) => c.pr === n).length ?? 0;
+  const open = (n: number) => app.threads().filter((t) => t.status === 'open' && !t.gh?.conversation && app.prOf(t) === n).length;
+  // the verdicts sent last, per PR
+  const sent = app.state.rounds.findLast((r) => r.verdicts)?.verdicts ?? {};
+  const said = { approve: 'you approved', changes: 'you asked for changes', comment: 'you commented' } as const;
   const row = (p: (typeof s)[number]) =>
     menuItem(
       h('span', { class: 'rr-stack-row' }, dot(p.state), h('span', { class: 'rr-stack-row__n' }, `#${p.number}`), h('span', { class: 'rr-stack-row__t' }, p.title)),
       () => app.setRange(app.prRange(p.number)!),
-      { checked: p.number === app.range?.pr, hint: `+${p.additions} -${p.deletions} · ${STATE_LABEL[p.state]}${chapters(p.number) ? ' · ▷' : ''}` },
+      { checked: p.number === app.range?.pr, hint: `+${p.additions} -${p.deletions} · ${STATE_LABEL[p.state]}${open(p.number) ? ` · ${open(p.number)} open` : ''}${sent[p.number] ? ` · ${said[sent[p.number]]}` : ''}${chapters(p.number) ? ' · ▷' : ''}` },
     );
   popMenu(anchor, (close) => [
     menuLabel(`Stack · ${s.length} PRs, bottom to top`),
