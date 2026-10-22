@@ -44,6 +44,7 @@ export async function expectClientHeaders(url: string, api: string) {
     '_rr/reviewroom.js': 'no-cache',
     '_rr/build-info.json': 'no-cache',
     'sw.js': 'no-cache',
+    'manifest.webmanifest': 'no-cache',
     '': 'no-cache',
     [api]: 'no-store',
   };
@@ -51,6 +52,14 @@ export async function expectClientHeaders(url: string, api: string) {
     const r = await fetch(url + p);
     expect([p, r.status, r.headers.get('cache-control'), r.headers.get('x-reviewroom-build')]).toEqual([p, 200, cache, id]);
     if (p === 'sw.js') expect(r.headers.get('service-worker-allowed')).toBe('/');
+    if (p === '') expect(await r.text()).toContain('<link rel="manifest" href="/manifest.webmanifest">');
+    if (p === 'manifest.webmanifest') {
+      expect(r.headers.get('content-type')).toStartWith('application/manifest+json');
+      const m = await r.json();
+      expect(m).toMatchObject({ name: 'reviewroom', start_url: './', scope: './', display: 'standalone' });
+      expect('id' in m).toBe(false); // an id, or a new start_url, orphans installed icons
+      for (const i of m.icons) expect((await fetch(new URL(i.src, url + p))).status).toBe(200);
+    }
   }
 }
 

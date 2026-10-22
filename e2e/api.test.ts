@@ -75,6 +75,21 @@ describe('api', () => {
     const r = await fetch(url + encodeURIComponent('fig #1?.txt'));
     expect([r.status, await r.text()]).toEqual([200, 'fig']);
   });
+  test('an older review.html gets the PWA head; <rr-review> is untouched', async () => {
+    const file = path.join(dir, 'review.html');
+    const saved = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+    const body = '<rr-review>\n<h1>Old</h1><meta name="viewport" content="x"><p>rel="manifest" </head></p>\n</rr-review>';
+    try {
+      fs.writeFileSync(file, `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>t</title></head><body>${body}</body></html>`);
+      const html = await (await fetch(url)).text();
+      for (const tag of ['<link rel="manifest" href="/manifest.webmanifest">', 'name="apple-mobile-web-app-capable"', 'media="(prefers-color-scheme: dark)"', 'initial-scale=1, viewport-fit=cover"', '/_rr/reviewroom.js'])
+        expect(html).toContain(tag);
+      expect(html.slice(html.indexOf('<rr-review>'), html.indexOf('</rr-review>') + 12)).toBe(body);
+    } finally {
+      if (saved === undefined) fs.rmSync(file);
+      else fs.writeFileSync(file, saved);
+    }
+  });
   test('hashed chunks are immutable, the rest revalidates; every response names the build', () => expectClientHeaders(url, 'api/state'));
   test('the build header follows a rebuild without a restart', async () => {
     const f = path.join(import.meta.dir, '..', 'dist', 'build-info.json');

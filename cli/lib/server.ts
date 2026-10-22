@@ -122,14 +122,36 @@ export const localOnly: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
+/** The PWA head: the hub-root manifest (absolute: review pages live under /r/<id>/), iOS Home Screen tags, theme colours (--rr-bg). */
+export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/_rr/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="reviewroom">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#e4e2db" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#07080a" media="(prefers-color-scheme: dark)">
+`;
+
+/** Adds what a page's <head> lacks (older review.html files): viewport-fit=cover, the PWA tags, the client entry. */
+export function withHead(html: string) {
+  const end = html.indexOf('</head>');
+  if (end < 0) return html;
+  let head = html.slice(0, end).replace(/(<meta name="viewport" content="(?![^"]*viewport-fit)[^"]*)"/, '$1, viewport-fit=cover"');
+  if (!head.includes('rel="manifest"')) head += PWA_HEAD;
+  if (!html.includes('/_rr/reviewroom.js')) head += '<script type="module" src="/_rr/reviewroom.js"></script>\n';
+  return head + html.slice(end);
+}
+
 /**
- * The client build (/_rr/*) and its service worker (/sw.js), on the review server and the hub. Chunks are
+ * The client build (/_rr/*), its service worker (/sw.js) and the web app manifest, on the review server and the hub. Chunks are
  * content-hashed, so immutable; fonts keep their file names across package upgrades, so a day; the rest (the entries,
- * css, build-info.json, sw.js) revalidates so a new build never mixes with stale files.
+ * css, build-info.json, sw.js, the manifest) revalidates so a new build never mixes with stale files.
  */
 export function serveClient(app: Hono) {
   const policy = (p: string) => (p.startsWith('/_rr/chunks/') ? 'public, max-age=31536000, immutable' : p.startsWith('/_rr/fonts/') ? 'max-age=86400' : 'no-cache');
   app.get('/_rr/*', async (c, next) => (c.header('cache-control', policy(c.req.path)), next()), serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
+  app.get('/manifest.webmanifest', async (c, next) => (c.header('cache-control', 'no-cache'), next()), serveStatic({ root: DIST, mimes: { webmanifest: 'application/manifest+json' } }));
   app.get('/sw.js', async (c, next) => (c.header('cache-control', 'no-cache'), c.header('service-worker-allowed', '/'), next()), serveStatic({ root: DIST }));
 }
 
@@ -193,9 +215,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   });
 
   const page = (c: Context) => {
-    let html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
-    if (!html.includes('/_rr/reviewroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/reviewroom.js"></script>\n</head>');
-    return c.html(html, 200, { 'cache-control': 'no-cache' });
+    const html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
+    return c.html(withHead(html), 200, { 'cache-control': 'no-cache' });
   };
   app.get('/', page);
   app.get('/index.html', page);

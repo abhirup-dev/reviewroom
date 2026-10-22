@@ -58,6 +58,9 @@ async function build() {
   for (const [, pkg, file] of fonts) copyFileSync(fontFile(pkg, file), at(`dist/fonts/${file}`));
   // the composer's emoji picker reads its data from here (its default is a CDN); GitHub's shortcodes for search
   copyFileSync(at('node_modules/emoji-picker-element-data/en/github/data.json'), at('dist/emoji.json'));
+  // the web app manifest (served at the hub root) and its icons. Its start_url and scope stay ./ and it has no id:
+  // changing either orphans installed Home Screen icons
+  for (const f of readdirSync(at('src/pwa'))) copyFileSync(at(`src/pwa/${f}`), at(`dist/${f}`));
   writeFileSync(at('dist/reviewroom.css'), clientCss((_pkg, file) => `./fonts/${file}`));
   // __RR_FONTS__ is resolved at runtime against the script's own URL (injectCSS in src/index.ts)
   const res = await clientBuild({
@@ -86,7 +89,7 @@ async function build() {
  * emoji.json (~1MB, only the emoji picker reads it) is left to runtime caching.
  */
 async function buildWorker() {
-  const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$)|\.map$/;
+  const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.map$/;
   const files = readdirSync(at('dist'), { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile())
     .map((e) => `${e.parentPath}/${e.name}`.slice(at('dist/').length))

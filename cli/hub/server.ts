@@ -6,15 +6,15 @@
 import { Hono } from 'hono';
 import { assessCompatibility } from './compat.ts';
 import type { Hub } from './hub.ts';
-import { localOnly, serveClient } from '../lib/server.ts';
+import { localOnly, PWA_HEAD, serveClient } from '../lib/server.ts';
 
 const PAGE = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>All reviews - reviewroom</title>
-<link rel="stylesheet" href="/_rr/hub.css">
+${PWA_HEAD}<link rel="stylesheet" href="/_rr/hub.css">
 <script type="module" src="/_rr/hub.js"></script>
 </head>
 <body></body>
