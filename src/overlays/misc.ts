@@ -1,6 +1,6 @@
 // Command palette (⌘K), click-away selection release, link hover previews, toasts.
 import { single } from 'fuzzysort';
-import { h, icon, debounce, placeNear, backdropCloses } from '../core/dom';
+import { h, icon, debounce, placeNear, backdropCloses, onLongPress } from '../core/dom';
 import { formatRef, parseRef, refIcon } from '../core/refs';
 import { keyLabel } from '../core/commands';
 import { plainExcerpt } from '../core/markdown';
@@ -203,46 +203,57 @@ export function mountHoverCards(app: ReviewApp) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let current: Element | null = null;
-  const target = (e: Event) => (e.composedPath()[0] as Element)?.closest?.('rr-ref, a[href^="rr:"], rr-node[ref]');
+  const LINK = 'rr-ref, a[href^="rr:"], rr-node[ref]';
+  const target = (e: Event) => (e.composedPath()[0] as Element)?.closest?.(LINK);
+  // touch: a tap navigates, a long press previews (the hover paths below stay mouse and pen only)
+  onLongPress((path) => {
+    const t = (path[0] as Element)?.closest?.(LINK);
+    if (t) void show(t);
+    return !!t;
+  });
   document.addEventListener('pointerover', (e) => {
+    if (e.pointerType === 'touch') return;
     const t = target(e);
     if (card.contains(e.target as Node)) return clearTimeout(hideTimer);
     if (!t) return;
     if (t === current) return clearTimeout(hideTimer);
     clearTimeout(timer);
-    timer = setTimeout(async () => {
-      current = t;
-      const ref = t.getAttribute('ref') || t.getAttribute('href')!;
-      const r = parseRef(ref);
-      if (!r) return;
-      const wrapBtn = h('button', { class: 'rr-icon-btn', title: 'Wrap long lines', 'aria-label': 'Wrap long lines', 'aria-pressed': String(wrapped), hidden: true }, icon('wrap', 14));
-      wrapBtn.onclick = () => {
-        wrapped = !wrapped;
-        card.style.width = card.offsetWidth + 'px'; // keep the size; only the lines reflow
-        card.classList.toggle('is-wrapped', wrapped);
-        wrapBtn.setAttribute('aria-pressed', String(wrapped));
-        place(t);
-      };
-      const openBtn = h('button', { class: 'rr-icon-btn', title: 'Open', 'aria-label': 'Open', onclick: () => (hide(), app.open(ref)) }, icon('popout', 14));
-      card.replaceChildren(
-        h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), h('span', { class: 'rr-hovercard__title' }, app.label(ref)), wrapBtn, openBtn),
-        h('div', { class: 'rr-skeleton' }),
-      );
-      card.style.width = '';
-      card.classList.toggle('is-wrapped', wrapped);
-      // in the top layer, over any open modal; inside the link's dialog if it's in one (outside it, it'd be inert)
-      const host = t.closest('dialog') ?? document.body;
-      if (card.parentElement !== host) host.append(card);
-      card.showPopover();
-      place(t);
-      const body = await renderPreview(app, ref, { compact: true });
-      if (current !== t) return;
-      card.lastElementChild!.replaceWith(h('div', { class: 'rr-hovercard__body' }, body));
-      wrapBtn.hidden = !(body.matches('.rr-snippet') || body.querySelector('.rr-snippet'));
-      place(t);
-    }, 380);
+    timer = setTimeout(() => void show(t), 380);
   });
+  const show = async (t: Element) => {
+    clearTimeout(timer);
+    current = t;
+    const ref = t.getAttribute('ref') || t.getAttribute('href')!;
+    const r = parseRef(ref);
+    if (!r) return;
+    const wrapBtn = h('button', { class: 'rr-icon-btn', title: 'Wrap long lines', 'aria-label': 'Wrap long lines', 'aria-pressed': String(wrapped), hidden: true }, icon('wrap', 14));
+    wrapBtn.onclick = () => {
+      wrapped = !wrapped;
+      card.style.width = card.offsetWidth + 'px'; // keep the size; only the lines reflow
+      card.classList.toggle('is-wrapped', wrapped);
+      wrapBtn.setAttribute('aria-pressed', String(wrapped));
+      place(t);
+    };
+    const openBtn = h('button', { class: 'rr-icon-btn', title: 'Open', 'aria-label': 'Open', onclick: () => (hide(), app.open(ref)) }, icon('popout', 14));
+    card.replaceChildren(
+      h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), h('span', { class: 'rr-hovercard__title' }, app.label(ref)), wrapBtn, openBtn),
+      h('div', { class: 'rr-skeleton' }),
+    );
+    card.style.width = '';
+    card.classList.toggle('is-wrapped', wrapped);
+    // in the top layer, over any open modal; inside the link's dialog if it's in one (outside it, it'd be inert)
+    const host = t.closest('dialog') ?? document.body;
+    if (card.parentElement !== host) host.append(card);
+    card.showPopover();
+    place(t);
+    const body = await renderPreview(app, ref, { compact: true });
+    if (current !== t) return;
+    card.lastElementChild!.replaceWith(h('div', { class: 'rr-hovercard__body' }, body));
+    wrapBtn.hidden = !(body.matches('.rr-snippet') || body.querySelector('.rr-snippet'));
+    place(t);
+  };
   document.addEventListener('pointerout', (e) => {
+    if (e.pointerType === 'touch') return;
     const t = target(e);
     if (t) clearTimeout(timer);
     if (!t && !card.contains(e.target as Node)) return;

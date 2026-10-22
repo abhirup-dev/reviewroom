@@ -3,7 +3,7 @@
 // Any element with `title` or `data-tip` gets a styled tooltip; `data-keys="mod+k"` adds a
 // shortcut hint. Native `title` is migrated to `data-tip` on first hover so the browser's own
 // slow, unstyled tooltip never doubles up. Works inside shadow DOM and for keyboard focus.
-import { h, placeNear } from '../core/dom';
+import { h, placeNear, onLongPress } from '../core/dom';
 import { keyLabel } from '../core/commands';
 import type { ReviewApp } from '../shell/app';
 
@@ -64,12 +64,21 @@ export function mountTooltips(app?: Pick<ReviewApp, 'escapers'>) {
     // the first tooltip waits; moving between controls right after shows instantly
     timer = setTimeout(() => target === el && el.isConnected && show(el), Date.now() < warmUntil || shown() ? 60 : 480);
   };
-  document.addEventListener('pointerover', enter, true);
+  document.addEventListener('pointerover', (e) => e.pointerType !== 'touch' && enter(e), true);
+  // touch: a long press shows the tip, until the next touch; preview links have their own long press (misc.ts)
+  onLongPress((path) => {
+    if (path.some((n) => n instanceof Element && n.matches('rr-ref, a[href^="rr:"], rr-node[ref]'))) return false;
+    const el = find({ composedPath: () => path } as Event);
+    if (!el) return false;
+    target = el;
+    show(el);
+    return true;
+  });
   document.addEventListener('focusin', (e) => (e.target as HTMLElement).matches?.(':focus-visible') && enter(e), true);
   document.addEventListener('pointerout', (e) => {
     const to = e.relatedTarget as Node | null;
     if (target && to && target.contains(to)) return;
-    if (!to) hide();
+    if (!to && e.pointerType !== 'touch') hide();
   }, true);
   document.addEventListener('focusout', hide, true);
   document.addEventListener('pointerdown', hide, true);

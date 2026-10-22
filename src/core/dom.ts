@@ -125,6 +125,28 @@ export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number)
   };
 }
 
+/** Touch has no hover: a finger held still ~450ms stands in for it. `fn` gets the press's composed path and returns
+ *  true if it used the press; then the browser's own long-press menu and any click that follows are swallowed. */
+export function onLongPress(fn: (path: EventTarget[]) => boolean) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let x = 0;
+  let y = 0;
+  let used = false;
+  const cancel = () => clearTimeout(timer);
+  const swallow = (e: Event) => used && (e.preventDefault(), e.stopPropagation(), e.type === 'click' && (used = false));
+  document.addEventListener('pointerdown', (e) => {
+    cancel();
+    used = false;
+    if (e.pointerType !== 'touch') return;
+    ({ clientX: x, clientY: y } = e);
+    const path = e.composedPath();
+    timer = setTimeout(() => (used = fn(path)), 450);
+  }, true);
+  document.addEventListener('pointermove', (e) => Math.hypot(e.clientX - x, e.clientY - y) > 10 && cancel(), true);
+  for (const t of ['pointerup', 'pointercancel', 'scroll']) document.addEventListener(t, cancel, true);
+  for (const t of ['contextmenu', 'mousedown', 'click']) document.addEventListener(t, swallow, true);
+}
+
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { style: 'narrow', numeric: 'auto' });

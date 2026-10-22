@@ -276,6 +276,11 @@
 tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
   opacity: 1;
 }
+@media (hover: none) {
+  .rr-hub__actions .rr-icon-btn {
+    opacity: 1;
+  }
+}
 .rr-hub__actions .rr-icon-btn:hover {
   color: var(--rr-ink);
 }

@@ -194,6 +194,11 @@
 .rr-msg:hover .rr-msg__actions {
   opacity: 1;
 }
+@media (hover: none) {
+  .rr-msg__actions {
+    opacity: 1;
+  }
+}
 .rr-quote {
   margin: 0;
   padding: 8px 12px;
@@ -308,6 +313,12 @@ rr-ref {
 rr-ref:hover,
 .rr-chip:hover {
   border-color: var(--rr-accent);
+}
+/* touch: a long press opens the preview card (misc.ts), not the browser's link menu */
+@media (hover: none) {
+  :is(rr-ref, a[href^='rr:'], rr-node[ref]) {
+    -webkit-touch-callout: none;
+  }
 }
 rr-ref:is([data-kind='code'], [data-kind='file'], [data-kind='sym']) {
   font-family: var(--rr-mono);
@@ -687,6 +698,12 @@ rr-embed {
   border-color: color-mix(in srgb, var(--rr-bg) 30%, transparent);
   background: color-mix(in srgb, var(--rr-bg) 14%, transparent);
   color: var(--rr-bg);
+}
+/* no keyboard shortcuts to hint at on touch */
+@media (hover: none) {
+  .rr-tooltip kbd {
+    display: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-tooltip,
