@@ -6,7 +6,7 @@ import { readFileSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmS
 const root = new URL('..', import.meta.url).pathname;
 const at = (p: string) => root + p;
 
-const styles = ['tokens', 'shell', 'panels', 'overlays', 'walkthrough', 'content', 'dockview'];
+const styles = ['tokens', 'shell', 'panels', 'overlays', 'walkthrough', 'content', 'dockview', 'phone'];
 
 const dockviewCss = () => readFileSync(at('node_modules/dockview/dist/styles/dockview.css'), 'utf8');
 

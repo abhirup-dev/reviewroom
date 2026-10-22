@@ -116,6 +116,15 @@ class NarrativePanel implements PanelInstance {
     this.handle.addEventListener('pointerleave', () => this.scheduleHide());
     this.wrap.addEventListener('click', (e) => this.onClick(e), true);
     this.wrap.addEventListener('mouseup', (e) => setTimeout(() => this.onMouseUp(e), 0));
+    // a touch selection ends with no mouseup: offer the comment once its handles settle, under the selection
+    const touchSel = debounce(() => {
+      const sel = document.getSelection();
+      if (!matchMedia('(pointer: coarse)').matches || !sel?.rangeCount) return;
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      this.onMouseUp({ clientX: r.left + r.width / 2, clientY: r.bottom } as MouseEvent);
+    }, 400);
+    document.addEventListener('selectionchange', touchSel);
+    this.offs.push(() => document.removeEventListener('selectionchange', touchSel));
     this.scroller.addEventListener('scroll', () => this.hoverBlock && this.hideHandle(), { passive: true });
 
     this.ro = new ResizeObserver(debounce(() => this.layoutRail(), 60));

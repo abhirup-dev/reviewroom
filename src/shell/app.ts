@@ -17,6 +17,7 @@ import type { CodeProvider, StateBackend } from '../providers';
 import type { GitHubAction } from '../shared/schema';
 import type { Walkthrough } from '../shared/walkthrough';
 import { showPanel } from './layout';
+import { isPhone } from './phone';
 
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';
@@ -123,14 +124,16 @@ export class ReviewApp {
   pickRef!: () => Promise<string | null>;
   private cache = new Map<string, Promise<string | null>>();
 
+  private prefsKey = isPhone() ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
   constructor(public root: HTMLElement) {
-    this.prefs = loadLocal('reviewroom:prefs', defaultPrefs);
+    // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
+    this.prefs = loadLocal(this.prefsKey, isPhone() ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
   }
 
   // ------------------------------------------------------------ prefs/theme
   setPref<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     this.prefs = { ...this.prefs, [k]: v };
-    saveLocal('reviewroom:prefs', this.prefs);
+    saveLocal(this.prefsKey, this.prefs);
     this.bus.emit('prefs', this.prefs);
     if (k === 'theme') this.applyTheme();
   }

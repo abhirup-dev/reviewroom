@@ -181,7 +181,7 @@ export function mountSelectionRelease(app: ReviewApp) {
   // a click anywhere else lets go of the selection, as Esc does; clicks on line numbers or the gutter + make
   // (or extend) a new one, and clicks inside popups and menus belong to them
   const keeps = (n: EventTarget) =>
-    n instanceof Element && (n.matches('dialog, .rr-menu') || ['data-column-number', 'data-selected-line', 'data-utility-button', 'data-gutter-utility-slot'].some((a) => n.hasAttribute(a)));
+    n instanceof Element && (n.matches('dialog, .rr-menu, .rr-phone-comment') || ['data-column-number', 'data-selected-line', 'data-utility-button', 'data-gutter-utility-slot'].some((a) => n.hasAttribute(a)));
   document.addEventListener(
     'pointerdown',
     (e) => {

@@ -18,10 +18,10 @@ export function recapOnNewRound(app: ReviewApp) {
   if (app.state.round < 2 || sessionStorage.getItem(key) === String(app.state.round) || !(active.length + rest.length + stale.length) || !app.state.threads.some((t) => app.unreadAgent(t))) return;
   sessionStorage.setItem(key, String(app.state.round));
   ensurePanel(app, 'recap');
-  app.dock.getPanel('narrative')?.api.setActive(); // the docked spot keeps showing the narrative
+  app.dock?.getPanel('narrative')?.api.setActive(); // the docked spot keeps showing the narrative
   floatInPlace(app, 'recap');
   // a feed, not a tiled window: no tab bar (the panel's own head says what it is and docks it)
-  const group = app.dock.getPanel('recap')?.group;
+  const group = app.dock?.getPanel('recap')?.group; // none on a phone: there it's a sheet
   if (group?.api.location.type !== 'floating') return;
   group.model.header.hidden = true;
   group.element.closest('.dv-resize-container')?.classList.add('rr-feed-window');

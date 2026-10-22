@@ -5,6 +5,7 @@ import { h, icon } from '../core/dom';
 import type { ReviewApp } from './app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from '../flows/layout';
+import { PhoneShell } from './phone';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from '../shared/layout';
 
 export interface PanelDef {
@@ -54,6 +55,7 @@ export function resetLayout(app: ReviewApp) {
 export function applyLayout(app: ReviewApp, id: string) {
   const l = layouts(app)[id];
   if (!l) return false;
+  if (phone) return true; // one panel at a time: there's nothing to arrange
   const api = app.dock;
   const json = toDockview(l.root, api.width || window.innerWidth, api.height || window.innerHeight, (pid) => {
     const def = registry.get(pid);
@@ -75,6 +77,7 @@ export function applyLayout(app: ReviewApp, id: string) {
 /** Save the current arrangement as a new layout named `title`, to pick from the layout menu in any review
  *  (and start from, `asDefault`). A taken name (shipped or saved) is refused: false, nothing changed. */
 export async function saveLayout(app: ReviewApp, title: string, asDefault = false) {
+  if (phone) return false;
   const id = layoutId(title);
   if (!id) return app.toast('Name it with some letters or digits', 'error'), false;
   if (layouts(app)[id]) return app.toast(`“${title}” is taken: pick another name`, 'error'), false;
@@ -92,6 +95,7 @@ export async function saveLayout(app: ReviewApp, title: string, asDefault = fals
 
 /** Make saved layout `id` the one reviews start from, or have none (null). */
 export async function setDefaultLayout(app: ReviewApp, id: string | null) {
+  if (phone) return false;
   if (!(await app.backend.setDefaultLayout(id).catch(() => false))) return app.toast('Could not change the default layout', 'error'), false;
   app.defaultLayout = id;
   if (!id) app.toast('No default layout: new reviews start from their built-in layout');
@@ -100,6 +104,7 @@ export async function setDefaultLayout(app: ReviewApp, id: string | null) {
 
 /** Delete one of the reviewer's saved layouts (it stops being the default, if it was). */
 export async function deleteLayout(app: ReviewApp, id: string) {
+  if (phone) return;
   const title = app.layouts[id]?.title;
   if (!(await app.backend.saveLayout(id, null).catch(() => false))) return app.toast('Could not delete the layout', 'error');
   delete app.layouts[id];
@@ -111,7 +116,7 @@ export async function deleteLayout(app: ReviewApp, id: string) {
 export function layoutCommand(app: ReviewApp, id: string) {
   const i = Object.keys(layouts(app)).indexOf(id);
   const l = layouts(app)[id];
-  return { id: 'layout.' + id, title: `Layout: ${l.title}`, group: 'Layout', hint: l.hint, keys: i >= 0 && i < 9 ? [`alt+${i + 1}`] : undefined, when: () => !!layouts(app)[id], run: () => applyLayout(app, id) };
+  return { id: 'layout.' + id, title: `Layout: ${l.title}`, group: 'Layout', hint: l.hint, keys: i >= 0 && i < 9 ? [`alt+${i + 1}`] : undefined, when: () => canArrange() && !!layouts(app)[id], run: () => applyLayout(app, id) };
 }
 
 // a pin or section opened big over the layout (focus.ts) isn't a layout change: not saved, not an undo step
@@ -138,6 +143,8 @@ function track(api: DockviewApi) {
   last = s;
 }
 export const canUndoLayout = () => undoStack.length > 0;
+/** Layouts are the dock's: a phone shows one panel at a time, and never writes the desktop's saved arrangements. */
+export const canArrange = () => !phone;
 /** Back to the layout before the last change (switching layouts and resets included). */
 export function undoLayout(app: ReviewApp) {
   const prev = undoStack.pop();
@@ -298,6 +305,7 @@ function placePanel(app: ReviewApp, id: string, params?: Record<string, unknown>
 
 /** The PR's panels arrive with the first GitHub snapshot that has them, once per review. */
 export function offerGitHubPanels(app: ReviewApp) {
+  if (phone) return phone.paintBar();
   for (const id of github) {
     if (!hasGitHub(app, id) || app.dock.getPanel(id) || offered.has(id)) continue;
     offered.add(id);
@@ -307,14 +315,22 @@ export function offerGitHubPanels(app: ReviewApp) {
 }
 
 // The rest of the app asks for panels through these, never dockview itself: a phone or tablet layout replaces them.
-export const hasPanel = (app: ReviewApp, id: string) => !!app.dock?.getPanel(id);
-export const closePanel = (app: ReviewApp, id: string) => app.dock?.getPanel(id)?.api.close();
-export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.dock?.getPanel(id)?.api.setTitle(title);
+let phone: PhoneShell | null = null;
+/** The phone shell in place of the dock (index.ts picks one at boot). */
+export function mountPhone(app: ReviewApp, host: HTMLElement) {
+  app.root.classList.add('is-phone');
+  // Threads from last round floats over the dock once per round, so here it's a sheet, not a tab
+  phone = new PhoneShell(app, host, (id) => id !== 'recap' && (!github.includes(id) || hasGitHub(app, id)));
+}
+export const hasPanel = (app: ReviewApp, id: string) => (phone ? phone.has(id) : !!app.dock?.getPanel(id));
+export const closePanel = (app: ReviewApp, id: string) => (phone ? phone.close(id) : app.dock?.getPanel(id)?.api.close());
+export const setPanelTitle = (app: ReviewApp, id: string, title: string) => (phone ? phone.setTitle(id, title) : app.dock?.getPanel(id)?.api.setTitle(title));
 /** The first open panel `match` accepts. */
-export const findPanel = (app: ReviewApp, match: (id: string, params: Record<string, unknown> | undefined) => boolean) => app.dock?.panels.find((p) => match(p.id, p.params))?.id;
+export const findPanel = (app: ReviewApp, match: (id: string, params: Record<string, unknown> | undefined) => boolean) => (phone ? phone.find(match) : app.dock?.panels.find((p) => match(p.id, p.params))?.id);
 
 /** Bring an open panel to the front; false if it isn't open. */
 export function showPanel(app: ReviewApp, id: string) {
+  if (phone) return phone.has(id) && phone.show(id);
   const p = app.dock?.getPanel(id);
   if (!p) return false;
   // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
@@ -328,6 +344,10 @@ export function showPanel(app: ReviewApp, id: string) {
 export type Placement = 'right' | 'below' | 'float' | 'center';
 /** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
 export function addPanelAt(app: ReviewApp, panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: Placement, near?: string) {
+  if (phone) {
+    phone.show(panel.id, panel.params);
+    return phone.setTitle(panel.id, panel.title);
+  }
   const api = app.dock;
   const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
   if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
@@ -336,6 +356,10 @@ export function addPanelAt(app: ReviewApp, panel: { id: string; component: strin
 
 /** A thread as a panel: beside the narrative, or stacked with the threads already docked. */
 export function dockThread(app: ReviewApp, id: string, title: string) {
+  if (phone) {
+    phone.show('thread:' + id, { id });
+    return phone.setTitle('thread:' + id, title);
+  }
   const api = app.dock;
   const pid = 'thread:' + id;
   if (!api.getPanel(pid)) {
@@ -349,6 +373,7 @@ export function dockThread(app: ReviewApp, id: string, title: string) {
 
 /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
 export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, unknown>) {
+  if (phone) return void phone.show(id, params);
   const api = app.dock;
   // back where the layout puts it; one the layout has no place for joins the narrative's tabs (as in applyLayout)
   let p = api.getPanel(id) ?? placePanel(app, id, params);
@@ -426,6 +451,7 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
 
 /** Esc runs `back` once, if the panel is still floating then. */
 export function onEscape(app: ReviewApp, id: string, back: () => void) {
+  if (phone) return;
   const f = () => {
     app.escapers.splice(app.escapers.indexOf(f), 1);
     const p = app.dock.getPanel(id);
@@ -441,6 +467,7 @@ export function onEscape(app: ReviewApp, id: string, back: () => void) {
  *  Esc, "Put it back" or closing the window returns it to exactly that spot. Every way of floating
  *  a panel (header button, tab double-click or menu, double-clicking a section, file or pin) comes here. */
 export function floatInPlace(app: ReviewApp, id: string) {
+  if (phone) return void phone.show(id);
   if (id.startsWith('slot:')) return putBack(app, id.slice(5)); // the stand-in itself: bring the panel home
   const p = app.dock.getPanel(id);
   if (!p) return;
@@ -452,6 +479,7 @@ export function floatInPlace(app: ReviewApp, id: string) {
 }
 
 export function putBack(app: ReviewApp, id: string) {
+  if (phone) return phone.close(id); // nothing floats on a phone: back to the tab underneath
   const slot = app.dock.getPanel('slot:' + id);
   if (!slot) return;
   const group = slot.group;

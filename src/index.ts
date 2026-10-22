@@ -16,7 +16,8 @@ import { anchorOf } from './shared/refs';
 import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
-import { mountDock, applyLayout, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
+import { isPhone } from './shell/phone';
+import { mountDock, mountPhone, applyLayout, canArrange, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import type { LastLayout } from './shared/layout';
 import { buildHeader, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
@@ -149,7 +150,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountHoverCards(app);
   mountThreadPopup(app);
   const tour = mountWalkthrough(app);
-  mountDock(app, dockHost, lastLayout);
+  if (isPhone()) mountPhone(app, dockHost);
+  else mountDock(app, dockHost, lastLayout);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.commands.attach(document);
@@ -249,9 +251,9 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
     { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
-    { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveLayoutDialog(app, true) },
+    { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', when: canArrange, run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: canUndoLayout, run: () => undoLayout(app) },
-    { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => resetLayout(app) },
+    { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', when: canArrange, run: () => resetLayout(app) },
     ...Object.keys(layouts(app)).map((id) => layoutCommand(app, id)),
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },
     { id: 'theme.system', title: 'Theme: follow system', group: 'View', run: () => app.setPref('theme', 'system') },
