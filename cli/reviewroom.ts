@@ -115,6 +115,7 @@ cli
   .option('--detach', 'Run in the background, print the URL and return')
   .option('--stop', 'Stop the running hub')
   .option('--port <n>', 'Port (default: 4847)')
+  .option('--public-origin <url>', 'Save the HTTPS origin a front serves the hub at (`none` clears it); see below')
   .option('--no-open', 'Do not open the browser')
   .action(run<HubOpts>((_repo, o) => cmdHub(o)));
 
@@ -139,6 +140,11 @@ const notes: Record<string, string> = {
     '  One hub per machine; a second `hub` prints the running one\'s URL. A review\'s "All reviews" button starts',
     '  it in the background when none runs. It lists servers from ~/.reviewroom/sessions, ~/.crit/sessions and',
     '  Plannotator\'s sessions dir, shows counts (never thread text) and can close a session.',
+    '  Each running review is also served through the hub at /r/<id>/ (<id>: first 12 hex of sha1 of its dir).',
+    '  For a phone: put a front that ends in HTTPS in front of 127.0.0.1:4847 (tailscale serve on your tailnet,',
+    '  a tunnel with an access policy) and save its origin with --public-origin, kept in ~/.reviewroom/config.json',
+    '  and read when the hub starts. The hub then answers that Host and Origin too and stays on its port. Anyone',
+    '  the front lets through can read and write every running review: reviewroom checks no identity.',
   ].join('\n'),
   check: [
     '  Each link in review.html is remembered by what it pointed at when first seen. Problems:',

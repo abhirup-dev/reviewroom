@@ -16,7 +16,8 @@ The building blocks of the walkthrough, `review.html`. For what to write and in 
 ```
 
 Inside `<rr-review>` you may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put
-extra assets (images, js, css) next to `review.html` and reference them relatively.
+extra assets (images, js, css) next to `review.html` and reference them relatively (`diagram.svg`, never
+`/diagram.svg`: the hub also serves the review under `/r/<id>/`). Leave `<rr-app>`'s `api` unset.
 
 `#rr-meta` is optional JSON; leave it `{}` unless you need it. The CLI supplies the repo, PR and
 revisions. `"title"` replaces the review's title. `"theme"` overrides colour tokens per mode, without the

@@ -2,6 +2,7 @@
 // reviewroom sessions are first-party: a record counts only while its server answers with its own pid
 // (x-reviewroom-pid), a record whose server is gone is deleted, and counts come from GET /api/summary.
 // Crit and Plannotator sessions are checked with kill -0 and only hidden when dead; their files stay.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { classifySession, sessionOpenUrl } from './classify.ts';
@@ -12,6 +13,7 @@ import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlann
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/shared/hub.ts';
 import { alive } from '../lib/lock.ts';
 import { stopServer, unregister } from '../lib/registry.ts';
+import { registryDir } from '../lib/paths.ts';
 
 export interface HubOptions {
   /** How often the page refreshes (ms). */
@@ -46,6 +48,10 @@ function withAgent(info: SessionInfo, agent: Agent | null, source: string) {
   if (agent) Object.assign(info, { origin: agent.name, originSource: source, parentAgentPid: agent.pid, parentAgentGroup: `${agent.name}:${agent.pid}` });
 }
 
+/** A review's id in the hub's /r/<id>/: stable across rounds, restarts and ports (ADR 0001). */
+export const reviewId = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 12);
+const mtime = (p: string) => fs.statSync(p, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+
 const getJson = async (url: string, timeout: number) => {
   const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(timeout) });
   return { res, body: res.ok ? ((await res.json()) as Record<string, unknown>) : null };
@@ -65,6 +71,7 @@ export class Hub {
   private lastError: string | null = null;
   private polling: Promise<SessionInfo[]> | null = null;
   private versions: Promise<Record<string, string | null>> | null = null;
+  private polledRegistry = -1;
 
   constructor(opts: HubOptions = {}) {
     this.pollIntervalMs = opts.pollIntervalMs ?? 2000;
@@ -201,7 +208,7 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir,
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir),
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
       withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
@@ -240,6 +247,17 @@ export class Hub {
     this.lastError = errors.join('; ') || null;
     this.lastPollAtMs = Date.now();
     return [...next.values()];
+  }
+
+  /** The live review server for /r/<id>/ (the proxy): from the last poll, polling again only when a server came or
+   *  went (its sessions/<pid>.json) or the poll is a minute old, so neither each request nor an unknown id polls. */
+  async review(id: string): Promise<SessionInfo | null> {
+    const m = mtime(registryDir());
+    if (m !== this.polledRegistry || Date.now() - this.lastPollAtMs > 60_000) {
+      await this.poll();
+      this.polledRegistry = m;
+    }
+    return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.reviewId === id && s.port && s.pid) ?? null;
   }
 
   /** SIGTERM one session that a fresh poll still finds; the client names a session, never a pid. A reviewroom

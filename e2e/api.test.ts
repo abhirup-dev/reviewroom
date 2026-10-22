@@ -68,6 +68,7 @@ describe('api', () => {
   test('write from a foreign origin is refused', async () =>
     expect(await status('api/ops', { method: 'POST', body: '{}', headers: { origin: 'https://evil.example', 'content-type': 'application/json' } })).toBe(403));
   test('foreign Host header is refused', async () => expect(await status('api/meta', { headers: { host: `evil.example:${new URL(url).port}` } })).toBe(403));
+  test('the page loads its build relatively (under the hub\'s /r/<id>/, its own)', async () => expect(await (await fetch(url)).text()).toContain('src="_rr/reviewroom.js"'));
   test('state files are not served', async () =>
     expect(await Promise.all(['state.json', 'STATE.JSON', 'state%2Ejson', 'state.lock'].map((f) => status(f)))).toEqual([404, 404, 404, 404]));
   test('static file with # and ? in its name is served', async () => {
@@ -82,7 +83,7 @@ describe('api', () => {
     try {
       fs.writeFileSync(file, `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>t</title></head><body>${body}</body></html>`);
       const html = await (await fetch(url)).text();
-      for (const tag of ['<link rel="manifest" href="/manifest.webmanifest">', 'name="apple-mobile-web-app-capable"', 'media="(prefers-color-scheme: dark)"', 'initial-scale=1, viewport-fit=cover"', '/_rr/reviewroom.js'])
+      for (const tag of ['<link rel="manifest" href="/manifest.webmanifest">', 'name="apple-mobile-web-app-capable"', 'media="(prefers-color-scheme: dark)"', 'initial-scale=1, viewport-fit=cover"', 'src="_rr/reviewroom.js"'])
         expect(html).toContain(tag);
       expect(html.slice(html.indexOf('<rr-review>'), html.indexOf('</rr-review>') + 12)).toBe(body);
     } finally {

@@ -34,7 +34,8 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
   `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
   `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/shared/layout.ts` like the shipped ones
-  in `src/layouts/` (whose names they can't take); `default-layout.json` names their default.
+  in `src/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
+  reviewer's settings, so far `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 

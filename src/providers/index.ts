@@ -78,7 +78,7 @@ const json = async (r: Response) => {
 
 export class LocalProvider implements CodeProvider {
   readonly name = 'local';
-  constructor(private api = '/api') {}
+  constructor(private api = 'api') {}
   meta() {
     return fetch(`${this.api}/meta`).then(json);
   }
@@ -105,7 +105,7 @@ export class LocalProvider implements CodeProvider {
   tree(rev: Rev) {
     return fetch(`${this.api}/tree?rev=${encodeURIComponent(rev)}`).then(json);
   }
-  static async detect(api = '/api'): Promise<LocalProvider | null> {
+  static async detect(api = 'api'): Promise<LocalProvider | null> {
     try {
       const r = await fetch(`${api}/meta`, { headers: { accept: 'application/json' } });
       if (r.ok && (r.headers.get('content-type') || '').includes('json')) return new LocalProvider(api);
@@ -120,7 +120,7 @@ export class LocalProvider implements CodeProvider {
 export class ServerState implements StateBackend {
   readonly kind = 'server';
   private sync?: ActorRefFrom<typeof syncMachine>;
-  constructor(private api = '/api') {
+  constructor(private api = 'api') {
     addEventListener('beforeunload', (e) => this.sync && unsent(this.sync.getSnapshot().context) && e.preventDefault());
   }
   private fetchState(): Promise<ReviewState> {

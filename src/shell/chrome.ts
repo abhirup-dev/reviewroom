@@ -237,7 +237,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
       popMenu(moreBtn, (close) => [
         menuItem('Pick an element to comment on', () => (close(), app.bus.emit('picker', true)), { icon: 'target' }),
         menuItem(`Theme: ${themeName}`, () => (close(), cycleTheme()), { icon: themeIcon, hint: 'switch' }),
-        app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open('/api/hub', '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
+        app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open(location.pathname.startsWith('/r/') ? '/' : '/api/hub', '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
       ]);
     bar.replaceChildren(
       h(
@@ -266,7 +266,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
         h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
         h('span', { class: 'rr-pill rr-pill--draft rr-round-status rr-round-status--offline', title: 'The reviewroom server stopped. Changes stay in this tab and are saved when it is back' }, 'Disconnected'),
         h('span', { class: 'rr-pill rr-pill--draft rr-unsaved', title: 'The reviewroom server has not stored your latest changes. Reviewroom keeps retrying; keep this tab open' }, 'Not saved yet'),
-        app.backend.kind === 'server' && !phone ? h('a', { class: 'rr-hbtn', href: '/api/hub', target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
+        app.backend.kind === 'server' && !phone ? h('a', { class: 'rr-hbtn', href: location.pathname.startsWith('/r/') ? '/' : '/api/hub', target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
         h('button', { class: 'rr-search-btn', onclick: () => app.openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         ...githubControls(app),
         app.walkthrough || app.walkthroughIssues

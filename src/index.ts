@@ -56,7 +56,7 @@ function readJSON(sel: string, root: ParentNode = document): unknown {
 
 async function pickProvider(root: HTMLElement, meta: Partial<ReviewMeta>, fx: Fixture | null): Promise<{ provider: CodeProvider; backend: 'server' | 'browser' }> {
   const want = root.getAttribute('provider') || 'auto';
-  const api = root.getAttribute('api') || '/api';
+  const api = root.getAttribute('api') || 'api';
   if (want === 'local' || want === 'auto') {
     const local = await LocalProvider.detect(api);
     if (local) return { provider: local, backend: 'server' };
@@ -126,7 +126,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.id ||= [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
-    app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || '/api') : new BrowserState(meta.id, seedState ?? undefined, seedTour);
+    app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.id, seedState ?? undefined, seedTour);
     app.state = { ...emptyState(), ...(await app.backend.load()) };
     let saved;
     [saved, lastLayout] = await Promise.all([app.backend.layouts().catch(() => null), app.backend.lastLayout().catch(() => null)]);
@@ -247,7 +247,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'palette.commands', title: 'Show all commands', group: 'Navigate', keys: ['mod+shift+p', '?'], run: pal('>') },
     { id: 'palette.symbols', title: 'Find symbol', group: 'Navigate', keys: ['mod+shift+o', '#'], run: pal('#') },
     { id: 'palette.search', title: 'Search code', group: 'Navigate', keys: ['mod+shift+f', '/'], run: pal('/') },
-    { id: 'hub', title: 'All reviews', group: 'Navigate', hint: 'Every review running on this machine', when: () => app.backend.kind === 'server', run: () => window.open('/api/hub', '_blank') },
+    { id: 'hub', title: 'All reviews', group: 'Navigate', hint: 'Every review running on this machine', when: () => app.backend.kind === 'server', run: () => window.open(location.pathname.startsWith('/r/') ? '/' : '/api/hub', '_blank') },
     { id: 'focus.narrative', title: 'Focus narrative', group: 'Panels', keys: ['g n'], run: () => (ensurePanel(app, 'narrative'), (document.querySelector('.rr-narrative-scroll') as HTMLElement)?.focus()) },
     { id: 'focus.code', title: 'Focus code', group: 'Panels', keys: ['g c'], run: () => (ensurePanel(app, 'code'), (document.querySelector('.rr-code-scroll') as HTMLElement)?.focus()) },
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },

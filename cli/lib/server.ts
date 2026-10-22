@@ -86,17 +86,25 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
   };
 }
 
+/** What the access checks look at in a request. */
+export type AccessRequest = { host?: string; origin?: string; site?: string; method: string; path: string };
+export const accessRequest = (c: Context): AccessRequest => ({ host: c.req.header('host'), origin: c.req.header('origin'), site: c.req.header('sec-fetch-site'), method: c.req.method, path: c.req.path });
+export const serverPort = (c: Context) => getBunServer<Bun.Server<undefined>>(c)?.port;
+
+/** Host is one of `hosts`; API requests (`isApi`) are not cross-site, and writes carry no Origin or one of `origins`. */
+export function sameSite(r: AccessRequest, hosts: string[], origins: string[], isApi = (p: string) => p.startsWith('/api/')) {
+  if (!hosts.includes(r.host ?? '')) return false;
+  if (!isApi(r.path.replace(/\/{2,}/g, '/'))) return true; // the router reads //api/ops as /api/ops
+  if (r.site && r.site !== 'same-origin' && r.site !== 'none') return false;
+  return r.method === 'GET' || r.method === 'HEAD' || r.origin === undefined || origins.includes(r.origin);
+}
+
 // Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too (no-cors GETs, form POSTs,
 // DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
+export const loopbackHosts = (port: number | undefined) => [`127.0.0.1:${port}`, `localhost:${port}`];
 function allowed(c: Context) {
-  const port = getBunServer<Bun.Server<undefined>>(c)?.port;
-  const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
-  if (!origins.includes(c.req.header('host') ?? '')) return false;
-  if (!c.req.path.startsWith('/api/')) return true;
-  const site = c.req.header('sec-fetch-site');
-  if (site && site !== 'same-origin' && site !== 'none') return false;
-  const origin = c.req.header('origin');
-  return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
+  const hosts = loopbackHosts(serverPort(c));
+  return sameSite(accessRequest(c), hosts, hosts.map((h) => `http://${h}`));
 }
 
 // dist/build-info.json's id, read again when the file changes: a running server serves dist/ while `bun run dev` rebuilds it
@@ -112,15 +120,17 @@ const buildId = () => {
   return build.id;
 };
 
-/** Every response says which process and which client build sent it (lock.ts `answers`); the hub's server uses this too. */
-export const localOnly: MiddlewareHandler = async (c, next) => {
+/** Every response says which process and which client build sent it (lock.ts `answers`); requests `ok` refuses get a 403.
+ *  The hub's server uses this too, with its own check (hubAccess). */
+export const guarded = (ok: (c: Context) => boolean): MiddlewareHandler => async (c, next) => {
   c.header('x-reviewroom-pid', String(process.pid));
   const id = buildId();
   if (id) c.header('x-reviewroom-build', id);
   c.header('cache-control', 'no-store'); // unless a route says otherwise
-  if (!allowed(c)) return c.json({ error: 'forbidden' }, 403);
+  if (!ok(c)) return c.json({ error: 'forbidden' }, 403);
   await next();
 };
+export const localOnly = guarded(allowed);
 
 /** The PWA head: the hub-root manifest (absolute: review pages live under /r/<id>/), iOS Home Screen tags, theme colours (--rr-bg). */
 export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
@@ -139,7 +149,9 @@ export function withHead(html: string) {
   if (end < 0) return html;
   let head = html.slice(0, end).replace(/(<meta name="viewport" content="(?![^"]*viewport-fit)[^"]*)"/, '$1, viewport-fit=cover"');
   if (!head.includes('rel="manifest"')) head += PWA_HEAD;
-  if (!html.includes('/_rr/reviewroom.js')) head += '<script type="module" src="/_rr/reviewroom.js"></script>\n';
+  // the client build loads relatively, so under the hub's /r/<id>/ the page gets this server's build, not the hub's
+  head = head.replace(/(src=["'])\/_rr\/reviewroom\.js/, '$1_rr/reviewroom.js');
+  if (!head.includes('_rr/reviewroom.js')) head += '<script type="module" src="_rr/reviewroom.js"></script>\n';
   return head + html.slice(end);
 }
 
@@ -371,14 +383,14 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   return { app, prov, commit, github, checkNarrative, close };
 }
 
-/** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */
-export function listen(app: Hono, port: number) {
+/** Serve on 127.0.0.1 at `port`, or the next free one of the `spread` after it. */
+export function listen(app: Hono, port: number, spread = 20) {
   for (let p = port; ; p++) {
     try {
       // idleTimeout 0: an SSE stream is quiet for 20 s between pings, past Bun's 10 s default
       return Bun.serve({ fetch: app.fetch, hostname: '127.0.0.1', port: p, idleTimeout: 0 });
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE' || p >= port + 20) throw e;
+      if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE' || p >= port + spread) throw e;
     }
   }
 }

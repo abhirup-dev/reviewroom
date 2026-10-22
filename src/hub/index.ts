@@ -301,6 +301,8 @@ async function refresh() {
     const [r, hr] = await Promise.all([fetch('/api/sessions', { cache: 'no-store' }), fetch('/api/health', { cache: 'no-store' })]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = (await r.json()) as HubSnapshot;
+    // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
+    if (!/^(127\.|localhost$|\[::1\]$)/.test(location.hostname)) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
     const health = hr.ok ? ((await hr.json()) as { compatibility?: Compat }) : null;
     const compat = Object.entries(health?.compatibility ?? {})
       .filter(([tool, c]) => c.status === 'unverified' || (c.status === 'unavailable' && data!.sessions.some((s) => s.tool === tool)))
