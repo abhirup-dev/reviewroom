@@ -45,12 +45,12 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
 
 cli
   .command('pr [target]', 'Create the review (fetching a PR if given one) and serve it')
-  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): ~/.reviewroom/reviews/<owner>-<repo>/<branch> (for a PR, its head branch).\n  A PR in a stack of PRs (GitHub\'s stack, a chain of branches, or "stacked on #<n>" in its description) opens one\n  review of the whole stack, stack-<id>, whichever of its PRs you name; --no-stack reviews the PR alone.')
+  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): ~/.reviewroom/reviews/<owner>-<repo>/<branch> (for a PR, its head branch).\n  A PR in a stack of PRs (GitHub\'s stack, a chain of branches, or "stacked on #<n>" in its description) opens one\n  review of the whole stack, stack-<id>, whichever of its PRs you name; --no-stack reviews the PR alone.\n  A local branch with other local branches below it (each tip on its first-parent path to the base) is a stack of\n  branches, layers numbered 1..n bottom first, kept in that branch\'s dir: name its top branch.')
   .option('--base <ref>', 'Base to diff against (default: the PR base, else the default branch)')
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Remote to fetch from', { default: 'origin' })
-  .option('--no-stack', 'Review the PR alone, even when it is in a stack of PRs')
+  .option('--no-stack', 'Review the PR (or branch) alone, even when it is in a stack of PRs (or of local branches)')
   .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s guided walkthrough)')
   .option('--detach', 'Serve in the background, print the URL and return')
   .option('--wait', 'Then block like `review` until the round ends')

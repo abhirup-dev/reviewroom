@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { bodyCandidates, detectStack, MAX_STACK, type Member, type Query } from './stack.ts';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { bodyCandidates, detectStack, localStack, MAX_STACK, type Member, type Query } from './stack.ts';
 
 // Shaped like GitHub's answers for the two real stacks this was built on (moj-features-airflow #364..#371, a native
 // stack; tardis-feature-service-sdk #148 merged, #149 retargeted to main), with names and text made up.
@@ -98,4 +102,24 @@ test('not a stack: an old merged PR of a long-lived branch, a branch of the same
   expect(await detectStack({ ...T, number: 11 }, github([{ ...release, state: 'OPEN' }, feature, pr(12, 'develop', 'feat2')]).q, never)).toBeNull();
   // a PR merged into this one's branch is in it already, not a layer on top
   expect(nums(await detectStack({ ...T, number: 2 }, github([pr(1, 'main', 'a'), pr(2, 'a', 'b'), pr(3, 'b', 'c', { state: 'MERGED' })]).q, never))).toEqual(['chain', 1, [1, 2]]);
+});
+
+test('a local stack of plain branches: one layer per branch tip on the top branch\'s first-parent path', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-local-stack-'));
+  const g = (...a: string[]) => execFileSync('git', a, { cwd: repo, encoding: 'utf8' });
+  g('init', '-q', '-b', 'main');
+  const commit = (m: string) => g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', m);
+  commit('base');
+  for (const [b, ms] of [['one', ['1a', '1b']], ['two', ['2a']]] as const) {
+    g('switch', '-q', '-c', b);
+    ms.forEach(commit);
+  }
+  g('branch', 'aside'); // another name on two's tip: one layer, named once
+  g('switch', '-q', '-c', 'three');
+  commit('3a');
+  g('switch', '-q', 'main');
+  commit('main moved on');
+  expect(localStack(repo, 'three', 'main')?.map((p) => [p.number, p.headLabel])).toEqual([[1, 'one'], [2, 'aside'], [3, 'three']]);
+  expect(localStack(repo, 'one', 'main')).toBeNull();
+  fs.rmSync(repo, { recursive: true, force: true });
 });

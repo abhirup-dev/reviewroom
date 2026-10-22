@@ -63,7 +63,7 @@ const StackPr = z.looseObject({
   headLabel: z.string(),
   head: z.string(),
 });
-const Stack = z.looseObject({ id: z.number().int(), source: z.enum(['native', 'chain', 'body']), base: z.string(), prs: z.array(StackPr).min(2) });
+const Stack = z.looseObject({ id: z.number().int(), source: z.enum(['native', 'chain', 'body', 'local']), base: z.string(), prs: z.array(StackPr).min(2) });
 export type StackConfig = z.infer<typeof Stack>;
 const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text, stack: Stack.nullable().optional().catch(undefined) }); // null: `pr` found none (or --no-stack)
 /** config.json, with --base/--head/--title applied (loadConfig). */

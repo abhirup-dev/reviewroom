@@ -26,5 +26,8 @@ This departs from "the name is always the branch" for stacks only; a PR outside 
 ## Consequences
 
 - The lookup reads every `config.json` under the repo's reviews dir (cheap: a handful of files, rr-b5o).
+- A local stack of branches (`pr <branch>`, no PRs) is keyed by the branch named, as before: its top. Naming a lower
+  branch reviews the stack up to it; adding a branch on top makes a new review. Its layers are numbered 1..n bottom
+  first (not by PR: a real PR's number could equal another layer's position), so it has no GitHub side.
 - Left open: a PR that leaves its stack, or two stacks that merge, keep the review they had; a single-PR review of a
   member made before stacks is not adopted into the stack's review.

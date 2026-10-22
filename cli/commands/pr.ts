@@ -8,7 +8,7 @@ import { scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, type StackConfig, resolveDir, branchDir, stackDir, stackReview, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, fetchStack, gql, prTarget as prOf } from '../lib/github.ts';
-import { detectStack, type Query } from '../lib/stack.ts';
+import { detectStack, localStack, type Query } from '../lib/stack.ts';
 import { walkthroughPath } from '../lib/state.ts';
 import { chainWalkthroughs, pickBlock } from '../lib/walkthrough.ts';
 import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
@@ -79,7 +79,7 @@ async function stackOf(repo: string, remote: string, url: string): Promise<Stack
     return undefined;
   }
   if (!s) return null;
-  const how = { native: "GitHub's stack", chain: 'their branches', body: 'the PR descriptions' }[s.source];
+  const how = { native: "GitHub's stack", chain: 'their branches', body: 'the PR descriptions' }[s.source as Exclude<typeof s.source, 'local'>];
   console.error(`reviewroom: PR #${t.number} is in a stack of ${s.prs.length} PRs (${s.prs.map((p) => '#' + p.number).join(', ')}, found from ${how}); fetching their heads...`);
   // every head in one fetch; when that fails, each on its own, then what is already here
   const all = fetchRef(remote, s.prs.map((p) => `+refs/pull/${p.number}/head:${prRef(p.number)}`), repo);
@@ -94,15 +94,20 @@ async function stackOf(repo: string, remote: string, url: string): Promise<Stack
   return { id: s.id, source: s.source, base: s.base, prs };
 }
 
-/** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
+/** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. A local
+ *  branch with other local branches below it is a stack of branches, kept by the branch named (its top). */
 function branchTarget(repo: string, o: PrOpts, branch: string): Target {
   let head = branch;
-  if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
+  const local = !!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true });
+  if (!local) {
     fetchRef(o.remote, `+refs/heads/${branch}:refs/remotes/${o.remote}/${branch}`, repo);
     head = `${o.remote}/${branch}`;
     if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) fail(`no branch or PR called "${branch}"`);
   }
-  return { dir: branchDir(repo, branch), cfg: { base: o.base ?? defaultBase(repo), head, title: o.title } };
+  const base = o.base ?? defaultBase(repo);
+  const prs = local && o.stack !== false ? localStack(repo, branch, base) : null;
+  if (prs) console.error(`reviewroom: ${branch} is the top of a stack of ${prs.length} local branches (${prs.map((p) => p.headLabel).join(', ')}); --no-stack reviews it alone`);
+  return { dir: branchDir(repo, branch), cfg: { base, head, title: o.title, stack: prs && { id: 0, source: 'local' as const, base, prs } } };
 }
 
 /** `pr`: the current branch (or --base/--head), nothing fetched. */

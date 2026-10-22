@@ -2,8 +2,9 @@
 // GitHub's native stack, the base/head branch chain, or (once a lower PR merged and this one was retargeted)
 // markers in the PR description such as "stacked on #148", each checked by git ancestry.
 import type { PrTarget } from './github.ts';
+import { git } from './git.ts';
 
-export type StackSource = 'native' | 'chain' | 'body';
+export type StackSource = 'native' | 'chain' | 'body' | 'local';
 /** One PR as GitHub describes it (the fields MEMBER fetches). */
 export type Member = {
   number: number;
@@ -132,4 +133,21 @@ async function members(q: Query, numbers: number[]): Promise<Member[]> {
   const fields = numbers.map((n) => `p${n}: pullRequest(number: ${n}) { ${MEMBER} }`).join('\n');
   const d = await q<{ repository: Record<string, Member | null> }>(`query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {\n${fields}\n} }`);
   return numbers.map((n) => d.repository[`p${n}`]).filter((m): m is Member => !!m);
+}
+
+/** A local stack of branches (no PRs needed): every local branch tip on `branch`'s first-parent path down to its
+ *  merge-base with `base` ends a layer, bottom first; `branch` is the top. Null: no branch below it on that path. */
+export function localStack(repo: string, branch: string, base: string): { number: number; title: string; state: 'open'; headLabel: string; head: string }[] | null {
+  const head = git(['rev-parse', branch + '^{commit}'], repo).trim();
+  const from = (git(['merge-base', base, head], repo, { soft: true }) || '').trim();
+  const path = git(['rev-list', '--first-parent', '--reverse', from ? `${from}..${head}` : head], repo).split('\n').filter(Boolean);
+  const tips = new Map<string, string>();
+  for (const l of git(['for-each-ref', '--sort=refname', '--format=%(objectname) %(refname:short)', 'refs/heads'], repo).split('\n').filter(Boolean)) {
+    const [sha, name] = l.split(' ');
+    if (name !== branch && name !== base && !tips.has(sha)) tips.set(sha, name); // the first name, sorted, when a commit has several
+  }
+  tips.set(head, branch);
+  const names = path.filter((c) => tips.has(c)).map((c) => tips.get(c)!);
+  // numbered 1..n bottom first, not by any PR a branch has: a real PR's number could equal another layer's position
+  return names.length < 2 ? null : names.map((name, i) => ({ number: i + 1, title: name, state: 'open', headLabel: name, head: name }));
 }
