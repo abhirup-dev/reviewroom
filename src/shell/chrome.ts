@@ -358,7 +358,7 @@ function stackMenu(app: ReviewApp, anchor: HTMLElement) {
 function walkthroughMenu(app: ReviewApp, anchor: HTMLElement) {
   const p = app.stackPr;
   const doc = app.walkthrough!;
-  const mine = p ? doc.chapters.filter((c) => c.pr === p.number) : [];
+  const mine = p && doc.chapters.some((c) => c.pr === p.number) ? doc.chapters.filter((c) => !c.pr || c.pr === p.number) : [];
   const slides = (cs: typeof doc.chapters) => cs.reduce((a, c) => a + c.steps.length, 0);
   popMenu(anchor, (close) => [
     menuLabel('Guided walkthrough'),

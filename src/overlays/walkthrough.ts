@@ -169,7 +169,8 @@ export function mountWalkthrough(app: ReviewApp) {
   app.root.append(root);
 
   const ctx = () => actor.getSnapshot().context;
-  const forPr = (n: number) => ({ ...app.walkthrough!, chapters: app.walkthrough!.chapters.filter((c) => c.pr === n) });
+  // this PR's chapters, and the stack-wide ones (an intro, a wrap-up) around them
+  const forPr = (n: number) => ({ ...app.walkthrough!, chapters: app.walkthrough!.chapters.filter((c) => !c.pr || c.pr === n) });
   const setScope = (to: 'pr' | 'stack') => {
     const { chapter, step } = current(ctx());
     app.bus.emit('walkthrough-open', { scope: to, chapter: chapter.id, step: step.id });
@@ -266,8 +267,11 @@ export function mountWalkthrough(app: ReviewApp) {
     );
     enter(stepBox);
     prev.toggleAttribute('disabled', cur.isFirst);
-    next.replaceChildren(cur.isLast ? 'Finish' : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
-    next.title = cur.isLast ? 'End the guided walkthrough' : 'Next slide';
+    // a stack: the last slide before another PR's chapter hands off to it
+    const after = step === n - 1 ? d!.chapters[chapter + 1] : undefined;
+    const handoff = after?.pr && after.pr !== ch.pr ? prs?.find((x) => x.number === after.pr) : undefined;
+    next.replaceChildren(cur.isLast ? 'Finish' : handoff ? `Next: #${handoff.number}` : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
+    next.title = cur.isLast ? 'End the guided walkthrough' : handoff ? `${ch.pr ? `#${ch.pr} done. ` : ''}Next, #${handoff.number}: ${handoff.title} (the code pane switches to its changes)` : 'Next slide';
     progress.replaceChildren(
       ...d!.chapters.map((c, ci) =>
         h(
@@ -314,7 +318,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const p = app.stackPr;
     if (app.meta.stack && to) {
       // this PR's chapters, or the whole stack resuming at this PR
-      scope = to === 'pr' && p && forPr(p.number).chapters.length ? 'pr' : 'stack';
+      scope = to === 'pr' && p && app.walkthrough.chapters.some((c) => c.pr === p.number) ? 'pr' : 'stack';
       actor.send({ type: 'load', doc: scope === 'pr' ? forPr(p!.number) : app.walkthrough });
       if (!chapter && scope === 'stack' && p) chapter = app.walkthrough.chapters.find((c) => c.pr === p.number)?.id;
       if (scope === 'pr' && !forPr(p!.number).chapters.some((c) => c.id === chapter)) {
