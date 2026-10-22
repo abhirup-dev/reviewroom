@@ -84,3 +84,18 @@ test('description markers: phrases, PR links and stack lists, not every #N', () 
   expect(bodyCandidates('**Current dependencies on/for this PR:**\n* **#20**\n  * **#21** \u{1f448}', 21)).toEqual([20]);
   expect(bodyCandidates('Closes #3', 4)).toEqual([]);
 });
+
+test('not a stack: an old merged PR of a long-lived branch, a branch of the same name in a fork, a branch PRs are cut from', async () => {
+  // develop -> main merged long ago, develop moved on since: a PR into develop is not stacked on it
+  const release = pr(10, 'main', 'develop', { state: 'MERGED' });
+  const feature = pr(11, 'develop', 'feat', { baseRefOid: 'f'.repeat(40) });
+  expect(await detectStack({ ...T, number: 11 }, github([release, feature]).q, never)).toBeNull();
+  // ...but merged with its branch where it was merged (not deleted yet): still the PR below
+  expect(nums(await detectStack({ ...T, number: 11 }, github([release, { ...feature, baseRefOid: release.headRefOid }]).q, never))).toEqual(['chain', 10, [10, 11]]);
+  // someone:develop, a fork's branch, is not this repo's develop
+  expect(await detectStack({ ...T, number: 11 }, github([{ ...release, state: 'OPEN', isCrossRepository: true }, feature]).q, never)).toBeNull();
+  // develop open into main with two open PRs into it: neither is stacked on it
+  expect(await detectStack({ ...T, number: 11 }, github([{ ...release, state: 'OPEN' }, feature, pr(12, 'develop', 'feat2')]).q, never)).toBeNull();
+  // a PR merged into this one's branch is in it already, not a layer on top
+  expect(nums(await detectStack({ ...T, number: 2 }, github([pr(1, 'main', 'a'), pr(2, 'a', 'b'), pr(3, 'b', 'c', { state: 'MERGED' })]).q, never))).toEqual(['chain', 1, [1, 2]]);
+});

@@ -13,6 +13,10 @@ export type Member = {
   baseRefName: string;
   headRefName: string;
   headRefOid: string;
+  /** the base branch's tip now (GitHub moves it with the branch) */
+  baseRefOid?: string;
+  /** its head is in a fork */
+  isCrossRepository?: boolean;
   additions: number;
   deletions: number;
   changedFiles: number;
@@ -28,7 +32,7 @@ export type Query = <T extends object>(query: string, vars?: Record<string, unkn
 export type IsAncestor = (a: string, b: string, n: number) => boolean;
 
 export const MAX_STACK = 20;
-const MEMBER = 'number title url state baseRefName headRefName headRefOid additions deletions changedFiles reviewDecision author { login }';
+const MEMBER = 'number title url state baseRefName headRefName headRefOid baseRefOid isCrossRepository additions deletions changedFiles reviewDecision author { login }';
 const NATIVE = `stack { number baseRefName entries(first: ${MAX_STACK}) { nodes { position pullRequest { number } } } }`;
 const pr = (native: boolean) => `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) {
   defaultBranchRef { name }
@@ -77,6 +81,7 @@ export async function detectStack(t: PrTarget, q: Query, isAncestor: IsAncestor)
   }
   const main = repo.defaultBranchRef?.name ?? 'main';
   const list = async (field: 'headRefName' | 'baseRefName', ref: string) => (await q<ListData>(byRef(field), { ref })).repository.pullRequests.nodes;
+  const openKids = async (ref: string) => (await list('baseRefName', ref)).filter((p) => p.state === 'OPEN' && !p.isCrossRepository);
   const seen = new Set([self.number]);
   let source: StackSource = 'chain';
   // up: the PR whose head is this one's base; at the default branch (merged below, retargeted), the description
@@ -84,8 +89,13 @@ export async function detectStack(t: PrTarget, q: Query, isAncestor: IsAncestor)
   let named: Member[] = []; // a stack list names the PRs further down too: they stay candidates
   for (let cur = self; below.length + 1 < MAX_STACK; ) {
     let parent: Member | undefined;
-    if (cur.baseRefName !== main) parent = (await list('headRefName', cur.baseRefName)).find((p) => !seen.has(p.number) && p.headRefName === cur.baseRefName);
-    else {
+    if (cur.baseRefName !== main) {
+      // same repo; merged only if its branch hasn't moved since (else a long-lived branch's old PR, e.g. develop -> main);
+      // and this PR its only open child (several: a branch PRs are cut from, not a stack)
+      const c = cur;
+      const p = (await list('headRefName', c.baseRefName)).find((p) => !seen.has(p.number) && p.headRefName === c.baseRefName && !p.isCrossRepository && (p.state === 'OPEN' || p.headRefOid === c.baseRefOid));
+      if (p && (await openKids(p.headRefName)).length === 1) parent = p;
+    } else {
       const found = named.filter((p) => isAncestor(p.headRefOid, cur.headRefOid, p.number));
       for (const n of bodyCandidates(cur.body ?? '', cur.number).filter((n) => !seen.has(n))) {
         // "#12" can be an issue, or a PR we can't see: not a member, not a reason to give up
@@ -102,10 +112,11 @@ export async function detectStack(t: PrTarget, q: Query, isAncestor: IsAncestor)
     below.unshift(parent);
     cur = parent;
   }
-  // down: the open (or merged) PR based on this one's head; two children is a fork, not a stack: stop there
+  // down: the open PR based on this one's head (a merged one is in this branch already); two children is a fork, not a
+  // stack: stop there
   const above: Member[] = [];
   for (let cur = self; below.length + above.length + 1 < MAX_STACK; ) {
-    const kids = (await list('baseRefName', cur.headRefName)).filter((p) => !seen.has(p.number));
+    const kids = (await openKids(cur.headRefName)).filter((p) => !seen.has(p.number));
     if (kids.length !== 1) break;
     seen.add(kids[0].number);
     above.push(kids[0]);
