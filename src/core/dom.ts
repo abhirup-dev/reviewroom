@@ -46,7 +46,15 @@ export const svg = (d: string, size = 16) => {
 const P = (d: string) => `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
 export const icons = {
   toc: P('M3 4h10M3 8h7M3 12h9'),
-  menu: P('M2.5 4h11M2.5 8h11M2.5 12h11'),
+  menu: P('M2.5 4.5h11M2.5 8h11M2.5 11.5h11'),
+  back: P('M13 8H3M7 4 3 8l4 4'),
+  home: P('M2.5 7.5 8 3l5.5 4.5M4 6.5v7h8v-7'),
+  book: P('M8 4.5c-1.5-1.3-3.5-1.8-5.5-1.5v9.5c2-.3 4 .2 5.5 1.5 1.5-1.3 3.5-1.8 5.5-1.5V3c-2-.3-4 .2-5.5 1.5zM8 4.5V14'),
+  theme: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 2.5v11'),
+  info: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 7.5v3.5M8 5.2v.1'),
+  history: P('M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5V5H5M8 5.5V8l2 1.5'),
+  section: P('M4 3h8M4 6.5h8M4 10h5'),
+  comment: P('M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2zM5.5 6.5h5M5.5 8.5h3'),
   files: P('M4 2.5h5l3 3v8H4z M9 2.5v3h3'),
   code: P('M6 4 2.5 8 6 12M10 4l3.5 4-3.5 4'),
   doc: P('M4 2.5h8v11H4zM6 5.5h4M6 8h4M6 10.5h2.5'),

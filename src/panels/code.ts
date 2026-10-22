@@ -596,7 +596,7 @@ class CodePanel implements PanelInstance {
       const f = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
       this.cv.scrollTo({ type: 'position', position: f * Math.max(0, this.cv.getScrollHeight() - this.cv.getHeight()) });
     };
-    onDrag(el, { start: scrub, move: (_, __, e) => scrub(e) });
+    onDrag(el, { start: (e) => (el.classList.add('is-dragging'), scrub(e)), move: (_, __, e) => scrub(e), end: () => el.classList.remove('is-dragging') });
   }
 
   /** Each file's share of the scroll, viewed and open-thread marks; the thumb where the view is. */

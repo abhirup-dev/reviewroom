@@ -36,7 +36,7 @@ type Chip = (typeof CHIPS)[number][0];
 const GROUP: Partial<Record<Item['kind'], string>> = { link: 'Link', file: 'Files', section: 'Sections', symbol: 'Symbols', text: 'Code', thread: 'Threads', command: 'Actions' };
 const ORDER: Item['kind'][] = ['link', 'file', 'section', 'symbol', 'text', 'thread', 'command'];
 
-const KIND_ICON: Record<Item['kind'], Parameters<typeof icon>[0]> = { command: 'chevron', file: 'files', section: 'doc', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
+const KIND_ICON: Record<Item['kind'], Parameters<typeof icon>[0]> = { command: 'chevron', file: 'files', section: 'section', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
 
 // ================================================================ palette
 export function mountPalette(app: ReviewApp) {
@@ -49,7 +49,12 @@ export function mountPalette(app: ReviewApp) {
   const chips = h('div', { class: 'rr-palette__chips', role: 'group', 'aria-label': 'Show', hidden: true });
   let chip: Chip = 'all';
   const recentKey = () => `reviewroom:recent:${app.meta.id}`;
-  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, input, chips, list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
+  // a phone's search bar: a pill with back and clear around the input
+  const clear = h('button', { class: 'rr-icon-btn rr-palette__clear', 'aria-label': 'Clear', title: 'Clear', hidden: true, onclick: () => ((input.value = ''), input.dispatchEvent(new Event('input')), input.focus()) }, icon('close', 20));
+  const field = phone
+    ? h('div', { class: 'rr-palette__bar' }, h('button', { class: 'rr-icon-btn', 'aria-label': 'Back', title: 'Back', onclick: () => close() }, icon('back', 24)), input, clear)
+    : input;
+  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, field, chips, list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
   document.body.append(box);
   let items: Item[] = [];
   let sel = 0;
@@ -154,12 +159,13 @@ export function mountPalette(app: ReviewApp) {
     const q = input.value;
     const all = [...(/^[#/]/.test(q) || grouped() ? remote : []), ...local(q)].filter((i) => !pick || i.ref).sort((a, b) => b.score - a.score);
     chips.hidden = !grouped();
+    clear.hidden = !q;
     if (grouped()) {
       const typed = !!q.trim();
       const count = (c: Chip) => (c === 'all' ? all.length : all.filter((i) => i.kind === c).length);
       chips.replaceChildren(
         ...CHIPS.map(([c, label]) =>
-          h('button', { class: 'rr-palette__chip' + (c === chip ? ' is-on' : ''), 'aria-pressed': String(c === chip), onclick: () => ((chip = c), (sel = 0), paint(), input.focus()) }, label, c === 'symbol' && !remote.length ? null : h('span', null, String(count(c)))),
+          h('button', { class: 'rr-palette__chip' + (c === chip ? ' is-on' : ''), 'aria-pressed': String(c === chip), onclick: () => ((chip = c), (sel = 0), paint(), input.focus()) }, c === chip ? icon('check', 16) : null, label, c === 'symbol' && !remote.length ? null : h('span', null, String(count(c)))),
         ),
       );
       const shown = all.filter((i) => chip === 'all' || i.kind === chip);
@@ -175,11 +181,12 @@ export function mountPalette(app: ReviewApp) {
       ...groups.flatMap(([label, g]) => [
         label ? h('div', { class: 'rr-palette__group' }, label) : null,
         ...g.map((it) => {
+          const kind = label === 'Recent' ? 'history' : KIND_ICON[it.kind];
           const n = i++;
           return h(
             'div',
             { class: 'rr-palette__item' + (n === sel ? ' is-sel' : ''), role: 'option', 'aria-selected': String(n === sel), onmousemove: () => n !== sel && ((sel = n), paint()), onclick: () => choose(n) },
-            h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(KIND_ICON[it.kind], 12)),
+            h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(kind, phone ? 16 : 12)),
             h('span', { class: 'rr-palette__label' }, it.label),
             it.detail ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
             it.keys?.length ? h('kbd', null, keyLabel(it.keys[0])) : null,
@@ -230,7 +237,7 @@ export function mountPalette(app: ReviewApp) {
     remote = [];
     chip = 'all';
     input.value = initial;
-    input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : 'Jump to a file, section, thread or command…';
+    input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : phone ? 'Search this review' : 'Jump to a file, section, thread or command…';
     if (!box.open) box.showModal();
     if (isPhone()) stopKb ??= trackKeyboard();
     paint();

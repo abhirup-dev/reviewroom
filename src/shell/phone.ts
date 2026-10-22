@@ -16,10 +16,10 @@ export const isPhone = () => (picked ??= wantsPhone());
 type Open = { id: string; title: string; params?: Record<string, unknown>; host: HTMLElement; inst: PanelInstance };
 type Page = { id: string; title: string; params?: Record<string, unknown> };
 type AreaId = 'read' | 'code' | 'threads' | 'files';
-type Area = { id: AreaId; el: HTMLElement; strip: HTMLElement; pager: HTMLElement; pages: Page[]; sig: string; page: string };
+type Area = { id: AreaId; el: HTMLElement; strip: HTMLElement; ind: HTMLElement; pager: HTMLElement; pages: Page[]; sig: string; page: string };
 
 const AREAS: { id: AreaId; title: string; icon: Parameters<typeof icon>[0] }[] = [
-  { id: 'read', title: 'Read', icon: 'doc' },
+  { id: 'read', title: 'Read', icon: 'book' },
   { id: 'code', title: 'Code', icon: 'code' },
   { id: 'threads', title: 'Threads', icon: 'thread' },
   { id: 'files', title: 'Files', icon: 'files' },
@@ -91,6 +91,7 @@ export class PhoneShell {
   private sheetBacks = new Map<string, () => void>();
   private trail: { prev: AreaId; drop: () => void }[] = [];
   private peekTitle = h('span', { class: 'rr-phone-peek-title' });
+  private peekLines = h('span', { class: 'rr-phone-peek-lines' });
 
   constructor(
     private app: ReviewApp,
@@ -108,20 +109,23 @@ export class PhoneShell {
     app.bus.on('reveal-code', (t) => {
       this.peekNext = !t.panel && !!t.start && this.area !== 'code';
       if (this.peekNext) this.peekAt = t;
-      if (this.peekNext) this.peekTitle.textContent = `${t.path.split('/').pop()}:${t.start}${t.end && t.end !== t.start ? '–' + t.end : ''}`;
+      if (!this.peekNext) return;
+      this.peekTitle.textContent = t.path.split('/').pop()!;
+      this.peekLines.textContent = `${t.start}${t.end && t.end !== t.start ? '–' + t.end : ''}`;
     });
     for (const a of AREAS) {
       const strip = h('div', { class: 'rr-phone-toptabs', role: 'tablist' });
+      const ind = h('span', { class: 'rr-phone-toptabs__ind', 'aria-hidden': 'true' });
       const pager = h('div', { class: 'rr-phone-pager' });
-      const area: Area = { id: a.id, el: h('section', { class: 'rr-phone-area', 'data-area': a.id, 'aria-label': a.title }, strip, pager), strip, pager, pages: [], sig: '', page: '' };
-      // the page under the finger once the pager settles (a swipe, or a tap on a tab scrolling it)
-      pager.addEventListener('scroll', () => this.settle(area), { passive: true });
+      const area: Area = { id: a.id, el: h('section', { class: 'rr-phone-area', 'data-area': a.id, 'aria-label': a.title }, strip, pager), strip, ind, pager, pages: [], sig: '', page: '' };
+      // the page under the finger once the pager settles (a swipe, or a tap on a tab scrolling it); the indicator follows
+      pager.addEventListener('scroll', () => (this.settle(area), this.slide(area)), { passive: true });
       this.areas.set(a.id, area);
       this.stage.append(area.el);
     }
     this.peekHead(this.areas.get('code')!.el);
     // a resized pager (rotation, the URL bar) keeps the page it was on
-    new ResizeObserver(() => this.areas.forEach((a) => this.scrollTo(a, a.page, 'instant'))).observe(this.stage);
+    new ResizeObserver(() => this.areas.forEach((a) => (this.scrollTo(a, a.page, 'instant'), this.slide(a)))).observe(this.stage);
     host.append(this.stage, comment, this.nav);
     app.bus.on('state', () => this.paintBar());
     app.bus.on('prefs', () => this.paintNav());
@@ -132,15 +136,23 @@ export class PhoneShell {
 
   /** The peek's handle: drag it up past 70% of the screen for the Code area, down to close; or its two buttons. */
   private peekHead(code: HTMLElement) {
-    const expand = h('button', { class: 'rr-icon-btn', 'aria-label': 'Open in Code', title: 'Open in the Code area', onclick: () => this.expand() }, icon('maximize', 16));
-    const close = h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', onclick: () => this.unpeek() }, icon('close', 16));
-    const head = h('div', { class: 'rr-phone-peek-head', title: 'Drag up to open in the Code area, down to close' }, h('span', { class: 'rr-phone-peek-grip', 'aria-hidden': 'true' }), this.peekTitle, expand, close);
+    const expand = h('button', { class: 'rr-icon-btn', 'aria-label': 'Open in Code', title: 'Open in the Code area', onclick: () => this.expand() }, icon('maximize', 20));
+    const close = h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', onclick: () => this.unpeek() }, icon('close', 20));
+    const head = h(
+      'div',
+      { class: 'rr-phone-peek-head', title: 'Drag up to open in the Code area, down to close' },
+      h('span', { class: 'rr-phone-peek-grip', 'aria-hidden': 'true' }),
+      h('div', { class: 'rr-phone-peek-row' }, this.peekTitle, this.peekLines, h('span', { class: 'rr-toolbar__spacer' }), expand, close),
+    );
     let from = 0;
     onDrag(head, {
       start: () => ((from = code.offsetHeight), code.classList.add('is-dragging')),
-      move: (_, dy) => code.style.setProperty('--rr-peek-h', `${Math.max(0, from - dy)}px`),
+      move: (_, dy) => {
+        code.style.setProperty('--rr-peek-h', `${Math.max(0, from - dy)}px`);
+        code.classList.toggle('is-rising', (from - dy) / this.stage.clientHeight > 0.7); // the scrim, only up there
+      },
       end: (_, dy) => {
-        code.classList.remove('is-dragging');
+        code.classList.remove('is-dragging', 'is-rising');
         code.style.removeProperty('--rr-peek-h');
         const frac = (from - dy) / this.stage.clientHeight;
         if (frac > 0.7) this.expand();
@@ -152,6 +164,12 @@ export class PhoneShell {
 
   /** The peek becomes the Code area, its lines landed again for the taller view. */
   private expand() {
+    // it keeps rising from where it was (the expressive spring, phone.css) and lands as the Code area
+    const code = this.areas.get('code')!.el;
+    code.style.setProperty('--rr-from', `${code.offsetTop}px`);
+    code.classList.remove('is-landing');
+    void code.offsetWidth;
+    code.classList.add('is-landing');
     this.setArea('code');
     if (this.peekAt) this.app.bus.emit('reveal-code', this.peekAt);
   }
@@ -213,23 +231,29 @@ export class PhoneShell {
       area.strip.hidden = pages.length < 2;
       area.strip.replaceChildren(
         ...pages.map((p) =>
-          h('button', { class: 'rr-phone-toptab', role: 'tab', 'data-id': p.id, onclick: () => this.scrollTo(area, p.id, 'smooth') }, p.title),
+          h('button', { class: 'rr-phone-toptab', role: 'tab', 'data-id': p.id, onclick: () => this.scrollTo(area, p.id, 'smooth') }, h('span', null, p.title)),
         ),
+        area.ind,
       );
       if (!pages.some((p) => p.id === area.page)) area.page = pages[0]?.id ?? '';
-      requestAnimationFrame(() => this.scrollTo(area, area.page, 'instant'));
+      requestAnimationFrame(() => (this.scrollTo(area, area.page, 'instant'), this.slide(area)));
       this.paintTabs(area);
     }
     this.paintNav();
   }
 
+  private navArea = '';
   private paintNav() {
     const open = this.app.openThreadCount();
+    // the indicator grows from the centre when the area changes (not on every repaint)
+    const moved = this.navArea !== this.area;
+    this.navArea = this.area;
     this.nav.replaceChildren(
       ...AREAS.map((a) => {
-        const b = h('button', { class: 'rr-phone-tab', 'data-area': a.id, 'aria-current': String(a.id === this.area), title: a.title });
-        b.append(icon(a.icon, 18), h('span', null, a.title));
-        if (a.id === 'threads' && open) b.append(h('span', { class: 'rr-badge rr-phone-tab__badge', title: `${open} open thread${open > 1 ? 's' : ''}` }, String(open)));
+        const b = h('button', { class: 'rr-phone-tab' + (moved && a.id === this.area ? ' is-new' : ''), 'data-area': a.id, 'aria-current': String(a.id === this.area), title: a.title });
+        const pill = h('span', { class: 'rr-phone-tab__pill' }, icon(a.icon, 24));
+        b.append(pill, h('span', { class: 'rr-phone-tab__label' }, a.title));
+        if (a.id === 'threads' && open) pill.append(h('span', { class: 'rr-badge rr-phone-tab__badge', title: `${open} open thread${open > 1 ? 's' : ''}` }, String(open)));
         b.onclick = () => (this.sheets.forEach((s) => this.close(s)), this.setArea(a.id));
         return b;
       }),
@@ -238,6 +262,19 @@ export class PhoneShell {
 
   private paintTabs(area: Area) {
     area.strip.querySelectorAll<HTMLElement>('.rr-phone-toptab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.id === area.page)));
+  }
+
+  /** The tab indicator under the page the pager shows, between two labels mid-swipe (width and place blended). */
+  private slide(area: Area) {
+    const tabs = [...area.strip.querySelectorAll<HTMLElement>('.rr-phone-toptab > span')];
+    const w = area.pager.clientWidth;
+    if (!tabs.length || !w) return;
+    const f = Math.max(0, Math.min(tabs.length - 1, area.pager.scrollLeft / w));
+    const [a, b] = [tabs[Math.floor(f)], tabs[Math.ceil(f)]];
+    const t = f - Math.floor(f);
+    const [left, right] = [a.offsetLeft, b.offsetLeft]; // the strip is their offsetParent
+    area.ind.style.transform = `translateX(${left + (right - left) * t}px)`;
+    area.ind.style.width = `${a.offsetWidth + (b.offsetWidth - a.offsetWidth) * t}px`;
   }
 
   private scrollTo(area: Area, page: string, behavior: ScrollBehavior) {
