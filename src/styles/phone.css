@@ -561,3 +561,102 @@
   color: var(--rr-faint);
   font: var(--rr-text-xs) / 1.3 var(--rr-mono);
 }
+
+/* the guided review on a phone (overlays/walkthrough.ts): full screen, a status bar of close and "Chapter n of N ·
+   title", the code filling the screen, the slide as a card at the bottom over its progress and Back / Comment / Next */
+.is-phone .rr-tour__player {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'top' 'code' 'card' 'bar';
+  padding-top: env(safe-area-inset-top);
+}
+.is-phone .rr-tour__body {
+  display: contents;
+}
+.is-phone .rr-tour__top {
+  grid-area: top;
+  height: var(--rr-header-h);
+  gap: 2px;
+  padding: 0 8px 0 4px;
+}
+/* chapter arrows, open in the workbench and pause: the card and Back do those on a phone */
+.is-phone .rr-tour__top > .rr-tour__flip,
+.is-phone .rr-tour__top > .rr-icon-btn:not(:last-child) {
+  display: none;
+}
+.is-phone .rr-tour__top > .rr-icon-btn:last-child {
+  order: -2;
+  width: 40px;
+  height: 40px;
+}
+.is-phone .rr-tour__pos {
+  display: inline;
+  order: -1;
+  margin: 0 0 0 4px;
+}
+.is-phone .rr-tour__pos::after {
+  content: '·';
+  margin-left: 6px;
+  color: var(--rr-faint);
+}
+.is-phone .rr-tour__chapter {
+  flex: 1;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.is-phone .rr-tour__right {
+  grid-area: code;
+}
+.is-phone .rr-tour__tools {
+  display: none;
+}
+.is-phone .rr-tour__left {
+  grid-area: card;
+  max-height: 44dvh;
+  padding: 14px 16px 6px;
+  border: 1px solid var(--rr-line-strong);
+  border-width: 1px 0 0;
+  border-radius: var(--rr-radius-lg) var(--rr-radius-lg) 0 0;
+  box-shadow: 0 -8px 20px rgb(0 0 0 / 0.12);
+  touch-action: pan-y;
+  z-index: 1;
+}
+.is-phone .rr-tour__left .rr-prose {
+  font-size: 15px;
+}
+.is-phone .rr-tour__actions {
+  display: none;
+}
+.is-phone .rr-tour__bottom {
+  grid-area: bar;
+  z-index: 1;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  row-gap: 10px;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  border-top: 0;
+  background: var(--rr-surface-doc);
+}
+.is-phone .rr-tour__progress {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+.is-phone .rr-tour__seg-title {
+  display: none;
+}
+.is-phone .rr-tour__comment {
+  justify-self: center;
+  height: 36px;
+}
+.is-phone .rr-tour__back {
+  height: 36px;
+}
+.is-phone .rr-tour__back svg {
+  transform: scaleX(-1);
+}
+.is-phone .rr-tour__next {
+  height: 36px;
+}

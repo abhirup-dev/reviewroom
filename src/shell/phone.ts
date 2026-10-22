@@ -36,7 +36,8 @@ const backs: Entry[] = [];
 let skip = 0; // popstates our own history.back() calls cause
 // entries opened while such a back is on its way wait for it (pushed before it lands, it would go back over them)
 const flush = () => backs.forEach((e, i) => !e.pushed && ((e.pushed = true), history.pushState({ rrBack: i + 1 }, '')));
-function onBack(close: () => void) {
+/** A history entry for a layer; returns what to call when it closes some other way. */
+export function onBack(close: () => void) {
   const e: Entry = { close, pushed: false };
   backs.push(e);
   if (!skip) flush();

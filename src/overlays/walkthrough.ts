@@ -13,6 +13,7 @@ import { current, deepLink, paneMachine, target, walkthroughMachine, type CodeAt
 import type { ReviewApp } from '../shell/app';
 import { menuItem, popMenu } from '../shell/chrome';
 import { panelDefs, type PanelInstance } from '../shell/layout';
+import { isPhone, onBack } from '../shell/phone';
 import { displayTools } from '../panels/code';
 import { inFocus, stepRefs, type StepAudit, type Walkthrough } from '../shared/walkthrough';
 import { measure, settle } from './walkthrough-audit';
@@ -185,6 +186,35 @@ export function mountWalkthrough(app: ReviewApp) {
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   app.root.append(root);
+  if (isPhone()) phonePlayer();
+  /** A phone plays full screen (walkthrough.css): code above a slide card whose own row has Back, Comment and Next,
+   *  the card swipes to the next or previous slide, and Back (the phone's) closes the player. */
+  function phonePlayer() {
+    prev.replaceChildren(icon('chevron', 14), h('span', null, 'Back'));
+    prev.className = 'rr-btn rr-tour__back';
+    next.before(comment);
+    let from: { x: number; y: number } | null = null;
+    left.addEventListener('pointerdown', (e) => (from = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY } : null));
+    left.addEventListener('pointercancel', () => (from = null)); // the card scrolled instead
+    left.addEventListener('pointerup', (e) => {
+      if (!from || getSelection()?.toString()) return;
+      const dx = e.clientX - from.x;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(e.clientY - from.y)) {
+        if (dx < 0) next.click();
+        else prev.click();
+      }
+      from = null;
+    });
+    let drop: (() => void) | undefined;
+    actor.subscribe((s) => {
+      const playing = s.matches({ open: 'playing' });
+      if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
+      else if (!playing && drop) {
+        drop();
+        drop = undefined;
+      }
+    });
+  }
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
