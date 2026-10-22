@@ -10,6 +10,7 @@
 // Everything else - docking layout, diffs, files, contents, threads, rounds,
 // palette, theming - is provided. See skills/reviewroom/references/authoring.md.
 import cssText from './styles/bundle.css' with { type: 'text' };
+import { canInstall, install } from './shell/install'; // first: it listens for Chrome's install prompt
 import { h } from './core/dom';
 import { parseRef, formatRef } from './core/refs';
 import { anchorOf } from './shared/refs';
@@ -259,6 +260,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', when: canArrange, run: () => resetLayout(app) },
     ...Object.keys(layouts(app)).map((id) => layoutCommand(app, id)),
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },
+    { id: 'app.install', title: 'Install app', group: 'View', hint: 'Its own window; on a phone, an icon on the home screen', when: canInstall, run: () => void install() },
     { id: 'theme.system', title: 'Theme: follow system', group: 'View', run: () => app.setPref('theme', 'system') },
     { id: 'diff.split', title: 'Toggle split / unified diff', group: 'Code', keys: ['s'], scope: 'code', run: () => app.setPref('diffStyle', app.prefs.diffStyle === 'split' ? 'unified' : 'split') },
     { id: 'diff.wrap', title: 'Toggle line wrap', group: 'Code', keys: ['w'], scope: 'code', run: () => app.setPref('wrap', !app.prefs.wrap) },

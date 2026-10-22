@@ -7,6 +7,7 @@ import { feedbackMarkdown } from '../shared/feedback';
 import { isPhone } from './phone';
 import { applyLayout, canUndoLayout, closePanel, deleteLayout, ensurePanel, hasPanel, layouts, panelDefs, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
+import { canInstall, install, installButton } from './install';
 import type { GitHubAction } from '../shared/schema';
 
 // ---------------------------------------------------------------- tiny menu
@@ -232,11 +233,12 @@ export function buildHeader(app: ReviewApp): HTMLElement {
     const picking = app.root.classList.contains('is-picking');
     const themeName = app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme;
     const cycleTheme = () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system');
-    const moreBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'More', title: 'More: pick an element to comment on, theme, all reviews', 'aria-haspopup': 'menu' }, icon('dots', 16));
+    const moreBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'More', title: 'More: pick an element to comment on, theme, install, all reviews', 'aria-haspopup': 'menu' }, icon('dots', 16));
     moreBtn.onclick = () =>
       popMenu(moreBtn, (close) => [
         menuItem('Pick an element to comment on', () => (close(), app.bus.emit('picker', true)), { icon: 'target' }),
         menuItem(`Theme: ${themeName}`, () => (close(), cycleTheme()), { icon: themeIcon, hint: 'switch' }),
+        canInstall() ? menuItem('Install app', () => (close(), void install()), { icon: 'install', hint: 'home screen' }) : null,
         app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open(location.pathname.startsWith('/r/') ? '/' : '/api/hub', '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
       ]);
     bar.replaceChildren(
@@ -280,6 +282,7 @@ export function buildHeader(app: ReviewApp): HTMLElement {
             : moreBtn
           : h('button', { class: 'rr-hbtn rr-hbtn--icon' + (picking ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
         phone ? null : layoutBtn,
+        phone ? null : installButton(),
         phone ? null : h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${themeName}. Click to switch`, 'aria-label': 'Toggle theme', onclick: cycleTheme }, icon(themeIcon, 16)),
         app.teamMode
           ? h(

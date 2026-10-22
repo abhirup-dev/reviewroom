@@ -371,6 +371,17 @@ kbd {
 .rr-toolbar__spacer {
   flex: 1;
 }
+/* install controls show only while installing is possible (src/shell/install.ts) */
+:root:not([data-rr-installable]) .rr-install-btn {
+  display: none;
+}
+.rr-install-steps p {
+  margin: 0;
+}
+.rr-install-steps svg {
+  display: inline-block;
+  vertical-align: -2px;
+}
 .rr-seg {
   display: inline-flex;
   border: 1px solid var(--rr-line);

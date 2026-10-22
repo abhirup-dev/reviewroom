@@ -1,5 +1,6 @@
 // The hub's page (`reviewroom hub`): every review running on this machine, refreshed every 2 s from the hub's
 // own server (a review server refuses requests from other ports). Filter, sort, open, close.
+import { installButton } from '../shell/install'; // first: it listens for Chrome's install prompt
 import { backdropCloses, h, icon, relTime } from '../core/dom';
 import { mountTooltips } from '../overlays/tooltip';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
@@ -136,6 +137,8 @@ document.body.append(
       'header',
       { class: 'rr-header' },
       h('div', { class: 'rr-header__id' }, h('div', { class: 'rr-mark', 'aria-hidden': 'true' }, 'rr'), h('div', { class: 'rr-header__titles' }, h('div', { class: 'rr-header__title' }, 'All reviews'), meta)),
+      h('div', { class: 'rr-toolbar__spacer' }),
+      installButton(true),
     ),
     banners,
     h(
