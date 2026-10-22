@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { h, icon, threadBadge, threadCounts } from '../core/dom';
+import { h, icon, onDrag, threadBadge, threadCounts } from '../core/dom';
 import { formatRef } from '../core/refs';
 import { plainExcerpt } from '../core/markdown';
 import { oldToNewLine } from '../core/hunks';
@@ -9,6 +9,7 @@ import type { ChangedFile, Thread } from '../core/types';
 import { addPanelAt, definePanel, setPanelTitle, type PanelInstance, type Placement } from '../shell/layout';
 import { openCentered } from '../shell/focus';
 import { popMenu, menuItem, menuLabel } from '../shell/chrome';
+import { isPhone } from '../shell/phone';
 import type { CodeTarget, ReviewApp } from '../shell/app';
 import { createActor, fromPromise, type Actor } from 'xstate';
 import { revealMachine, type Prepared } from '../flows/reveal';
@@ -112,6 +113,8 @@ class CodePanel implements PanelInstance {
   private head?: HTMLElement;
   /** Reveals (src/flows/reveal.ts): a new one cancels the last one's wait, unfold and glow. */
   private revealer: Actor<typeof revealMachine>;
+  /** A phone's Code area: a segment per file down the right edge (drag it to scrub) and where the view is on it. */
+  private rail?: { el: HTMLElement; thumb: HTMLElement; sig: string };
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
     this.isPrimary = panelId === 'code';
@@ -143,7 +146,8 @@ class CodePanel implements PanelInstance {
       }),
     ).start();
     // read the position once CodeView's frame has settled it (mid-jump it rebases its paged scroll)
-    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => this.trackActive()), { passive: true });
+    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => (this.trackActive(), this.paintRail())), { passive: true });
+    if (isPhone() && this.isPrimary) this.mountRail();
 
     this.offs.push(
       app.bus.on('files', () => this.rebuild()),
@@ -302,6 +306,8 @@ class CodePanel implements PanelInstance {
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
+    // a phone's Code area: the header names where it is ("2 / 5") and its path opens the list of files
+    const list = isPhone() && this.isPrimary;
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => {
       this.toggleCollapse(f.path, cb.checked);
@@ -318,11 +324,14 @@ class CodePanel implements PanelInstance {
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added in this PR', modified: 'Modified', deleted: 'Deleted in this PR', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h(
         'button',
-        { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, f.status === 'deleted' ? 'base' : 'head') },
+        list
+          ? { class: 'rr-file__path', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement) }
+          : { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, f.status === 'deleted' ? 'base' : 'head') },
         f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' → ') : null,
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),
       ),
+      list ? h('button', { class: 'rr-file__pos', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement) }, `${[...this.files.keys()].indexOf(f.path) + 1} / ${this.files.size}`, icon('chevronDown', 12)) : null,
       h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
@@ -575,8 +584,67 @@ class CodePanel implements PanelInstance {
     this.app.compose({ kind: 'code', path, rev: side, start, end });
   }
 
+  // ------------------------------------------------------------ phone: the file rail
+  private mountRail() {
+    // a slider (focusable): a finger's touch lands on it, not on the code beside it
+    const el = h('div', { class: 'rr-code-rail', role: 'slider', tabindex: '-1', 'aria-label': 'Files: drag to scrub through them', 'aria-orientation': 'vertical', title: 'Files: drag to scrub through them' });
+    const thumb = h('div', { class: 'rr-code-rail__thumb' });
+    this.rail = { el, thumb, sig: '' };
+    this.element.append(el);
+    const scrub = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const f = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      this.cv.scrollTo({ type: 'position', position: f * Math.max(0, this.cv.getScrollHeight() - this.cv.getHeight()) });
+    };
+    onDrag(el, { start: scrub, move: (_, __, e) => scrub(e) });
+  }
+
+  /** Each file's share of the scroll, viewed and open-thread marks; the thumb where the view is. */
+  private paintRail() {
+    const rail = this.rail;
+    if (!rail || this.mode !== 'diff') return void (rail && (rail.el.hidden = true));
+    const total = this.cv.getScrollHeight();
+    const ids = [...this.files.keys()];
+    rail.el.hidden = ids.length < 2 || !total;
+    if (rail.el.hidden) return;
+    const tops = ids.map((id) => this.cv.getTopForItem(id) ?? 0);
+    const cur = this.fileAt(40);
+    const open = (path: string) => this.app.threads().some((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === path);
+    const sig = JSON.stringify([total, tops, cur, ids.map((id) => [this.app.state.viewed[id] !== undefined, open(id)])]);
+    if (sig !== rail.sig) {
+      rail.sig = sig;
+      rail.el.replaceChildren(
+        ...ids.map((id, i) =>
+          h('div', {
+            class: 'rr-code-rail__seg' + (i === cur ? ' is-current' : '') + (this.app.state.viewed[id] !== undefined ? ' is-viewed' : '') + (open(id) ? ' has-threads' : ''),
+            style: { flexGrow: String(Math.max(1, (tops[i + 1] ?? total) - tops[i])) },
+          }),
+        ),
+        rail.thumb,
+      );
+    }
+    rail.el.setAttribute('aria-valuetext', `File ${cur + 1} of ${ids.length}: ${ids[cur] ?? ''}`);
+    rail.thumb.style.top = `${(this.cv.getScrollTop() / total) * 100}%`;
+    rail.thumb.style.height = `${(this.cv.getHeight() / total) * 100}%`;
+  }
+
+  /** A phone's file list, from a file's header: jump to any, its viewed and open-thread marks beside it. */
+  private fileList(anchor: HTMLElement) {
+    popMenu(anchor, (close) => [
+      menuLabel(`${this.files.size} files`),
+      ...[...this.files.values()].map(({ file: f }) => {
+        const open = this.app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path).length;
+        return menuItem(f.path.split('/').pop()!, () => (close(), this.reveal({ path: f.path, side: f.status === 'deleted' ? 'base' : 'head' })), {
+          checked: this.app.state.viewed[f.path] !== undefined,
+          hint: open ? `${open} open` : STATUS[f.status],
+        });
+      }),
+    ]);
+  }
+
   onShow() {
     this.trackActive();
+    this.paintRail();
   }
   dispose() {
     this.revealer.stop();
