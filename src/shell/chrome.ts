@@ -7,6 +7,7 @@ import { feedbackMarkdown } from '../shared/feedback';
 import { applyLayout, canUndoLayout, closePanel, deleteLayout, ensurePanel, hasPanel, layouts, panelDefs, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layout';
 import type { ReviewApp } from './app';
 import { canInstall, install, installButton } from './install';
+import { updateReady } from './pwa';
 import type { GitHubAction } from '../shared/schema';
 
 // ---------------------------------------------------------------- tiny menu
@@ -142,7 +143,7 @@ export function submitReviewDialog(app: ReviewApp) {
 /** GitHub status + the Agent/Team switch: shown only for reviews of a GitHub PR. */
 function githubControls(app: ReviewApp) {
   const g = app.github;
-  if (!g || (!g.ok && !g.threads?.length && /not a GitHub/.test(g.error ?? ''))) return [];
+  if (!g || !app.onGitHub) return [];
   const warn = !!g.error || !!g.stale;
   const btn = h(
     'button',
@@ -159,8 +160,12 @@ function githubControls(app: ReviewApp) {
       menuItem('Refresh comments', () => (close(), app.refreshGitHub().then(() => app.toast('GitHub comments refreshed')))),
       g.url ? menuItem('Open the PR on GitHub', () => (close(), window.open(g.url, '_blank', 'noopener')), { icon: 'popout' }) : null,
     ]);
-  if (!g.ok) return [btn];
-  const seg = h(
+  return g.ok ? [btn, reviewModeSwitch(app)] : [btn];
+}
+
+/** Agent / Team / All: where new comments go and which threads are listed (a GitHub PR's review mode). */
+function reviewModeSwitch(app: ReviewApp) {
+  return h(
     'div',
     { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Review mode: where new comments go and which threads are listed' },
     ...(['agent', 'team', 'all'] as const).map((m) =>
@@ -180,7 +185,6 @@ function githubControls(app: ReviewApp) {
       ),
     ),
   );
-  return [btn, seg];
 }
 
 // ---------------------------------------------------------------- header
@@ -325,13 +329,12 @@ export function buildHeader(app: ReviewApp): HTMLElement {
 }
 
 /** The phone's status bar: menu, the review's title over "repo · Round N" (tap: rounds), search, play, send. */
-export function buildPhoneBar(app: ReviewApp, openMenu: (anchor: HTMLElement) => void): HTMLElement {
+export function buildPhoneBar(app: ReviewApp): HTMLElement {
   const m = app.meta;
   const bar = h('header', { class: 'rr-header rr-phonebar' });
   const paint = () => {
     const picking = app.root.classList.contains('is-picking');
-    const menuBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Menu', title: 'Menu: all reviews, theme, install, pick an element to comment on' }, icon('menu', 18));
-    menuBtn.onclick = () => openMenu(menuBtn);
+    const menuBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Menu', title: 'Menu: all reviews, theme, install, pick an element to comment on', onclick: () => openDrawer(app) }, icon('menu', 18));
     const sub = [m.repo?.split('/').pop(), app.teamMode ? 'Team review' : `Round ${app.viewRound && app.viewRound !== app.state.round ? app.viewRound + ' of ' + app.state.round : app.state.round}`].filter(Boolean).join(' · ');
     const titles = h(
       'button',
@@ -356,14 +359,63 @@ export function buildPhoneBar(app: ReviewApp, openMenu: (anchor: HTMLElement) =>
   return bar;
 }
 
-/** The phone's menu (until the drawer): what the desktop header has that a phone still needs. */
-export function phoneMenu(app: ReviewApp, anchor: HTMLElement) {
-  popMenu(anchor, (close) => [
-    menuItem('Pick an element to comment on', () => (close(), app.bus.emit('picker', true)), { icon: 'target' }),
-    menuItem(`Theme: ${themeName(app)}`, () => (close(), cycleTheme(app)), { icon: app.resolvedTheme() === 'dark' ? 'moon' : 'sun', hint: 'switch' }),
-    canInstall() ? menuItem('Install app', () => (close(), void install()), { icon: 'install', hint: 'home screen' }) : null,
-    app.backend.kind === 'server' ? menuItem('All reviews', () => (close(), window.open(hubHref(), '_blank')), { icon: 'popout', hint: 'on this machine' }) : null,
-  ]);
+/** The phone's menu: a drawer from the left with the review's facts and what the desktop header has that a phone
+ *  still needs (no layouts: a phone has none). A modal dialog, so Esc, a tap outside and Back close it. */
+export function openDrawer(app: ReviewApp) {
+  const m = app.meta;
+  const g = app.github;
+  const close = () => box.close();
+  const item = (label: string, ic: Parameters<typeof icon>[0], run: () => void, title?: string) =>
+    h('button', { class: 'rr-drawer__item', title, onclick: () => (close(), run()) }, icon(ic, 18), h('span', null, label));
+  const open = app.openThreadCount();
+  const theme = h(
+    'div',
+    { class: 'rr-seg rr-drawer__theme', role: 'group', 'aria-label': 'Theme' },
+    ...(['light', 'system', 'dark'] as const).map((t) =>
+      h('button', { class: app.prefs.theme === t ? 'is-on' : '', 'aria-pressed': String(app.prefs.theme === t), onclick: (e: Event) => {
+        app.setPref('theme', t);
+        (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('button').forEach((b) => (b.className = b === e.currentTarget ? 'is-on' : '', b.setAttribute('aria-pressed', String(b === e.currentTarget))));
+      } }, { light: 'Light', system: 'Auto', dark: 'Dark' }[t]),
+    ),
+  );
+  const update = updateReady();
+  const box = h(
+    'dialog',
+    { class: 'rr-drawer', 'aria-label': 'Menu', onmousedown: backdropCloses, onclose: () => box.remove() },
+    h(
+      'header',
+      { class: 'rr-drawer__head' },
+      h('div', { class: 'rr-drawer__title' }, m.title),
+      h('div', { class: 'rr-drawer__facts' }, [m.repo, m.number ? `PR #${m.number}` : null, `Round ${app.state.round}`, `${open} open thread${open === 1 ? '' : 's'}`].filter(Boolean).join(' · ')),
+    ),
+    h(
+      'nav',
+      { class: 'rr-drawer__list' },
+      app.backend.kind === 'server' ? item('All reviews', 'files', () => window.open(hubHref(), '_blank'), 'Every review running on this machine') : null,
+      item('Search', 'search', () => app.openPalette('')),
+      app.walkthrough ? item('Play guided review', 'play', () => app.bus.emit('walkthrough-open', {})) : null,
+      ...(app.onGitHub
+        ? [
+            h('div', { class: 'rr-drawer__label' }, 'GitHub'),
+            g?.url ? item('Open PR on GitHub', 'github', () => window.open(g.url, '_blank', 'noopener')) : null,
+            item('Refresh comments', 'round', () => void app.refreshGitHub().then(() => app.toast('GitHub comments refreshed'))),
+            g?.ok ? h('div', { class: 'rr-drawer__row' }, h('span', null, 'Review'), reviewModeSwitch(app)) : null,
+          ]
+        : []),
+      h('div', { class: 'rr-drawer__label' }, 'Review'),
+      item('Pick an element to comment on', 'target', () => app.bus.emit('picker', true)),
+      h('div', { class: 'rr-drawer__row' }, h('span', null, 'Theme'), theme),
+      canInstall() ? item('Install app', 'install', () => void install(), 'An icon on the home screen, in a window of its own') : null,
+    ),
+    h(
+      'footer',
+      { class: 'rr-drawer__foot' },
+      h('span', null, `reviewroom · build ${__RR_BUILD__}`),
+      update ? h('button', { class: 'rr-link-btn', title: 'Reload into the new version of reviewroom', onclick: update }, 'Update ready: reload') : h('span', null, 'Up to date'),
+    ),
+  );
+  document.body.append(box);
+  box.showModal();
 }
 
 const short = (s: string) => (/^[0-9a-f]{12,}$/.test(s) ? s.slice(0, 7) : s);

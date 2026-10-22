@@ -27,6 +27,50 @@ const AREAS: { id: AreaId; title: string; icon: Parameters<typeof icon>[0] }[] =
 /** reviewroom's own panels; any other (an agent's) is a page of Read, as it joins the narrative's tabs in the dock */
 const OWN = ['narrative', 'description', 'recap', 'code', 'threads', 'files', 'toc', 'ci', 'thread', 'slot'];
 
+// Back (Android's button, the browser's): each layer opened (a dialog such as the menu, search or a thread; the code
+// peek; a sheet) and each area visited is a history entry, and Back closes the newest. A layer closed some other way
+// takes its entry back out. Chrome on Android closes a modal dialog on Back by itself (a close watcher), without
+// traversing history: its close then drops the entry like any other.
+type Entry = { close: () => void; pushed: boolean };
+const backs: Entry[] = [];
+let skip = 0; // popstates our own history.back() calls cause
+// entries opened while such a back is on its way wait for it (pushed before it lands, it would go back over them)
+const flush = () => backs.forEach((e, i) => !e.pushed && ((e.pushed = true), history.pushState({ rrBack: i + 1 }, '')));
+function onBack(close: () => void) {
+  const e: Entry = { close, pushed: false };
+  backs.push(e);
+  if (!skip) flush();
+  return () => {
+    const i = backs.indexOf(e);
+    if (i < 0) return; // Back closed it
+    backs.splice(i, 1);
+    if (!e.pushed) return;
+    skip++;
+    history.back();
+  };
+}
+/** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
+const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
+function watchBack() {
+  addEventListener('popstate', (e: PopStateEvent) => {
+    if (skip) return void (--skip || flush());
+    // as deep as the entry Back (or the browser's history menu) went to
+    const depth = (e.state as { rrBack?: number } | null)?.rrBack ?? 0;
+    while (backs.length > depth) backs.pop()!.close();
+  });
+  const open = new Map<HTMLDialogElement, () => void>();
+  new MutationObserver((ms) => {
+    for (const { target: d } of ms) {
+      if (!(d instanceof HTMLDialogElement)) continue;
+      if (d.open && !open.has(d)) open.set(d, onBack(() => dismiss(d)));
+      else if (!d.open && open.has(d)) {
+        open.get(d)!();
+        open.delete(d);
+      }
+    }
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+}
+
 export class PhoneShell {
   private open = new Map<string, Open>();
   private sheets: string[] = []; // on-demand panels, newest last
@@ -41,6 +85,10 @@ export class PhoneShell {
   private peekNext = false;
   private peeking = false;
   private peekAt?: CodeTarget;
+  /** history entries (see onBack): the peek's, each sheet's, and the areas visited before this one */
+  private peekBack?: () => void;
+  private sheetBacks = new Map<string, () => void>();
+  private trail: { prev: AreaId; drop: () => void }[] = [];
   private peekTitle = h('span', { class: 'rr-phone-peek-title' });
 
   constructor(
@@ -49,6 +97,7 @@ export class PhoneShell {
     private available: (id: string) => boolean,
   ) {
     host.classList.add('rr-phone');
+    watchBack();
     // no c key on a phone: a selection (text in the narrative, lines in code) gets a button instead
     const comment = this.comment;
     comment.onclick = () => (app.commands.run('comment.selection'), (comment.hidden = true));
@@ -107,6 +156,7 @@ export class PhoneShell {
   }
 
   private peek() {
+    if (!this.peeking) this.peekBack = onBack(() => this.unpeek());
     this.peeking = true;
     this.areas.get('code')!.el.classList.add('is-peek');
     this.paint();
@@ -115,6 +165,7 @@ export class PhoneShell {
   private unpeek() {
     if (!this.peeking) return;
     this.peeking = false;
+    this.peekBack?.();
     this.areas.get('code')!.el.classList.remove('is-peek');
     this.paint();
   }
@@ -208,9 +259,22 @@ export class PhoneShell {
     if (o) requestAnimationFrame(() => o.inst.onShow?.());
   }
 
-  private setArea(id: AreaId) {
+  /** `back`: Back brought it here (no new history entry). */
+  private setArea(id: AreaId, back = false) {
     this.unpeek(); // into the Code area (the same view, now full) or away from it
     const was = this.area;
+    if (id !== was && !back) {
+      const top = this.trail.at(-1);
+      if (top?.prev === id) {
+        // back where Back would go: the same as going back
+        this.trail.pop();
+        top.drop();
+      } else {
+        const step = { prev: was, drop: () => {} };
+        step.drop = onBack(() => (this.trail.splice(this.trail.indexOf(step), 1), this.setArea(step.prev, true)));
+        this.trail.push(step);
+      }
+    }
     this.area = id;
     for (const a of this.areas.values()) a.el.classList.toggle('is-current', a.id === id);
     this.paintNav();
@@ -283,6 +347,7 @@ export class PhoneShell {
       return true;
     }
     if (!this.mount(id, params)) return false;
+    if (!this.sheetBacks.has(id)) this.sheetBacks.set(id, onBack(() => this.close(id)));
     this.sheets = [...this.sheets.filter((s) => s !== id), id];
     this.paint();
     return true;
@@ -291,6 +356,8 @@ export class PhoneShell {
   close(id: string) {
     if (!this.sheets.includes(id)) return; // pages stay mounted (like a dock tab you switch away from); sheets are thrown away
     this.sheets = this.sheets.filter((s) => s !== id);
+    this.sheetBacks.get(id)?.();
+    this.sheetBacks.delete(id);
     this.drop(id);
     this.paint();
   }

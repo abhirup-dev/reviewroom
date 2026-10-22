@@ -43,6 +43,10 @@ function busy(app?: ReviewApp): Busy {
   };
 }
 
+/** A newer build is waiting for a reload (held over unsent work): what to call to take it. Read by the phone's menu. */
+let ready: (() => void) | null = null;
+export const updateReady = () => ready;
+
 /** Start the update flow. `app` (the review page) adds its unsent ops and server restarts; the hub passes none. */
 export function startUpdates(app?: ReviewApp) {
   const entry = import.meta.url;
@@ -75,6 +79,7 @@ export function startUpdates(app?: ReviewApp) {
   const want = (why: string, nuke = false) => {
     console.info(`[reviewroom] reload due: ${why}`);
     due = { nuke: nuke || !!due?.nuke };
+    ready = () => void reload();
     tryReload();
   };
 

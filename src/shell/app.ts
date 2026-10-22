@@ -333,6 +333,11 @@ export class ReviewApp {
     const src = this.threadSources();
     return this.threads().filter((t) => !t.gh?.conversation && t.status === 'open' && src.has(t.gh ? 'github' : 'agent')).length;
   }
+  /** A review of a GitHub PR (reachable or not): what offers its GitHub controls. */
+  get onGitHub() {
+    const g = this.github;
+    return !!g && !(!g.ok && !g.threads?.length && /not a GitHub/.test(g.error ?? ''));
+  }
   /** Team mode: new code and general comments go to GitHub by default instead of the agent. */
   get teamMode() {
     return this.prefs.reviewMode === 'team' && !!this.github?.ok;

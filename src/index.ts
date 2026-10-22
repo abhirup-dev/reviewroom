@@ -22,7 +22,7 @@ import { isPhone } from './shell/phone';
 import { watchShell } from './shell/device';
 import { mountDock, mountPhone, applyLayout, canArrange, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import type { LastLayout } from './shared/layout';
-import { buildHeader, buildPhoneBar, phoneMenu, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
+import { buildHeader, buildPhoneBar, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
 import { BrowserState, GitHubProvider, LocalProvider, ServerState, StaticProvider, type CodeProvider, type Fixture, type StateBackend } from './providers';
 import { defineElements, provideApp, renderPreview } from './elements';
 import { mountThreadPopup } from './overlays/thread';
@@ -148,7 +148,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
 
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
-  root.replaceChildren(isPhone() ? buildPhoneBar(app, (anchor) => phoneMenu(app, anchor)) : buildHeader(app), dockHost);
+  root.replaceChildren(isPhone() ? buildPhoneBar(app) : buildHeader(app), dockHost);
   root.classList.add('rr-root');
   mountToasts(app);
   mountTooltips(app);
@@ -287,7 +287,7 @@ function registerCommands(app: ReviewApp) {
     } },
     { id: 'comment.general', title: 'New general comment', group: 'Comments', run: () => app.compose({ kind: 'general' }) },
     { id: 'round.send', title: 'Finish round & send feedback (Team review: submit your GitHub review)', group: 'Rounds', keys: ['mod+shift+enter'], run: () => (app.teamMode ? submitReviewDialog(app) : sendDialog(app)) },
-    { id: 'github.refresh', title: 'Refresh GitHub comments', group: 'GitHub', run: () => app.refreshGitHub() },
+    { id: 'github.refresh', title: 'Refresh GitHub comments', group: 'GitHub', when: () => app.onGitHub, run: () => app.refreshGitHub() },
     { id: 'round.current', title: 'Back to current round', group: 'Rounds', run: () => app.bus.emit('round-view', 0) },
     { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
       // innermost first: overlays (newest first), then the selection, then pick mode
