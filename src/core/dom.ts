@@ -150,6 +150,25 @@ export function onLongPress(fn: (path: EventTarget[]) => boolean) {
   for (const t of ['contextmenu', 'mousedown', 'click']) document.addEventListener(t, swallow, true);
 }
 
+/** A finger (or mouse) dragging `el`, a handle: `move` and `end` get how far it went from where it started. Presses on
+ *  a button inside it stay clicks. */
+export function onDrag(el: HTMLElement, on: { start?(e: PointerEvent): void; move(dx: number, dy: number, e: PointerEvent): void; end?(dx: number, dy: number, e: PointerEvent): void }) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || (e.target as Element).closest('button')) return;
+    const { clientX: x, clientY: y } = e;
+    el.setPointerCapture(e.pointerId);
+    on.start?.(e);
+    const move = (m: PointerEvent) => on.move(m.clientX - x, m.clientY - y, m);
+    const up = (u: PointerEvent) => {
+      for (const [t, f] of [['pointermove', move], ['pointerup', up], ['pointercancel', up]] as const) el.removeEventListener(t, f as EventListener);
+      on.end?.(u.clientX - x, u.clientY - y, u);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+}
+
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { style: 'narrow', numeric: 'auto' });

@@ -4,8 +4,8 @@
 // keep working). On-demand panels (a thread, a code pop-out) open as a full-screen sheet over them with a back
 // button. The layout.ts facade sends every panel request here when this shell is mounted, so the rest of the app
 // doesn't know.
-import { h, icon } from '../core/dom';
-import type { ReviewApp } from './app';
+import { h, icon, onDrag } from '../core/dom';
+import type { CodeTarget, ReviewApp } from './app';
 import { panelDefs, type PanelInstance } from './layout';
 import { wantsPhone } from './device';
 
@@ -37,6 +37,11 @@ export class PhoneShell {
   private comment = h('button', { class: 'rr-btn rr-btn--primary rr-phone-comment', hidden: true });
   /** the panel in front when the selection was made: Comment shows only while that panel is */
   private selectedIn = '';
+  /** A code link tapped outside the Code area peeks: the Code area as a bottom sheet over the page, at its lines. */
+  private peekNext = false;
+  private peeking = false;
+  private peekAt?: CodeTarget;
+  private peekTitle = h('span', { class: 'rr-phone-peek-title' });
 
   constructor(
     private app: ReviewApp,
@@ -49,6 +54,12 @@ export class PhoneShell {
     comment.onclick = () => (app.commands.run('comment.selection'), (comment.hidden = true));
     comment.append(icon('thread', 14), 'Comment');
     app.bus.on('selection', (s) => ((this.selectedIn = s ? this.front() : ''), this.paint()));
+    // before the code panel hears it (it mounts below): lines to show from elsewhere peek, a whole file opens the area
+    app.bus.on('reveal-code', (t) => {
+      this.peekNext = !t.panel && !!t.start && this.area !== 'code';
+      if (this.peekNext) this.peekAt = t;
+      if (this.peekNext) this.peekTitle.textContent = `${t.path.split('/').pop()}:${t.start}${t.end && t.end !== t.start ? '–' + t.end : ''}`;
+    });
     for (const a of AREAS) {
       const strip = h('div', { class: 'rr-phone-toptabs', role: 'tablist' });
       const pager = h('div', { class: 'rr-phone-pager' });
@@ -58,6 +69,7 @@ export class PhoneShell {
       this.areas.set(a.id, area);
       this.stage.append(area.el);
     }
+    this.peekHead(this.areas.get('code')!.el);
     // a resized pager (rotation, the URL bar) keeps the page it was on
     new ResizeObserver(() => this.areas.forEach((a) => this.scrollTo(a, a.page, 'instant'))).observe(this.stage);
     host.append(this.stage, comment, this.nav);
@@ -65,7 +77,46 @@ export class PhoneShell {
     app.bus.on('prefs', () => this.paintNav());
     this.paintBar();
     this.show('narrative');
-    app.escapers.push(() => (this.sheets.length ? (this.close(this.sheets.at(-1)!), true) : false));
+    app.escapers.push(() => (this.peeking ? (this.unpeek(), true) : this.sheets.length ? (this.close(this.sheets.at(-1)!), true) : false));
+  }
+
+  /** The peek's handle: drag it up past 70% of the screen for the Code area, down to close; or its two buttons. */
+  private peekHead(code: HTMLElement) {
+    const expand = h('button', { class: 'rr-icon-btn', 'aria-label': 'Open in Code', title: 'Open in the Code area', onclick: () => this.expand() }, icon('maximize', 16));
+    const close = h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', onclick: () => this.unpeek() }, icon('close', 16));
+    const head = h('div', { class: 'rr-phone-peek-head', title: 'Drag up to open in the Code area, down to close' }, h('span', { class: 'rr-phone-peek-grip', 'aria-hidden': 'true' }), this.peekTitle, expand, close);
+    let from = 0;
+    onDrag(head, {
+      start: () => ((from = code.offsetHeight), code.classList.add('is-dragging')),
+      move: (_, dy) => code.style.setProperty('--rr-peek-h', `${Math.max(0, from - dy)}px`),
+      end: (_, dy) => {
+        code.classList.remove('is-dragging');
+        code.style.removeProperty('--rr-peek-h');
+        const frac = (from - dy) / this.stage.clientHeight;
+        if (frac > 0.7) this.expand();
+        else if (frac < 0.25) this.unpeek();
+      },
+    });
+    code.prepend(head);
+  }
+
+  /** The peek becomes the Code area, its lines landed again for the taller view. */
+  private expand() {
+    this.setArea('code');
+    if (this.peekAt) this.app.bus.emit('reveal-code', this.peekAt);
+  }
+
+  private peek() {
+    this.peeking = true;
+    this.areas.get('code')!.el.classList.add('is-peek');
+    this.paint();
+  }
+
+  private unpeek() {
+    if (!this.peeking) return;
+    this.peeking = false;
+    this.areas.get('code')!.el.classList.remove('is-peek');
+    this.paint();
   }
 
   /** Each area's pages, in order; those that don't apply (no Last round, no CI) are left out. */
@@ -158,6 +209,7 @@ export class PhoneShell {
   }
 
   private setArea(id: AreaId) {
+    this.unpeek(); // into the Code area (the same view, now full) or away from it
     const was = this.area;
     this.area = id;
     for (const a of this.areas.values()) a.el.classList.toggle('is-current', a.id === id);
@@ -213,6 +265,12 @@ export class PhoneShell {
   /** Open (if needed) and bring to the front; false if there's no such panel. */
   show(id: string, params?: Record<string, unknown>) {
     const area = this.areaOf(id);
+    if (area?.id === 'code' && this.peekNext) {
+      this.peekNext = false;
+      if (!this.peeking) this.shown(id);
+      this.peek();
+      return true;
+    }
     if (area) {
       this.sheets.forEach((s) => this.close(s));
       this.setArea(area.id);
@@ -237,7 +295,7 @@ export class PhoneShell {
     this.paint();
   }
 
-  private front = () => this.sheets.at(-1) ?? this.areas.get(this.area)!.page;
+  private front = () => (this.peeking ? 'code' : (this.sheets.at(-1) ?? this.areas.get(this.area)!.page));
 
   private paint() {
     const front = this.front();

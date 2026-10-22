@@ -289,3 +289,61 @@
   min-height: 44px;
   max-height: 30dvh;
 }
+
+/* the code peek (shell/phone.ts): the Code area as a bottom sheet over the page, its handle on top; dragged up it
+   becomes the Code area, down it closes. Clear of the on-screen keyboard (shell/keyboard.ts) */
+.rr-phone-peek-head {
+  display: none;
+}
+.rr-phone-area.is-peek {
+  visibility: visible;
+  z-index: 3;
+  top: auto;
+  bottom: max(0px, calc(var(--rr-kb, 0px) - 56px));
+  height: var(--rr-peek-h, 42%);
+  max-height: 100%;
+  border-top: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-radius-lg) var(--rr-radius-lg) 0 0;
+  box-shadow: var(--rr-shadow-lg);
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rr-phone-area.is-peek:not(.is-dragging) {
+    animation: rr-sheet-up 0.18s ease-out;
+    transition: height 0.16s ease-out;
+  }
+}
+.is-peek .rr-phone-peek-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface);
+  touch-action: none;
+  position: relative;
+}
+.rr-phone-peek-grip {
+  position: absolute;
+  top: 5px;
+  left: calc(50% - 18px);
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+.rr-phone-peek-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--rr-text-sm) / 1 var(--rr-mono);
+  padding-top: 4px;
+}
+/* peeking, the lines are all there is room for */
+.is-peek .rr-code-panel > .rr-toolbar {
+  display: none;
+}
