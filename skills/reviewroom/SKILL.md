@@ -86,6 +86,17 @@ diagram, table and widget for that width, never for a wide page.
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
 
+### A stack of PRs
+
+The reviewer sees the whole stack or one layer at a time (the requested PR's, first). Read each layer on its own:
+`reviewroom status --json` lists every PR with its base and head, and `git diff <base> <head>` of one PR is its layer.
+Wrap each PR's sections in `<section data-pr="<n>">`, bottom PR first; stack-wide sections (an overview, risks across
+PRs) go without it. Plain `rr:code` links inside a `data-pr` section read at that PR's head (`@pr:<n>` reaches another
+layer). The client groups the Contents by PR and dims the other PRs' sections when the reviewer narrows to one.
+
+A stack is a big review. Past three or four PRs, write the requested PR in depth and the others as a short section each,
+or give each PR's chapter to its own subagent and write the overview and hand-offs yourself.
+
 ## Step 4b: Write the guided walkthrough, when wanted
 
 Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
@@ -101,6 +112,11 @@ reviewroom walkthrough shot <chapter>/<step> --dir <dir>  # look at a slide a fi
 
 (`reviewroom walkthrough …` and `walkthrough.json` are the guided walkthrough's names.) Each finding
 names the chapter/step and how to fix it. Take a screenshot only of slides you need to see.
+
+In a stack, write one chained guided walkthrough: give each chapter about one PR its `pr`, bottom first, and leave it
+off the intro and wrap-up. The reviewer plays the whole stack, or one PR (its chapters with the stack-wide ones); the
+code pane switches to a chapter's layer, and the player hands off to the next PR itself, so don't write a slide that
+only says "next PR".
 
 ## Step 4c: Hand over
 

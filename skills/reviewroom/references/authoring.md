@@ -43,7 +43,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:code/pkg/x.go@base#L45` | The same file at the base (`@<sha>` for any other commit) |
 | `rr:code/pkg/x.go@pr:366#L45` | A stack of PRs: the lines in PR #366's layer, at its head (`@pr:366:base`: the PR below's head). Opening it shows that layer; it survives a force-push. Also `rr:file/…@pr:<n>` |
 
-In a stack, plain `rr:code`/`rr:file` links inside an element with `data-pr="<n>"` in review.html, or in a guided walkthrough chapter with `pr`, are checked (`reviewroom check`) at that PR's layer, as if they said `@pr:<n>`.
+In a stack, plain `rr:code`/`rr:file` links inside an element with `data-pr="<n>"` in review.html, or in a guided walkthrough chapter with `pr`, are checked (`reviewroom check`) at that PR's layer, as if they said `@pr:<n>`, and open there. `data-pr` also groups the Contents by PR and dims the other PRs' sections while the reviewer looks at one layer (an attribute on them, `data-rr-out`; your content is untouched).
 | `rr:code/pkg/x.go` | The whole file; for a file in the diff its preview shows the changed hunks |
 | `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
 | `rr:sym/Builder.Build` | A symbol narrowed by its receiver, type or package (`habit.RecentEvents`) |
