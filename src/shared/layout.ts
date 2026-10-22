@@ -5,6 +5,7 @@ import reading from '../layouts/reading.json';
 import wideCode from '../layouts/wide-code.json';
 import codeFocus from '../layouts/code-focus.json';
 import narrativeFocus from '../layouts/narrative-focus.json';
+import tablet from '../layouts/tablet.json';
 
 /** `size` along the parent split: > 1 is pixels, <= 1 a fraction of what the pixel-sized siblings leave;
  *  unsized children share the rest. A split inside a split of the same direction is flattened. */
@@ -21,7 +22,7 @@ export const LayoutId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,47}$/);
 /** The id a layout saved as `title` gets ('' if the title has no letters or digits). */
 export const layoutId = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
 /** The layouts reviewroom ships (src/layouts/): always there, never replaced by a saved one. */
-export const builtinLayouts = { reading, 'wide-code': wideCode, 'code-focus': codeFocus, 'narrative-focus': narrativeFocus } as Record<string, Layout>;
+export const builtinLayouts = { reading, 'wide-code': wideCode, 'code-focus': codeFocus, 'narrative-focus': narrativeFocus, tablet } as Record<string, Layout>;
 
 // dockview's serialised grid, as much of it as this file reads and writes
 type Orientation = 'HORIZONTAL' | 'VERTICAL';

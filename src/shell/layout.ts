@@ -6,6 +6,7 @@ import type { ReviewApp } from './app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from '../flows/layout';
 import { PhoneShell } from './phone';
+import { isTablet } from './device';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from '../shared/layout';
 
 export interface PanelDef {
@@ -33,8 +34,8 @@ export const panelDefs = () => [...registry.values()];
 // ---------------------------------------------------------------- layout files
 /** Every layout by name: the shipped ones, then the reviewer's saved ones (in menu and alt+N order). */
 export const layouts = (app: ReviewApp): Record<string, Layout> => ({ ...builtinLayouts, ...app.layouts });
-// the review's starting layout: the reviewer's default, else its layout="" attribute, else Reading
-const startId = (app: ReviewApp) => [app.defaultLayout ?? '', app.root.getAttribute('layout') ?? '', 'reading'].find((id) => layouts(app)[id])!;
+// the review's starting layout: the reviewer's default, else Tablet on a tablet, else its layout="" attribute, else Reading
+const startId = (app: ReviewApp) => [app.defaultLayout ?? '', isTablet() ? 'tablet' : '', app.root.getAttribute('layout') ?? '', 'reading'].find((id) => layouts(app)[id])!;
 
 // the layout the dock was last built from: closed panels and the PR's late panels go back where it puts them
 let current: Layout | undefined;

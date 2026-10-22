@@ -4,11 +4,11 @@
 import { h, icon } from '../core/dom';
 import type { ReviewApp } from './app';
 import { panelDefs, type PanelInstance } from './layout';
+import { wantsPhone } from './device';
 
-/** A phone (touch and narrow), or `?phone` to try the shell on a desktop. Picked once at boot: turning the phone
- *  sideways later doesn't swap the shell (or the prefs) under the reviewer. */
+/** A phone (see device.ts). Picked once at boot: the shell (and the prefs) never swap under the reviewer. */
 let picked: boolean | undefined;
-export const isPhone = () => (picked ??= matchMedia('(pointer: coarse) and (max-width: 720px)').matches || new URLSearchParams(location.search).has('phone'));
+export const isPhone = () => (picked ??= wantsPhone());
 
 type Open = { id: string; title: string; params?: Record<string, unknown>; host: HTMLElement; inst: PanelInstance };
 

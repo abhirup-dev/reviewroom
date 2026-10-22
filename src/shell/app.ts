@@ -79,7 +79,7 @@ export interface AppEvents extends Record<string, unknown> {
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
   walkthrough: Walkthrough | null;
-  toast: { text: string; kind?: 'info' | 'error' };
+  toast: { text: string; kind?: 'info' | 'error'; action?: { label: string; run: () => void } };
 }
 
 const isTest = (p: string) => /(^|\/)(__tests__|tests?|spec)(\/)|[._-](test|spec)\.[a-z]+$|_test\.go$/.test(p);
@@ -440,8 +440,8 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ misc
-  toast(text: string, kind: 'info' | 'error' = 'info') {
-    this.bus.emit('toast', { text, kind });
+  toast(text: string, kind: 'info' | 'error' = 'info', action?: { label: string; run: () => void }) {
+    this.bus.emit('toast', { text, kind, action });
   }
   showPanel(id: string) {
     return showPanel(this, id);

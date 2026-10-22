@@ -17,6 +17,7 @@ import { renderMarkdown } from './core/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './core/types';
 import { ReviewApp } from './shell/app';
 import { isPhone } from './shell/phone';
+import { watchShell } from './shell/device';
 import { mountDock, mountPhone, applyLayout, canArrange, canUndoLayout, definePanel, ensurePanel, layoutCommand, layouts, offerGitHubPanels, resetLayout, undoLayout, type PanelDef } from './shell/layout';
 import type { LastLayout } from './shared/layout';
 import { buildHeader, saveLayoutDialog, sendDialog, submitReviewDialog } from './shell/chrome';
@@ -152,6 +153,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   const tour = mountWalkthrough(app);
   if (isPhone()) mountPhone(app, dockHost);
   else mountDock(app, dockHost, lastLayout);
+  watchShell(app, isPhone());
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.commands.attach(document);
