@@ -59,6 +59,9 @@ describe('hub', () => {
       expect(page).not.toContain('"/_rr/reviewroom.js"');
       expect((await fetch(r + '_rr/reviewroom.js')).headers.get('cache-control')).toBe('no-cache');
       expect(await (await fetch(r + 'api/state')).json()).toEqual(await (await fetch(review + 'api/state')).json());
+      // the client keys its storage by meta.id: the review id, whichever way it is reached
+      expect((await (await fetch(review + 'api/meta')).json()).id).toBe(r.split('/').at(-2));
+      expect((await (await fetch(r + 'api/meta')).json()).id).toBe(r.split('/').at(-2));
       const red = await fetch(r.slice(0, -1), { redirect: 'manual' });
       expect([red.status, new URL(red.headers.get('location')!, hub).href]).toEqual([302, r]);
     });
@@ -137,16 +140,25 @@ describe('hub', () => {
 describe('hub with a public origin', () => {
   const { tmp, cli, serve } = setup();
   const pub = 'https://mac.tailnet.ts.net';
+  let started = { stdout: '', stderr: '' };
   const settings = () => JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'config.json'), 'utf8'));
   let hub = '';
   beforeAll(async () => {
     await serve();
     expect((await cli(['hub', '--public-origin', 'mac.tailnet.ts.net'])).code).toBe(1); // not an origin
-    hub = (await cli(['hub', '--public-origin', pub + '/', '--detach', '--no-open', '--port', '0'])).stdout.trim();
+    started = await cli(['hub', '--public-origin', pub + '/', '--detach', '--no-open', '--port', '0']);
+    hub = started.stdout.trim();
   });
   afterAll(() => cli(['hub', '--stop']));
 
   test('is saved in ~/.reviewroom/config.json', () => expect(settings()).toEqual({ publicOrigin: pub }));
+
+  test('`--detach` and a second `hub` print the public URL beside the loopback one', async () => {
+    expect(started.stderr).toContain(`public: ${pub}/`);
+    const again = await cli(['hub', '--no-open']);
+    expect(again.stdout.trim()).toBe(hub);
+    expect(again.stderr).toContain(`public: ${pub}/`);
+  });
 
   test('a request on the public origin passes, and its writes reach the review', async () => {
     const as = { host: 'mac.tailnet.ts.net', 'sec-fetch-site': 'same-origin' };

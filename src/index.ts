@@ -12,6 +12,7 @@
 import cssText from './styles/bundle.css' with { type: 'text' };
 import { canInstall, install } from './shell/install'; // first: it listens for Chrome's install prompt
 import { h } from './core/dom';
+import { rekeyStorage } from './core/store';
 import { parseRef, formatRef } from './core/refs';
 import { anchorOf } from './shared/refs';
 import { renderMarkdown } from './core/markdown';
@@ -124,7 +125,9 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.title ||= document.title || 'Code review';
     meta.base ||= 'base';
     meta.head ||= 'head';
-    meta.id ||= [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
+    const titleId = [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
+    meta.id ||= titleId; // the server sends its review id: titles collide once every review shares the hub's origin
+    rekeyStorage(titleId, meta.id);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
     app.backend = backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.id, seedState ?? undefined, seedTour);

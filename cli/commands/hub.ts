@@ -35,7 +35,9 @@ function savePublicOrigin(v: string) {
   console.error(origin ? `reviewroom: public origin ${origin} saved in ${settingsFile()}` : 'reviewroom: public origin cleared');
 }
 
-const readHub = (): ServerRecord | null => {
+/** hub.json: the hub's server record and the public origin it was started with. */
+type HubRecord = ServerRecord & { publicOrigin?: string };
+const readHub = (): HubRecord | null => {
   try {
     return JSON.parse(fs.readFileSync(hubFile(), 'utf8'));
   } catch {
@@ -46,6 +48,8 @@ const readHub = (): ServerRecord | null => {
 // One hub per machine: a second `hub` points at the running one.
 export async function cmdHub(o: HubOpts) {
   const show = (url: string) => (console.log(url), o.open && openBrowser(url, true));
+  // stdout stays the loopback URL (scripts read it); the public one goes with the status line
+  const pubNote = (pub = readHub()?.publicOrigin) => (pub ? ` | public: ${pub}/` : '');
   if (o.publicOrigin !== undefined) savePublicOrigin(o.publicOrigin);
   const live = await liveHub();
   if (o.stop) {
@@ -53,14 +57,14 @@ export async function cmdHub(o: HubOpts) {
     return console.log(live ? `stopped the hub on port ${live.port}` : 'no hub running');
   }
   if (live) {
-    console.error(`reviewroom: the hub is already running (pid ${live.pid})${o.publicOrigin !== undefined ? '; restart it (`reviewroom hub --stop`, then `reviewroom hub`) to use the new public origin' : ''}`);
+    console.error(`reviewroom: the hub is already running (pid ${live.pid})${pubNote()}${o.publicOrigin !== undefined ? '; restart it (`reviewroom hub --stop`, then `reviewroom hub`) to use the new public origin' : ''}`);
     return show(live.url);
   }
   if (!fs.existsSync(path.join(DIST, 'hub.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   if (o.detach) {
     const url = await ensureHub(o.port);
     if (!url) fail(`the hub did not start - see ${hubLog()}`);
-    console.error('reviewroom: hub running in the background | stop it with `reviewroom hub --stop`');
+    console.error(`reviewroom: hub running in the background${pubNote()} | stop it with \`reviewroom hub --stop\``);
     return show(url);
   }
   let stale = '';
@@ -76,7 +80,7 @@ export async function cmdHub(o: HubOpts) {
     if (!pub || (e as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw e;
     fail(`port ${port} is taken; with a public origin the hub stays on it (the front points there)`);
   }
-  const rec: ServerRecord = { pid: process.pid, port: server.port!, url: `http://127.0.0.1:${server.port}/`, startedAt: new Date().toISOString() };
+  const rec: HubRecord = { pid: process.pid, port: server.port!, url: `http://127.0.0.1:${server.port}/`, startedAt: new Date().toISOString(), ...(pub ? { publicOrigin: pub } : {}) };
   // hub.json is the claim: created exclusively, so of two hubs started at once only one is ever published
   fs.mkdirSync(path.dirname(hubFile()), { recursive: true });
   for (let i = 0; ; i++) {
@@ -90,7 +94,7 @@ export async function cmdHub(o: HubOpts) {
     if (other || i >= 20) {
       void server.stop(true);
       if (!other) fail(`${hubFile()} is held by a hub that does not answer`);
-      console.error(`reviewroom: the hub is already running (pid ${other.pid})`);
+      console.error(`reviewroom: the hub is already running (pid ${other.pid})${pubNote()}`);
       return show(other.url);
     }
     // a hub that died without cleaning up, or one still starting: give it a moment, then take the file over

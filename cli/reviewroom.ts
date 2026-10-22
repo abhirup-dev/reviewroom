@@ -143,7 +143,8 @@ const notes: Record<string, string> = {
     '  Each running review is also served through the hub at /r/<id>/ (<id>: first 12 hex of sha1 of its dir).',
     '  For a phone: put a front that ends in HTTPS in front of 127.0.0.1:4847 (tailscale serve on your tailnet,',
     '  a tunnel with an access policy) and save its origin with --public-origin, kept in ~/.reviewroom/config.json',
-    '  and read when the hub starts. The hub then answers that Host and Origin too and stays on its port. Anyone',
+    '  and read when the hub starts. The hub then answers that Host and Origin too and stays on its port, and',
+    '  `hub`, `hub --detach` and a second `hub` print that public URL on stderr (stdout stays the loopback URL). Anyone',
     '  the front lets through can read and write every running review: reviewroom checks no identity.',
   ].join('\n'),
   check: [

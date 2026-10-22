@@ -2,7 +2,6 @@
 // reviewroom sessions are first-party: a record counts only while its server answers with its own pid
 // (x-reviewroom-pid), a record whose server is gone is deleted, and counts come from GET /api/summary.
 // Crit and Plannotator sessions are checked with kill -0 and only hidden when dead; their files stay.
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { classifySession, sessionOpenUrl } from './classify.ts';
@@ -12,7 +11,7 @@ import { type Agent, agentAncestor, lsofCwd, processCommand, runCapture } from '
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/shared/hub.ts';
 import { alive } from '../lib/lock.ts';
-import { stopServer, unregister } from '../lib/registry.ts';
+import { reviewId, stopServer, unregister } from '../lib/registry.ts';
 import { registryDir } from '../lib/paths.ts';
 
 export interface HubOptions {
@@ -48,14 +47,14 @@ function withAgent(info: SessionInfo, agent: Agent | null, source: string) {
   if (agent) Object.assign(info, { origin: agent.name, originSource: source, parentAgentPid: agent.pid, parentAgentGroup: `${agent.name}:${agent.pid}` });
 }
 
-/** A review's id in the hub's /r/<id>/: stable across rounds, restarts and ports (ADR 0001). */
-export const reviewId = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 12);
 const mtime = (p: string) => fs.statSync(p, { throwIfNoEntry: false })?.mtimeMs ?? 0;
 
 const getJson = async (url: string, timeout: number) => {
   const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(timeout) });
   return { res, body: res.ok ? ((await res.json()) as Record<string, unknown>) : null };
 };
+
+export { reviewId };
 
 export class Hub {
   readonly pollIntervalMs: number;

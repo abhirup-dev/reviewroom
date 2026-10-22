@@ -10,7 +10,7 @@ import type { ReviewConfig } from './config.ts';
 import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
-import { ensureHub } from './registry.ts';
+import { ensureHub, reviewId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
 import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
 import { makeGitHub } from './github.ts';
@@ -234,7 +234,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  app.get('/api/meta', (c) => json(c, prov.meta()));
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir) })); // id: the same for direct and proxied access
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));

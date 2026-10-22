@@ -45,3 +45,23 @@ export function loadRaw(key: string): string | null {
     return null;
   }
 }
+
+/** Per-review keys (`reviewroom:layout:<id>`, `reviewroom:draft:<id>:<thread>`) were once by title, which reviews
+ *  sharing the hub's origin can share: move what an older build kept under `oldId` to `id`, never over newer data. */
+export function rekeyStorage(oldId: string, id: string, store?: Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'>) {
+  if (oldId === id) return;
+  try {
+    const s = store ?? localStorage;
+    const keys = Array.from({ length: s.length }, (_, i) => s.key(i)!);
+    const draft = `reviewroom:draft:${oldId}:`;
+    for (const k of keys) {
+      // shortcut: a title that starts with this one plus `:` also matches its drafts (rare); they move once, to this id
+      const to = k === `reviewroom:layout:${oldId}` ? `reviewroom:layout:${id}` : k.startsWith(draft) ? `reviewroom:draft:${id}:${k.slice(draft.length)}` : null;
+      if (!to) continue;
+      if (s.getItem(to) == null) s.setItem(to, s.getItem(k)!);
+      s.removeItem(k);
+    }
+  } catch {
+    /* storage unavailable: nothing to move */
+  }
+}
