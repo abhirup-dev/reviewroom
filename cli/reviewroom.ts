@@ -21,6 +21,7 @@ import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
 import { cmdWalkthrough } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
+import { cmdShot } from './commands/shot.ts';
 import { ReviewroomError } from '../src/shared/ops.ts';
 
 const cli = cac('reviewroom');
@@ -108,6 +109,16 @@ cli
   .example('  reviewroom walkthrough publish')
   .action(run(cmdWalkthrough));
 
+cli
+  .command('shot [section]', 'The review as the reviewer reads it, as PNGs (one picture if short, else one per section; a tall section in parts), to look at without a browser')
+  .option('--theme <light|dark>', 'The theme (default light)')
+  .option('--mobile', 'As on a phone: the panel 390 CSS px wide')
+  .option('--out <dir>', 'Where to write the PNGs (default: a temp dir, emptied first; the paths are printed)')
+  .example('  reviewroom shot')
+  .example('  reviewroom shot request-path --theme dark')
+  .example('  reviewroom shot --mobile')
+  .action(run(cmdShot));
+
 cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
 
 cli
@@ -131,6 +142,17 @@ const notes: Record<string, string> = {
     '  publish runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
+  ].join('\n'),
+  shot: [
+    '  Renders review.html in a headless browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) as the',
+    '  Review panel shows it, alone, as wide as in the default layout on a 1280x800 screen. A review up to 1400 px',
+    '  tall is one picture; a longer one gets a picture per section (the Contents\' sections: top-level <section id>),',
+    '  the title and lead going with the first. A section over 1400 px is cut between its blocks into parts',
+    '  (<n>-<id>-1.png, -2, ...). [section] renders that section only. --mobile renders it 390 px wide, as on a',
+    '  phone (the review is also read there). Prints each PNG\'s path and size, then what sticks out past the',
+    '  panel\'s edge (by section and element; a box that scrolls or clips its content counts as fitting), then the',
+    '  page\'s script errors. Optional: for checking your own HTML, or a layout problem the reviewer reports.',
+    '  Nothing in the review is written.',
   ].join('\n'),
   pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `walkthrough publish`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
@@ -166,6 +188,7 @@ cli.help((sections) => {
       title: 'A review',
       body: [
         '  reviewroom pr <n> --wait         create + serve, block until the first round ends; write review.html meanwhile',
+        '  reviewroom shot [section]        look at the review as PNGs, when you want to (no browser needed)',
         '  reviewroom reply <thread> "..."    answer each thread in the feedback',
         '  reviewroom review --dir <dir>    serve and block until the next round ends; repeat until approved',
         '  Run the blocking commands in the background: a round can take hours. Threads, replies and rounds',
