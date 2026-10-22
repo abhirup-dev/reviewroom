@@ -196,6 +196,10 @@ function row(s: SessionInfo) {
       h('div', { class: 'rr-hub__name' }, subject(s)),
       // what the hidden columns said, under the title on narrow screens
       h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, toolMark(s.tool)), h('span', { class: 'rr-hub__sub-text' }, [s.repository, s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
+      // a stack: its PRs, bottom first, each opening the review on that PR
+      s.stack?.length
+        ? h('div', { class: 'rr-hub__prs' }, ...s.stack.map((p) => (s.url ? h('a', { class: `rr-hub__pr is-${p.state}`, href: `${s.url}?pr=${p.number}`, target: '_blank', rel: 'noopener', title: `#${p.number} ${p.title} (${p.state}): open the review on it` }, `#${p.number}`) : h('span', { class: `rr-hub__pr is-${p.state}`, title: p.title }, `#${p.number}`))))
+        : null,
     ),
     h(
       'td',

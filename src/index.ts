@@ -140,6 +140,11 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   }
 
   provideApp(app);
+  // a stack: the tab says which PR is in scope
+  const title = document.title;
+  const stackTitle = () => app.meta.stack && (document.title = `${title} · ${app.range.pr ? `#${app.range.pr}` : `#${app.meta.stack[0].number}–#${app.meta.stack.at(-1)!.number}`}`);
+  stackTitle();
+  app.bus.on('range', stackTitle);
   const dockHost = h('div', { class: 'rr-dock' });
   root.replaceChildren(buildHeader(app), dockHost);
   root.classList.add('rr-root');
