@@ -66,6 +66,8 @@ describe('hub', () => {
       expect([red.status, new URL(red.headers.get('location')!, hub).href]).toEqual([302, r]);
     });
 
+    test("passes the review's cache and build headers through unchanged", () => expectClientHeaders(r, 'api/state'));
+
     test('the event stream passes through and delivers an op', async () => {
       const ac = new AbortController();
       const res = await fetch(r + 'api/events', { signal: ac.signal });
