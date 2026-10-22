@@ -33,6 +33,7 @@ import './panels/narrative';
 import './panels/code';
 import './panels/sidebar';
 import { recapOnNewRound } from './panels/recap';
+import { startUpdates } from './shell/pwa';
 
 export { ReviewApp, definePanel, parseRef, formatRef, renderMarkdown, renderPreview, LocalProvider, GitHubProvider, StaticProvider, ServerState, BrowserState };
 export type { CodeProvider, StateBackend, PanelDef, Fixture, ReviewMeta, ReviewState };
@@ -100,6 +101,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   injectCSS();
   defineElements();
   const app = new ReviewApp(root);
+  startUpdates(app); // before loading: an old shell that can't load the review still updates
   app.applyTheme();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => app.prefs.theme === 'system' && app.applyTheme());
 

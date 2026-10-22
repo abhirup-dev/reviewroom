@@ -3,6 +3,7 @@
 import { installButton } from '../shell/install'; // first: it listens for Chrome's install prompt
 import { backdropCloses, h, icon, relTime } from '../core/dom';
 import { mountTooltips } from '../overlays/tooltip';
+import { startUpdates } from '../shell/pwa';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
 import type { HubSnapshot, SessionInfo } from '../shared/hub';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
@@ -129,6 +130,7 @@ const heads = columns.map(([key, label, tip, cls]) =>
 const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
 
 mountTooltips();
+startUpdates();
 document.body.append(
   h(
     'div',

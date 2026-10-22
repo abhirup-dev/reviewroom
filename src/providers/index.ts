@@ -52,6 +52,8 @@ export interface StateBackend {
   githubAct?(action: GitHubAction): Promise<GitHubSnapshot>;
   /** The review's walkthrough.json: null when there is none, `{ issues }` when it breaks the schema. */
   walkthrough?(): Promise<WalkthroughLoad>;
+  /** For the update flow (shell/pwa.ts): ops not stored yet, and when the server we stream from started. */
+  pending?(): { unsent: boolean; started: string | null };
 }
 export type WalkthroughLoad = Walkthrough | { issues: string[] } | null;
 export interface BackendEvents {
@@ -157,6 +159,10 @@ export class ServerState implements StateBackend {
   }
   apply(op: Op) {
     this.sync!.send({ type: 'op', op });
+  }
+  pending() {
+    const c = this.sync?.getSnapshot().context;
+    return { unsent: !!c && unsent(c), started: c?.started ?? null };
   }
   async flush() {
     const sync = this.sync!;

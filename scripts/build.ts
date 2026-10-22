@@ -72,7 +72,7 @@ async function build() {
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
   writeFileSync(at('dist/hub.css'), hubCss());
-  const hub = await Bun.build({ entrypoints: [at('src/hub/index.ts')], format: 'esm', target: 'browser', minify: true, outdir: at('dist'), naming: 'hub.[ext]' });
+  const hub = await Bun.build({ entrypoints: [at('src/hub/index.ts')], format: 'esm', target: 'browser', minify: true, define: { __RR_BUILD__: JSON.stringify(BUILD_PLACEHOLDER) }, outdir: at('dist'), naming: 'hub.[ext]' });
   // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
   const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'bun', format: 'esm', outdir: at('dist/cli'), naming: '[name].js' });
   for (const r of [res, hub, cli]) {
