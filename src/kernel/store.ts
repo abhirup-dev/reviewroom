@@ -39,6 +39,15 @@ export function saveLocal(key: string, value: unknown) {
   }
 }
 
+/** A stored JSON value as it was written, or null when absent, unreadable or corrupt (callers check its shape). */
+export function loadJSON(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
 export function loadRaw(key: string): string | null {
   try {
     return localStorage.getItem(key);

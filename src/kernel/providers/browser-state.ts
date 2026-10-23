@@ -1,5 +1,5 @@
 import type { Op, ReviewState } from '../state/model.shared';
-import { loadRaw, saveLocal } from '../store';
+import { loadJSON, saveLocal } from '../store';
 import type { LastLayout, Layout, SavedLayouts } from '../layouts/layout.shared';
 import { StoredState } from '../state/schema.shared';
 import type { StateBackend } from './contracts';
@@ -14,26 +14,16 @@ export class BrowserState implements StateBackend {
     return this.tour ?? null;
   }
   async load() {
-    try {
-      const raw = localStorage.getItem(LS_KEY(this.id));
-      const v: unknown = raw && JSON.parse(raw);
-      if (StoredState.safeParse(v).success) return v as ReviewState; // a copy that breaks the schema starts over from the seed
-    } catch {
-      /* ignore */
-    }
-    return this.seed ?? null;
+    const v = loadJSON(LS_KEY(this.id));
+    return StoredState.safeParse(v).success ? (v as ReviewState) : (this.seed ?? null); // a copy that breaks the schema starts over from the seed
   }
   // the only writer: store the whole document
   apply(_op: Op, next: ReviewState) {
-    try {
-      localStorage.setItem(LS_KEY(this.id), JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
+    saveLocal(LS_KEY(this.id), next);
   }
   async layouts(): Promise<SavedLayouts> {
-    const v = JSON.parse(loadRaw(LAYOUTS_KEY) ?? 'null');
-    return v?.layouts ? (v as SavedLayouts) : { layouts: {}, default: null };
+    const v = loadJSON(LAYOUTS_KEY) as SavedLayouts | null; // a corrupt entry reads as none
+    return v?.layouts ? v : { layouts: {}, default: null };
   }
   async saveLayout(id: string, layout: Layout | null) {
     const all = await this.layouts();
@@ -49,8 +39,8 @@ export class BrowserState implements StateBackend {
     return true;
   }
   async lastLayout() {
-    const v = JSON.parse(loadRaw(`reviewroom:layout:${this.id}`) ?? 'null');
-    return v?.dock ? (v as LastLayout) : null; // an older build kept the bare dock here
+    const v = loadJSON(`reviewroom:layout:${this.id}`) as LastLayout | null;
+    return v?.dock ? v : null; // an older build kept the bare dock here
   }
   async saveLastLayout(layout: LastLayout) {
     saveLocal(`reviewroom:layout:${this.id}`, layout);
