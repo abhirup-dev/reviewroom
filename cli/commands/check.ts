@@ -6,7 +6,7 @@ import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
-import { findingReport, lintTour, type Finding } from '../lib/tour-lint.ts';
+import { findingReport, lintTour, type Finding } from '../lib/slide-lint.ts';
 import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/shared/walkthrough.ts';
 
@@ -63,7 +63,7 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
   else {
     if (bad.length) console.log(`${bad.length} of ${results.length} links need attention:\n${report(bad)}`);
     else console.log(`${results.length} links ok${tour ? ' (review.html and walkthrough.json)' : ''}${healed ? ' (moved links fixed)' : ''}`);
-    if (tour && notes.length) console.log(`\nthe guided walkthrough, walkthrough.json (\`reviewroom walkthrough lint\` also measures each slide on screen):\n${findingReport(notes, tour)}`);
+    if (tour && notes.length) console.log(`\nthe guided walkthrough, walkthrough.json (\`reviewroom slide-lint\` also measures each slide on screen):\n${findingReport(notes, tour)}`);
   }
   if (bad.length) process.exitCode = 1;
 }

@@ -48,7 +48,7 @@
                   "description": "Narrative HTML: rr: links, <rr-flow>, <rr-code> work as in review.html"
                 },
                 "ref": {
-                  "description": "What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (or the lead diagram)",
+                  "description": "What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (the pane shows only code)",
                   "anyOf": [
                     {
                       "type": "string",

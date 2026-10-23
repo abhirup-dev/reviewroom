@@ -11,7 +11,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `flows/` holds the XState machines (thread popup, server sync, layout save, the guided walkthrough player and its code pane,
   a code panel's reveal); views subscribe.
 - The guided walkthrough (`walkthrough.json`): schema and PR block in `src/shared/walkthrough.ts`, player in
-  `src/overlays/walkthrough.ts`, CLI in `cli/commands/walkthrough.ts` (publish, lint, shot) with `cli/lib/tour-lint.ts`
+  `src/overlays/walkthrough.ts`, CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks) and `cli/lib/render.ts` (the headless browser, `Bun.WebView`: its only user).
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
 - `app/` (Tauri, Rust): the macOS app. `reviewroom` hands it each review (`open -b dev.reviewroom.mac <url>`); it shows

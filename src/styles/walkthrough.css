@@ -98,6 +98,16 @@
   grid-template-columns: minmax(320px, 34%) minmax(0, 1fr);
   min-height: 0;
 }
+.rr-tour__body.is-solo {
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+.rr-tour__body.is-solo .rr-tour__right {
+  display: none;
+}
+.rr-tour__body.is-solo .rr-tour__left {
+  border: 0;
+  padding-inline: max(26px, calc((100% - 720px) / 2));
+}
 .rr-tour__left {
   contain: paint; /* author prose (maybe from a PR) can't paint over the controls, even position: fixed */
   background: var(--rr-surface-doc);
@@ -276,10 +286,6 @@ span.rr-tour__chunk-head {
 .rr-tour__preview {
   padding: 16px;
   overflow: auto;
-}
-.rr-tour__diagram {
-  contain: paint;
-  padding: 24px;
 }
 
 /* bottom bar: prev | chapters with step ticks | next */

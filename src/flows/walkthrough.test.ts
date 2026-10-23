@@ -77,7 +77,7 @@ test('reloading keeps the position where it exists; a removed document closes', 
   expect(where(a)).toEqual(['closed', 1, 0]);
 });
 
-test('the code pane target: own ref, last ref in the chapter, the lead\'s first diagram, an earlier ref, nothing', () => {
+test('the code pane target: own ref, last ref in the chapter, an earlier ref (never the lead\'s diagram), nothing', () => {
   const d: Walkthrough = {
     version: 1,
     title: 'T',
@@ -89,7 +89,7 @@ test('the code pane target: own ref, last ref in the chapter, the lead\'s first 
   };
   const at = (chapter: number, step: number) => target({ doc: d, chapter, step });
   const a1: PaneWant = { kind: 'refs', refs: ['rr:code/a.go#L1'] };
-  expect([at(0, 0), at(0, 1), at(0, 2), at(1, 0), at(2, 0)]).toEqual<PaneWant[]>([{ kind: 'empty' }, a1, a1, { kind: 'diagram', html: '<rr-flow><rr-node>n</rr-node></rr-flow>' }, a1]);
+  expect([at(0, 0), at(0, 1), at(0, 2), at(1, 0), at(2, 0)]).toEqual<PaneWant[]>([{ kind: 'empty' }, a1, a1, a1, a1]);
 });
 
 test('deep link: ?walkthrough=<chapter>/<step>, either part optional', () => {

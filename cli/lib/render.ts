@@ -1,4 +1,4 @@
-// The review page in a headless browser, for `walkthrough lint`, `walkthrough shot` and `shot`: a fresh Chrome (never the
+// The review page in a headless browser, for `slide-lint` and `shot`: a fresh Chrome (never the
 // user's own, even with remote debugging on) at an exact viewport, else on macOS the system WebKit. Bun.WebView is
 // experimental: every use of it stays in this file.
 import { fail } from './args.ts';

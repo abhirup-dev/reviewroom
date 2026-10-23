@@ -25,21 +25,17 @@ The CLI runs on [Bun](https://bun.sh) (>= 1.3.12). In Claude Code (installs the 
 ```
 
 Then ask for a review: *"review PR 4821 in reviewroom"*. Without Claude Code, `bun add -g reviewroom`
-and point your agent at [`skills/reviewroom/`](skills/reviewroom/SKILL.md):
+and point your agent at [`skills/reviewroom/`](skills/reviewroom/SKILL.md). The `reviewroom` CLI
+documents itself: `reviewroom --help`.
 
-```bash
-reviewroom pr 4821 --repo ~/Codes/your-repo           # PR number, PR URL or branch; opens the macOS app if installed, else the browser (--browser: always the browser)
-```
-
-Contributing to reviewroom itself (`bun run setup`, `bun run demo`): [AGENTS.md](AGENTS.md).
+Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
 
 ## The review loop
 
-1. The agent writes `review.html` and runs `reviewroom review` (blocks).
+1. The agent writes `review.html` and waits for you.
 2. You read, jump into code, comment on anything, and press **Send feedback** (or **Approve**).
-3. The command exits printing structured feedback; the agent replies per thread
-   (`reviewroom reply <id> "…"`), adds `data-round="2"` sections for bigger answers, changes code,
-   and runs `reviewroom review` again. Your open tab reconnects and shows round 2.
+3. The agent gets structured feedback, replies per thread, adds `data-round="2"` sections for bigger
+   answers, changes code, and waits again. Your open tab reconnects and shows round 2.
 
 Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`:
 `review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, `layout.json`
@@ -54,14 +50,12 @@ right, ← → between slides, pause to a pill to dig around, and **Comment** on
 anchored to it. It tells the main story; the walkthrough (`review.html`) is where the reviewer digs in,
 and a slide that draws questions gets a walkthrough section of its own with the slide embedded
 (`<rr-embed ref="rr:tour/…">`).
-`reviewroom walkthrough lint` plays every slide in a headless browser (Chrome, or Safari's engine on
-macOS) and reports what does not fit the screen; `reviewroom walkthrough shot` renders one slide. A PR
-author can ship one with the PR (`reviewroom walkthrough publish`); `reviewroom pr <n>` pulls it. The
-demo (`bun run demo`, then **Guided walkthrough** in the header) has one.
+The agent plays every slide in a headless browser to check it fits the screen. A PR author can ship one
+with the PR, and a review of that PR pulls it. The demo has one (**Guided walkthrough** in the header).
 
 ## GitHub threads and team reviews
 
-For a PR reviewed with `reviewroom pr <n>` (and `gh` logged in), the PR's own comment threads show
+For a GitHub PR review (with `gh` logged in), the PR's own comment threads show
 up in the diff and in **Threads › GitHub**, with avatars, drafts, outdated markers and links to
 github.com. Reply, edit, delete and resolve there as on GitHub. The header's **Agent / Team** switch
 picks where your new code and general comments go: to the agent (round by round), or into your
@@ -107,7 +101,7 @@ last commit on the PR that passed; while checks run it refreshes every 30 second
 ## Code sources
 
 1. **Local clone** (default, via the CLI server): `git diff`, `git show`, `git grep` — no rate limits,
-   symbol search across the whole repo, works offline, `--head worktree` for uncommitted changes.
+   symbol search across the whole repo, works offline, uncommitted changes too.
 2. **GitHub** fallback (`<rr-app repo="owner/name">` + base/head in `#rr-meta`): 2 API calls per
    review; file contents come from raw.githubusercontent.com. Token: `localStorage['reviewroom:github-token']`.
 3. **Static fixture** (`<script type="application/json" id="rr-fixture">`): self-contained demos.
