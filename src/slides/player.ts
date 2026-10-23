@@ -21,6 +21,19 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closes
 
 let panes = 0;
 
+/** Where a slide's link lands in the code pane; null for links that show no code. */
+export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null> {
+  const r = parseRef(ref);
+  if (r?.type === 'code' || r?.type === 'file') {
+    const rev = /^(base|head)$/.test(r.rev) ? undefined : r.rev;
+    return { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev, view: r.type === 'file' ? 'file' : 'diff' };
+  }
+  if (r?.type !== 'sym') return null;
+  const hits = await app.searchSymbol(r.name).catch(() => []); // definitions first, narrowed by an Owner. or path: qualifier
+  const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
+  return d ? { path: d.path, side: 'head', start: d.line, end: d.line, view: app.files.some((f) => f.path === d.path) ? 'diff' : 'file' } : null;
+}
+
 export function mountWalkthrough(app: ReviewApp) {
   let disposed = false;
   const btn = (ic: Parameters<typeof icon>[0], title: string, onclick: () => void, keys?: string) =>
@@ -40,17 +53,6 @@ export function mountWalkthrough(app: ReviewApp) {
     views.forEach((v) => v.panel?.dispose?.());
     views = [];
   };
-  async function codeAt(ref: string): Promise<CodeAt | null> {
-    const r = parseRef(ref);
-    if (r?.type === 'code' || r?.type === 'file') {
-      const rev = /^(base|head)$/.test(r.rev) ? undefined : r.rev;
-      return { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev, view: r.type === 'file' ? 'file' : 'diff' };
-    }
-    if (r?.type !== 'sym') return null;
-    const hits = await app.search(r.name, true).catch(() => []);
-    const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
-    return d ? { path: d.path, side: 'head', start: d.line, end: d.line, view: app.files.some((f) => f.path === d.path) ? 'diff' : 'file' } : null;
-  }
   // a header names the chunk (in its code panel's toolbar); stacked, clicking it shows only that one
   const nameHead = (head: HTMLElement, ref: string) => {
     const r = parseRef(ref);
@@ -79,7 +81,7 @@ export function mountWalkthrough(app: ReviewApp) {
     split.classList.toggle('is-solo', s.kind === 'empty');
   };
   const pane$ = paneMachine.provide({
-    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(ref) }))) } : input)) },
+    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(app, ref) }))) } : input)) },
     actions: {
       fadeOut: () => pane.classList.add('is-out'),
       fadeIn: () => pane.classList.remove('is-out'),
