@@ -23,7 +23,7 @@
     "README.md"
   ],
   "scripts": {
-    "setup": "bun install --frozen-lockfile && bun run build && bun link && bun scripts/app-install.ts",
+    "setup": "bun install --frozen-lockfile && bun run build && bun link && ln -sf \"$PWD/node_modules/@ast-grep/cli/ast-grep\" \"${BUN_INSTALL:-$HOME/.bun}/bin/ast-grep\" && bun scripts/app-install.ts",
     "build": "bun scripts/build.ts",
     "dev": "bun scripts/build.ts --watch",
     "typecheck": "tsc --noEmit && tsc --noEmit -p cli && tsc --noEmit -p scripts",
@@ -43,6 +43,7 @@
     "bun": ">=1.3.12"
   },
   "devDependencies": {
+    "@ast-grep/cli": "0.51.0",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/view": "^6.43.14",
     "@floating-ui/dom": "^1.8.0",
@@ -80,5 +81,8 @@
     "xstate": "^5.33.2",
     "zod": "^4.6.7"
   },
-  "packageManager": "bun@1.4.2"
+  "packageManager": "bun@1.4.2",
+  "trustedDependencies": [
+    "@ast-grep/cli"
+  ]
 }

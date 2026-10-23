@@ -52,7 +52,7 @@ Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bu
 committed), so all are `devDependencies`.
 
 ```bash
-bun run setup       # install, build, put `reviewroom` on PATH
+bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep` on PATH
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
