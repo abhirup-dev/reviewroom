@@ -4,7 +4,7 @@ import { roundStatus, syncMachine, unsent } from './sync.machine';
 import type { LastLayout, Layout } from '../layouts/layout.shared';
 import type { GitHubAction } from '../state/schema.shared';
 import type { BackendEvents, StateBackend } from './contracts';
-import { json } from './fetch';
+import { json, sendJSON } from './fetch';
 
 // Saving and live updates are src/kernel/providers/sync.machine.ts; this is its fetch/EventSource side.
 export class ServerState implements StateBackend {
@@ -54,7 +54,7 @@ export class ServerState implements StateBackend {
       syncMachine.provide({
         actors: {
           post: fromPromise(async ({ input, signal }) => {
-            const r = await fetch(`${api}/ops`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops: input.ops }), signal });
+            const r = await sendJSON(`${api}/ops`, 'POST', { ops: input.ops }, { signal });
             const b = await r.json().catch(() => ({}));
             if (r.ok) return { rev: b.rev };
             if (r.status < 500 && typeof b.index === 'number') return { rejected: b.index, error: b.error };
@@ -108,7 +108,7 @@ export class ServerState implements StateBackend {
   }
   async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number) {
     if (!(await this.flush())) return { ok: false, message: 'some changes are not saved yet' };
-    const r = await fetch(`${this.api}/finish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, note, round }) });
+    const r = await sendJSON(`${this.api}/finish`, 'POST', { kind, note, round });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) return { ok: false, message: b.error || `${r.status} ${r.statusText}` };
     // the finish broadcast may have been missed, and this run of the server stops right after: take the state from the answer
@@ -124,11 +124,11 @@ export class ServerState implements StateBackend {
     return fetch(`${this.api}/layouts`).then(json);
   }
   async saveLayout(id: string, layout: Layout | null) {
-    const r = await fetch(`${this.api}/layouts/${id}`, layout ? { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout) } : { method: 'DELETE' });
+    const r = await (layout ? sendJSON(`${this.api}/layouts/${id}`, 'PUT', layout) : fetch(`${this.api}/layouts/${id}`, { method: 'DELETE' }));
     return r.ok;
   }
   async setDefaultLayout(id: string | null) {
-    const r = await fetch(`${this.api}/default-layout`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layout: id }) });
+    const r = await sendJSON(`${this.api}/default-layout`, 'PUT', { layout: id });
     return r.ok;
   }
   lastLayout() {
@@ -136,7 +136,7 @@ export class ServerState implements StateBackend {
   }
   // one at a time (kernel/layouts/save.machine.ts); keepalive: a save made while leaving the page still lands
   async saveLastLayout(layout: LastLayout) {
-    await fetch(`${this.api}/layout`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(layout), keepalive: true });
+    await sendJSON(`${this.api}/layout`, 'PUT', layout, { keepalive: true });
   }
   async walkthrough(): Promise<unknown> {
     const r = await fetch(`${this.api}/walkthrough`);
@@ -148,7 +148,7 @@ export class ServerState implements StateBackend {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }
   async githubAct(action: GitHubAction) {
-    const r = await fetch(`${this.api}/github`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) });
+    const r = await sendJSON(`${this.api}/github`, 'POST', action);
     const b = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(b.error || `${r.status} ${r.statusText}`);
     return b;
