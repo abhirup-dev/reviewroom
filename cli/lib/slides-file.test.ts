@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { pickBlock } from './walkthrough.ts';
+import { pickBlock } from './slides-file.ts';
 import { ownMarked } from './github.ts';
 import { publishBody } from '../commands/walkthrough.ts';
 import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';

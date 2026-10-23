@@ -9,7 +9,7 @@ import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, confi
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, prTarget as prOf } from '../lib/github.ts';
 import { walkthroughPath } from '../lib/state.ts';
-import { pickBlock } from '../lib/walkthrough.ts';
+import { pickBlock } from '../lib/slides-file.ts';
 import { parseWalkthrough } from '../../src/walkthrough/model.shared.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 

@@ -15,7 +15,7 @@ import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layou
 import { applyOp, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
-import { tourText } from './walkthrough.ts';
+import { tourText } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';

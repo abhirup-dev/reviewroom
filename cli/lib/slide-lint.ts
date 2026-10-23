@@ -5,7 +5,7 @@ import { plain } from '../../src/threads/feedback.shared.ts';
 import { parseRef } from '../../src/kernel/refs/refs.shared.ts';
 import { stepRefs, type StepAudit, type Walkthrough } from '../../src/walkthrough/model.shared.ts';
 import { extractLinks, uncomment } from './links.ts';
-import { tourText } from './walkthrough.ts';
+import { tourText } from './slides-file.ts';
 
 export type Finding = { check: string; level: 'warn' | 'info'; where?: string; message: string; fix: string };
 

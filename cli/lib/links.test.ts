@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
 import type { SearchHit } from '../../src/kernel/state/model.shared.ts';
 import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
-import { fixTour, locate, tourText } from './walkthrough.ts';
+import { fixTour, locate, tourText } from './slides-file.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
 const prov = (files: Record<string, string>) => ({ head: 'h', base: 'b', read: (_rev: string, p: string) => files[p] ?? null, search: (q: unknown) => (q === 'Build' ? [{ kind: 'definition' } as SearchHit] : []) });

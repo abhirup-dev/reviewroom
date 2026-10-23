@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { read, setup } from './fixture.ts';
 
-describe('walkthrough', () => {
+describe('slides', () => {
   const { dir, d, cli, state } = setup();
   const demo = path.join(import.meta.dir, '..', 'examples', 'habit-events', 'walkthrough.json');
   const scaffold = read(dir, 'review.html');

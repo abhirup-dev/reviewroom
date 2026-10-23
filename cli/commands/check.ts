@@ -5,7 +5,7 @@ import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
-import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
+import { fixTour, locate, tourText } from '../lib/slides-file.ts';
 import { findingReport, lintTour, type Finding } from '../lib/slide-lint.ts';
 import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
