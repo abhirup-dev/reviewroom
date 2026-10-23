@@ -100,7 +100,7 @@ export function threadBadge(t: { gh?: { conversation?: boolean }; status: string
     'span',
     { class: 'rr-tbadge ' + (t.gh ? 'is-gh' : 'is-agent') + (resolved ? ' is-resolved' : agentReplied ? ' has-agent' : '') },
     starter?.avatar
-      ? h('img', { class: 'rr-tbadge__avatar', src: starter.avatar + (starter.avatar.includes('?') ? '&' : '?') + 's=40', alt: '', title: starter.login, loading: 'lazy' })
+      ? h('img', { class: 'rr-tbadge__avatar', src: avatarUrl(starter.avatar, 40), alt: '', title: starter.login, loading: 'lazy' })
       : t.gh ? icon('github', 16) : clawd(resolved, 18),
     h('span', { class: 'rr-tbadge__n' }, String(t.messages.length)),
   );
@@ -124,6 +124,9 @@ export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number)
     t = setTimeout(() => fn(...a), ms);
   };
 }
+
+/** A GitHub avatar URL asking for a `px`-wide image. */
+export const avatarUrl = (url: string, px: number) => url + (url.includes('?') ? '&' : '?') + 's=' + px;
 
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 

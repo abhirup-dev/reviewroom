@@ -2,7 +2,7 @@
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
 import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
-import { h, icon, relTime, copyText, backdropCloses } from '../kernel/dom';
+import { avatarUrl, h, icon, relTime, copyText, backdropCloses } from '../kernel/dom';
 import { loadRaw } from '../kernel/store';
 import { renderMarkdown } from '../kernel/markdown';
 import { formatRef, parseRef, refIcon } from '../kernel/refs/browser';
@@ -367,7 +367,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
           'article',
           { class: `rr-msg rr-msg--${m.author}` },
           m.gh?.avatar
-            ? h('img', { class: 'rr-avatar rr-avatar--gh', src: m.gh.avatar + (m.gh.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' })
+            ? h('img', { class: 'rr-avatar rr-avatar--gh', src: avatarUrl(m.gh.avatar, 48), alt: '', loading: 'lazy' })
             : h('div', { class: 'rr-avatar' + (m.author === 'agent' ? ' rr-avatar--agent' : ''), 'aria-hidden': 'true' }, m.gh ? m.gh.login[0].toUpperCase() : m.author === 'agent' ? 'AI' : 'Y'),
           h(
             'div',

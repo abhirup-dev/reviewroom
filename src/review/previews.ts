@@ -1,6 +1,6 @@
 // Review previews depend on review data, never on panels or optional feature implementations.
 import { FileDiff, File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
-import { h } from '../kernel/dom';
+import { avatarUrl, h } from '../kernel/dom';
 import { parseRef, type Ref } from '../kernel/refs/browser';
 import { plainExcerpt } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
@@ -146,7 +146,7 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: PreviewOp
           h(
             'div',
             { class: 'rr-embed__msg' },
-            m.gh?.avatar ? h('img', { class: 'rr-embed__avatar', src: m.gh.avatar + (m.gh.avatar.includes('?') ? '&' : '?') + 's=32', alt: '', loading: 'lazy' }) : null,
+            m.gh?.avatar ? h('img', { class: 'rr-embed__avatar', src: avatarUrl(m.gh.avatar, 32), alt: '', loading: 'lazy' }) : null,
             h('strong', null, m.gh ? m.gh.login : m.author === 'agent' ? 'agent' : 'you'),
             ' ',
             plainExcerpt(m.body, 160),

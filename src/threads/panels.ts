@@ -1,5 +1,5 @@
 // Agent and team threads panel.
-import { h, icon, threadBadge } from '../kernel/dom';
+import { avatarUrl, h, icon, threadBadge } from '../kernel/dom';
 import { parseRef, refIcon } from '../kernel/refs/browser';
 import { anchorRef } from '../kernel/refs/refs.shared';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
@@ -184,7 +184,7 @@ class ThreadsPanel implements PanelInstance {
         this.sources = next;
       });
     const authorRow = (a: ReturnType<typeof starter>) =>
-      menuItem(h('span', { class: 'rr-filter-author' }, a.avatar ? h('img', { src: a.avatar + (a.avatar.includes('?') ? '&' : '?') + 's=32', alt: '' }) : null, a.label), toggle(() => (this.authors.has(a.key) ? this.authors.delete(a.key) : this.authors.add(a.key))), {
+      menuItem(h('span', { class: 'rr-filter-author' }, a.avatar ? h('img', { src: avatarUrl(a.avatar, 32), alt: '' }) : null, a.label), toggle(() => (this.authors.has(a.key) ? this.authors.delete(a.key) : this.authors.add(a.key))), {
         checked: this.authors.has(a.key),
         hint: String(threads.filter((t) => starter(t).key === a.key).length),
       });

@@ -6,7 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
-import { h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
+import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
 import { cssPathWithin, formatRef, parseRef } from '../kernel/refs/browser';
 import { linkedSymbol } from './symbols';
@@ -145,7 +145,7 @@ class WalkthroughPanel implements PanelInstance {
     if (!this.isDesc || !d) return;
     this.head.replaceChildren(
       ...[
-        d.avatar ? h('img', { class: 'rr-avatar rr-avatar--gh', src: d.avatar + (d.avatar.includes('?') ? '&' : '?') + 's=48', alt: '', loading: 'lazy' }) : null,
+        d.avatar ? h('img', { class: 'rr-avatar rr-avatar--gh', src: avatarUrl(d.avatar, 48), alt: '', loading: 'lazy' }) : null,
         h('strong', null, d.login),
         h('span', { class: 'rr-muted' }, relTime(d.at)),
         g.url ? h('a', { class: 'rr-link-btn rr-description__open', href: g.url, target: '_blank', rel: 'noopener', title: 'Open this PR on GitHub (the description is edited there)' }, 'Open on GitHub') : null,
