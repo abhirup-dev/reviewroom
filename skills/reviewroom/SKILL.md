@@ -74,8 +74,8 @@ git show <head>:<path> | ast-grep outline --stdin --lang <lang> --json=stream  #
 git show <head>:<path> | ast-grep run --stdin --lang <lang> -p '<pattern>'   # a call or statement by shape
 ```
 
-No `ast-grep` on PATH: `bunx @ast-grep/cli` runs the same thing (the `ast-grep` skill, when
-installed, has the pattern syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
+reviewroom's setup installs `ast-grep` (the `ast-grep` skill, when installed, has the pattern
+syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
 
 **Decide on a guided walkthrough now.** A guided walkthrough (`walkthrough.json` next to
 `review.html`) is the main story of the diff played over the workbench: chapters of slides, narration on

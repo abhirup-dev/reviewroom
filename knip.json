@@ -13,6 +13,7 @@
     "e2e/**/*.ts"
   ],
   "ignoreDependencies": [
+    "@ast-grep/cli",
     "@fontsource-variable/.+",
     "emoji-picker-element-data"
   ],
