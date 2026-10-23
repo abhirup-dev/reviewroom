@@ -1,6 +1,6 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
 // It owns data (meta, files, threads), preferences, navigation and the dock.
-import type { Layout } from './kernel/layouts/layout.shared';
+import { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
 import { Commands } from './kernel/commands';
 import { Emitter, loadLocal, saveLocal } from './kernel/store';
@@ -83,9 +83,8 @@ export class ReviewApp {
   meta!: ReviewMeta;
   provider!: CodeProvider;
   backend!: StateBackend;
-  /** The reviewer's saved layouts by id, beside the shipped ones; defaultLayout: the one reviews start from. */
-  layouts: Record<string, Layout> = {};
-  defaultLayout: string | null = null;
+  /** The review's layouts: the saved ones, the default, the one the dock was built from, and the dock's undo. */
+  readonly layout = new Layouts(this);
   state: ReviewState = emptyState();
   /** The PR's GitHub threads, when the review is a GitHub PR and the server can reach it. */
   github: GitHubSnapshot | null = null;

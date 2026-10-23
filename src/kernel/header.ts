@@ -2,7 +2,6 @@
 import { h, icon } from './dom';
 import { keyLabel, modLabel } from './commands';
 import { closePanel, hasPanel, panelDefs } from './dock';
-import { applyLayout, canUndoLayout, deleteLayout, ensurePanel, layouts, resetLayout, saveLayout, setDefaultLayout, undoLayout } from './layouts/layout';
 import type { ReviewApp } from '../app';
 import { noteDialog } from './dialog';
 import { popMenu, menuItem, menuLabel } from './menus';
@@ -14,7 +13,7 @@ export function saveLayoutDialog(app: ReviewApp, asDefault = false) {
   const save = h('button', { class: 'rr-btn rr-btn--primary', title: 'Save the panels as they are now' }, 'Save');
   const what = asDefault ? 'The panels as they are now, for reviews without a layout of their own to open with.' : 'The panels as they are now, to pick from the layout menu in any review.';
   noteDialog('Save layout', asDefault ? 'Save layout as default' : 'Save layout as', name, (act, close) => {
-    save.onclick = act(() => saveLayout(app, name.value.trim(), asDefault));
+    save.onclick = act(() => app.layout.save(name.value.trim(), asDefault));
     return [[h('p', { class: 'rr-muted' }, what + ' Names already in use are refused.'), name], [h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-btn rr-btn--ghost', onclick: close }, 'Cancel'), save]];
   });
   name.select();
@@ -35,22 +34,22 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
   const paint = () => {
     const themeIcon = app.resolvedTheme() === 'dark' ? 'moon' : 'sun';
     const layoutBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Layout', title: 'Layouts: pick, save or reset one, and choose which panels are open', 'aria-haspopup': 'menu' }, icon('layout', 16));
-    const mine = () => Object.keys(app.layouts);
+    const mine = () => Object.keys(app.layout.saved);
     layoutBtn.onclick = () => {
-      const def = app.defaultLayout ? layouts(app)[app.defaultLayout] : undefined;
+      const def = app.layout.defaultId ? app.layout.all()[app.layout.defaultId] : undefined;
       popMenu(layoutBtn, (close) => [
-        canUndoLayout(app) ? menuItem('Undo layout change', () => (close(), undoLayout(app)), { icon: 'undo', hint: 'back to how it was' }) : null,
-        menuItem('Reset layout', () => (close(), resetLayout(app)), { icon: 'round', hint: def ? `back to “${def.title}”` : 'every panel back in place' }),
+        app.layout.canUndo() ? menuItem('Undo layout change', () => (close(), app.layout.undo()), { icon: 'undo', hint: 'back to how it was' }) : null,
+        menuItem('Reset layout', () => (close(), app.layout.reset()), { icon: 'round', hint: def ? `back to “${def.title}”` : 'every panel back in place' }),
         menuItem('Save layout as default…', () => (close(), saveLayoutDialog(app, true)), { icon: 'pin', hint: 'new reviews open like this' }),
-        def ? menuItem('Forget default layout', () => (close(), void setDefaultLayout(app, null)), { icon: 'close', hint: `“${def.title}” stays saved` }) : null,
+        def ? menuItem('Forget default layout', () => (close(), void app.layout.setDefault(null)), { icon: 'close', hint: `“${def.title}” stays saved` }) : null,
         menuItem('Save layout as…', () => (close(), saveLayoutDialog(app)), { hint: 'pick it here in any review' }),
-        mine().length ? menuItem('Delete a saved layout…', () => (close(), popMenu(layoutBtn, (done) => mine().map((id) => menuItem(app.layouts[id].title, () => (done(), void deleteLayout(app, id)), { icon: 'close' }))))) : null,
+        mine().length ? menuItem('Delete a saved layout…', () => (close(), popMenu(layoutBtn, (done) => mine().map((id) => menuItem(app.layout.saved[id].title, () => (done(), void app.layout.delete(id)), { icon: 'close' }))))) : null,
         menuLabel('Layouts'),
-        ...Object.entries(layouts(app)).map(([id, l], i) => menuItem(l.title, () => (close(), applyLayout(app, id)), { checked: id === app.defaultLayout, hint: [id === app.defaultLayout ? 'default' : '', i < 9 ? keyLabel(`alt+${i + 1}`) : ''].filter(Boolean).join(' · ') || undefined })),
+        ...Object.entries(app.layout.all()).map(([id, l], i) => menuItem(l.title, () => (close(), app.layout.apply(id)), { checked: id === app.layout.defaultId, hint: [id === app.layout.defaultId ? 'default' : '', i < 9 ? keyLabel(`alt+${i + 1}`) : ''].filter(Boolean).join(' · ') || undefined })),
         menuLabel('Panels'),
         ...panelDefs()
           .filter((d) => !d.onDemand)
-          .map((d) => menuItem(d.title, () => (close(), hasPanel(app, d.id) ? closePanel(app, d.id) : ensurePanel(app, d.id)), { checked: hasPanel(app, d.id) })),
+          .map((d) => menuItem(d.title, () => (close(), hasPanel(app, d.id) ? closePanel(app, d.id) : app.layout.ensurePanel(d.id)), { checked: hasPanel(app, d.id) })),
       ]);
     };
     bar.replaceChildren(

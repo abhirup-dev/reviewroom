@@ -1,7 +1,7 @@
 // Thread panel placement and the availability of panels backed by GitHub.
 import type { ReviewApp } from '../app';
 import { showPanel } from '../kernel/dock';
-import type { PanelAvailability } from '../kernel/layouts/state';
+import type { PanelAvailability } from '../kernel/layouts/layout';
 
 /** Inject into mountDock: these panels wait for a GitHub snapshot that has content. */
 export function githubPanelAvailability(app: ReviewApp): PanelAvailability {

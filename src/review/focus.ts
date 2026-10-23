@@ -5,7 +5,6 @@ import { formatRef, parseRef, type Ref } from '../kernel/refs/browser';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
 import type { ReviewApp } from '../app';
 import { closePanel, findPanel, floatInPlace, onEscape } from '../kernel/dock';
-import { passingPanels } from '../kernel/layouts/layout';
 
 /** The code feature opens a centred panel; focus owns its temporary lifetime and Escape handling. */
 export interface FocusCode {
@@ -27,7 +26,7 @@ function openFileCentered(app: ReviewApp, path: string, at?: { side: 'base' | 'h
   const code = codeByApp.get(app);
   if (!code) throw new Error('Focus code capability was not provided at boot');
   const id = code.openFile(path, inDiff ? 'diff' : at?.side === 'base' ? 'base' : 'head', at && inDiff ? { path, ...at } : undefined);
-  passingPanels(app).add(id);
+  app.layout.passing.add(id);
   onEscape(app, id, () => closePanel(app, id));
 }
 
