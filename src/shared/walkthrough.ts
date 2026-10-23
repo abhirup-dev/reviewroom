@@ -1,5 +1,5 @@
 // The walkthrough.json contract: a chaptered tour of a PR the client plays over the workbench. Defined once
-// here; the server, `reviewroom check`, `pr`, `walkthrough publish` and the client all validate with it, and
+// here; the server, `reviewroom check`, `pr`, `publish-slides` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
 import { z } from 'zod';
 import { parseRef, type Ref } from './refs';
@@ -31,7 +31,7 @@ export const Step = z.object({
   ref: z
     .union([PaneRef, z.array(PaneRef).min(1, 'needs at least one link')])
     .optional()
-    .describe('What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (or the lead diagram)'),
+    .describe('What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (the pane shows only code)'),
   focus: z
     .array(nonEmpty)
     .optional()
@@ -94,8 +94,8 @@ export const walkthroughJsonSchema = () => ({
   title: 'reviewroom guided walkthrough (walkthrough.json in the review dir)',
 });
 
-// ------------------------------------------------------------------ measuring a step (`walkthrough lint`)
-// The page measures (src/overlays/walkthrough-audit.ts), the CLI judges (cli/lib/tour-lint.ts). Sizes in CSS px.
+// ------------------------------------------------------------------ measuring a step (`slide-lint`)
+// The page measures (src/overlays/walkthrough-audit.ts), the CLI judges (cli/lib/slide-lint.ts). Sizes in CSS px.
 
 /** One chunk of the code pane: `lines` highlighted, of which `hidden` are off screen when it lands; `visible`: lines
  *  the chunk shows at once. No code (a preview card: a section, an unknown symbol): `code: false`. */
@@ -104,7 +104,7 @@ export type StepAudit = {
   /** the narration's visible and full height, and the chapter lead's height */
   left: { visible: number; content: number; lead: number };
   chunks: ChunkAudit[];
-  /** content wider than its box (sideways scrolling): 'narration', 'diagram', or a tag inside the narration */
+  /** content wider than its box (sideways scrolling): 'narration' or a tag inside the narration */
   wide: string[];
   /** what the sanitizer took out of the chapter lead and the step's text */
   stripped: { lead: string[]; text: string[] };
@@ -114,7 +114,7 @@ export type StepAudit = {
 
 // ------------------------------------------------------------------ the PR block
 // A walkthrough travels in a PR comment or description as a fenced ```reviewroom-walkthrough block
-// (`reviewroom walkthrough publish` writes it, `reviewroom pr` reads it). The HTML comment marks the comment we own.
+// (`reviewroom publish-slides` writes it, `reviewroom pr` reads it). The HTML comment marks the comment we own.
 export const BLOCK_MARK = '<!-- reviewroom-walkthrough -->';
 const LANG = 'reviewroom-walkthrough';
 

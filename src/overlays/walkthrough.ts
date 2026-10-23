@@ -28,6 +28,7 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
+  const split = h('div', { class: 'rr-tour__body' });
   // the display toggles, once for every chunk (prefs: each panel follows them); hidden when no code is shown
   const tools = h('div', { class: 'rr-toolbar rr-tour__tools', hidden: true });
   let toolsMode: 'diff' | 'file' = 'diff';
@@ -73,12 +74,9 @@ export function mountWalkthrough(app: ReviewApp) {
     toolsMode = code.some((c) => c.view === 'diff') ? 'diff' : 'file';
     paintTools();
     if (s.kind === 'refs') pane.replaceChildren(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
-    else if (s.kind === 'diagram') {
-      const flow = h('div', { class: 'rr-tour__diagram rr-prose' });
-      flow.innerHTML = sanitizeProse(s.html);
-      pane.replaceChildren(flow);
-      paintFocus();
-    } else pane.replaceChildren(h('div', { class: 'rr-empty' }, 'Nothing to show for this slide'));
+    else pane.replaceChildren();
+    // no code: the narration takes the whole player, centred
+    split.classList.toggle('is-solo', s.kind === 'empty');
   };
   const pane$ = paneMachine.provide({
     actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(ref) }))) } : input)) },
@@ -177,7 +175,7 @@ export function mountWalkthrough(app: ReviewApp) {
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
     h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
-    h('div', { class: 'rr-tour__body' }, left, right),
+    (split.append(left, right), split),
     h('div', { class: 'rr-tour__bottom' }, prev, progress, next),
   );
   const pillText = h('span', { class: 'rr-tour__pill-text' });
@@ -352,7 +350,7 @@ export function mountWalkthrough(app: ReviewApp) {
       } else if (s.matches('open')) actor.send({ type: cmd });
     };
 
-  /** For `reviewroom walkthrough lint`: open a step in a theme, wait until the pane shows it and its code has
+  /** For `reviewroom slide-lint`: open a step in a theme, wait until the pane shows it and its code has
    *  landed, measure what is on screen. */
   async function audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit> {
     await loaded;

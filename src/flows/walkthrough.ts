@@ -14,13 +14,13 @@ import { stepRefs, type Walkthrough } from '../shared/walkthrough';
 // ------------------------------------------------------------------ the code pane
 
 /** What the pane is asked to show. */
-export type PaneWant = { kind: 'refs'; refs: string[] } | { kind: 'diagram'; html: string } | { kind: 'empty' };
+export type PaneWant = { kind: 'refs'; refs: string[] } | { kind: 'empty' };
 /** Where a code link lands (a CodeTarget). */
 export type CodeAt = { path: string; side: 'base' | 'head'; start?: number; end?: number; rev?: string; view?: 'diff' | 'file' };
 /** One stacked chunk: a code view of `code`, or (no code: a section, an unknown symbol) a preview of the link. */
 export type Slot = { ref: string; code: CodeAt | null };
 /** What the pane shows, resolved. */
-export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'diagram'; html: string } | { kind: 'empty' };
+export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'empty' };
 
 /** `pending`: code chunks whose panel has not landed yet; `late`: landing timed out (what is on screen may still move) */
 type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean };
@@ -39,7 +39,7 @@ const show = { show: { target: '#pane.resolving', actions: 'want' } } as const;
 export const paneMachine = setup({
   types: { context: {} as PaneCtx, events: {} as PaneEvent, input: {} as PaneWant | null },
   actors: {
-    /** links -> where each lands (symbols need a search); diagrams and empty pass through */
+    /** links -> where each lands (symbols need a search); empty passes through */
     resolve: fromPromise<PaneShown, PaneWant>(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: input.refs.map((ref) => ({ ref, code: null })) } : input)),
   },
   actions: {
@@ -129,17 +129,13 @@ export function current({ doc, chapter, step }: Ctx) {
   return { chapter: ch, step: ch.steps[step], isFirst: chapter === 0 && step === 0, isLast: chapter === last && step === ch.steps.length - 1 };
 }
 
-const FLOW = /<rr-flow[\s>][\s\S]*?<\/rr-flow>/; // the first one
-
 /** What the code pane shows for the current step: its links; else the chapter's last links so far; else the chapter
- *  lead's diagram; else the last links of an earlier chapter; else nothing. */
+ *  last links of an earlier chapter; else nothing. Only code: the lead's diagram stays in the lead, never twice. */
 export function target({ doc, chapter, step }: Ctx): PaneWant {
   const ch = doc!.chapters[chapter];
   const last = (steps: Walkthrough['chapters'][number]['steps']) => stepRefs(steps.findLast((s) => s.ref) ?? {});
   const back = last(ch.steps.slice(0, step + 1));
   if (back.length) return { kind: 'refs', refs: back };
-  const flow = ch.lead?.match(FLOW)?.[0];
-  if (flow) return { kind: 'diagram', html: flow };
   const earlier = last(doc!.chapters.slice(0, chapter).flatMap((c) => c.steps));
   return earlier.length ? { kind: 'refs', refs: earlier } : { kind: 'empty' };
 }

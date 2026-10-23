@@ -1,4 +1,4 @@
-// walkthrough.json on the CLI side: where a link sits in it (for `check`), the PR block (`pr`, `walkthrough publish`).
+// walkthrough.json on the CLI side: where a link sits in it (for `check`), the PR block (`pr`, `publish-slides`).
 import type { GitHubSnapshot } from '../../src/core/types.ts';
 import { findBlocks, stepRefs, type Walkthrough } from '../../src/shared/walkthrough.ts';
 import { applyFixes, extractLinks, type LinkResult, type Links } from './links.ts';

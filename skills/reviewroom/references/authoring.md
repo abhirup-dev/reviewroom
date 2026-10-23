@@ -194,22 +194,21 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
 from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-flow>`, `<rr-callout>`, `<rr-embed>`; styles,
-scripts, forms, media and `<rr-check>` are stripped (`walkthrough lint` names what was). One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
-The commands and the file keep the short name: `reviewroom walkthrough …`, `walkthrough.json`.
+scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
 
 - `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
-  (changed files no slide shows, chapter sizes, empty panes); problems name the slide (chapter/step). A file linked
+  (changed files no slide shows, chapter sizes); problems name the slide (chapter/step). A file linked
   anywhere in slide text counts as shown; tests, generated, dependency, lock and doc files, and files with under 10 changed lines,
   are only reported as info.
 - Highlight budget at a laptop screen: about 25 lines for one ref, 10 each for two stacked, never more than two
-  stacked. `check` estimates it; `walkthrough lint` measures it and proposes a narrower range.
-- `reviewroom walkthrough lint` plays every slide in a headless browser and reports what does not fit:
+  stacked. `check` estimates it; `slide-lint` measures it and proposes a narrower range.
+- `reviewroom slide-lint` plays every slide in a headless browser and reports what does not fit:
   narration that needs scrolling, highlighted lines off screen, stacked chunks too short, content wider
   than its box, prose the sanitizer strips, page errors. Each finding says how to fix it.
-- `reviewroom walkthrough shot <chapter>/<step>` renders one slide to a PNG (`--theme dark`, `--viewport`).
+- `reviewroom shot <chapter>/<step>` renders one slide to a PNG (`--theme dark`, `--viewport`).
 - `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a slide,
   and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the walkthrough.
-- `reviewroom walkthrough publish` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
+- `reviewroom publish-slides` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
   comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 
 ## Typography and colour
