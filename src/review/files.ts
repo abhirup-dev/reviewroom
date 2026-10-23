@@ -4,7 +4,7 @@ import { openCentered } from './focus';
 import type { ChangedFile } from '../kernel/state/model.shared';
 import { definePanel, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
-import { fileType, isTestFile, reviewOrder } from './files.shared';
+import { codeThreadsOn, fileType, isTestFile, reviewOrder } from './files.shared';
 
 const TYPE_LABEL: Record<string, string> = { go: 'Go', ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', py: 'Python', proto: 'Protobuf', sql: 'SQL', md: 'Markdown', yaml: 'YAML', yml: 'YAML', json: 'JSON', java: 'Java', kt: 'Kotlin', rs: 'Rust', sh: 'Shell', css: 'CSS', html: 'HTML' };
 
@@ -66,7 +66,7 @@ class FilesPanel implements PanelInstance {
 
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
-    const threads = app.threads().filter((t) => t.status === 'open' && t.anchor.kind === 'code' && t.anchor.path === f.path);
+    const threads = codeThreadsOn(app.threads(), f.path).filter((t) => t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
     return h(
       'button',

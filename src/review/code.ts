@@ -23,6 +23,7 @@ type Ctx = { item: { id: string } };
 // diff colours come from our --rr-add/--rr-del tokens (so review themes reach the code); dark tints are kept low
 // Pierre tints a changed line's body by mixing that tint into the background again (--mix-*), which washes it out; the mixes keep more of it
 import { PIERRE_CSS } from './previews';
+import { codeThreadsOn } from './files.shared';
 /** Lines a jump landed on glow a few times while the panel sets --rr-pulse (the reveal machine's glow). */
 const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
 /** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */
@@ -299,7 +300,7 @@ class CodePanel implements PanelInstance {
     const entry = this.files.get(path);
     if (!entry) return undefined;
     const f = entry.file;
-    const threads = app.threads().filter((t) => t.anchor.kind === 'code' && t.anchor.path === f.path && t.status === 'open');
+    const threads = codeThreadsOn(app.threads(), f.path).filter((t) => t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
@@ -385,11 +386,10 @@ class CodePanel implements PanelInstance {
 
   private annotations(path: string): DiffLineAnnotation<Meta>[] {
     if (!this.app.prefs.inlineThreads) return [];
-    return this.app
-      .threads()
-      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && onLine(t))
+    return codeThreadsOn(this.app.threads(), path)
+      .filter(onLine)
       .map((t) => {
-        const a = t.anchor as Extract<Thread['anchor'], { kind: 'code' }>;
+        const a = t.anchor;
         const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
         return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } });
       });
@@ -421,10 +421,9 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ full file view
   private fileAnnotations(path: string, side: 'base' | 'head') {
-    return this.app
-      .threads()
-      .filter((t) => t.anchor.kind === 'code' && t.anchor.path === path && t.anchor.rev === side && onLine(t))
-      .map((t) => ({ lineNumber: (t.anchor as Extract<Thread['anchor'], { kind: 'code' }>).end, metadata: { threadId: t.id } }));
+    return codeThreadsOn(this.app.threads(), path)
+      .filter((t) => t.anchor.rev === side && onLine(t))
+      .map((t) => ({ lineNumber: t.anchor.end, metadata: { threadId: t.id } }));
   }
 
   /** The whole file at a side or sha; true once it is on screen (false: gone, or another view replaced it). */
