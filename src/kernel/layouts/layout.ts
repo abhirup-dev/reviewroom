@@ -21,6 +21,16 @@ export function resetLayout(app: ReviewApp) {
   applyLayout(app, startId(app));
 }
 
+/** Layout `id` is the one the dock now shows (the layout menu marks it; undo and the next reload return to it). */
+function setCurrent(app: ReviewApp, id: string) {
+  const state = layoutState(app);
+  state.currentId = id;
+  state.current = layouts(app)[id];
+}
+
+/** A toast for what went wrong, and false for the caller to return. */
+const fail = (app: ReviewApp, message: string) => (app.toast(message, 'error'), false);
+
 /** Rebuild the dock from layout `id`; false if there is no such layout. */
 export function applyLayout(app: ReviewApp, id: string) {
   const state = layoutState(app);
@@ -35,8 +45,7 @@ export function applyLayout(app: ReviewApp, id: string) {
   });
   if (json) api.fromJSON(json as SerializedDockview);
   else api.clear();
-  state.current = l;
-  state.currentId = id;
+  setCurrent(app, id);
   state.offered = new Set(state.availability?.ids.filter((pid) => api.getPanel(pid)));
   for (const d of panelDefs()) if (!d.onDemand && !ownPanels.includes(d.id)) addDockPanel(api, d.id, { panel: 'narrative', dir: 'within' });
   if (!api.panels.length) addDockPanel(api, 'narrative'); // a layout of nothing reviewroom has
@@ -48,14 +57,14 @@ export function applyLayout(app: ReviewApp, id: string) {
  *  (and start from, `asDefault`). A taken name (shipped or saved) is refused: false, nothing changed. */
 export async function saveLayout(app: ReviewApp, title: string, asDefault = false) {
   const id = layoutId(title);
-  if (!id) return app.toast('Name it with some letters or digits', 'error'), false;
-  if (layouts(app)[id]) return app.toast(`“${title}” is taken: pick another name`, 'error'), false;
+  if (!id) return fail(app, 'Name it with some letters or digits');
+  if (layouts(app)[id]) return fail(app, `“${title}” is taken: pick another name`);
   const { last } = layoutState(app);
   const now = passing(app) && last ? JSON.parse(last.raw) : app.dock.toJSON();
   const root = fromDockview(now as DockJSON, (pid) => !pid.includes(':')); // no on-demand panels, no windows
-  if (!root) return app.toast('Nothing to save: no panels are open', 'error'), false;
+  if (!root) return fail(app, 'Nothing to save: no panels are open');
   const layout = { title, root };
-  if (!(await app.backend.saveLayout(id, layout).catch(() => false))) return app.toast('Could not save the layout', 'error'), false;
+  if (!(await app.backend.saveLayout(id, layout).catch(() => false))) return fail(app, 'Could not save the layout');
   app.layouts[id] = layout;
   app.commands.register(layoutCommand(app, id));
   if (asDefault && !(await setDefaultLayout(app, id))) return true; // saved; setDefaultLayout said what failed
@@ -65,7 +74,7 @@ export async function saveLayout(app: ReviewApp, title: string, asDefault = fals
 
 /** Make saved layout `id` the one reviews start from, or have none (null). */
 export async function setDefaultLayout(app: ReviewApp, id: string | null) {
-  if (!(await app.backend.setDefaultLayout(id).catch(() => false))) return app.toast('Could not change the default layout', 'error'), false;
+  if (!(await app.backend.setDefaultLayout(id).catch(() => false))) return fail(app, 'Could not change the default layout');
   app.defaultLayout = id;
   if (!id) app.toast('No default layout: new reviews start from their built-in layout');
   return true;
@@ -117,8 +126,7 @@ export function undoLayout(app: ReviewApp) {
   if (!prev) return;
   app.dock.fromJSON(JSON.parse(prev.raw));
   if (prev.layout && layouts(app)[prev.layout]) {
-    state.currentId = prev.layout;
-    state.current = layouts(app)[prev.layout];
+    setCurrent(app, prev.layout);
   }
   state.last = snapshot(app); // the change this fires is the undo itself, not a new step
 }
@@ -143,8 +151,7 @@ export function mountDock(app: ReviewApp, host: HTMLElement, saved: LastLayout |
     }
   }
   if (restored) {
-    state.currentId = saved!.layout && layouts(app)[saved!.layout] ? saved!.layout : startId(app);
-    state.current = layouts(app)[state.currentId];
+    setCurrent(app, saved!.layout && layouts(app)[saved!.layout] ? saved!.layout : startId(app));
     state.offered = new Set(saved!.offered);
   } else resetLayout(app);
 
