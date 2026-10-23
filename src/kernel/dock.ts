@@ -3,6 +3,11 @@ import { createDockview, type DockviewApi, type IContentRenderer, type DockviewG
 import { h, icon } from './dom';
 import type { ReviewApp } from '../app';
 
+/** A floating window rather than a docked group. */
+export const isFloating = (g: DockviewGroupPanel) => g.api.location.type === 'floating';
+/** The stand-in tab that holds a floated panel's place in the dock (see floatInPlace). */
+const slotOf = (dock: DockviewApi, id: string) => dock.getPanel('slot:' + id);
+
 export interface PanelDef {
   id: string;
   title: string;
@@ -61,7 +66,7 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
         return b;
       };
       const paint = () => {
-        const floating = group.api.location.type === 'floating';
+        const floating = isFloating(group);
         const kids: HTMLElement[] = [
           floating
             ? hasSlot(app, group)
@@ -97,8 +102,8 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
     const tab = (e.target as Element).closest('.dv-tab');
     const p = tab && api.panels.find((x) => tab.contains(x.view.tab.element));
     if (!p || (e.target as Element).closest('.dv-default-tab-action')) return;
-    if (p.group.api.location.type !== 'floating') floatInPlace(app, p.id);
-    else if (api.getPanel('slot:' + p.id)) putBack(app, p.id);
+    if (!isFloating(p.group)) floatInPlace(app, p.id);
+    else if (slotOf(api, p.id)) putBack(app, p.id);
   };
   host.addEventListener('dblclick', doubleClick);
   app.onDispose(() => host.removeEventListener('dblclick', doubleClick));
@@ -171,19 +176,19 @@ export function centerBox(app: ReviewApp) {
   return { position: { top: Math.round((H - height) / 2), left: Math.round((W - width) / 2) }, width, height };
 }
 
-const hasSlot = (app: ReviewApp, group: DockviewGroupPanel) => !!group.activePanel && !!app.dock.getPanel('slot:' + group.activePanel.id);
+const hasSlot = (app: ReviewApp, group: DockviewGroupPanel) => !!group.activePanel && !!slotOf(app.dock, group.activePanel.id);
 
 function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
   e.preventDefault();
   const tab = ((e.target as Element).closest('.dv-tab') ?? e.target) as HTMLElement;
   const g = p.group;
-  const floating = g.api.location.type === 'floating';
+  const floating = isFloating(g);
   void import('./menus').then(({ popMenu, menuItem }) =>
     popMenu(tab, (close) => [
       p.id.startsWith('slot:')
         ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
         : floating
-        ? app.dock.getPanel('slot:' + p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
+        ? slotOf(app.dock, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
         : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
       floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
       menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
@@ -219,7 +224,7 @@ export function onEscape(app: ReviewApp, id: string, back: () => void) {
   const f = () => {
     app.escapers.splice(app.escapers.indexOf(f), 1);
     const p = app.dock.getPanel(id);
-    if (!p || p.group.api.location.type !== 'floating') return false;
+    if (!p || !isFloating(p.group)) return false;
     back();
     return true;
   };
@@ -234,7 +239,7 @@ export function floatInPlace(app: ReviewApp, id: string) {
   if (id.startsWith('slot:')) return putBack(app, id.slice(5)); // the stand-in itself: bring the panel home
   const p = app.dock.getPanel(id);
   if (!p) return;
-  if (p.group.api.location.type === 'floating') return p.api.setActive();
+  if (isFloating(p.group)) return p.api.setActive();
   const group = p.group;
   app.dock.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p });
   app.dock.addFloatingGroup(p, centerBox(app));
@@ -242,7 +247,7 @@ export function floatInPlace(app: ReviewApp, id: string) {
 }
 
 export function putBack(app: ReviewApp, id: string) {
-  const slot = app.dock.getPanel('slot:' + id);
+  const slot = slotOf(app.dock, id);
   if (!slot) return;
   const group = slot.group;
   const index = group.panels.indexOf(slot);
@@ -274,7 +279,7 @@ definePanel({
         if (!slot) return;
         if (!p) putBack(app, id);
         // docked somewhere else by hand: this spot has no job left
-        else if (p.group.api.location.type !== 'floating' && p.group !== slot.group) slot.api.close();
+        else if (!isFloating(p.group) && p.group !== slot.group) slot.api.close();
       }),
     );
     return { element: el, dispose: () => sub.dispose() };

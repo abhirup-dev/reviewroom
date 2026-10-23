@@ -4,7 +4,7 @@ import type { ReviewApp } from '../../app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
-import { addDockPanel, createDock, panelDef, panelDefs } from '../dock';
+import { addDockPanel, createDock, isFloating, panelDef, panelDefs } from '../dock';
 import { layoutState, type LayoutSnapshot, type PanelAvailability } from './state';
 
 // ---------------------------------------------------------------- layout files
@@ -89,7 +89,7 @@ export function layoutCommand(app: ReviewApp, id: string) {
 
 // a pin or section opened big over the layout (focus.ts) isn't a layout change: not saved, not an undo step
 export const passingPanels = (app: ReviewApp) => layoutState(app).passingPanels;
-const passing = (app: ReviewApp) => app.dock.panels.some((p) => p.id.startsWith('slot:') || (passingPanels(app).has(p.id) && p.group.api.location.type === 'floating'));
+const passing = (app: ReviewApp) => app.dock.panels.some((p) => p.id.startsWith('slot:') || (passingPanels(app).has(p.id) && isFloating(p.group)));
 
 // ---------------------------------------------------------------- undo
 // Settled layouts (kernel/layouts/save.machine.ts reads the dock once it settles), newest last. Switching tabs isn't a layout change, and
