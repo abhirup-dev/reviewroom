@@ -16,8 +16,8 @@ sentence of context; a new subsystem needs a chapter.
 
 1. **Context.** Bring the reader onto your page before any diff code: what exists today, what the
    PR is for, the threads it will follow and where they meet. Name the critical file here, in one
-   sentence. The pane shows whatever gets that across: a flow of the surrounding system, code as it
-   was (`@base`), or nothing.
+   sentence. The pane shows only code: code as it was (`@base`), or nothing; a flow of the
+   surrounding system goes in the lead.
 2. **Threads.** One chapter per independent change (usually two to four), in the order data or
    control flows. Each chapter ends on what the convergence will need from it.
 3. **Convergence.** The critical file or files: what reads there, what writes there, the contract
@@ -79,5 +79,5 @@ One story at two depths:
 - Tables, supporting detail and caveats go in the walkthrough; a slide carries only the attributed
   number its claim needs. The guided walkthrough is written once and kept stable; the walkthrough grows
   round by round (see "Answering threads" in `review-craft.md`).
-- Each slide fits the screen; `reviewroom walkthrough lint` measures it. Split a slide rather than
+- Each slide fits the screen (the checks in `authoring.md` measure it). Split a slide rather than
   squeeze it.

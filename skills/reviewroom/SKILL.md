@@ -106,17 +106,9 @@ Optionally, to see it as the reviewer will (or to fix a layout problem they repo
 
 Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
 files, reconciliation; the diff and description as the only evidence), then "Guided walkthrough" in
-`references/authoring.md` (the file). Write `walkthrough.json`, then loop until
-`lint` is clean:
-
-```bash
-reviewroom check --dir <dir>                              # schema, links, what the slides leave out, pacing
-reviewroom walkthrough lint --dir <dir>                   # every slide measured on screen; exit 1 while warnings remain
-reviewroom walkthrough shot <chapter>/<step> --dir <dir>  # look at a slide a finding names (prints a PNG path)
-```
-
-(`reviewroom walkthrough …` and `walkthrough.json` are the guided walkthrough's names.) Each finding
-names the chapter/step and how to fix it. Take a screenshot only of slides you need to see.
+`references/authoring.md` (the file and its checks). Write `walkthrough.json`, then run those checks
+until clean. Each finding names the chapter/step and how to fix it. Take a screenshot only of slides
+you need to see.
 
 ## Step 4c: Hand over
 
@@ -174,7 +166,7 @@ deeper explanation, a table, a sketch), grow the walkthrough instead of the slid
 section that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its
 top and expands on it; the reply links that section, and the discussion continues there. Edit the
 slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
-again as in Step 4b (`check`, then `walkthrough lint --dir <dir>`, then `shot` where needed) until clean.
+again as in Step 4b until clean.
 
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):

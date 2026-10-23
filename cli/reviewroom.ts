@@ -19,9 +19,10 @@ import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
-import { cmdWalkthrough } from './commands/walkthrough.ts';
+import { cmdPublishSlides } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { cmdShot } from './commands/shot.ts';
+import { cmdSlideLint } from './commands/slides.ts';
 import { ReviewroomError } from '../src/shared/ops.ts';
 
 const cli = cac('reviewroom');
@@ -97,26 +98,29 @@ cli
   .action(run(cmdCheck));
 
 cli
-  .command('walkthrough <action> [step]', 'The guided walkthrough (walkthrough.json). lint: measure every slide on screen; shot <chapter>/<step>: a screenshot of one slide; publish: post it to the PR')
-  .option('--viewport <WxH,...>', 'lint: viewports to measure at (default 1280x800,1440x900); shot: one (default 1280x800)')
-  .option('--theme <light|dark>', 'shot: the theme (default light)')
-  .option('--out <file>', 'shot: where to write the PNG (default: a temp file, printed)')
-  .option('--json', 'lint: print { engine, viewports, links, findings } as JSON')
-  .option('--dry-run', 'publish: print the comment instead of posting it')
-  .option('--allow-stale', 'publish: post even if some links need attention (never with schema errors)')
-  .example('  reviewroom walkthrough lint')
-  .example('  reviewroom walkthrough shot latency/s3 --theme dark')
-  .example('  reviewroom walkthrough publish')
-  .action(run(cmdWalkthrough));
+  .command('slide-lint', 'Check the guided walkthrough (walkthrough.json), then measure every slide on screen in a headless browser')
+  .option('--viewport <WxH,...>', 'Viewports to measure at (default 1280x800,1440x900)')
+  .option('--json', 'Print { engine, viewports, links, findings } as JSON')
+  .example('  reviewroom slide-lint')
+  .action(run(cmdSlideLint));
 
 cli
-  .command('shot [section]', 'The review as the reviewer reads it, as PNGs (one picture if short, else one per section; a tall section in parts), to look at without a browser')
+  .command('publish-slides', 'Post the guided walkthrough (walkthrough.json) to the PR, where `reviewroom pr <n>` picks it up')
+  .option('--dry-run', 'Print the comment instead of posting it')
+  .option('--allow-stale', 'Post even if some links need attention (never with schema errors)')
+  .example('  reviewroom publish-slides')
+  .action(run(cmdPublishSlides));
+
+cli
+  .command('shot [section]', 'The review as the reviewer reads it, as PNGs (one picture if short, else one per section; a tall section in parts), to look at without a browser. <chapter>/<step>: one guided-walkthrough slide instead, with what slide-lint finds on it')
   .option('--theme <light|dark>', 'The theme (default light)')
   .option('--mobile', 'As on a phone: the panel 390 CSS px wide')
-  .option('--out <dir>', 'Where to write the PNGs (default: a temp dir, emptied first; the paths are printed)')
+  .option('--viewport <WxH>', 'A slide: the screen (default 1280x800)')
+  .option('--out <dir>', 'Where to write the PNGs (default: a temp dir, emptied first for the review; the paths are printed)')
   .example('  reviewroom shot')
   .example('  reviewroom shot request-path --theme dark')
   .example('  reviewroom shot --mobile')
+  .example('  reviewroom shot latency/s3 --theme dark')
   .action(run(cmdShot));
 
 cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
@@ -154,7 +158,7 @@ const notes: Record<string, string> = {
     '  page\'s script errors. Optional: for checking your own HTML, or a layout problem the reviewer reports.',
     '  Nothing in the review is written.',
   ].join('\n'),
-  pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `walkthrough publish`) gets it as walkthrough.json when the review has none. Newest wins.',
+  pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `publish-slides`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
   status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
   hub: [
@@ -171,7 +175,7 @@ const notes: Record<string, string> = {
     `  walkthrough.json, when present, must match ${WALKTHROUGH_SCHEMA} (checked first); its slide refs and`,
     '  the links in its prose are checked like the walkthrough\'s, and problems name the slide (chapter/step) they are in.',
     '  Then whether it works as a guided walkthrough (notes, exit code unaffected): changed files no slide shows,',
-    '  chapters of one slide or more than 6, a slide whose code pane is empty, and estimates of slides too long to fit (over 120 words;',
+    '  chapters of one slide or more than 6, and estimates of slides too long to fit (over 120 words;',
     '  over about 25 highlighted lines for one ref, 10 each for two stacked; more than two refs stacked). Each note says how to fix it.',
     '  The server also checks on start and on every save of review.html or walkthrough.json. Links in HTML comments are ignored.',
   ].join('\n'),
@@ -199,9 +203,9 @@ cli.help((sections) => {
       title: 'A guided walkthrough (when wanted)',
       body: [
         '  walkthrough.json next to review.html: the main story of the diff as slides, played over the workbench',
-        '  reviewroom walkthrough lint       check it, then measure every slide on screen; repeat until clean',
-        '  reviewroom walkthrough shot <chapter>/<step>   one slide as a PNG, to look at what a finding names',
-        '  reviewroom walkthrough publish    post it to the PR, where `reviewroom pr <n>` picks it up',
+        '  reviewroom slide-lint             check it, then measure every slide on screen; repeat until clean',
+        '  reviewroom shot <chapter>/<step>  one slide as a PNG, to look at what a finding names',
+        '  reviewroom publish-slides         post it to the PR, where `reviewroom pr <n>` picks it up',
       ].join('\n'),
     },
     {

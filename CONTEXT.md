@@ -35,8 +35,7 @@ _Avoid_: narrative, review, review page, review.html
 
 **Guided walkthrough**:
 The optional main story of the diff, played over the workbench: chapters of slides, narration beside the code each slide
-shows. The reviewer sees it first; the walkthrough is where they dig in. Its file and commands keep the short name
-(`walkthrough.json`, `reviewroom walkthrough …`), and its links are `rr:tour/<chapter>/<step>`.
+shows. The reviewer sees it first; the walkthrough is where they dig in.
 _Avoid_: walkthrough (bare), tour, slideshow, presentation
 
 **Slide**:

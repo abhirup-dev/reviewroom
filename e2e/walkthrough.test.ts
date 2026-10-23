@@ -38,10 +38,10 @@ describe('walkthrough', () => {
     expect([bad.code, bad.stderr]).toEqual([1, expect.stringContaining('version')]);
   });
 
-  test('walkthrough publish --dry-run prints the PR block; without a PR it cannot post', async () => {
-    const dry = await cli(['walkthrough', 'publish', '--dry-run', ...d]);
+  test('publish-slides --dry-run prints the PR block; without a PR it cannot post', async () => {
+    const dry = await cli(['publish-slides', '--dry-run', ...d]);
     expect([dry.code, dry.stdout]).toEqual([0, expect.stringContaining('<!-- reviewroom-walkthrough -->\n```reviewroom-walkthrough\n{')]);
-    const real = await cli(['walkthrough', 'publish', ...d]);
+    const real = await cli(['publish-slides', ...d]);
     expect([real.code, real.stderr]).toEqual([1, expect.stringContaining('not about a GitHub PR')]);
   });
 
@@ -55,13 +55,13 @@ describe('walkthrough', () => {
   });
 
   const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
-  if (!browser) console.log('skipping walkthrough lint/shot: no browser (Chrome or Chromium) to render in');
+  if (!browser) console.log('skipping slide-lint/shot: no browser (Chrome or Chromium) to render in');
   const listing = () => fs.readdirSync(dir).sort().map((f) => `${f} ${fs.statSync(path.join(dir, f)).mtimeMs}`);
-  test.skipIf(!browser)('walkthrough lint measures every step on screen; shot writes one step\'s PNG; neither touches the review', async () => {
+  test.skipIf(!browser)('slide-lint measures every step on screen; shot writes one step\'s PNG; neither touches the review', async () => {
     // a script of the author's that throws: the reviewer would hit it, so lint reports it
     fs.writeFileSync(path.join(dir, 'review.html'), read(import.meta.dir, '..', 'templates', 'review.html').replace('</rr-review>', '<script>throw new Error("author boom")</script></rr-review>'));
     const before = listing();
-    const lint = await cli(['walkthrough', 'lint', '--viewport', '1280x720', '--json', ...d]);
+    const lint = await cli(['slide-lint', '--viewport', '1280x720', '--json', ...d]);
     if (!lint.stdout) throw new Error(lint.stderr);
     const out = JSON.parse(lint.stdout);
     expect(out).toMatchObject({ viewports: ['1280x720'], links: [] });
@@ -69,8 +69,8 @@ describe('walkthrough', () => {
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the slide') }));
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
     expect(lint.code).toBe(1);
-    const png = path.join(dir, '..', 'shot.png');
-    const shot = await cli(['walkthrough', 'shot', 'latency/s2', '--out', png, ...d]);
+    const png = path.join(dir, '..', 'shots', 'latency-s2-1280x800-light.png');
+    const shot = await cli(['shot', 'latency/s2', '--out', path.dirname(png), ...d]);
     expect([shot.code, shot.stdout.split('\n')[0]]).toEqual([0, png]);
     expect([...fs.readFileSync(png).subarray(1, 4)].map((c) => String.fromCharCode(c)).join('')).toBe('PNG');
     expect(listing()).toEqual(before);

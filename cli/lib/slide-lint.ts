@@ -1,10 +1,9 @@
 // Whether a walkthrough works as a walkthrough, beyond the schema and its links: what it leaves out, its pacing, and
-// (rendered, `walkthrough lint`) whether each step fits the screen. Findings name the step and say how to fix it.
+// (rendered, `slide-lint`) whether each step fits the screen. Findings name the step and say how to fix it.
 import type { ChangedFile } from '../../src/core/types.ts';
 import { plain } from '../../src/shared/feedback.ts';
 import { parseRef } from '../../src/shared/refs.ts';
 import { stepRefs, type StepAudit, type Walkthrough } from '../../src/shared/walkthrough.ts';
-import { target } from '../../src/flows/walkthrough.ts';
 import { extractLinks, uncomment } from './links.ts';
 import { tourText } from './walkthrough.ts';
 
@@ -40,12 +39,11 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
 
   const total = w.chapters.reduce((n, c) => n + c.steps.length, 0);
   if (total > MAX_TOTAL) out.push({ check: 'too-long', level: 'warn', message: `${total} slides in all`, fix: `Aim for at most ${MAX_TOTAL}: cut slides that restate the code, leave detail to the walkthrough (review.html).` });
-  w.chapters.forEach((c, ci) => {
+  w.chapters.forEach((c) => {
     if (c.steps.length === 1 && w.chapters.length > 1) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: 'a chapter of one slide', fix: 'Merge it into a neighbouring chapter, or give it the 2 to 5 slides the concept needs.' });
     if (c.steps.length > MAX_STEPS) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: `${c.steps.length} slides in one chapter`, fix: 'Split it into two concepts.' });
-    c.steps.forEach((s, si) => {
+    c.steps.forEach((s) => {
       const where = `${c.id}/${s.id}`;
-      if (target({ doc: w, chapter: ci, step: si }).kind === 'empty') out.push({ check: 'empty-pane', level: 'warn', where, message: 'the code pane is empty on this slide', fix: 'Give the slide (or an earlier one) a ref, or the chapter lead an <rr-flow>.' });
       if (s.focus) {
         const labels = [...((c.lead ?? '') + s.text).matchAll(/<rr-node\b[^>]*>([\s\S]*?)<\/rr-node>/g)].map((m) => plain(m[1]));
         const gone = s.focus.filter((l) => !labels.includes(l));
@@ -53,7 +51,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
       }
       if (!estimates) return;
       const words = plain(s.text).split(' ').filter(Boolean).length;
-      if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: 'Split the slide, or move the detail to the walkthrough (review.html) and link it. `reviewroom walkthrough lint` measures it.' });
+      if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: 'Split the slide, or move the detail to the walkthrough (review.html) and link it. `reviewroom slide-lint` measures it.' });
       const refs = stepRefs(s);
       if (refs.length > 2) out.push({ check: 'short-chunk', level: 'warn', where, message: `${refs.length} refs stacked`, fix: 'Stack at most 2 refs (about 10 lines each), or split the slide.' });
       else for (const ref of refs) {
@@ -70,7 +68,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
 const MIN_VISIBLE = 8; // code lines a stacked chunk should show at once
 const LEAD_SHARE = 0.4; // of the narration's height, past which the lead is named as the cause of an overflow
 
-/** One step measured at one viewport (`walkthrough lint`). */
+/** One step measured at one viewport (`slide-lint`). */
 export type Measured = { viewport: string; chapter: string; step: string; audit: StepAudit; errors: string[]; ownRef?: boolean };
 
 /** The rendered checks: what each step looks like on screen. The same problem at several viewports is one finding. */
@@ -86,7 +84,7 @@ export function judge(ms: Measured[]): Finding[] {
     const where = `${chapter}/${step}`;
     const over = a.left.content - a.left.visible;
     if (over > 2) {
-      const lead = a.left.lead / a.left.visible > LEAD_SHARE ? ` The chapter lead takes ${Math.round((a.left.lead / a.left.visible) * 100)}% of it: shorten the lead, or move its diagram onto a slide (where the pane shows it).` : '';
+      const lead = a.left.lead / a.left.visible > LEAD_SHARE ? ` The chapter lead takes ${Math.round((a.left.lead / a.left.visible) * 100)}% of it: shorten the lead, or fold its diagram into the slides that need it.` : '';
       add({ check: 'overflow', level: 'warn', where, message: 'the narration needs scrolling', fix: `Shorten or split the slide; move detail to the walkthrough (review.html) and link it.${lead}` }, viewport, `${over}px more than the ${a.left.visible}px it has`);
     }
     // a step without a ref shows the previous pane: its chunk findings are that step's
