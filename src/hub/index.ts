@@ -157,12 +157,7 @@ function visible(): SessionInfo[] {
   const rows = (data?.sessions ?? []).filter(
     (s) =>
       (!q || text(s).includes(q)) &&
-      (!f.tool.value || s.tool === f.tool.value) &&
-      (!f.kind.value || s.kind === f.kind.value) &&
-      (!f.repo.value || s.repository === f.repo.value) &&
-      (!f.branch.value || s.branch === f.branch.value) &&
-      (!f.cwd.value || s.cwd === f.cwd.value) &&
-      (!f.author.value || (s.author ?? NO_AUTHOR) === f.author.value) &&
+      selectOptions.every(([el, , valueOf]) => !el.value || valueOf(s) === el.value) &&
       (!f.comments.value || (s.commentCount ?? -1) >= +f.comments.value) &&
       (!f.round.value || (s.reviewRound ?? -1) >= +f.round.value),
   );
