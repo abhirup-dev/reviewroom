@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { h, icon, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, h, icon, threadBadge, threadCounts } from '../kernel/dom';
 import { formatRef } from '../kernel/refs/browser';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
@@ -328,7 +328,7 @@ class CodePanel implements PanelInstance {
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (copy(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
       this.pin ? null : popoutButton(app, f, this.panelId),
       h('label', { class: 'rr-viewed', title: 'Mark as viewed: collapses the file and counts toward your progress', 'data-keys': 'v' }, cb, 'Viewed'),
     );
@@ -589,11 +589,6 @@ function unfold(inst: { revealLine(line: number): boolean }, diff: FileDiffMetad
     if (n && inst.revealLine(n)) opened = true;
   }
   return opened;
-}
-
-function copy(text: string) {
-  navigator.clipboard?.writeText(text).catch(() => {});
-  return text;
 }
 
 let counter = 1;
