@@ -41,6 +41,16 @@ const within = <T>(p: Promise<T>, ms: number, what: string) => {
 
 export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit>; errors(): string[]; screenshot(): Promise<Blob>; evaluate<T>(js: string): Promise<T>; resize(width: number, height: number): Promise<void>; close(): Promise<void> };
 
+/** `fn` with the review page open (see openPage), closing it however `fn` ends. */
+export async function withPage<T>(url: string, vp: Viewport, fn: (page: Page) => Promise<T>, scale = 1): Promise<T> {
+  const page = await openPage(url, vp, scale);
+  try {
+    return await fn(page);
+  } finally {
+    await page.close();
+  }
+}
+
 /** The review page at `url` in a browser at `vp` (`scale`: device pixels per CSS px), once its walkthrough can be measured. */
 export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Page> {
   const errors: string[] = []; // console errors since the last errors()

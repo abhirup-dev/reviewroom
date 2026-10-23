@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit } from '../lib/config.ts';
-import { openPage, withServer } from '../lib/render.ts';
+import { withPage, withServer } from '../lib/render.ts';
 import { shotSlide } from './slides.ts';
 
 type ShotOpts = Global & { theme?: string; out?: string; mobile?: boolean; viewport?: string };
@@ -71,9 +71,8 @@ export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]
   const out = path.resolve(o.out ?? tmp);
   if (!o.out) fs.rmSync(tmp, { recursive: true, force: true }); // last run's pictures would read as this one's
   fs.mkdirSync(out, { recursive: true });
-  await withServer(repo, dir, async (url) => {
-    const page = await openPage(url, LAPTOP);
-    try {
+  await withServer(repo, dir, (url) =>
+    withPage(url, LAPTOP, async (page) => {
       await page.evaluate(`(rr.app.prefs = { ...rr.app.prefs, theme: '${theme}' }, rr.app.applyTheme())`); // this page only: not saved
       const plan = await page.evaluate<Plan>(PLAN(only, MAX, o.mobile ? PHONE : undefined));
       if (plan.error) fail(plan.error);
@@ -87,8 +86,6 @@ export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]
       if (plan.wide!.length) console.log(`\nwider than the panel (cut off, or the page scrolls sideways):\n  ${plan.wide!.join('\n  ')}`);
       const errors = page.errors();
       if (errors.length) console.log(`\npage errors (the reviewer sees the same):\n  ${errors.join('\n  ')}`);
-    } finally {
-      await page.close();
-    }
-  });
+    }),
+  );
 }
