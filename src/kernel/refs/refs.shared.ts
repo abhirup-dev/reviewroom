@@ -52,7 +52,8 @@ export function parseRef(input: string): Ref | null {
         }
         let rev = 'head';
         const at = rest.lastIndexOf('@');
-        if (at > 0) {
+        // shortcut: an @ in the file name itself (a/x@2.ts) still reads as a rev; escape @ in formatRef if that shows up
+        if (at > 0 && !rest.includes('/', at)) {
           rev = rest.slice(at + 1);
           rest = rest.slice(0, at);
         }
@@ -63,7 +64,7 @@ export function parseRef(input: string): Ref | null {
       case 'thread':
         return { type: 'thread', id: rest };
       case 'round':
-        return { type: 'round', n: +rest };
+        return /^\d+$/.test(rest) ? { type: 'round', n: +rest } : null;
       case 'tour': {
         const [chapter, step, ...more] = rest.split('/').map(decodeURIComponent);
         return chapter && step && !more.length ? { type: 'tour', chapter, step } : null;

@@ -8,6 +8,14 @@ test('every rr: form parses, and formats back to itself', () => {
   expect(parseRef('rr:doc/%E0%A4')).toBeNull(); // bad escape
   expect(parseRef('https://x')).toBeNull();
   expect(parseRef('rr:tour/why')).toBeNull();
+  expect(parseRef('rr:round/x')).toBeNull();
+});
+
+test('an @ inside a path (scoped packages) is part of the path, not a rev', () => {
+  const s = 'rr:code/packages/@scope/x.ts#L2';
+  expect(parseRef(s)).toEqual({ type: 'code', path: 'packages/@scope/x.ts', rev: 'head', start: 2, end: 2 });
+  expect(formatRef(parseRef(s)!)).toBe(s);
+  expect(parseRef('rr:code/packages/@scope/x.ts@base')).toMatchObject({ path: 'packages/@scope/x.ts', rev: 'base' });
 });
 
 test('anchors: the CLI stores what the browser would', () => {
