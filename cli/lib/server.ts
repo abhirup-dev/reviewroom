@@ -107,7 +107,7 @@ export const localOnly: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
-/** `readOnly`: a server that only shows the review (`walkthrough lint`): no writes, no GitHub calls; it holds no lock. */
+/** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
 export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
@@ -324,7 +324,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     }),
   );
 
-  // for a server that ends before its process does (`walkthrough lint`): the watch would keep the process alive
+  // for a server that ends before its process does (`slide-lint`): the watch would keep the process alive
   const close = () => watcher?.close();
   return { app, prov, commit, github, checkNarrative, close };
 }

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { ChangedFile } from '../../src/kernel/state/model.shared.ts';
 import type { StepAudit, Walkthrough } from '../../src/walkthrough/model.shared.ts';
-import { findingReport, judge, lintTour } from './tour-lint.ts';
+import { findingReport, judge, lintTour } from './slide-lint.ts';
 
 const file = (path: string, n: number): ChangedFile => ({ path, status: 'modified', additions: n, deletions: 0 });
 const changed = [file('pkg/a.go', 40), file('pkg/b.go', 30), file('pkg/c.go', 3), file('pkg/a_test.go', 50), file('pkg/sym.go', 20), { ...file('logo.png', 0), binary: true }];
@@ -22,16 +22,16 @@ test('unshown files: big source warns (largest first), small and tests are menti
   expect(rest).toMatchObject({ level: 'info', message: 'also not shown (small, tests, generated, lock or doc files): pkg/c.go (+3 -0), pkg/a_test.go (+50 -0)' });
 });
 
-test('pacing, empty pane, and the estimates rendering replaces', () => {
+test('pacing, and the estimates rendering replaces', () => {
   const at = (o = {}) => checks(o).filter((f) => f.check !== 'unshown-file').map((f) => `${f.where} ${f.check}`);
-  expect(at()).toEqual(['one/s1 empty-pane', 'one/s2 long-text', 'one/s2 wide-range', 'two chapter-size']);
-  expect(at({ estimates: false })).toEqual(['one/s1 empty-pane', 'two chapter-size']);
+  expect(at()).toEqual(['one/s2 long-text', 'one/s2 wide-range', 'two chapter-size']);
+  expect(at({ estimates: false })).toEqual(['two chapter-size']);
 });
 
 test('the report groups by place, the whole walkthrough first, then in walkthrough order', () => {
-  const r = findingReport(checks({ estimates: false }), w);
-  expect(r.split('\n').filter((l) => l.startsWith('['))).toEqual(['[guided walkthrough]', '[one/s1]', '[two]']);
-  expect(r).toContain('fix: Give the slide (or an earlier one) a ref');
+  const r = findingReport(checks(), w);
+  expect(r.split('\n').filter((l) => l.startsWith('['))).toEqual(['[guided walkthrough]', '[one/s2]', '[two]']);
+  expect(r).toContain('fix: Split the slide');
 });
 
 test('a link in an HTML comment shows nothing; Python test_ files are tests; unknown places report last', () => {

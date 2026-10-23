@@ -14,7 +14,8 @@ open question and round is kept from one round to the next.
 
 The CLI's help is the command reference: `reviewroom --help`, and `reviewroom <command> --help`
 for flags and notes. Read it before your first command. If `reviewroom` is not on PATH, use
-`bunx reviewroom …`.
+`bunx reviewroom …`. This skill covers the usual path; `reviewroom --help` lists every capability
+(screenshots, the hub, …).
 
 ## Choose the command
 
@@ -73,8 +74,8 @@ git show <head>:<path> | ast-grep outline --stdin --lang <lang> --json=stream  #
 git show <head>:<path> | ast-grep run --stdin --lang <lang> -p '<pattern>'   # a call or statement by shape
 ```
 
-No `ast-grep` on PATH: `bunx @ast-grep/cli` runs the same thing (the `ast-grep` skill, when
-installed, has the pattern syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
+reviewroom's setup installs `ast-grep` (the `ast-grep` skill, when installed, has the pattern
+syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
 
 **Decide on a guided walkthrough now.** A guided walkthrough (`walkthrough.json` next to
 `review.html`) is the main story of the diff played over the workbench: chapters of slides, narration on
@@ -98,22 +99,16 @@ diagram, table and widget for that width, never for a wide page.
 
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
+Optionally, to see it as the reviewer will (or to fix a layout problem they report), run
+`reviewroom shot [section] --dir <dir>`: PNGs of the Review panel, one per section, no browser needed.
 
 ## Step 4b: Write the guided walkthrough, when wanted
 
 Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
 files, reconciliation; the diff and description as the only evidence), then "Guided walkthrough" in
-`references/authoring.md` (the file). Write `walkthrough.json`, then loop until
-`lint` is clean:
-
-```bash
-reviewroom check --dir <dir>                              # schema, links, what the slides leave out, pacing
-reviewroom walkthrough lint --dir <dir>                   # every slide measured on screen; exit 1 while warnings remain
-reviewroom walkthrough shot <chapter>/<step> --dir <dir>  # look at a slide a finding names (prints a PNG path)
-```
-
-(`reviewroom walkthrough …` and `walkthrough.json` are the guided walkthrough's names.) Each finding
-names the chapter/step and how to fix it. Take a screenshot only of slides you need to see.
+`references/authoring.md` (the file and its checks). Write `walkthrough.json`, then run those checks
+until clean. Each finding names the chapter/step and how to fix it. Take a screenshot only of slides
+you need to see.
 
 ## Step 4c: Hand over
 
@@ -171,7 +166,7 @@ deeper explanation, a table, a sketch), grow the walkthrough instead of the slid
 section that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its
 top and expands on it; the reply links that section, and the discussion continues there. Edit the
 slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
-again as in Step 4b (`check`, then `walkthrough lint --dir <dir>`, then `shot` where needed) until clean.
+again as in Step 4b until clean.
 
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):

@@ -1,4 +1,4 @@
-// Measuring the step on screen, for `reviewroom walkthrough lint` (which judges the numbers: cli/lib/tour-lint.ts).
+// Measuring the step on screen, for `reviewroom slide-lint` (which judges the numbers: cli/lib/slide-lint.ts).
 // The code views draw only the rows near their viewport, so a highlight's size comes from its line count too.
 import type { PaneShown } from './player.machine';
 import type { ChunkAudit, StepAudit } from './model.shared';
@@ -55,7 +55,6 @@ export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLE
   const wide = [
     ...(wider(left) ? ['narration'] : []),
     ...[...left.querySelectorAll('pre, table, rr-flow, svg, img')].filter(wider).map((e) => e.tagName.toLowerCase()),
-    ...[...pane.querySelectorAll('.rr-tour__diagram')].filter(wider).map(() => 'diagram'),
   ];
   return {
     left: { visible: left.clientHeight, content: left.scrollHeight, lead: lead.hidden ? 0 : lead.offsetHeight },

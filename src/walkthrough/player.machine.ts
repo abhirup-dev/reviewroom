@@ -18,7 +18,7 @@ export type CodeAt = { path: string; side: 'base' | 'head'; start?: number; end?
 /** One stacked chunk: a code view of `code`, or (no code: a section, an unknown symbol) a preview of the link. */
 export type Slot = { ref: string; code: CodeAt | null };
 /** What the pane shows, resolved. */
-export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'diagram'; html: string } | { kind: 'empty' };
+export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'empty' };
 
 /** `pending`: code chunks whose panel has not landed yet; `late`: landing timed out (what is on screen may still move) */
 type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean };
@@ -37,7 +37,7 @@ const show = { show: { target: '#pane.resolving', actions: 'want' } } as const;
 export const paneMachine = setup({
   types: { context: {} as PaneCtx, events: {} as PaneEvent, input: {} as PaneWant | null },
   actors: {
-    /** links -> where each lands (symbols need a search); diagrams and empty pass through */
+    /** links -> where each lands (symbols need a search); empty passes through */
     resolve: fromPromise<PaneShown, PaneWant>(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: input.refs.map((ref) => ({ ref, code: null })) } : input)),
   },
   actions: {

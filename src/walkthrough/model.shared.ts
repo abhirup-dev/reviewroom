@@ -1,5 +1,5 @@
 // The walkthrough.json contract: a chaptered tour of a PR the client plays over the workbench. Defined once
-// here; the server, `reviewroom check`, `pr`, `walkthrough publish` and the client all validate with it, and
+// here; the server, `reviewroom check`, `pr`, `publish-slides` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
 import { z } from 'zod';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
@@ -31,7 +31,7 @@ export const Step = z.object({
   ref: z
     .union([PaneRef, z.array(PaneRef).min(1, 'needs at least one link')])
     .optional()
-    .describe('What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (or the lead diagram)'),
+    .describe('What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (the pane shows only code)'),
   focus: z
     .array(nonEmpty)
     .optional()
@@ -76,7 +76,7 @@ export type Walkthrough = z.infer<typeof Walkthrough>;
 /** A position in a loaded or loading walkthrough. Helpers require a loaded document. */
 export type WalkthroughPosition = { doc: Walkthrough | null; chapter: number; step: number };
 /** What the pane is asked to show, before any browser-side code lookup. */
-export type PaneWant = { kind: 'refs'; refs: string[] } | { kind: 'diagram'; html: string } | { kind: 'empty' };
+export type PaneWant = { kind: 'refs'; refs: string[] } | { kind: 'empty' };
 
 /** Where the player is, for views. */
 export function current({ doc, chapter, step }: WalkthroughPosition) {
@@ -85,17 +85,13 @@ export function current({ doc, chapter, step }: WalkthroughPosition) {
   return { chapter: ch, step: ch.steps[step], isFirst: chapter === 0 && step === 0, isLast: chapter === last && step === ch.steps.length - 1 };
 }
 
-const FLOW = /<rr-flow[\s>][\s\S]*?<\/rr-flow>/; // the first one
-
 /** What the code pane shows for the current step: its links; else the chapter's last links so far; else the chapter
- *  lead's diagram; else the last links of an earlier chapter; else nothing. */
+ *  last links of an earlier chapter; else nothing. The lead's diagram stays in the lead. */
 export function target({ doc, chapter, step }: WalkthroughPosition): PaneWant {
   const ch = doc!.chapters[chapter];
   const last = (steps: Walkthrough['chapters'][number]['steps']) => stepRefs(steps.findLast((s) => s.ref) ?? {});
   const back = last(ch.steps.slice(0, step + 1));
   if (back.length) return { kind: 'refs', refs: back };
-  const flow = ch.lead?.match(FLOW)?.[0];
-  if (flow) return { kind: 'diagram', html: flow };
   const earlier = last(doc!.chapters.slice(0, chapter).flatMap((c) => c.steps));
   return earlier.length ? { kind: 'refs', refs: earlier } : { kind: 'empty' };
 }
@@ -144,8 +140,8 @@ export const walkthroughJsonSchema = () => ({
   title: 'reviewroom guided walkthrough (walkthrough.json in the review dir)',
 });
 
-// ------------------------------------------------------------------ measuring a step (`walkthrough lint`)
-// The page measures (src/walkthrough/audit.ts), the CLI judges (cli/lib/tour-lint.ts). Sizes in CSS px.
+// ------------------------------------------------------------------ measuring a step (`slide-lint`)
+// The page measures (src/walkthrough/audit.ts), the CLI judges (cli/lib/slide-lint.ts). Sizes in CSS px.
 
 /** One chunk of the code pane: `lines` highlighted, of which `hidden` are off screen when it lands; `visible`: lines
  *  the chunk shows at once. No code (a preview card: a section, an unknown symbol): `code: false`. */
@@ -154,7 +150,7 @@ export type StepAudit = {
   /** the narration's visible and full height, and the chapter lead's height */
   left: { visible: number; content: number; lead: number };
   chunks: ChunkAudit[];
-  /** content wider than its box (sideways scrolling): 'narration', 'diagram', or a tag inside the narration */
+  /** content wider than its box (sideways scrolling): 'narration' or a tag inside the narration */
   wide: string[];
   /** what the sanitizer took out of the chapter lead and the step's text */
   stripped: { lead: string[]; text: string[] };
@@ -164,7 +160,7 @@ export type StepAudit = {
 
 // ------------------------------------------------------------------ the PR block
 // A walkthrough travels in a PR comment or description as a fenced ```reviewroom-walkthrough block
-// (`reviewroom walkthrough publish` writes it, `reviewroom pr` reads it). The HTML comment marks the comment we own.
+// (`reviewroom publish-slides` writes it, `reviewroom pr` reads it). The HTML comment marks the comment we own.
 export const BLOCK_MARK = '<!-- reviewroom-walkthrough -->';
 const LANG = 'reviewroom-walkthrough';
 

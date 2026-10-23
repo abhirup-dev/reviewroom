@@ -11,7 +11,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `walkthrough/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
 - The guided walkthrough (`walkthrough.json`): schema and PR block in `src/walkthrough/model.shared.ts`, player in
-  `src/walkthrough/player.ts`, CLI in `cli/commands/walkthrough.ts` (publish, lint, shot) with `cli/lib/tour-lint.ts`
+  `src/walkthrough/player.ts`, CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks) and `cli/lib/render.ts` (the headless browser, `Bun.WebView`: its only user).
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
 - `app/` (Tauri, Rust): the macOS app. `reviewroom` hands it each review (`open -b dev.reviewroom.mac <url>`); it shows
@@ -62,7 +62,7 @@ Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bu
 committed), so all are `devDependencies`.
 
 ```bash
-bun run setup       # install, build, put `reviewroom` on PATH
+bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep` on PATH
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
