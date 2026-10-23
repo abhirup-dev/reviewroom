@@ -9,6 +9,9 @@ import { z } from 'zod';
 const nonEmpty = z.string().min(1, 'must be a non-empty string');
 const int = z.number().int();
 const dateTime = z.string().meta({ format: 'date-time' });
+const ThreadStatus = z.enum(['open', 'resolved']);
+/** An op's own timestamp; the reducer stamps now when it is missing. */
+const at = z.string().optional();
 
 export const TextQuote = z.object({ exact: z.string(), prefix: z.string().optional(), suffix: z.string().optional() });
 
@@ -41,7 +44,7 @@ export const StoredMessage = z.object({
 export const StoredThread = z.object({
   id: z.string(),
   anchor: Anchor,
-  status: z.enum(['open', 'resolved']),
+  status: ThreadStatus,
   createdRound: int,
   messages: z.array(StoredMessage),
   title: z.string().optional(),
@@ -90,19 +93,19 @@ export type GitHubAction = z.infer<typeof GitHubAction>;
 
 /** Every change to the state, applied by applyOp in src/kernel/state/ops.shared.ts. `at` defaults to now. */
 /** POST /api/finish is this op without `op`. */
-export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at: z.string().optional() });
+export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at });
 export const Op = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('createThread'), id: nonEmpty, anchor: Anchor, msgId: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
-  z.object({ op: z.literal('addMessage'), threadId: nonEmpty, id: nonEmpty, body: nonEmpty, author: Author, at: z.string().optional() }),
+  z.object({ op: z.literal('createThread'), id: nonEmpty, anchor: Anchor, msgId: nonEmpty, body: nonEmpty, author: Author, at }),
+  z.object({ op: z.literal('addMessage'), threadId: nonEmpty, id: nonEmpty, body: nonEmpty, author: Author, at }),
   z.object({ op: z.literal('editMessage'), threadId: nonEmpty, msgId: nonEmpty, body: nonEmpty }),
   z.object({ op: z.literal('deleteMessage'), threadId: z.string(), msgId: z.string() }),
-  z.object({ op: z.literal('setThreadStatus'), threadId: nonEmpty, status: z.enum(['open', 'resolved']) }),
+  z.object({ op: z.literal('setThreadStatus'), threadId: nonEmpty, status: ThreadStatus }),
   z.object({ op: z.literal('setViewed'), path: nonEmpty, viewed: z.boolean() }),
   z.object({ op: z.literal('setPin'), ref: nonEmpty, pinned: z.boolean() }),
   z.object({ op: z.literal('setCheck'), id: nonEmpty, value: CheckValue }),
   z.object({ op: z.literal('setLinks'), links: z.record(z.string(), z.string()) }),
   FinishRound,
-  z.object({ op: z.literal('markDelivered'), round: int, at: z.string().optional() }),
+  z.object({ op: z.literal('markDelivered'), round: int, at }),
 ]);
 
 export type TextQuote = z.infer<typeof TextQuote>;
