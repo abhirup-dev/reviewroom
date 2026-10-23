@@ -1,5 +1,5 @@
 // Agent round and GitHub review controls.
-import { h, icon, copyText, relTime } from '../kernel/dom';
+import { h, icon, copyText, relTime, seg } from '../kernel/dom';
 import { feedbackMarkdown, yoursIn } from './feedback.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
 import type { ReviewApp } from '../app';
@@ -91,27 +91,20 @@ export function githubControls(app: ReviewApp) {
       g.url ? menuItem('Open the PR on GitHub', () => (close(), window.open(g.url, '_blank', 'noopener')), { icon: 'popout' }) : null,
     ]);
   if (!g.ok) return [btn];
-  const seg = h(
-    'div',
-    { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Review mode: where new comments go and which threads are listed' },
-    ...(['agent', 'team', 'all'] as const).map((m) =>
-      h(
-        'button',
-        {
-          class: app.prefs.reviewMode === m ? 'is-on' : '',
-          'aria-pressed': String(app.prefs.reviewMode === m),
-          title: {
-            agent: 'Agent review: your comments go to the agent, round by round; Threads lists the agent threads',
-            team: "Team review: code and PR comments go to GitHub, for colleagues (narrative comments still go to the agent); Threads lists GitHub's threads",
-            all: 'All: Threads lists agent and GitHub threads together; code and PR comments can go to either',
-          }[m],
-          onclick: () => app.setPref('reviewMode', m),
-        },
-        { agent: 'Agent', team: 'Team', all: 'All' }[m],
-      ),
-    ),
+  const modes = seg(
+    (['agent', 'team', 'all'] as const).map((m) => ({
+      label: { agent: 'Agent', team: 'Team', all: 'All' }[m],
+      title: {
+        agent: 'Agent review: your comments go to the agent, round by round; Threads lists the agent threads',
+        team: "Team review: code and PR comments go to GitHub, for colleagues (narrative comments still go to the agent); Threads lists GitHub's threads",
+        all: 'All: Threads lists agent and GitHub threads together; code and PR comments can go to either',
+      }[m],
+      on: app.prefs.reviewMode === m,
+      onclick: () => app.setPref('reviewMode', m),
+    })),
+    { class: 'rr-seg rr-seg--small', 'aria-label': 'Review mode: where new comments go and which threads are listed' },
   );
-  return [btn, seg];
+  return [btn, modes];
 }
 
 /** Finish the agent round or submit the pending GitHub review, according to review mode. */

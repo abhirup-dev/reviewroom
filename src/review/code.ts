@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { copyText, h, icon, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, h, icon, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { formatRef } from '../kernel/refs/browser';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
@@ -58,8 +58,6 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
 // GitHub threads whose code moved on (outdated) or that are about the whole file have no line here
 const onLine = (t: Thread) => !t.gh?.outdated && !t.gh?.file;
 
-const seg = (items: [string, string, boolean, () => void, string?][]) =>
-  h('div', { class: 'rr-seg', role: 'group' }, ...items.map(([label, title, on, fn, keys]) => h('button', { class: on ? 'is-on' : '', title, 'data-keys': keys, 'aria-pressed': String(on), onclick: fn }, label)));
 const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string, keys?: string) =>
   h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'data-keys': keys, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
 
@@ -70,15 +68,15 @@ export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): (HTMLElemen
   return [
     mode === 'diff'
       ? seg([
-          ['Split', 'Side-by-side: old on the left, new on the right', p.diffStyle === 'split', () => app.setPref('diffStyle', 'split'), 's'],
-          ['Unified', 'One column: removed lines above the lines that replace them', p.diffStyle === 'unified', () => app.setPref('diffStyle', 'unified'), 's'],
+          { label: 'Split', title: 'Side-by-side: old on the left, new on the right', on: p.diffStyle === 'split', onclick: () => app.setPref('diffStyle', 'split'), keys: 's' },
+          { label: 'Unified', title: 'One column: removed lines above the lines that replace them', on: p.diffStyle === 'unified', onclick: () => app.setPref('diffStyle', 'unified'), keys: 's' },
         ])
       : null,
     mode === 'diff'
       ? seg([
-          ['All', 'Show added and removed lines', p.focus === 'all', () => app.setPref('focus', 'all')],
-          ['+', 'Focus on new code: hide removed lines', p.focus === 'additions', () => app.setPref('focus', 'additions'), '+'],
-          ['\u2212', 'Focus on old code: hide added lines', p.focus === 'deletions', () => app.setPref('focus', 'deletions'), '-'],
+          { label: 'All', title: 'Show added and removed lines', on: p.focus === 'all', onclick: () => app.setPref('focus', 'all') },
+          { label: '+', title: 'Focus on new code: hide removed lines', on: p.focus === 'additions', onclick: () => app.setPref('focus', 'additions'), keys: '+' },
+          { label: '\u2212', title: 'Focus on old code: hide added lines', on: p.focus === 'deletions', onclick: () => app.setPref('focus', 'deletions'), keys: '-' },
         ])
       : null,
     mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
@@ -180,12 +178,13 @@ class CodePanel implements PanelInstance {
       const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
       left.push(
         this.embedded ? null : h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()),
-        h(
-          'div',
-          { class: 'rr-seg', role: 'group', 'aria-label': 'View' },
-          h('button', { class: view === 'diff' ? 'is-on' : '', disabled: !f, title: 'Diff of this file', onclick: () => this.setMode('diff') }, 'Diff'),
-          h('button', { class: view === 'base' ? 'is-on' : '', disabled: f?.status === 'added', title: 'Whole file before the change', onclick: () => this.openFile(this.pin!, 'base') }, 'Before'),
-          h('button', { class: view === 'head' ? 'is-on' : '', disabled: f?.status === 'deleted', title: 'Whole file after the change', onclick: () => this.openFile(this.pin!, 'head') }, 'After'),
+        seg(
+          [
+            { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.setMode('diff') },
+            { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.openFile(this.pin!, 'base') },
+            { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.openFile(this.pin!, 'head') },
+          ],
+          { 'aria-label': 'View' },
         ),
       );
       setPanelTitle(this.app, this.panelId, `${this.pin.split('/').pop()} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`);
@@ -195,8 +194,8 @@ class CodePanel implements PanelInstance {
         h('button', { class: 'rr-tool rr-tool--back', title: 'Back to the diff', onclick: () => this.setMode('diff') }, icon('chevron', 14), h('span', null, 'Diff')),
         h('span', { class: 'rr-toolbar__path', title: fv.path }, fv.path),
         seg([
-          ['base', 'Show the file before the change', !fv.rev && fv.side === 'base', () => this.openFile(fv.path, 'base')],
-          ['head', 'Show the file after the change', !fv.rev && fv.side === 'head', () => this.openFile(fv.path, 'head')],
+          { label: 'base', title: 'Show the file before the change', on: !fv.rev && fv.side === 'base', onclick: () => this.openFile(fv.path, 'base') },
+          { label: 'head', title: 'Show the file after the change', on: !fv.rev && fv.side === 'head', onclick: () => this.openFile(fv.path, 'head') },
         ]),
         fv.rev ? h('span', { class: 'rr-pill' }, '@' + fv.rev.slice(0, 7)) : null,
       );

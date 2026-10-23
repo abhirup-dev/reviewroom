@@ -1,5 +1,5 @@
 // Agent and team threads panel.
-import { avatarUrl, h, icon, threadBadge } from '../kernel/dom';
+import { avatarUrl, h, icon, seg, threadBadge } from '../kernel/dom';
 import { parseRef, refIcon } from '../kernel/refs/browser';
 import { anchorRef } from '../kernel/refs/refs.shared';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
@@ -101,10 +101,9 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-side-head__row' },
-        h(
-          'div',
-          { class: 'rr-seg rr-seg--small rr-seg--fill' },
-          ...(['open', 'resolved', 'all'] as const).map((f) => h('button', { title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], class: this.filter === f ? 'is-on' : '', onclick: () => ((this.filter = f), this.render()) }, `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`)),
+        seg(
+          (['open', 'resolved', 'all'] as const).map((f) => ({ label: `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`, title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], on: this.filter === f, onclick: () => ((this.filter = f), this.render()) })),
+          { class: 'rr-seg rr-seg--small rr-seg--fill', 'aria-label': 'Which threads' },
         ),
         this.filterBtn,
       ),

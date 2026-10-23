@@ -1,5 +1,5 @@
 // Changed files panel.
-import { h, icon, threadCounts } from '../kernel/dom';
+import { h, icon, seg, threadCounts } from '../kernel/dom';
 import { openCentered } from './focus';
 import type { ChangedFile } from '../kernel/state/model.shared';
 import { definePanel, type PanelInstance } from '../kernel/dock';
@@ -40,10 +40,9 @@ class FilesPanel implements PanelInstance {
       this.q = search.value;
       this.renderList();
     });
-    const seg = h(
-      'div',
-      { class: 'rr-seg rr-seg--small', role: 'group', 'aria-label': 'Group files' },
-      ...(['tree', 'type', 'flat'] as const).map((g) => h('button', { title: { tree: 'Group by folder', type: 'Group by file type (tests separate)', flat: 'Plain list of paths' }[g], class: p.fileGroup === g ? 'is-on' : '', 'aria-pressed': String(p.fileGroup === g), onclick: () => app.setPref('fileGroup', g) }, g === 'tree' ? 'Tree' : g === 'type' ? 'Type' : 'Flat')),
+    const grouping = seg(
+      (['tree', 'type', 'flat'] as const).map((g) => ({ label: { tree: 'Tree', type: 'Type', flat: 'Flat' }[g], title: { tree: 'Group by folder', type: 'Group by file type (tests separate)', flat: 'Plain list of paths' }[g], on: p.fileGroup === g, onclick: () => app.setPref('fileGroup', g) })),
+      { class: 'rr-seg rr-seg--small', 'aria-label': 'Group files' },
     );
     const chips = h(
       'div',
@@ -58,7 +57,7 @@ class FilesPanel implements PanelInstance {
     this.head.replaceChildren(
       h('div', { class: 'rr-progress', title: `${viewed} of ${app.files.length} files viewed` }, h('div', { class: 'rr-progress__bar', style: `width:${app.files.length ? (viewed / app.files.length) * 100 : 0}%` }), h('span', null, `${viewed}/${app.files.length} viewed`)),
       ...(ranges.length > 1 ? [select] : []),
-      h('div', { class: 'rr-side-row' }, search, seg),
+      h('div', { class: 'rr-side-row' }, search, grouping),
       chips,
     );
     this.renderList();

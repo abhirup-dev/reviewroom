@@ -24,6 +24,12 @@ export function h(tag: string, attrs?: Attrs | null, ...children: Child[]): HTML
   return el;
 }
 
+/** One choice of a segmented control: `on` is the one chosen; `keys` its shortcut hint. */
+export type Segment = { label: Child; title?: string; on: boolean; onclick: () => void; keys?: string; disabled?: boolean };
+/** A segmented control (`.rr-seg`): a group of buttons, one of them on. */
+export const seg = (segments: Segment[], attrs?: Attrs) =>
+  h('div', { class: 'rr-seg', role: 'group', ...attrs }, ...segments.map(({ label, on, keys, ...b }) => h('button', { ...b, class: on ? 'is-on' : '', 'data-keys': keys, 'aria-pressed': String(on) }, label)));
+
 export function append(el: Node, children: Child[]) {
   for (const c of children.flat(Infinity as 1)) {
     if (c === null || c === undefined || c === false) continue;
