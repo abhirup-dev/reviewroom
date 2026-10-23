@@ -455,6 +455,13 @@ class CodePanel implements PanelInstance {
     this.revealer.send({ type: 'reveal', target });
   }
 
+  /** Resolves once the newest rebuild is done, including any started while waiting. */
+  private async settled() {
+    let r;
+    do await (r = this.ready);
+    while (r !== this.ready);
+  }
+
   /** revealMachine's `prepare`: the panel ready for `t` (its file shown and mounted); 'lines' when there are lines to
    *  highlight. `signal`: a newer reveal took over, leave the view alone. */
   private async prepare(t: CodeTarget, signal: AbortSignal): Promise<Prepared> {
@@ -466,8 +473,7 @@ class CodePanel implements PanelInstance {
       if (this.app.prefs.hideTests) this.app.setPref('hideTests', false);
       if (this.app.prefs.hiddenTypes.length) this.app.setPref('hiddenTypes', []);
     }
-    // wait for the newest rebuild (lifting a filter or leaving the file view starts one)
-    for (let r = this.ready; ; r = this.ready) if ((await r, r === this.ready)) break;
+    await this.settled(); // lifting a filter or leaving the file view starts a rebuild
     const f = this.files.get(t.path);
     if (signal.aborted || !f) return 'nothing';
     if (f.collapsed) this.toggleCollapse(t.path, false);
