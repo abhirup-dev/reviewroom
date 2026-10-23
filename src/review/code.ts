@@ -16,6 +16,14 @@ import { revealMachine, type Prepared } from './reveal.machine';
 
 type Meta = { threadId: string };
 type Side = 'additions' | 'deletions';
+/** A revision's column in a diff, and back. */
+const sideOf = (rev: string | undefined): Side => (rev === 'base' ? 'deletions' : 'additions');
+const revOf = (side: string | undefined) => (side === 'deletions' ? 'base' : 'head');
+/** A selected range in the order it reads, whichever way it was dragged. */
+const ordered = (r: SelectedLineRange) => (r.start <= r.end ? [r.start, r.end] : [r.end, r.start]);
+const VIEW_LABEL = { diff: 'diff', base: 'before', head: 'after' } as const;
+/** A code panel's title: the file's name and which view of it. */
+const panelTitle = (path: string, view: PopoutView) => `${path.split('/').pop()} · ${VIEW_LABEL[view]}`;
 /** What CodeView hands every callback as its last argument (file or diff item). */
 type Ctx = { item: { id: string } };
 
@@ -187,7 +195,7 @@ class CodePanel implements PanelInstance {
           { 'aria-label': 'View' },
         ),
       );
-      setPanelTitle(this.app, this.panelId, `${this.pin.split('/').pop()} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`);
+      setPanelTitle(this.app, this.panelId, panelTitle(this.pin, view ?? 'head'));
     } else if (this.mode === 'file' && this.fileView) {
       const fv = this.fileView;
       left.push(
@@ -351,7 +359,7 @@ class CodePanel implements PanelInstance {
           ? `[data-line-type="change-addition"]{display:none!important}`
           : '';
     // a whole file has no sides of its own: its lines are the base or head side of the diff
-    const side = (r: SelectedLineRange): SelectedLineRange => (fv ? { ...r, side: fv.side === 'base' ? 'deletions' : 'additions' } : r);
+    const side = (r: SelectedLineRange): SelectedLineRange => (fv ? { ...r, side: sideOf(fv.side) } : r);
     return {
       theme: { dark: 'pierre-dark', light: 'pierre-light' },
       themeType: this.app.resolvedTheme(),
@@ -390,7 +398,7 @@ class CodePanel implements PanelInstance {
       .map((t) => {
         const a = t.anchor;
         const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
-        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: a.rev === 'base' ? 'deletions' : 'additions', lineNumber: a.end, metadata: { threadId: t.id } });
+        return across ? { side: 'additions', lineNumber: across, metadata: { threadId: t.id } } : ({ side: sideOf(a.rev), lineNumber: a.end, metadata: { threadId: t.id } });
       });
   }
 
@@ -488,7 +496,7 @@ class CodePanel implements PanelInstance {
       it = item();
     }
     if (signal.aborted || it?.type !== 'diff' || !f.diff) return false;
-    const side: Side = t.side === 'base' ? 'deletions' : 'additions';
+    const side = sideOf(t.side);
     if (!unfold(it.instance, f.diff, side, t.start!, t.end ?? t.start!)) return false;
     // CodeView applies the unfold on its next frame
     await frame();
@@ -498,7 +506,7 @@ class CodePanel implements PanelInstance {
 
   /** Highlight the target's lines and scroll them to 30% from the top. */
   private land(t: CodeTarget) {
-    const side: Side = t.side === 'base' ? 'deletions' : 'additions';
+    const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
@@ -555,17 +563,15 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ selection -> comments
   private onSelect(path: string, r: SelectedLineRange) {
-    const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];
+    const [start, end] = ordered(r);
     // the user's own selection: a pending jump must not glow or clear it
     this.revealer.send({ type: 'select' });
-    const side = r.side === 'deletions' ? 'base' : 'head';
-    this.app.selection = { kind: 'code', path, side, start, end, ...this.lastPointer };
+    this.app.selection = { kind: 'code', path, side: revOf(r.side), start, end, ...this.lastPointer };
     this.app.bus.emit('selection', this.app.selection);
   }
   private onGutter(path: string, r: SelectedLineRange) {
-    const side = r.side === 'deletions' ? 'base' : 'head';
-    const [start, end] = r.start <= r.end ? [r.start, r.end] : [r.end, r.start];
-    this.app.compose({ kind: 'code', path, rev: side, start, end });
+    const [start, end] = ordered(r);
+    this.app.compose({ kind: 'code', path, rev: revOf(r.side), start, end });
   }
 
   onShow() {
@@ -595,8 +601,7 @@ export type PopoutView = 'diff' | 'base' | 'head';
 /** Open one file in its own code panel: as a diff (optionally at some lines), or the whole file before/after the change. */
 export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: Placement = 'right', near?: string, at?: CodeTarget) {
   const id = `code:${++counter}`;
-  const name = path.split('/').pop()!;
-  addPanelAt(app, { id, component: 'code', title: `${name} · ${view === 'diff' ? 'diff' : view === 'base' ? 'before' : 'after'}`, params: { ...at, pin: path, view } }, placement, near);
+  addPanelAt(app, { id, component: 'code', title: panelTitle(path, view), params: { ...at, pin: path, view } }, placement, near);
   return id;
 }
 
