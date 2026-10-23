@@ -1,5 +1,5 @@
 // Agent and team threads panel.
-import { avatarUrl, h, icon, seg, threadBadge } from '../kernel/dom';
+import { avatarUrl, h, icon, plural, seg, threadBadge } from '../kernel/dom';
 import { parseRef, refIcon } from '../kernel/refs/browser';
 import { anchorRef } from '../kernel/refs/refs.shared';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
@@ -69,7 +69,7 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-thread-item__meta' },
-        h('span', null, `${t.messages.length} message${t.messages.length > 1 ? 's' : ''}`),
+        h('span', null, plural(t.messages.length, 'message')),
         last?.author === 'agent' ? h('span', { class: 'rr-agent-tag' }, 'agent replied') : null,
         t.messages.some((m) => m.gh?.pending) ? h('span', { class: 'rr-pill rr-pill--draft', title: 'In your GitHub review, not posted until you submit it' }, 'draft') : null,
         t.gh?.outdated ? h('span', { class: 'rr-pill', title: 'The code this was written on has changed since' }, 'outdated') : null,
@@ -143,7 +143,7 @@ class ThreadsPanel implements PanelInstance {
         'div',
         { class: 'rr-round-foot' },
         h('span', null, `Round ${app.state.round}`),
-        h('span', { class: 'rr-muted' }, pending ? `${pending} thread${pending > 1 ? 's' : ''} with new comments` : 'nothing to send yet'),
+        h('span', { class: 'rr-muted' }, pending ? `${plural(pending, 'thread')} with new comments` : 'nothing to send yet'),
       ),
       this.convo,
     );

@@ -62,7 +62,7 @@ export class Commands {
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
     const mod = isMac ? ev.metaKey : ev.ctrlKey;
-    let k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key.toLowerCase();
+    let k = ev.key.toLowerCase();
     if (k === ' ') k = 'space';
     const shift = ev.shiftKey && (ev.key.length > 1 || /^[a-z]$/i.test(ev.key));
     if (ev.altKey && /^Digit\d$/.test(ev.code)) k = ev.code.slice(5);

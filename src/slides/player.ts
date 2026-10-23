@@ -5,7 +5,7 @@
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
-import { h, icon } from '../kernel/dom';
+import { h, icon, plural } from '../kernel/dom';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS as LINK, parseRef, refIcon, type Ref } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
@@ -191,7 +191,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const chapterMenu = () =>
     popMenu(chapterBtn, (close) =>
       ctx().doc!.chapters.map((c, i) =>
-        menuItem(c.title, () => (close(), actor.send({ type: 'goto', chapter: i, step: 0 })), { checked: i === ctx().chapter, hint: `${c.steps.length} slide${c.steps.length > 1 ? 's' : ''}` }),
+        menuItem(c.title, () => (close(), actor.send({ type: 'goto', chapter: i, step: 0 })), { checked: i === ctx().chapter, hint: plural(c.steps.length, 'slide') }),
       ),
     );
 

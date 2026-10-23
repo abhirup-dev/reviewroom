@@ -112,14 +112,16 @@ export function threadBadge(t: { gh?: { conversation?: boolean }; status: string
   );
 }
 
+/** `1 file`, `3 files`. */
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
 /** Open-thread counts for a file or section, one chip per kind (on GitHub / with the agent). */
 export function threadCounts(ts: { gh?: unknown }[], where: string) {
   const gh = ts.filter((t) => t.gh).length;
   const agent = ts.length - gh;
-  const s = (n: number) => (n > 1 ? 's' : '');
   return [
-    gh ? h('span', { class: 'rr-count-chip is-gh', title: `${gh} open GitHub thread${s(gh)} ${where}` }, icon('github', 11), String(gh)) : null,
-    agent ? h('span', { class: 'rr-count-chip', title: `${agent} open thread${s(agent)} with the agent ${where}` }, clawd(false, 12), String(agent)) : null,
+    gh ? h('span', { class: 'rr-count-chip is-gh', title: `${plural(gh, 'open GitHub thread')} ${where}` }, icon('github', 11), String(gh)) : null,
+    agent ? h('span', { class: 'rr-count-chip', title: `${plural(agent, 'open thread')} with the agent ${where}` }, clawd(false, 12), String(agent)) : null,
   ];
 }
 

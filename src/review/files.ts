@@ -1,5 +1,5 @@
 // Changed files panel.
-import { h, icon, seg, threadCounts } from '../kernel/dom';
+import { h, icon, plural, seg, threadCounts } from '../kernel/dom';
 import { openCentered } from './focus';
 import type { ChangedFile } from '../kernel/state/model.shared';
 import { definePanel, type PanelInstance } from '../kernel/dock';
@@ -151,7 +151,7 @@ class FilesPanel implements PanelInstance {
       walk(root, 0, '');
     }
     if (!out.length) out.push(h('div', { class: 'rr-empty' }, q ? 'No files match.' : 'No files.'));
-    if (hidden) out.push(h('button', { class: 'rr-link-btn rr-hidden-note', onclick: () => (app.setPref('hiddenTypes', []), app.setPref('hideTests', false)) }, `${hidden} file${hidden > 1 ? 's' : ''} hidden by filters · show all`));
+    if (hidden) out.push(h('button', { class: 'rr-link-btn rr-hidden-note', onclick: () => (app.setPref('hiddenTypes', []), app.setPref('hideTests', false)) }, `${plural(hidden, 'file')} hidden by filters · show all`));
     this.list.classList.toggle('is-tree', app.prefs.fileGroup === 'tree');
     this.list.replaceChildren(...out);
   }

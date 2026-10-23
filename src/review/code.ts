@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { copyText, h, icon, seg, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, h, icon, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { formatRef } from '../kernel/refs/browser';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
@@ -41,7 +41,7 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
     {
       class: 'rr-inline-thread' + (t.status === 'resolved' ? ' is-resolved' : '') + (app.unreadAgent(t) ? ' has-agent' : ''),
       'data-thread': t.id,
-      title: `Open thread · ${t.messages.length} message${t.messages.length > 1 ? 's' : ''}${t.status === 'resolved' ? ' · resolved' : ''}`,
+      title: `Open thread · ${plural(t.messages.length, 'message')}${t.status === 'resolved' ? ' · resolved' : ''}`,
       onclick: (e: Event) => {
         e.stopPropagation();
         app.bus.emit('open-thread', { id: t.id });
@@ -204,7 +204,7 @@ class CodePanel implements PanelInstance {
       const adds = vis.reduce((a, f) => a + f.additions, 0);
       const dels = vis.reduce((a, f) => a + f.deletions, 0);
       left.push(
-        h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, `${vis.length} file${vis.length === 1 ? '' : 's'}`),
+        h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, plural(vis.length, 'file')),
         h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels)),
         this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
       );

@@ -1,12 +1,11 @@
 // Agent round and GitHub review controls.
-import { h, icon, copyText, relTime, seg } from '../kernel/dom';
+import { h, icon, copyText, plural, relTime, seg } from '../kernel/dom';
 import { feedbackMarkdown, yoursIn } from './feedback.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
 import type { ReviewApp } from '../app';
 import { noteDialog } from '../kernel/dialog';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export function sendDialog(app: ReviewApp) {
   const pending = app.pendingFeedback();
