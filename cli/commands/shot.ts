@@ -64,8 +64,7 @@ const PLAN = (only: string | undefined, max: number, phone?: number) => `(async 
 export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]) {
   if (o.theme && o.theme !== 'light' && o.theme !== 'dark') fail('--theme: light or dark', 2);
   if (only?.includes('/')) return shotSlide(repo, o, only); // section ids have no '/'
-  const dir = dirForEdit(repo, o.dir);
-  if (!fs.existsSync(path.join(dir, 'review.html'))) fail(`no review.html in ${dir}`);
+  const dir = dirForEdit(repo, o.dir, 'review.html');
   const theme = o.theme ?? 'light';
   const tmp = path.join(os.tmpdir(), 'reviewroom-shots', `${path.basename(dir)}-${theme}${o.mobile ? '-mobile' : ''}`);
   const out = path.resolve(o.out ?? tmp);

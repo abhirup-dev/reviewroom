@@ -49,8 +49,7 @@ export const schemaReport = (issues: string[]) => `walkthrough.json does not mat
 // Stale-link check of review.html and walkthrough.json. --fix rewrites links whose code moved <=5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.
 export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean; accept?: boolean; json?: boolean }) {
-  const dir = dirForEdit(repo, o.dir);
-  if (!fs.existsSync(path.join(dir, 'review.html'))) fail(`no review.html in ${dir}`);
+  const dir = dirForEdit(repo, o.dir, 'review.html');
   const c = await runCheck(repo, dir, o);
   if ('issues' in c) {
     if (o.json) console.log(JSON.stringify({ links: [], walkthrough: [], schema: c.issues }, null, 2));

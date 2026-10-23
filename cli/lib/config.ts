@@ -23,12 +23,14 @@ export function resolveDir(repo: string, dirFlag: string | undefined, { existing
   throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
-/** The dir of an existing review for commands that only edit it: --dir works without a repo. */
-export const dirForEdit = (repo: string | null, dirFlag: string | undefined) => {
-  if (dirFlag) return path.resolve(dirFlag);
-  if (!repo) throw new ReviewroomError('not inside a git repository (use --dir)');
-  return resolveDir(repo, undefined, { existing: true });
-};
+/** The dir of an existing review for commands that only edit it: --dir works without a repo. With `needs`, a dir
+ *  without that file is an error. */
+export function dirForEdit(repo: string | null, dirFlag: string | undefined, needs?: 'review.html' | 'walkthrough.json') {
+  if (!dirFlag && !repo) throw new ReviewroomError('not inside a git repository (use --dir)');
+  const dir = dirFlag ? path.resolve(dirFlag) : resolveDir(repo!, undefined, { existing: true });
+  if (needs && !fs.existsSync(path.join(dir, needs))) throw new ReviewroomError(`no ${needs} in ${dir}`);
+  return dir;
+}
 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept.
 // repoPath: the checkout the review was made from, so `--dir` alone finds its repo; repo: GitHub's owner/name.

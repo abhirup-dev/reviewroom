@@ -1,26 +1,20 @@
 // slide-lint: `check`, then every slide of the guided walkthrough measured on screen in a headless browser.
 // shotSlide: one slide's picture (`reviewroom shot <chapter>/<step>`).
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit } from '../lib/config.ts';
 import { report } from '../lib/links.ts';
-import { readWalkthrough, walkthroughPath } from '../lib/state.ts';
+import { readWalkthrough } from '../lib/state.ts';
 import { findingReport, judge, type Finding, type Measured } from '../lib/slide-lint.ts';
 import { parseViewports, vpName, withPage, withServer } from '../lib/render.ts';
 import { runCheck, schemaReport } from './check.ts';
 
 type SlideOpts = Global & { viewport?: string; theme?: string; out?: string; json?: boolean };
 
-const slidesDir = (repo: string | null, o: SlideOpts) => {
-  const dir = dirForEdit(repo, o.dir);
-  if (!fs.existsSync(walkthroughPath(dir))) fail(`no walkthrough.json in ${dir}`);
-  return dir;
-};
 
 export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
-  const dir = slidesDir(repo, o);
+  const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
   const c = await runCheck(repo, dir, { store: false, estimates: false });
   if ('issues' in c) fail(schemaReport(c.issues));
   const tour = c.tour!;
@@ -51,7 +45,7 @@ export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
 
 /** `reviewroom shot <chapter>/<step>`: one slide's PNG, and what lint finds on it. */
 export async function shotSlide(repo: string | null, o: SlideOpts, at: string) {
-  const dir = slidesDir(repo, o);
+  const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
   const [chapter, step] = at.split('/');
   const w = readWalkthrough(dir);
   if (!w?.ok) fail(w ? schemaReport(w.issues) : `no walkthrough.json in ${dir}`);
