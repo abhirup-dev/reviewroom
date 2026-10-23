@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { anchorOf, anchorRef, formatRef, parseRef, symbolHits, symbolQuery } from './refs.shared';
+import { anchorOf, anchorRef, formatRef, githubThread, LINK_IN_TEXT, lineSpanOf, looksLikeRef, parseRef, symbolHits, symbolQuery, trimLink, withLineSpan } from './refs.shared';
 
 test('every rr: form parses, and formats back to itself', () => {
   for (const s of ['rr:doc/intro', 'rr:doc/intro/p%3Anth-of-type(2)', 'rr:code/a/b.go', 'rr:code/a.go#L4', 'rr:code/a.go#L4-9', 'rr:code/a.go@base#L4', 'rr:code/a.go@abc123', 'rr:file/a.go@head#L2-3', 'rr:sym/Build', 'rr:thread/t_1', 'rr:round/2', 'rr:code/my%20file.go#L1', 'rr:tour/why/s2'])
@@ -9,6 +9,18 @@ test('every rr: form parses, and formats back to itself', () => {
   expect(parseRef('https://x')).toBeNull();
   expect(parseRef('rr:tour/why')).toBeNull();
   expect(parseRef('rr:round/x')).toBeNull();
+  for (const s of ['rr:code/', 'rr:code/#L1', 'rr:file/', 'rr:constructor/x']) expect(parseRef(s)).toBeNull(); // no path; not a type
+});
+
+test('the helpers the CLI and markdown use read links the way parseRef does', () => {
+  const text = 'See rr:code/a.go@base#L4-L9, then rr:sym/Build. Not rr:thread/t_1 or <rr:round/2>.';
+  expect((text.match(LINK_IN_TEXT) ?? []).map(trimLink)).toEqual(['rr:code/a.go@base#L4-L9', 'rr:sym/Build']);
+  expect(lineSpanOf('rr:code/a.go@base#L4-L9')).toBe('#L4-L9');
+  expect(lineSpanOf('rr:code/a.go')).toBe('');
+  expect(withLineSpan('rr:code/a.go@head#L4-L9', 7, 12)).toBe('rr:code/a.go@head#L7-12'); // the rest keeps its spelling
+  expect(withLineSpan('rr:code/a.go#L4', 7, 7)).toBe('rr:code/a.go#L7');
+  expect([githubThread('gh_123'), githubThread('gh_conversation'), githubThread('t_1'), githubThread('gh_x')]).toEqual(['123', 'conversation', null, null]);
+  expect([looksLikeRef('rr:nope'), looksLikeRef('https://x'), looksLikeRef(null)]).toEqual([true, false, false]);
 });
 
 test('an @ inside a path (scoped packages) is part of the path, not a rev', () => {

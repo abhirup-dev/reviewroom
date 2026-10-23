@@ -1,4 +1,9 @@
 // Shared by the CLI and the browser: no DOM or Node imports.
+//
+// The rr: link grammar, in one place: per link type, a formula (a free-spaced `regex` with named groups) and the
+// formatter that writes it back. Everything that reads or writes an rr: link string goes through here; labels, icons,
+// previews and opening dispatch on the parsed Ref (refs/browser.ts, ReviewApp.open), never on the string.
+import { pattern, regex } from 'regex';
 import type { Anchor, SearchHit } from '../state/model.shared';
 
 // Durable links. Every addressable thing in a review has an `rr:` ref that
@@ -22,80 +27,107 @@ export type Ref =
   | { type: 'thread'; id: string }
   | { type: 'round'; n: number }
   | { type: 'tour'; chapter: string; step: string };
+type RefOf<T extends Ref['type']> = Extract<Ref, { type: T }>;
 
-const LINES = /#L(\d+)(?:-L?(\d+))?$/;
+// ---------------------------------------------------------------- formulas
+
+/** `<rr:...>`, as markdown autolinks write it. */
+const BRACKETED = regex`^ < (?<inner> .* ) > $`;
+/** `rr:<type>/<rest>`: the rest is read by the type's formula below. */
+const ENVELOPE = regex`^ rr: (?<type> [a-z]+ ) \/ (?<rest> .* ) $`;
+/** `#L12`, `#L12-20`, or `#L12-L20` as older links wrote it. */
+const LINES = pattern`\#L (?<start> \d+ ) (?: -L? (?<end> \d+ ) )?`;
+const LINE_SPAN = regex`${LINES} $`;
+/** `<path>[@<rev>][#L..]`. A rev follows the last @ and has no /, so `packages/@scope/x.ts` stays a path. */
+// shortcut: an @ in the file name itself (a/x@2.ts) still reads as a rev; escape @ in the path if that shows up
+const LOCATION = regex`^ (?<path> .*? ) (?: @ (?<rev> [^@\/\#]+ ) )? (?: ${LINES} )? $`;
+/** `<id>[/<css-path>]`: the path is everything after the first /. */
+const DOC = regex`^ (?<id> [^\/]* ) (?: \/ (?<path> .* ) )? $`;
+/** `<chapter>/<step>`: exactly two parts. */
+const TOUR = regex`^ (?<chapter> [^\/]+ ) \/ (?<step> [^\/]+ ) $`;
+const ROUND = regex`^ \d+ $`;
+/** A symbol name: `[<path>:]<rest>`, the path being everything before the last colon... */
+const SYMBOL = regex`^ (?: (?<path> .+ ) : )? (?<rest> .* ) $`;
+/** ...and the rest `[<Owner>.]<word>`, the owner everything before the last dot. */
+const OWNER = regex`^ (?<owner> .+ ) \. (?<word> [^.]* ) $`;
+/** A GitHub thread id: `gh_<comment number>`, or `gh_conversation` for the PR's conversation tab. */
+const GITHUB_THREAD = regex`^ gh_ (?<n> \d+ | conversation ) $`;
+
+/** The rr: links the link checker follows, in any text (thread and round links point at nothing that can move). */
+export const LINK_IN_TEXT = regex('g')`rr: (?: code | file | sym | doc | tour ) \/ [^\s"'<>\`\)]+`;
+const TRAILING_PUNCTUATION = regex`[.,;:]+ $`;
+
+// ---------------------------------------------------------------- forms: parse and format, per type
+
+type Form<T extends Ref['type']> = { parse(rest: string): RefOf<T> | null; format(r: RefOf<T>): string };
+const int = (s: string | undefined) => (s === undefined ? undefined : +s);
+
+/** `#L12` or `#L12-20` ('' without a start). */
+export const lineSpan = (start?: number, end?: number) => (start ? `#L${start}${end && end !== start ? '-' + end : ''}` : '');
+
+const location = <T extends 'code' | 'file'>(type: T) =>
+  ({
+    parse(rest: string) {
+      const g = LOCATION.exec(rest)?.groups;
+      if (!g?.path) return null; // a code or file link needs a path
+      const start = int(g.start);
+      return { type, path: decodeURI(g.path), rev: g.rev ?? 'head', start, end: int(g.end) ?? start };
+    },
+    // a code link means head unless it says otherwise; a file link always names its rev
+    format: (r: RefOf<'code' | 'file'>) => encodeURI(r.path) + (type === 'code' && r.rev === 'head' ? '' : '@' + r.rev) + lineSpan(r.start, r.end),
+  }) as Form<T>;
+
+const forms: { [T in Ref['type']]: Form<T> } = {
+  doc: {
+    parse(rest) {
+      const { id, path } = DOC.exec(rest)!.groups!;
+      return { type: 'doc', id: decodeURIComponent(id), ...(path !== undefined && { path: decodeURIComponent(path) }) };
+    },
+    format: (r) => encodeURIComponent(r.id) + (r.path ? '/' + encodeURIComponent(r.path) : ''),
+  },
+  code: location('code'),
+  file: location('file'),
+  sym: { parse: (rest) => ({ type: 'sym', name: decodeURIComponent(rest) }), format: (r) => encodeURIComponent(r.name) },
+  thread: { parse: (rest) => ({ type: 'thread', id: rest }), format: (r) => r.id },
+  round: { parse: (rest) => (ROUND.test(rest) ? { type: 'round', n: +rest } : null), format: (r) => String(r.n) },
+  tour: {
+    parse(rest) {
+      const g = TOUR.exec(rest)?.groups;
+      return g ? { type: 'tour', chapter: decodeURIComponent(g.chapter), step: decodeURIComponent(g.step) } : null;
+    },
+    format: (r) => `${encodeURIComponent(r.chapter)}/${encodeURIComponent(r.step)}`,
+  },
+};
+
+// ---------------------------------------------------------------- the API
 
 export function parseRef(input: string): Ref | null {
-  let s = input.trim();
-  if (s.startsWith('<') && s.endsWith('>')) s = s.slice(1, -1);
-  if (!s.startsWith('rr:')) return null;
-  s = s.slice(3);
-  const slash = s.indexOf('/');
-  if (slash < 0) return null;
-  const type = s.slice(0, slash);
-  let rest = s.slice(slash + 1);
+  const s = input.trim();
+  const link = ENVELOPE.exec(BRACKETED.exec(s)?.groups!.inner ?? s)?.groups;
+  if (!link || !Object.hasOwn(forms, link.type)) return null;
   try {
-    switch (type) {
-      case 'doc': {
-        const i = rest.indexOf('/');
-        if (i < 0) return { type: 'doc', id: decodeURIComponent(rest) };
-        return { type: 'doc', id: decodeURIComponent(rest.slice(0, i)), path: decodeURIComponent(rest.slice(i + 1)) };
-      }
-      case 'code':
-      case 'file': {
-        let start: number | undefined, end: number | undefined;
-        const m = rest.match(LINES);
-        if (m) {
-          start = +m[1];
-          end = m[2] ? +m[2] : start;
-          rest = rest.slice(0, m.index);
-        }
-        let rev = 'head';
-        const at = rest.lastIndexOf('@');
-        // shortcut: an @ in the file name itself (a/x@2.ts) still reads as a rev; escape @ in formatRef if that shows up
-        if (at > 0 && !rest.includes('/', at)) {
-          rev = rest.slice(at + 1);
-          rest = rest.slice(0, at);
-        }
-        return { type, path: decodeURI(rest), rev, start, end };
-      }
-      case 'sym':
-        return { type: 'sym', name: decodeURIComponent(rest) };
-      case 'thread':
-        return { type: 'thread', id: rest };
-      case 'round':
-        return /^\d+$/.test(rest) ? { type: 'round', n: +rest } : null;
-      case 'tour': {
-        const [chapter, step, ...more] = rest.split('/').map(decodeURIComponent);
-        return chapter && step && !more.length ? { type: 'tour', chapter, step } : null;
-      }
-    }
+    return (forms[link.type as Ref['type']] as Form<Ref['type']>).parse(link.rest);
   } catch {
-    /* fallthrough */
+    return null; // a bad %-escape
   }
-  return null;
 }
 
-export function formatRef(r: Ref): string {
-  switch (r.type) {
-    case 'doc':
-      return `rr:doc/${encodeURIComponent(r.id)}${r.path ? '/' + encodeURIComponent(r.path) : ''}`;
-    case 'code':
-    case 'file': {
-      const lines = r.start ? `#L${r.start}${r.end && r.end !== r.start ? '-' + r.end : ''}` : '';
-      const rev = r.type === 'code' && r.rev === 'head' ? '' : `@${r.rev}`;
-      return `rr:${r.type}/${encodeURI(r.path)}${rev}${lines}`;
-    }
-    case 'sym':
-      return `rr:sym/${encodeURIComponent(r.name)}`;
-    case 'thread':
-      return `rr:thread/${r.id}`;
-    case 'round':
-      return `rr:round/${r.n}`;
-    case 'tour':
-      return `rr:tour/${encodeURIComponent(r.chapter)}/${encodeURIComponent(r.step)}`;
-  }
-}
+export const formatRef = (r: Ref): string => `rr:${r.type}/${(forms[r.type] as Form<Ref['type']>).format(r)}`;
+
+/** Whether a string is written as an rr: link (valid or not): what markdown and HTML hand to the link elements. */
+export const looksLikeRef = (s: string | null | undefined) => !!s?.startsWith('rr:');
+
+/** An rr: link as found in text, without the sentence punctuation after it. */
+export const trimLink = (s: string) => s.replace(TRAILING_PUNCTUATION, '');
+
+/** The link's `#L..` part ('' without one). */
+export const lineSpanOf = (ref: string) => LINE_SPAN.exec(ref)?.[0] ?? '';
+
+/** The same link pointing at other lines; the rest of it stays as it was written. */
+export const withLineSpan = (ref: string, start: number, end?: number) => ref.replace(LINE_SPAN, lineSpan(start, end));
+
+/** The GitHub comment number of a `gh_` thread id, or 'conversation'; null for a local thread. */
+export const githubThread = (id: string) => GITHUB_THREAD.exec(id)?.groups!.n ?? null;
 
 /** The rr: link for a stored anchor; null for a general thread. */
 export function anchorRef(a: Anchor): string | null {
@@ -135,11 +167,9 @@ export function anchorOf(ref: string): Anchor {
  * `word` is what to search for; the rest narrows the hits.
  */
 export function symbolQuery(name: string): { word: string; path?: string; owner?: string } {
-  const colon = name.lastIndexOf(':');
-  const path = colon > 0 ? name.slice(0, colon) : undefined;
-  const rest = colon > 0 ? name.slice(colon + 1) : name;
-  const dot = rest.lastIndexOf('.');
-  return dot > 0 ? { word: rest.slice(dot + 1), path, owner: rest.slice(0, dot) } : { word: rest, path };
+  const { path, rest } = SYMBOL.exec(name)!.groups!;
+  const q = OWNER.exec(rest)?.groups;
+  return q ? { word: q.word, path, owner: q.owner } : { word: rest, path };
 }
 
 /**
@@ -150,7 +180,7 @@ export function symbolQuery(name: string): { word: string; path?: string; owner?
 // (TS, Python) isn't narrowed by its class; use a path:Name link there, or a real symbol index if one lands.
 export function symbolHits<H extends Pick<SearchHit, 'path' | 'text' | 'kind'>>(hits: H[], name: string): H[] {
   const { path, owner } = symbolQuery(name);
-  const word = owner && new RegExp(`(^|[^\\w$])${owner.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\w$]|$)`);
+  const word = owner && regex`(^ | [^\w$]) ${owner} ([^\w$] | $)`; // the owner as a whole word (interpolation escapes it)
   const fits = (h: H) =>
     (!path || h.path === path || h.path.endsWith('/' + path)) && (!word || word.test(h.text) || h.path.split('/').includes(owner));
   const kept = path || owner ? hits.filter(fits) : hits;
