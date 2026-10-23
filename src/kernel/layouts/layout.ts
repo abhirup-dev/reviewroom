@@ -21,7 +21,7 @@ export function resetLayout(app: ReviewApp) {
   applyLayout(app, startId(app));
 }
 
-/** Layout `id` is the one the dock now shows (the layout menu marks it; undo and the next reload return to it). */
+/** Layout `id` is the one the dock was built from: new panels go where it puts them; undo and the next reload return to it. */
 function setCurrent(app: ReviewApp, id: string) {
   const state = layoutState(app);
   state.currentId = id;
