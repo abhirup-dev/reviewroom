@@ -1,6 +1,6 @@
 // Agent round and GitHub review controls.
 import { h, icon, copyText, relTime } from '../kernel/dom';
-import { feedbackMarkdown } from './feedback.shared';
+import { feedbackMarkdown, yoursIn } from './feedback.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
 import type { ReviewApp } from '../app';
 import { noteDialog } from '../kernel/dialog';
@@ -35,7 +35,7 @@ export function sendDialog(app: ReviewApp) {
     (act, close) => [
       [
         h('p', { class: 'rr-muted' }, pending.length ? `${plural(pending.length, 'thread')} with new comments:` : 'No new comments this round.'),
-        h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => m.author === 'you' && m.round === app.state.round).length, 'comment')))),
+        h('ul', { class: 'rr-send__list' }, ...pending.map((t) => h('li', null, h('span', { class: 'rr-chip rr-chip--static' }, app.anchorLabel(t.anchor)), ' ', plural(t.messages.filter((m) => yoursIn(m, app.state.round)).length, 'comment')))),
         note,
         app.backend.finish ? null : h('p', { class: 'rr-muted rr-small' }, 'Feedback will be copied for you to paste to your agent.'),
       ],

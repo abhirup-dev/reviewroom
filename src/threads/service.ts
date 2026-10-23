@@ -1,5 +1,6 @@
 import type { Anchor, Author, GitHubSnapshot, Op, ReviewState, Thread } from '../kernel/state/model.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
+import { yoursIn } from './feedback.shared';
 
 interface ThreadServiceDeps {
   getState(): ReviewState;
@@ -84,7 +85,7 @@ export function createThreadService(deps: ThreadServiceDeps) {
 
   function pendingFeedback() {
     const state = deps.getState();
-    return state.threads.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === state.round));
+    return state.threads.filter((t) => t.messages.some((m) => yoursIn(m, state.round)));
   }
 
   function unreadAgent(t: Thread) {

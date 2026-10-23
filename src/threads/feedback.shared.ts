@@ -1,9 +1,12 @@
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
 // agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
-import type { Anchor, ReviewState, Thread } from '../kernel/state/model.shared';
+import type { Anchor, Message, ReviewState, Thread } from '../kernel/state/model.shared';
 import { anchorRef, PR_DESCRIPTION } from '../kernel/refs/refs.shared';
 import type { Walkthrough } from '../slides/model.shared';
 
+
+/** The reviewer wrote `m` in `round`: what that round sends the agent. */
+export const yoursIn = (m: Message, round: number) => m.author === 'you' && m.round === round;
 
 // block tags break words, inline ones don't
 export const plain = (html: string) => html.replace(/<\/?(p|div|li|br|h\d|ul|ol|tr|td|rr-flow|rr-node)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -74,7 +77,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
     const [c, s] = tourPosition(t.anchor, opts.walkthrough);
     return 1 + (c + 1) * 1e4 + (s + 1);
   };
-  const touched = state.threads.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === round)).sort((a, b) => order(a) - order(b));
+  const touched = state.threads.filter((t) => t.messages.some((m) => yoursIn(m, round))).sort((a, b) => order(a) - order(b));
   const open = state.threads.filter((t) => t.status === 'open');
   const lines: string[] = [];
   if (opts.kind === 'approve') {
@@ -99,7 +102,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
     if (ex) lines.push('', '```', ex, '```');
     lines.push('');
     for (const m of t.messages) {
-      const isNew = m.round === round && m.author === 'you';
+      const isNew = yoursIn(m, round);
       lines.push(`**${m.author}** (round ${m.round})${isNew ? ' - NEW' : ''}:`, '', m.body.replace(/^/gm, '> '), '');
     }
   }

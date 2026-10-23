@@ -11,6 +11,7 @@ import { keyLabel } from '../kernel/commands';
 import type { Anchor, Thread } from '../kernel/state/model.shared';
 import type { Ref } from '../kernel/refs/browser';
 import { dockThread } from './docking';
+import { yoursIn } from './feedback.shared';
 import { closePanel, definePanel } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 import { renderPreview } from '../review/previews';
@@ -333,7 +334,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       });
       const actions = m.gh
         ? githubActions(m, body)
-        : m.author === 'you' && m.round === app.state.round
+        : yoursIn(m, app.state.round)
           ? h(
               'div',
               { class: 'rr-msg__actions' },
