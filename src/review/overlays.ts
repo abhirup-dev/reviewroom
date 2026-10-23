@@ -1,7 +1,7 @@
 // Command palette (⌘K), click-away selection release, link hover previews.
 import { single } from 'fuzzysort';
 import { h, icon, debounce, placeNear, backdropCloses } from '../kernel/dom';
-import { formatRef, parseRef, refIcon } from '../kernel/refs/browser';
+import { REF_ELEMENTS, formatRef, parseRef, refIcon } from '../kernel/refs/browser';
 import { keyLabel } from '../kernel/commands';
 import { plainExcerpt } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
@@ -53,7 +53,7 @@ export function mountPalette(app: ReviewApp) {
       const s = text ? single(text, hay)?.score : 1; // 0..1, higher is better
       if (s !== undefined) out.push({ ...it, score: s });
     };
-    if (q.trim().startsWith('rr:') && parseRef(q.trim())) {
+    if (parseRef(q)) {
       const ref = q.trim();
       out.push({ kind: 'link', label: 'Open ' + app.label(ref), ref, score: 999, run: () => app.open(ref) });
     }
@@ -205,7 +205,7 @@ export function mountHoverCards(app: ReviewApp) {
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let current: Element | null = null;
   app.onDispose(() => { clearTimeout(timer); clearTimeout(hideTimer); card.remove(); });
-  const target = (e: Event) => (e.composedPath()[0] as Element)?.closest?.('rr-ref, a[href^="rr:"], rr-node[ref]');
+  const target = (e: Event) => (e.composedPath()[0] as Element)?.closest?.(REF_ELEMENTS);
   app.listen(document, 'pointerover', (e) => {
     const t = target(e);
     if (card.contains(e.target as Node)) return clearTimeout(hideTimer);

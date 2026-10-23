@@ -12,7 +12,7 @@ import { retry } from '@octokit/plugin-retry';
 import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestReview, PullRequestReviewComment, Query, Mutation } from '@octokit/graphql-schema';
 import fs from 'node:fs';
 import path from 'node:path';
-import { anchorOf } from '../../src/kernel/refs/refs.shared.ts';
+import { anchorOf, githubThread, parseRef } from '../../src/kernel/refs/refs.shared.ts';
 import type { Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/kernel/state/model.shared.ts';
@@ -190,8 +190,9 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
   const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
   return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label: string, ref: string) => {
     // a link to a GitHub thread keeps pointing at it there
-    const gh = ref.match(/^rr:thread\/gh_(\d+|conversation)$/);
-    if (gh) return `[${label || 'thread'}](${gh[1] === 'conversation' ? pr : `${pr}#discussion_r${gh[1]}`})`;
+    const r = parseRef(ref);
+    const gh = r?.type === 'thread' && githubThread(r.id);
+    if (gh) return `[${label || 'thread'}](${gh === 'conversation' ? pr : `${pr}#discussion_r${gh}`})`;
     const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
     const sha = a.rev === 'base' ? shas.base : shas.head;

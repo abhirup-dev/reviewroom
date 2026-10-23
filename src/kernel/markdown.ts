@@ -8,6 +8,7 @@ import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { markedEmoji } from 'marked-emoji';
 import { githubEmoji } from './emoji' with { type: 'macro' };
+import { looksLikeRef } from './refs/refs.shared';
 
 const md = new Marked(markedEmoji({ emojis: githubEmoji(), renderer: (t) => t.emoji })); // :tada: as on GitHub
 
@@ -32,17 +33,17 @@ md.use({
       return token.lang?.trim().split(/\s+/)[0].toLowerCase() === 'mermaid' && `<rr-mermaid>${esc(token.text)}</rr-mermaid>\n`;
     },
     link(token) {
-      return token.href.startsWith('rr:') && `<rr-ref ref="${esc(token.href)}">${this.parser.parseInline(token.tokens)}</rr-ref>`;
+      return looksLikeRef(token.href) && `<rr-ref ref="${esc(token.href)}">${this.parser.parseInline(token.tokens)}</rr-ref>`;
     },
     image(token) {
-      return token.href.startsWith('rr:') && `<rr-embed ref="${esc(token.href)}" caption="${esc(token.text)}"></rr-embed>`;
+      return looksLikeRef(token.href) && `<rr-embed ref="${esc(token.href)}" caption="${esc(token.text)}"></rr-embed>`;
     },
   },
 });
 
 // links leave the review page; rr: links stay in it
 DOMPurify.addHook('afterSanitizeAttributes', (n) => {
-  if (n.tagName === 'A' && !n.getAttribute('href')?.startsWith('rr:')) {
+  if (n.tagName === 'A' && !looksLikeRef(n.getAttribute('href'))) {
     n.setAttribute('target', '_blank');
     n.setAttribute('rel', 'noopener');
   }
