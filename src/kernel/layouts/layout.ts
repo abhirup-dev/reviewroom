@@ -47,7 +47,8 @@ export function applyLayout(app: ReviewApp, id: string) {
   else api.clear();
   setCurrent(app, id);
   state.offered = new Set(state.availability?.ids.filter((pid) => api.getPanel(pid)));
-  for (const d of panelDefs()) if (!d.onDemand && !ownPanels.includes(d.id)) addDockPanel(api, d.id, { panel: 'narrative', dir: 'within' });
+  // an agent's own panels join the walkthrough's tabs (or the dock's edge, in a layout without the walkthrough)
+  for (const d of panelDefs()) if (!d.onDemand && !ownPanels.includes(d.id)) addDockPanel(api, d.id, api.getPanel('narrative') ? { panel: 'narrative', dir: 'within' } : undefined);
   if (!api.panels.length) addDockPanel(api, 'narrative'); // a layout of nothing reviewroom has
   api.getPanel('narrative')?.api.setActive();
   return true;
