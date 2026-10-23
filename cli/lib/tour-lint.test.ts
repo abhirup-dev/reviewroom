@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import type { ChangedFile } from '../../src/core/types.ts';
-import type { StepAudit, Walkthrough } from '../../src/shared/walkthrough.ts';
+import type { ChangedFile } from '../../src/kernel/state/model.shared.ts';
+import type { StepAudit, Walkthrough } from '../../src/walkthrough/model.shared.ts';
 import { findingReport, judge, lintTour } from './tour-lint.ts';
 
 const file = (path: string, n: number): ChangedFile => ({ path, status: 'modified', additions: n, deletions: 0 });

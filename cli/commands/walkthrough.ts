@@ -8,7 +8,7 @@ import { dirForEdit, readConfig } from '../lib/config.ts';
 import { prTarget, upsertComment } from '../lib/github.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough, walkthroughPath } from '../lib/state.ts';
-import { BLOCK_MARK, encodeBlock, type Walkthrough } from '../../src/shared/walkthrough.ts';
+import { BLOCK_MARK, encodeBlock, type Walkthrough } from '../../src/walkthrough/model.shared.ts';
 import { findingReport, judge, type Finding, type Measured } from '../lib/tour-lint.ts';
 import { openPage, parseViewports, vpName, withServer } from '../lib/render.ts';
 import { runCheck, schemaReport } from './check.ts';

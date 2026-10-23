@@ -4,8 +4,8 @@
 // Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
-import { parseRef, symbolHits, symbolQuery } from '../../src/shared/refs.ts';
-import type { Walkthrough } from '../../src/shared/walkthrough.ts';
+import { parseRef, symbolHits, symbolQuery } from '../../src/kernel/refs/refs.shared.ts';
+import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
 
 export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
 export interface LinkResult {

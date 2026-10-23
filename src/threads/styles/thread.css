@@ -1,0 +1,149 @@
+/* thread */
+.rr-thread {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  max-height: inherit;
+}
+.rr-modal > .rr-thread {
+  max-height: 88vh;
+}
+.rr-thread__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-thread__ctx:empty {
+  display: none;
+}
+.rr-thread__ctx {
+  flex: none;
+  max-height: 32vh;
+  overflow: auto;
+  padding: 10px 14px;
+  background: var(--rr-panel-2);
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-thread.is-docked .rr-thread__ctx {
+  max-height: 160px;
+}
+/* a new comment has no messages yet: room for most of what it's about */
+.rr-thread.is-new:not(.is-docked) .rr-thread__ctx {
+  max-height: 70vh;
+  flex-shrink: 1; /* on a short window the composer keeps its room */
+  min-height: 80px;
+}
+/* shadow at the bottom edge while there's more to scroll (scrolls away with the content's end) */
+.rr-thread__ctx {
+  background:
+    linear-gradient(transparent, var(--rr-panel-2) 70%) center bottom / 100% 24px no-repeat local,
+    linear-gradient(transparent, color-mix(in srgb, var(--rr-ink) 14%, transparent)) center bottom / 100% 12px no-repeat scroll,
+    var(--rr-panel-2);
+}
+.rr-modal > .rr-thread > .rr-thread__head {
+  cursor: grab;
+}
+.rr-thread__scroll {
+  flex: 1;
+  min-height: 60px;
+  overflow: auto;
+  padding: 6px 14px 12px;
+}
+.rr-thread__scroll:empty {
+  display: none;
+}
+.rr-round-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 6px;
+  color: var(--rr-faint);
+  font: 600 10.5px/1 var(--rr-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.rr-round-sep::before,
+.rr-round-sep::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--rr-line);
+}
+.rr-msg {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+}
+.rr-msg + .rr-msg {
+  border-top: 1px solid color-mix(in srgb, var(--rr-line) 60%, transparent);
+}
+.rr-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--rr-hover);
+  color: var(--rr-ink-2);
+  font: 600 10px/1 var(--rr-font);
+}
+.rr-avatar--agent {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+.rr-avatar--gh {
+  object-fit: cover;
+}
+.rr-msg__meta a.rr-muted {
+  text-decoration: none;
+}
+.rr-msg__meta a.rr-muted:hover {
+  text-decoration: underline;
+}
+.rr-thread.is-readonly .rr-composer {
+  display: none;
+}
+.rr-msg__main {
+  min-width: 0;
+}
+.rr-msg__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--rr-text-sm);
+  margin-bottom: 2px;
+}
+.rr-msg--agent .rr-msg__meta strong {
+  color: var(--rr-accent);
+}
+.rr-msg__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  font-size: var(--rr-text-xs);
+  opacity: 0;
+}
+.rr-msg:hover .rr-msg__actions {
+  opacity: 1;
+}
+.rr-quote {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--rr-comment);
+  background: var(--rr-comment-soft);
+  color: var(--rr-ink-2);
+  font: 13px/1.5 var(--rr-font);
+}
+.rr-anchor-ctx {
+  font-size: 12px;
+}
+/* the whole element: the context box around it scrolls, so no clipping here */
+.rr-anchor-ctx .rr-embed__doc {
+  max-height: none;
+  overflow: visible;
+}
+

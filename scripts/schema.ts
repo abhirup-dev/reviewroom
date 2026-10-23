@@ -1,8 +1,8 @@
-// Writes schema/state.schema.json and schema/walkthrough.schema.json from the Zod schemas in src/shared/.
-// `bun run schema` after changing them; src/shared/schema.test.ts fails while a committed file is out of date.
+// Writes schema/state.schema.json and schema/walkthrough.schema.json from the Zod schemas in *.shared.ts.
+// `bun run schema` after changing them; src/kernel/state/schema.shared.test.ts fails while a committed file is out of date.
 import { writeFileSync } from 'node:fs';
-import { stateJsonSchema } from '../src/shared/schema';
-import { walkthroughJsonSchema } from '../src/shared/walkthrough';
+import { stateJsonSchema } from '../src/kernel/state/schema.shared';
+import { walkthroughJsonSchema } from '../src/walkthrough/model.shared';
 
 const file = (name: string) => new URL(`../schema/${name}`, import.meta.url).pathname;
 const json = (v: unknown) => JSON.stringify(v, null, 2) + '\n';

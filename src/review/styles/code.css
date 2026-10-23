@@ -1,0 +1,68 @@
+/* ---------------------------------------------------------------- code panel */
+.rr-code-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.rr-code-scroll {
+  flex: 1;
+  background: var(--rr-panel-2);
+  --diffs-font-family: var(--rr-mono);
+  --diffs-font-size: 12.5px;
+}
+/* one CodeView item per file: the card's edge is a shadow, so it adds nothing to the heights CodeView computes */
+.rr-code-scroll diffs-container {
+  margin-inline: 8px;
+  border-radius: var(--rr-radius);
+  box-shadow: 0 0 0 1px var(--rr-line);
+  background: var(--rr-panel);
+  overflow: clip;
+}
+.rr-file__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 8px 0 4px;
+  background: color-mix(in srgb, var(--rr-surface-bar-active) 70%, var(--rr-panel));
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-file__head.is-collapsed {
+  border-bottom-color: transparent;
+}
+.rr-file__head.is-collapsed .rr-file__chev .rr-icon {
+  transform: rotate(-90deg);
+}
+.rr-file__path {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: 12px/1 var(--rr-mono);
+  color: var(--rr-ink);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rr-file__path:hover strong {
+  text-decoration: underline;
+}
+.rr-file__path strong {
+  font-weight: 600;
+}
+.rr-viewed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  font-size: var(--rr-text-xs);
+  color: var(--rr-muted);
+  cursor: pointer;
+}
+.rr-viewed input {
+  margin: 0;
+}

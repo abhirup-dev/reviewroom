@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { normalizeTimestamp, parseStrictPid, parseStrictPort } from './loopback.ts';
-import type { RawCritEntry, RawPlanEntry } from '../../src/shared/hub.ts';
+import type { RawCritEntry, RawPlanEntry } from '../../src/hub/model.shared.ts';
 import type { SessionRecord } from '../lib/registry.ts';
 import { registryDir } from '../lib/paths.ts';
 

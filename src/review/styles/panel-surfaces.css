@@ -1,0 +1,19 @@
+/* Panels: generic scroll areas, side panels, code panel, narrative. */
+/* Each panel kind sits on its own surface; components inside just use --rr-panel/--rr-panel-2. */
+.rr-panel-host[data-rr-kind='narrative'],
+.rr-panel-host[data-rr-kind='description'],
+.rr-panel-host[data-rr-kind='thread'] {
+  --rr-panel: var(--rr-surface-doc);
+  --rr-panel-2: var(--rr-surface-doc-2);
+}
+.rr-panel-host[data-rr-kind='code'] {
+  --rr-panel: var(--rr-surface-code);
+  --rr-panel-2: var(--rr-surface-well);
+}
+.rr-panel-host[data-rr-kind='files'],
+.rr-panel-host[data-rr-kind='toc'],
+.rr-panel-host[data-rr-kind='threads'],
+.rr-panel-host[data-rr-kind='ci'] {
+  --rr-panel: var(--rr-surface-nav);
+  --rr-panel-2: var(--rr-surface-nav-2);
+}

@@ -1,0 +1,8 @@
+.rr-chip__icon {
+  display: inline-flex;
+  align-items: center;
+  font: 600 11px/1 var(--rr-mono);
+  opacity: 0.8;
+  flex: none;
+}
+

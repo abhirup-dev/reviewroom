@@ -12,12 +12,12 @@ import { retry } from '@octokit/plugin-retry';
 import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestReview, PullRequestReviewComment, Query, Mutation } from '@octokit/graphql-schema';
 import fs from 'node:fs';
 import path from 'node:path';
-import { anchorOf } from '../../src/shared/refs.ts';
+import { anchorOf } from '../../src/kernel/refs/refs.shared.ts';
 import type { Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
-import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/core/types.ts';
-import { ReviewroomError } from '../../src/shared/ops.ts';
-import type { GitHubAction } from '../../src/shared/schema.ts';
+import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/kernel/state/model.shared.ts';
+import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import type { GitHubAction } from '../../src/kernel/state/schema.shared.ts';
 import { fail } from './args.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.

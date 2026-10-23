@@ -1,9 +1,9 @@
 // The hub's page (`reviewroom hub`): every review running on this machine, refreshed every 2 s from the hub's
 // own server (a review server refuses requests from other ports). Filter, sort, open, close.
-import { backdropCloses, h, icon, relTime } from '../core/dom';
-import { mountTooltips } from '../overlays/tooltip';
+import { backdropCloses, h, icon, relTime } from '../kernel/dom';
+import { mountTooltips } from '../kernel/tooltip';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
-import type { HubSnapshot, SessionInfo } from '../shared/hub';
+import type { HubSnapshot, SessionInfo } from './model.shared';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg' with { type: 'text' };
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg' with { type: 'text' };

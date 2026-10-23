@@ -1,0 +1,17 @@
+/* PR conversation: quiet in the footer until wanted */
+.rr-convo-btn {
+  flex: none;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 6px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.rr-convo-btn:hover,
+.rr-convo-btn:focus-visible {
+  opacity: 1;
+  background: var(--rr-hover);
+}
+.rr-convo-btn[hidden] {
+  display: none;
+}

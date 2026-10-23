@@ -10,7 +10,7 @@ import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, prTarget as prOf } from '../lib/github.ts';
 import { walkthroughPath } from '../lib/state.ts';
 import { pickBlock } from '../lib/walkthrough.ts';
-import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
+import { parseWalkthrough } from '../../src/walkthrough/model.shared.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute

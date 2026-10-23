@@ -4,7 +4,7 @@
 import { fail } from './args.ts';
 import { loadConfig } from './config.ts';
 import { listen, startServer } from './server.ts';
-import type { StepAudit } from '../../src/shared/walkthrough.ts';
+import type { StepAudit } from '../../src/walkthrough/model.shared.ts';
 
 export type Viewport = { width: number; height: number };
 export const vpName = (v: Viewport) => `${v.width}x${v.height}`;

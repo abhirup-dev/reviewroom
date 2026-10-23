@@ -1,5 +1,5 @@
 // What kind of review a session is, from its launch metadata only, and which page of it to open.
-import type { SessionCategory, SessionKind, ToolName } from '../../src/shared/hub.ts';
+import type { SessionCategory, SessionKind, ToolName } from '../../src/hub/model.shared.ts';
 
 export interface ClassificationInput {
   tool: ToolName;

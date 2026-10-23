@@ -21,7 +21,7 @@ import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
 import { cmdWalkthrough } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
-import { ReviewroomError } from '../src/shared/ops.ts';
+import { ReviewroomError } from '../src/kernel/state/ops.shared.ts';
 
 const cli = cac('reviewroom');
 cli

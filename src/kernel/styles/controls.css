@@ -1,0 +1,295 @@
+.rr-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.rr-btn--small {
+  height: 26px;
+  padding: 0 8px;
+  font-size: var(--rr-text-sm);
+}
+.rr-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-comment);
+  color: #fff;
+  font: 600 11px/18px var(--rr-font);
+  text-align: center;
+}
+.rr-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--rr-radius-sm);
+  border: 0;
+  background: transparent;
+  color: var(--rr-muted);
+  cursor: pointer;
+  flex: none;
+}
+.rr-icon-btn:hover {
+  background: var(--rr-hover);
+  color: var(--rr-ink);
+}
+.rr-icon-btn[aria-pressed='true'] {
+  background: var(--rr-active);
+  color: var(--rr-ink);
+}
+.rr-link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--rr-accent);
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.rr-link-btn:hover {
+  text-decoration: underline;
+}
+.rr-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--rr-radius-sm);
+  border: 1px solid var(--rr-line);
+  background: var(--rr-panel);
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+  white-space: nowrap;
+}
+.rr-pill--mono {
+  font-family: var(--rr-mono);
+  font-size: 10.5px;
+}
+.rr-pill--ok {
+  color: var(--rr-ok);
+  background: var(--rr-ok-soft);
+  border-color: transparent;
+}
+.rr-pill--draft {
+  color: var(--rr-warn);
+  background: var(--rr-warn-soft);
+  border-color: transparent;
+}
+.rr-unsaved {
+  display: none;
+}
+.is-unsaved .rr-unsaved {
+  display: inline-flex;
+}
+.rr-pill--gh {
+  color: var(--rr-ink-2);
+}
+.rr-hbtn.is-warn {
+  color: var(--rr-warn);
+}
+.rr-pill--accent {
+  color: var(--rr-accent);
+  background: var(--rr-accent-soft);
+  border-color: transparent;
+}
+.rr-muted {
+  color: var(--rr-muted);
+}
+.rr-small {
+  font-size: var(--rr-text-sm);
+}
+.rr-toolbar__spacer {
+  flex: 1;
+}
+.rr-seg {
+  display: inline-flex;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  overflow: hidden;
+  background: var(--rr-panel);
+  flex: none;
+}
+.rr-seg > button {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--rr-muted);
+  font: 500 var(--rr-text-sm) / 1 var(--rr-font);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rr-seg > button + button {
+  border-left: 1px solid var(--rr-line);
+}
+.rr-seg > button:hover {
+  background: var(--rr-hover);
+  color: var(--rr-ink);
+}
+.rr-seg > button.is-on {
+  background: var(--rr-active);
+  color: var(--rr-ink);
+}
+.rr-seg--small > button {
+  height: 24px;
+  font-size: var(--rr-text-xs);
+}
+.rr-seg--fill {
+  display: flex;
+}
+.rr-seg--fill > button {
+  flex: 1;
+}
+.rr-input,
+.rr-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  background: var(--rr-panel);
+  color: var(--rr-ink);
+  font: inherit;
+  min-width: 0;
+}
+.rr-input:focus,
+.rr-select:focus,
+.rr-composer__input:focus {
+  outline: 2px solid var(--rr-accent-soft);
+  border-color: var(--rr-accent);
+}
+.rr-select {
+  width: 100%;
+}
+.rr-root :focus-visible,
+.rr-modal :focus-visible,
+.rr-palette :focus-visible {
+  outline: 2px solid var(--rr-accent);
+  outline-offset: 1px;
+}
+.rr-empty {
+  padding: 16px;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+  line-height: 1.5;
+}
+.rr-loading,
+.rr-fatal {
+  height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  color: var(--rr-muted);
+  font: 14px var(--rr-font);
+  text-align: center;
+}
+.rr-fatal pre {
+  max-width: 70ch;
+  white-space: pre-wrap;
+  text-align: left;
+  color: var(--rr-risk);
+}
+.rr-skeleton {
+  height: 12px;
+  border-radius: var(--rr-radius-sm);
+  background: linear-gradient(90deg, var(--rr-hover), var(--rr-active), var(--rr-hover));
+  background-size: 200% 100%;
+  animation: rr-shimmer 1.2s infinite linear;
+  margin: 10px 12px;
+}
+@keyframes rr-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.rr-count-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-comment-soft);
+  color: var(--rr-comment);
+  font: 600 10.5px/1 var(--rr-font);
+  flex: none;
+}
+.rr-round-badge {
+  font: 600 10px/1 var(--rr-mono);
+  padding: 3px 5px;
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+  flex: none;
+}
+.rr-delta {
+  white-space: nowrap;
+  display: inline-flex;
+  gap: 6px;
+  font: 500 var(--rr-text-sm) / 1 var(--rr-mono);
+  flex: none;
+}
+.rr-delta--small {
+  font-size: 10.5px;
+  gap: 4px;
+}
+.rr-add {
+  color: var(--rr-add);
+}
+.rr-del {
+  color: var(--rr-del);
+}
+.rr-status {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--rr-radius-sm);
+  display: inline-grid;
+  place-items: center;
+  font: 700 10px/1 var(--rr-mono);
+  flex: none;
+}
+.rr-status--added {
+  color: var(--rr-add);
+  background: color-mix(in srgb, var(--rr-add) 14%, transparent);
+}
+.rr-status--modified,
+.rr-status--renamed {
+  color: var(--rr-warn);
+  background: color-mix(in srgb, var(--rr-warn) 14%, transparent);
+}
+.rr-status--deleted {
+  color: var(--rr-del);
+  background: color-mix(in srgb, var(--rr-del) 14%, transparent);
+}
+
+@media (max-width: 1480px) {
+  .rr-search-btn {
+    width: 180px;
+  }
+}
+@media (max-width: 1280px) {
+  .rr-search-btn {
+    width: auto;
+  }
+  .rr-search-btn span {
+    display: none;
+  }
+  .rr-header__title {
+    max-width: 44vw;
+  }
+}
+
+/* chrome is for clicking, not copying: a drag-select from the narrative never spills into it */
+.rr-header,
+.rr-toolbar,
+.rr-side-head,
+.rr-group-label,
+.rr-file__head,
+.dockview-theme-rr .dv-tabs-and-actions-container {
+  user-select: none;
+  -webkit-user-select: none;
+}

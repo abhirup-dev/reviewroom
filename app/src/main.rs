@@ -365,7 +365,7 @@ fn show_hub(app: &AppHandle, focus: bool) {
     });
 }
 
-/// A page's guided walkthrough changed state (src/overlays/walkthrough.ts): the Reviews menu follows.
+/// A page's guided walkthrough changed state (src/walkthrough/player.ts): the Reviews menu follows.
 #[tauri::command]
 fn walkthrough_state(webview: Webview, state: String) {
     let w = webview.window();

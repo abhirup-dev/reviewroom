@@ -4,7 +4,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { git, defaultBase, remoteName } from './git.ts';
 import { reviewsDir } from './paths.ts';
-import { ReviewroomError } from '../../src/shared/ops.ts';
+import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 
 /** Where a repo's reviews live: ~/.reviewroom/reviews/<owner>-<repo>/, shared by all its worktrees. */
 const reviewsOf = (repo: string) => path.join(reviewsDir(), remoteName(repo).replace(/[^\w.-]+/g, '-').replace(/^\.*$/, '_')); // one segment, never `..`

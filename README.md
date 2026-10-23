@@ -112,23 +112,27 @@ last commit on the PR that passed; while checks run it refreshes every 30 second
    review; file contents come from raw.githubusercontent.com. Token: `localStorage['reviewroom:github-token']`.
 3. **Static fixture** (`<script type="application/json" id="rr-fixture">`): self-contained demos.
 
-Write your own by implementing `CodeProvider` (`src/providers/index.ts`).
+Write your own by implementing `CodeProvider` (`src/kernel/providers/contracts.ts`).
 
 ## Package layout
 
 ```
 src/
-  index.ts            boot(), window.rr API, commands
-  core/               types, rr: refs, commands/keys, markdown, emitter, dom helpers
-  providers/          LocalProvider + ServerState (CLI), GitHubProvider, StaticProvider, BrowserState
-  shell/              ReviewApp (shared context), dockview layout (layouts in src/layouts/), header
-  panels/             narrative, code (@pierre/diffs), files/contents/threads
-  overlays/           thread popup/panel + composer, palette, hover previews, toasts
-  elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
-  styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
+  main.ts             boot, public exports, window.rr, feature composition
+  app.ts              ReviewApp compatibility facade and lifecycle
+  services.ts         composition of narrow code, thread and GitHub services
+  kernel/             state/refs, DOM helpers, dock, layouts, providers, header
+  review/             code/narrative/files/contents, elements, previews, navigation
+  threads/            local/GitHub threads, composer, controls, CI and docking
+  walkthrough/        model, player and pane machines, view and audit
+  hub/                standalone hub UI and model
+  testing/            DOM fixtures and integration tests
+  */styles/           CSS owned by each feature; build.ts preserves cascade order
+  *.shared.ts         DOM-free contracts shared with the CLI (also within folders)
+  *.machine.ts        DOM-free XState machines, beside their owning views
 cli/                  CLI (TypeScript, bundled for Bun): server + round commands
 templates/            review.html scaffold
-schema/               JSON schema for state.json (generated from src/shared/schema.ts)
+schema/               JSON schema for state.json (generated from src/kernel/state/schema.shared.ts)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)
 ```
 

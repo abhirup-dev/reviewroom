@@ -1,0 +1,174 @@
+/* App shell: header, dock host, shared controls. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--rr-bg);
+}
+rr-app {
+  display: block;
+}
+.rr-root [hidden],
+.rr-modal [hidden],
+body > [hidden] {
+  display: none !important;
+}
+.rr-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-bg);
+  color: var(--rr-ink);
+  font: var(--rr-text) / 1.45 var(--rr-font);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.rr-root *,
+.rr-root *::before,
+.rr-root *::after,
+.rr-modal *,
+.rr-menu *,
+.rr-palette * {
+  box-sizing: border-box;
+}
+.rr-dock {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-top: 1px solid var(--rr-line-strong);
+}
+.rr-icon {
+  flex: none;
+  display: block;
+}
+
+/* ---------------------------------------------------------------- header */
+.rr-header {
+  height: var(--rr-header-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 14px;
+}
+.rr-header__id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.rr-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-ink);
+  color: var(--rr-bg);
+  display: grid;
+  place-items: center;
+  font: 700 12px/1 var(--rr-mono);
+  letter-spacing: -0.04em;
+  flex: none;
+}
+.rr-header__titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rr-header__title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62vw;
+}
+.rr-header__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+/* the header reads as one quiet line of facts, not a row of badges */
+.rr-header__meta .rr-pill {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+}
+.rr-header__meta .rr-pill--mono {
+  font-size: 11.5px;
+}
+.rr-header__meta .rr-pill + .rr-pill::before {
+  content: '·';
+  margin: 0 7px;
+  color: var(--rr-faint);
+  font-family: var(--rr-font);
+}
+.rr-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rr-hbtn {
+  white-space: nowrap;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--rr-radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--rr-ink-2);
+  font: inherit;
+  text-decoration: none; /* also on links: All reviews */
+  cursor: pointer;
+}
+.rr-hbtn:hover,
+.rr-hbtn[aria-expanded='true'] {
+  background: var(--rr-hover);
+  color: var(--rr-ink);
+}
+.rr-hbtn.is-on {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+.rr-hbtn--icon {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+.rr-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  width: 240px;
+  padding: 0 6px 0 10px;
+  border-radius: var(--rr-radius);
+  border: 1px solid var(--rr-line);
+  background: var(--rr-panel);
+  color: var(--rr-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.rr-search-btn span {
+  flex: 1;
+  text-align: left;
+}
+.rr-search-btn:hover {
+  border-color: var(--rr-line-strong);
+}
+kbd {
+  font: 500 10.5px/1 var(--rr-mono);
+  padding: 3px 5px;
+  border-radius: var(--rr-radius-sm);
+  border: 1px solid var(--rr-line);
+  background: var(--rr-panel-2);
+  color: var(--rr-muted);
+}

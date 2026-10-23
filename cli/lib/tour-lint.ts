@@ -1,10 +1,10 @@
 // Whether a walkthrough works as a walkthrough, beyond the schema and its links: what it leaves out, its pacing, and
 // (rendered, `walkthrough lint`) whether each step fits the screen. Findings name the step and say how to fix it.
-import type { ChangedFile } from '../../src/core/types.ts';
-import { plain } from '../../src/shared/feedback.ts';
-import { parseRef } from '../../src/shared/refs.ts';
-import { stepRefs, type StepAudit, type Walkthrough } from '../../src/shared/walkthrough.ts';
-import { target } from '../../src/flows/walkthrough.ts';
+import type { ChangedFile } from '../../src/kernel/state/model.shared.ts';
+import { plain } from '../../src/threads/feedback.shared.ts';
+import { parseRef } from '../../src/kernel/refs/refs.shared.ts';
+import { stepRefs, type StepAudit, type Walkthrough } from '../../src/walkthrough/model.shared.ts';
+import { target } from '../../src/walkthrough/model.shared.ts';
 import { extractLinks, uncomment } from './links.ts';
 import { tourText } from './walkthrough.ts';
 

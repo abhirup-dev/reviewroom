@@ -4,7 +4,7 @@ import { type Global, fail } from '../lib/args.ts';
 import { resolveDir, loadConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { takeLock, releaseLock } from '../lib/lock.ts';
-import { undelivered } from '../../src/shared/ops.ts';
+import { undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
 import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';

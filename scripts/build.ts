@@ -6,7 +6,73 @@ import { readFileSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmS
 const root = new URL('..', import.meta.url).pathname;
 const at = (p: string) => root + p;
 
-const styles = ['tokens', 'shell', 'panels', 'overlays', 'walkthrough', 'content', 'dockview'];
+// Each group preserves one original stylesheet byte for byte. Fragments within a group
+// must stay interleaved: regrouping them by owner would change the cascade.
+const shellStyles = [
+  'src/kernel/styles/shell.css',
+  'src/threads/styles/feedback-status.css',
+  'src/review/styles/selection-cursor.css',
+  'src/kernel/styles/buttons.css',
+  'src/threads/styles/feedback-buttons.css',
+  'src/kernel/styles/controls.css',
+];
+
+const panelsStyles = [
+  'src/review/styles/panel-surfaces.css',
+  'src/kernel/styles/panels.css',
+  'src/threads/styles/conversation-button.css',
+  'src/kernel/styles/side-head.css',
+  'src/threads/styles/filter-author.css',
+  'src/review/styles/sidebar.css',
+  'src/review/styles/files.css',
+  'src/review/styles/toc.css',
+  'src/threads/styles/list.css',
+  'src/review/styles/chip-icon.css',
+  'src/review/styles/code.css',
+  'src/threads/styles/inline.css',
+  'src/review/styles/narrative.css',
+  'src/threads/styles/rail.css',
+  'src/review/styles/selection.css',
+  'src/threads/styles/panel.css',
+  'src/review/styles/responsive-panels.css',
+  'src/threads/styles/ci.css',
+  'src/review/styles/description.css',
+  'src/threads/styles/markers.css',
+  'src/kernel/styles/slot.css',
+];
+
+const overlaysStyles = [
+  'src/kernel/styles/dialogs.css',
+  'src/threads/styles/thread.css',
+  'src/threads/styles/composer.css',
+  'src/review/styles/references.css',
+  'src/threads/styles/embeds.css',
+  'src/review/styles/snippet.css',
+  'src/review/styles/palette.css',
+  'src/kernel/styles/menus.css',
+  'src/review/styles/hover.css',
+  'src/kernel/styles/toasts.css',
+  'src/kernel/styles/tooltips.css',
+  'src/threads/styles/composer-editor.css',
+];
+
+const styles = [
+  ['src/kernel/styles/tokens.css'],
+  shellStyles,
+  panelsStyles,
+  overlaysStyles,
+  ['src/walkthrough/styles/walkthrough.css'],
+  ['src/review/styles/content.css'],
+  ['src/kernel/styles/dockview.css'],
+];
+
+// Hub cascade: tokens, shell controls, overlays, then hub-specific rules.
+const hubStyles = [
+  ['src/kernel/styles/tokens.css'],
+  shellStyles,
+  overlaysStyles,
+  ['src/hub/styles/hub.css'],
+];
 
 const dockviewCss = () => readFileSync(at('node_modules/dockview/dist/styles/dockview.css'), 'utf8');
 
@@ -25,22 +91,23 @@ type FontSrc = (pkg: string, file: string) => string;
 const fontFaces = (src: FontSrc) =>
   fonts.map(([family, pkg, file, style]) => `@font-face{font-family:'${family}';font-style:${style};font-weight:100 900;font-display:swap;src:url(${src(pkg, file)}) format('woff2');}`).join('\n');
 
-const sheet = (f: string) => `/* ${f}.css */\n` + readFileSync(at(`src/styles/${f}.css`), 'utf8');
+const sheet = (path: string) => `/* ${path} */\n` + readFileSync(at(path), 'utf8');
+const sheets = (groups: string[][]) => groups.map((group) => group.map(sheet).join('')).join('\n');
 
 /** The hub's page (src/hub/): the shared tokens and controls, without the review's panels. */
-const hubCss = () => [fontFaces((_pkg, file) => `./fonts/${file}`), ...['tokens', 'shell', 'overlays', 'hub'].map(sheet)].join('\n');
+const hubCss = () => [fontFaces((_pkg, file) => `./fonts/${file}`), sheets(hubStyles)].join('\n');
 
 /** All client CSS. `fontSrc(pkg, file)` says where each font is served from. */
-export const clientCss = (fontSrc: FontSrc) => [fontFaces(fontSrc), dockviewCss(), ...styles.map(sheet)].join('\n');
+export const clientCss = (fontSrc: FontSrc) => [fontFaces(fontSrc), dockviewCss(), sheets(styles)].join('\n');
 
-/** Bundle the client. The CSS is inlined into the JS (src/styles/bundle.css exists only in the build) and injected at boot. */
+/** Bundle the client. The CSS is inlined into the JS (src/bundle.css exists only in the build) and injected at boot. */
 export function clientBuild({ css, plugins = [], ...opts }: { css: string; plugins?: BunPlugin[] } & Omit<Bun.BuildConfig, 'entrypoints' | 'plugins'>) {
   return Bun.build({
-    entrypoints: [at('src/index.ts')],
+    entrypoints: [at('src/main.ts')],
     format: 'esm',
     target: 'browser',
     minify: true,
-    files: { [realpathSync(at('src/styles')) + '/bundle.css']: css },
+    files: { [realpathSync(at('src')) + '/bundle.css']: css },
     plugins,
     ...opts,
   });
@@ -54,7 +121,7 @@ async function build() {
   // the composer's emoji picker reads its data from here (its default is a CDN); GitHub's shortcodes for search
   copyFileSync(at('node_modules/emoji-picker-element-data/en/github/data.json'), at('dist/emoji.json'));
   writeFileSync(at('dist/reviewroom.css'), clientCss((_pkg, file) => `./fonts/${file}`));
-  // __RR_FONTS__ is resolved at runtime against the script's own URL (injectCSS in src/index.ts)
+  // __RR_FONTS__ is resolved at runtime against the script's own URL (injectCSS in src/main.ts)
   const res = await clientBuild({
     css: clientCss((_pkg, file) => `__RR_FONTS__/${file}`),
     outdir: at('dist'),

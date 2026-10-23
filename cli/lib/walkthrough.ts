@@ -1,6 +1,6 @@
 // walkthrough.json on the CLI side: where a link sits in it (for `check`), the PR block (`pr`, `walkthrough publish`).
-import type { GitHubSnapshot } from '../../src/core/types.ts';
-import { findBlocks, stepRefs, type Walkthrough } from '../../src/shared/walkthrough.ts';
+import type { GitHubSnapshot } from '../../src/kernel/state/model.shared.ts';
+import { findBlocks, stepRefs, type Walkthrough } from '../../src/walkthrough/model.shared.ts';
 import { applyFixes, extractLinks, type LinkResult, type Links } from './links.ts';
 
 /** Every string of the walkthrough a link can sit in, decoded (what `checkLinks` scans as `extra`). */

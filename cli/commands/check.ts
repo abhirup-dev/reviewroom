@@ -8,7 +8,7 @@ import { checkLinks, problems, report, applyFixes, type LinkResult } from '../li
 import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
 import { findingReport, lintTour, type Finding } from '../lib/tour-lint.ts';
 import { PKG } from '../lib/paths.ts';
-import type { Walkthrough } from '../../src/shared/walkthrough.ts';
+import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
 
 type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[] };
 
