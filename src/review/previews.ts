@@ -108,19 +108,13 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: PreviewOp
       const el = app.docElement(r.id, r.path);
       if (!el) return h('div', { class: 'rr-empty' }, 'This part of the review no longer exists');
       const clone = el.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
-      clone.removeAttribute('id');
+      for (const n of [clone, ...clone.querySelectorAll('[id]')]) n.removeAttribute('id');
       clone.querySelectorAll('script').forEach((n) => n.remove());
       // widgets that render into shadow DOM don't survive cloneNode: re-run them from source
-      clone.querySelectorAll('rr-code, rr-embed, rr-mermaid').forEach((n) => {
-        const el = n as HTMLElement;
-        if (el.dataset.src === undefined) return;
-        delete el.dataset.ready;
-        el.replaceChildren(el.dataset.src);
-      });
-      if (clone.matches('rr-code, rr-embed, rr-mermaid') && clone.dataset.src !== undefined) {
-        delete clone.dataset.ready;
-        clone.replaceChildren(clone.dataset.src);
+      for (const w of [clone, ...clone.querySelectorAll<HTMLElement>('*')].filter((n) => n.matches('rr-code, rr-embed, rr-mermaid'))) {
+        if (w.dataset.src === undefined) continue;
+        delete w.dataset.ready;
+        w.replaceChildren(w.dataset.src);
       }
       return h('div', { class: 'rr-embed__doc rr-prose' }, clone);
     }
