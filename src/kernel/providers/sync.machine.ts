@@ -2,7 +2,7 @@
 // The server is the only writer of state.json. The browser applies ops optimistically and sends them
 // in order; what it shows is the last state the server broadcast plus the ops not yet in it.
 import { assign, emit, enqueueActions, fromCallback, fromPromise, raise, setup, type EventObject } from 'xstate';
-import { applyOp } from '../state/ops.shared';
+import { applyOp, currentRound } from '../state/ops.shared';
 import type { GitHubSnapshot, Op, ReviewState } from '../state/model.shared';
 
 /** POST /ops: stored at `rev`, or the op at `rejected` can never apply (its thread is gone, say).
@@ -34,7 +34,7 @@ export const view = ({ base, queue }: Pick<Ctx, 'base' | 'queue'>) =>
 /** Where the round is, from the state alone (so a reload or another tab agrees). Finishing a round ends that run of
  *  the server; the agent works, then serves the next round: a server started after the feedback means it's back. */
 export function roundStatus({ base, started }: Pick<Ctx, 'base' | 'started'>): 'waiting' | 'approved' | null {
-  if (base.rounds.find((r) => r.n === base.round)?.status === 'approved') return 'approved';
+  if (currentRound(base)?.status === 'approved') return 'approved';
   const last = base.rounds.find((r) => r.n === base.round - 1);
   return last?.status === 'sent' && last.sentAt && started && last.sentAt >= started ? 'waiting' : null; // both server-clock ISO times
 }

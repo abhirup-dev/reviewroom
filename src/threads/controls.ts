@@ -2,6 +2,7 @@
 import { h, icon, copyText, plural, relTime, seg } from '../kernel/dom';
 import { feedbackMarkdown, yoursIn } from './feedback.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
+import { currentRound } from '../kernel/state/ops.shared';
 import type { ReviewApp } from '../app';
 import { noteDialog } from '../kernel/dialog';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';
@@ -109,7 +110,7 @@ export function githubControls(app: ReviewApp) {
 /** Finish the agent round or submit the pending GitHub review, according to review mode. */
 export function feedbackButton(app: ReviewApp): HTMLElement {
   const pending = app.pendingFeedback().length;
-  const round = app.state.rounds.find((r) => r.n === app.state.round);
+  const round = currentRound(app.state);
   return app.teamMode
     ? h(
         'button',

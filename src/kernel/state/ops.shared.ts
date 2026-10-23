@@ -112,4 +112,8 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
 }
 
 /** Rounds finished but never printed to the agent, oldest first. */
+/** The round the review is on. */
+export const currentRound = (s: Pick<ReviewState, 'rounds' | 'round'>) => s.rounds.find((r) => r.n === s.round);
+/** Open threads whose last word is the reviewer's: the agent owes them a reply. */
+export const awaitingAgent = (s: Pick<ReviewState, 'threads'>) => s.threads.filter((t) => t.status === 'open' && t.messages.at(-1)?.author === 'you');
 export const undelivered = (s: ReviewState) => s.rounds.filter((r) => r.status !== 'open' && r.deliveredAt === null);

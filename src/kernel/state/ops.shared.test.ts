@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { applyOp, OpError, undelivered } from './ops.shared';
+import { applyOp, awaitingAgent, currentRound, OpError, undelivered } from './ops.shared';
 import type { Op, ReviewState } from './model.shared';
 
 const empty = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: '2026-01-01T00:00:00Z' }], threads: [], viewed: {}, pins: [] });
@@ -70,4 +70,11 @@ test('delivery tracking: null until printed; legacy rounds count as delivered', 
   const s = applyOp(legacy, { op: 'finishRound', kind: 'feedback' });
   expect(undelivered(s).map((r) => r.n)).toEqual([2]);
   expect(undelivered(applyOp(s, { op: 'markDelivered', round: 2 }))).toEqual([]);
+});
+
+test('awaitingAgent: open threads whose last message is the reviewer’s; currentRound: the round the review is on', () => {
+  const t = (id: string, status: 'open' | 'resolved', ...authors: string[]) => ({ id, status, messages: authors.map((author) => ({ author })) });
+  const s = { threads: [t('a', 'open', 'agent', 'you'), t('b', 'open', 'you', 'agent'), t('c', 'resolved', 'you'), t('d', 'open')] } as unknown as ReviewState;
+  expect(awaitingAgent(s).map((x) => x.id)).toEqual(['a']);
+  expect(currentRound({ round: 2, rounds: [{ n: 1 }, { n: 2 }] } as unknown as ReviewState)).toEqual({ n: 2 } as never);
 });
