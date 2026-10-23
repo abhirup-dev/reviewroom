@@ -7,8 +7,6 @@ import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type Doc
 import { addDockPanel, createDock, panelDef, panelDefs } from '../dock';
 import { layoutState, type LayoutSnapshot, type PanelAvailability } from './state';
 
-export type { PanelAvailability } from './state';
-
 // ---------------------------------------------------------------- layout files
 /** Every layout by name: the shipped ones, then the reviewer's saved ones (in menu and alt+N order). */
 export const layouts = (app: ReviewApp): Record<string, Layout> => ({ ...builtinLayouts, ...app.layouts });
