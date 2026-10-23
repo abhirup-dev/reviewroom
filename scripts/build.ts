@@ -30,7 +30,7 @@ const panelsStyles = [
   'src/review/styles/chip-icon.css',
   'src/review/styles/code.css',
   'src/threads/styles/inline.css',
-  'src/review/styles/narrative.css',
+  'src/review/styles/walkthrough.css',
   'src/threads/styles/rail.css',
   'src/review/styles/selection.css',
   'src/threads/styles/panel.css',
@@ -61,7 +61,7 @@ const styles = [
   shellStyles,
   panelsStyles,
   overlaysStyles,
-  ['src/walkthrough/styles/walkthrough.css'],
+  ['src/slides/styles/slides.css'],
   ['src/review/styles/content.css'],
   ['src/kernel/styles/dockview.css'],
 ];

@@ -2,7 +2,7 @@
    Light is the default; [data-rr-theme="dark"] on <html> switches. */
 :root {
   /* Typography: three voices, all bundled with the tool (no network fonts).
-     --rr-font-read  reading: the narrative
+     --rr-font-read  reading: the walkthrough
      --rr-font       interface: buttons, toolbars, labels, comments
      --rr-mono       code, file names, identifiers */
   --rr-font-read: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
@@ -30,8 +30,8 @@
   --rr-bg: #e4e2db; /* app chrome: the header above the docked panels */
   --rr-surface-nav: #f2f1ec; /* contents, files, threads */
   --rr-surface-nav-2: #e9e7e1; /* inputs and hovers inside navigation */
-  --rr-surface-doc: #ffffff; /* the narrative: paper */
-  --rr-surface-doc-2: #f6f5f1; /* figures, flows, snippets inside the narrative */
+  --rr-surface-doc: #ffffff; /* the walkthrough: paper */
+  --rr-surface-doc-2: #f6f5f1; /* figures, flows, snippets inside the walkthrough */
   --rr-surface-code: #fdfdfc; /* code */
   --rr-surface-well: #eeede8; /* behind the file cards in the code panel */
   --rr-surface-bar: #ebe9e3; /* panel tab bars */

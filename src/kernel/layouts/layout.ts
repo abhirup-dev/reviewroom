@@ -15,7 +15,7 @@ export const layouts = (app: ReviewApp): Record<string, Layout> => ({ ...builtin
 // the review's starting layout: the reviewer's default, else its layout="" attribute, else Reading
 const startId = (app: ReviewApp) => [app.defaultLayout ?? '', app.root.getAttribute('layout') ?? '', 'reading'].find((id) => layouts(app)[id])!;
 
-// the panels reviewroom itself defines; any other a layout leaves out (an agent's own) joins the narrative's tabs
+// the panels reviewroom itself defines; any other a layout leaves out (an agent's own) joins the walkthrough's tabs
 const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'];
 
 /** Back to the review's starting layout. */
@@ -206,7 +206,7 @@ export function offerAvailablePanels(app: ReviewApp) {
 /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
 export function ensurePanel(app: ReviewApp, id: string, params?: Record<string, unknown>) {
   const api = app.dock;
-  // back where the layout puts it; one the layout has no place for joins the narrative's tabs (as in applyLayout)
+  // back where the layout puts it; one the layout has no place for joins the walkthrough's tabs (as in applyLayout)
   let p = api.getPanel(id) ?? placePanel(app, id, params);
   if (!p) {
     const kind = id.split(':')[0];

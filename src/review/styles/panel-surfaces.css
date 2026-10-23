@@ -1,4 +1,4 @@
-/* Panels: generic scroll areas, side panels, code panel, narrative. */
+/* Panels: generic scroll areas, side panels, code panel, walkthrough. */
 /* Each panel kind sits on its own surface; components inside just use --rr-panel/--rr-panel-2. */
 .rr-panel-host[data-rr-kind='narrative'],
 .rr-panel-host[data-rr-kind='description'],

@@ -11,7 +11,7 @@ export function githubPanelAvailability(app: ReviewApp): PanelAvailability {
   };
 }
 
-/** A thread as a panel: beside the narrative, or stacked with the threads already docked. */
+/** A thread as a panel: beside the walkthrough, or stacked with the threads already docked. */
 export function dockThread(app: ReviewApp, id: string, title: string) {
   const api = app.dock;
   const pid = 'thread:' + id;

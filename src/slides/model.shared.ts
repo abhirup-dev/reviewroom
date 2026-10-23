@@ -1,4 +1,4 @@
-// The walkthrough.json contract: a chaptered tour of a PR the client plays over the workbench. Defined once
+// The walkthrough.json contract: a guided walkthrough of the diff, played over the workbench. Defined once
 // here; the server, `reviewroom check`, `pr`, `publish-slides` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
 import { z } from 'zod';
@@ -73,7 +73,7 @@ export const Walkthrough = z
 export type Step = z.infer<typeof Step>;
 export type Walkthrough = z.infer<typeof Walkthrough>;
 
-/** A position in a loaded or loading walkthrough. Helpers require a loaded document. */
+/** A position in a loaded or loading guided walkthrough. Helpers require a loaded document. */
 export type WalkthroughPosition = { doc: Walkthrough | null; chapter: number; step: number };
 /** What the pane is asked to show, before any browser-side code lookup. */
 export type PaneWant = { kind: 'refs'; refs: string[] } | { kind: 'empty' };
@@ -141,7 +141,7 @@ export const walkthroughJsonSchema = () => ({
 });
 
 // ------------------------------------------------------------------ measuring a step (`slide-lint`)
-// The page measures (src/walkthrough/audit.ts), the CLI judges (cli/lib/slide-lint.ts). Sizes in CSS px.
+// The page measures (src/slides/audit.ts), the CLI judges (cli/lib/slide-lint.ts). Sizes in CSS px.
 
 /** One chunk of the code pane: `lines` highlighted, of which `hidden` are off screen when it lands; `visible`: lines
  *  the chunk shows at once. No code (a preview card: a section, an unknown symbol): `code: false`. */

@@ -1,10 +1,12 @@
+// Extraction parity: facade delegation, live getters and factory replacement.
+// Consolidate only when the permanent public-contract suite covers these seams.
 import { afterAll, afterEach, expect, mock, test } from 'bun:test';
-import { installDOM } from './testing/dom';
-import { createReviewServices } from './services';
-import { emptyState } from './kernel/state/model.shared';
+import { installDOM } from '../testing/dom';
+import { createReviewServices } from '../services';
+import { emptyState } from '../kernel/state/model.shared';
 
 const dom = installDOM();
-const { ReviewApp } = await import('./app');
+const { ReviewApp } = await import('../app');
 const apps: InstanceType<typeof ReviewApp>[] = [];
 afterEach(() => { for (const app of apps.splice(0)) app.dispose(); });
 afterAll(() => dom.restore());

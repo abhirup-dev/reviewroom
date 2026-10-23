@@ -61,14 +61,14 @@ test('check state survives detach, updates while absent, and a fresh app loading
   expect(storage.writes).toHaveLength(3);
 });
 
-test('narrative thread decorations leave authored nodes, content, and handlers intact', async () => {
+test('walkthrough thread decorations leave authored nodes, content, and handlers intact', async () => {
   const f = fixture = await mountReview('<section id="overview"><h2>Overview</h2><p>Keep <em>this prose</em> intact.</p><details open><summary>Details</summary><button id="authored">Author action</button><svg><circle r="2"></circle></svg></details></section>');
   const authored = f.doc.innerHTML;
   const section = f.doc.firstElementChild;
   const button = f.doc.querySelector<HTMLButtonElement>('#authored')!;
   let clicks = 0;
   button.addEventListener('click', () => clicks++);
-  const panel = f.mountNarrative();
+  const panel = f.mountWalkthroughPanel();
   await Promise.resolve();
   let notifications = 0;
   f.app.bus.on('state', () => notifications++);

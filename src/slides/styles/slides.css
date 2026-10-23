@@ -1,4 +1,4 @@
-/* The walkthrough player (src/walkthrough/player.ts): an overlay over the workbench, a pill while paused. */
+/* The guided walkthrough player (src/slides/player.ts): an overlay over the workbench, a pill while paused. */
 .rr-tour {
   position: fixed;
   inset: 0;

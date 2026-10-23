@@ -1,4 +1,4 @@
-// The walkthrough player as two machines, render-agnostic (the view, src/walkthrough/player.ts, provides the
+// The guided walkthrough player as two machines, render-agnostic (the view, src/slides/player.ts, provides the
 // rendering actions and the ref resolver):
 //
 //   walkthroughMachine   closed ──open──▶ open { playing ⇄ paused } ──close──▶ closed

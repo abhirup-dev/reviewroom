@@ -5,7 +5,7 @@ import { dirForEdit, readConfig } from '../lib/config.ts';
 import { prTarget, upsertComment } from '../lib/github.ts';
 import { report } from '../lib/links.ts';
 import { walkthroughPath } from '../lib/state.ts';
-import { BLOCK_MARK, encodeBlock, type Walkthrough } from '../../src/walkthrough/model.shared.ts';
+import { BLOCK_MARK, encodeBlock, type Walkthrough } from '../../src/slides/model.shared.ts';
 import { runCheck, schemaReport } from './check.ts';
 
 const COMMENT_LIMIT = 65_536; // GitHub's maximum comment body

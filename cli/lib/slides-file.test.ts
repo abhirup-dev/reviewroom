@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { pickBlock } from './slides-file.ts';
 import { ownMarked } from './github.ts';
 import { publishBody } from '../commands/walkthrough.ts';
-import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
+import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
 const block = (s: string) => '```reviewroom-walkthrough\n' + s + '\n```';
 const msg = (body: string, login: string) => ({ body, gh: { login, url: `https://x/${login}` } });

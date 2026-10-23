@@ -57,7 +57,7 @@ export function renderMarkdown(src: string): string {
 }
 
 /** Author HTML from outside this machine (a walkthrough pulled from a PR): display-only. Text formatting, links
- *  (http(s) or rr:) and the narrative's own elements stay; no styles, forms, media or remote loads, not <rr-check>
+ *  (http(s) or rr:) and the walkthrough's own elements stay; no styles, forms, media or remote loads, not <rr-check>
  *  (it changes review state) nor <rr-markdown> (its markdown sanitizer lets images through). */
 export function sanitizeProse(html: string): string {
   return DOMPurify.sanitize(html, {

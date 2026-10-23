@@ -9,7 +9,7 @@ import type { GitHubSnapshot, Op, ReviewState } from '../state/model.shared';
  *  Throws when the server can't take them now: an Error says why, a TypeError (fetch failed) that it's not answering. */
 export type PostResult = { rev: number } | { rejected: number; error: string };
 /** What the live stream says. */
-/** hello: the narrative's hash and when this run of the server started. */
+/** hello: the walkthrough's hash and when this run of the server started. */
 export type StreamEvent = { type: 'hello'; hash: string; started: string } | { type: 'state'; state: ReviewState } | { type: 'review' } | { type: 'github'; snapshot: GitHubSnapshot } | { type: 'down' };
 
 /** queue: applied locally, not yet in `base`; ackRev: stored by the server at that rev. sent: how many unsent ops are in flight.
@@ -140,7 +140,7 @@ export const syncMachine = setup({
           },
         },
         reconnecting: { after: { reconnect: 'open' } },
-        // A new run or a new narrative reloads the page. Unsent changes get one more try first
+        // A new run or a new walkthrough reloads the page. Unsent changes get one more try first
         // (now, if stalled): reload once they're stored or that try fails.
         newRun: {
           entry: [assign({ reloadAt: ({ context }) => context.failed }), raise({ type: 'flush' })],

@@ -6,7 +6,7 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 .rr-mermaid__source summary { cursor: pointer; width: fit-content; }
 .rr-mermaid__source pre { overflow: auto; max-height: 280px; font-family: var(--rr-mono); color: var(--rr-ink); }
 
-/* Default typography for the narrative and for markdown in threads.
+/* Default typography for the walkthrough and for markdown in threads.
    Authors can override anything: these are low-specificity element styles under .rr-prose. */
 .rr-prose {
   font: var(--rr-text-prose) / var(--rr-leading-prose) var(--rr-font-read);
@@ -19,7 +19,7 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   font-size: 14.5px;
   line-height: 1.5;
 }
-/* comments are conversation, not narrative: one interface face for reading and writing them */
+/* comments are conversation, not walkthrough: one interface face for reading and writing them */
 .rr-msg__body.rr-prose,
 .rr-composer__preview.rr-prose {
   font: 13.5px/1.55 var(--rr-font);
@@ -74,7 +74,7 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   margin: 3px 0;
 }
 /* one link treatment everywhere: accent ink + a quiet underline that firms up on hover.
-   Accent is reserved for "you can go there"; nothing else in the narrative is blue. */
+   Accent is reserved for "you can go there"; nothing else in the walkthrough is blue. */
 .rr-prose :where(a) {
   color: var(--rr-accent);
   text-decoration-line: underline;
@@ -85,7 +85,7 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 .rr-prose :where(a:hover) {
   text-decoration-color: currentColor;
 }
-/* links that name a symbol (data-rr-symbol, set by the narrative panel): the code's own vocabulary,
+/* links that name a symbol (data-rr-symbol, set by the walkthrough panel): the code's own vocabulary,
    in mono with a kind badge — ƒ function, m method, S struct, C class, I interface, T type, E enum, v value */
 .rr-prose a[data-rr-symbol] {
   --sym: var(--rr-sym-fn);

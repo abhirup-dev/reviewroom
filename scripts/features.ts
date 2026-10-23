@@ -13,7 +13,7 @@ const allowed: Record<string, string[]> = {
   kernel: ['kernel'],
   review: ['kernel', 'review'],
   threads: ['kernel', 'review', 'threads'],
-  walkthrough: ['kernel', 'review', 'walkthrough'],
+  slides: ['kernel', 'review', 'slides'],
   hub: ['kernel', 'hub'],
 };
 

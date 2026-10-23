@@ -45,7 +45,7 @@ test('invalid documents fail with a one-line issue', () => {
   expect(parseWalkthrough('{').ok).toBe(false);
 });
 
-test('every ref form the narrative accepts for code works', () => {
+test('every ref form the walkthrough accepts for code works', () => {
   for (const ref of ['rr:code/a.go', 'rr:code/a.go@base#L1-3', 'rr:file/a.go@head#L4', 'rr:sym/Fetcher', 'rr:doc/latency']) {
     const w = valid();
     w.chapters[0].steps[0].ref = ref;

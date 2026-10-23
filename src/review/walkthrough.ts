@@ -1,4 +1,4 @@
-// Narrative panel: hosts the agent's freeform HTML (<rr-review>) untouched, and
+// Walkthrough panel: hosts the agent's freeform HTML (<rr-review>) untouched, and
 // layers review tooling around it without rewriting it:
 //  - every block (paragraph, list item, diagram, table, any [data-rr-block]) gets a
 //    hover handle in the left gutter to comment on or link to it
@@ -72,7 +72,7 @@ export function rangeForQuote(root: Element, q: TextQuote): Range | null {
   return r;
 }
 
-class NarrativePanel implements PanelInstance {
+class WalkthroughPanel implements PanelInstance {
   element: HTMLElement;
   private scroller: HTMLElement;
   private wrap: HTMLElement;
@@ -86,7 +86,7 @@ class NarrativePanel implements PanelInstance {
   private ro: ResizeObserver;
   private current: HTMLElement;
   private historic: HTMLElement | null = null;
-  /** Anchor target meaning this panel's root: '' (narrative) or PR_DESCRIPTION. */
+  /** Anchor target meaning this panel's root: '' (walkthrough) or PR_DESCRIPTION. */
   private rootId: string;
   private head: HTMLElement;
 
@@ -481,5 +481,5 @@ class NarrativePanel implements PanelInstance {
   }
 }
 
-definePanel({ id: 'narrative', title: 'Review', icon: 'doc', create: (app) => new NarrativePanel(app) });
-definePanel({ id: 'description', title: 'Description', icon: 'doc', create: (app) => new NarrativePanel(app, true) });
+definePanel({ id: 'narrative', title: 'Review', icon: 'doc', create: (app) => new WalkthroughPanel(app) });
+definePanel({ id: 'description', title: 'Description', icon: 'doc', create: (app) => new WalkthroughPanel(app, true) });

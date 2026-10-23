@@ -283,7 +283,7 @@
   }
 }
 
-/* chrome is for clicking, not copying: a drag-select from the narrative never spills into it */
+/* chrome is for clicking, not copying: a drag-select from the walkthrough never spills into it */
 .rr-header,
 .rr-toolbar,
 .rr-side-head,

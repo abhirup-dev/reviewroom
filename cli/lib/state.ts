@@ -6,7 +6,7 @@ import { takeLock, releaseLock } from './lock.ts';
 import { emptyState, type Op, type ReviewState } from '../../src/kernel/state/model.shared.ts';
 import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/kernel/state/ops.shared.ts';
 import { StoredState, issueText } from '../../src/kernel/state/schema.shared.ts';
-import { parseWalkthrough, type Parsed } from '../../src/walkthrough/model.shared.ts';
+import { parseWalkthrough, type Parsed } from '../../src/slides/model.shared.ts';
 
 export const statePath = (dir: string) => path.join(dir, 'state.json');
 export const walkthroughPath = (dir: string) => path.join(dir, 'walkthrough.json');

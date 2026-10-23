@@ -1,4 +1,4 @@
-// Human names for things in the narrative, so the UI never shows ids, CSS paths or rr: strings.
+// Human names for things in the walkthrough, so the UI never shows ids, CSS paths or rr: strings.
 
 const KIND: Record<string, string> = {
   P: 'Paragraph', LI: 'List item', UL: 'List', OL: 'List', DL: 'List', TABLE: 'Table', TR: 'Table row', TD: 'Table cell', TH: 'Table header',
@@ -8,7 +8,7 @@ const KIND: Record<string, string> = {
   'RR-CODE': 'Code snippet', 'RR-EMBED': 'Preview', 'RR-REF': 'Link', BUTTON: 'Button', INPUT: 'Control', LABEL: 'Label', A: 'Link',
 };
 
-/** Find a narrative element by anchor id (+ optional css path below it). */
+/** Find a walkthrough element by anchor id (+ optional css path below it). */
 export function findDocElement(doc: HTMLElement, id: string, path?: string): Element | null {
   let base: Element | null = id ? doc.querySelector(`#${CSS.escape(id)}`) : doc;
   if (!base) return null;

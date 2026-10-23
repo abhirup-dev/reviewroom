@@ -2,7 +2,7 @@
 // agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
 import type { Anchor, ReviewState, Thread } from '../kernel/state/model.shared';
 import { anchorRef, PR_DESCRIPTION } from '../kernel/refs/refs.shared';
-import type { Walkthrough } from '../walkthrough/model.shared';
+import type { Walkthrough } from '../slides/model.shared';
 
 
 // block tags break words, inline ones don't

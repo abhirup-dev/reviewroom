@@ -1,5 +1,5 @@
-// The walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
-// paused. walkthroughMachine and its paneMachine child (src/walkthrough/player.machine.ts) own every state and transition;
+// The guided walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
+// paused. walkthroughMachine and its paneMachine child (src/slides/player.machine.ts) own every state and transition;
 // this file renders snapshots and implements the pane's actions (resolve links, fade, mount, glide, unmount).
 // A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack, under one set of
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
@@ -377,7 +377,7 @@ export function mountWalkthrough(app: ReviewApp) {
 }
 
 /** A walkthrough step as a card: where it is, its text, its code (compact: the links only), and a way to play the
- *  walkthrough from it. A narrative section that expands on a step embeds it like this. */
+ *  walkthrough from it. A walkthrough section that expands on a step embeds it like this. */
 export async function renderWalkthroughPreview(app: ReviewApp, r: Extract<Ref, { type: 'tour' }>, opts: PreviewOptions) {
   // the page may not have loaded walkthrough.json yet
   const loaded = app.walkthrough ?? decodeWalkthrough(await app.backend.walkthrough?.().catch(() => null));

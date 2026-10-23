@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { emptyState, type ReviewState } from '../kernel/state/model.shared';
 import { feedbackMarkdown } from './feedback.shared';
-import type { Walkthrough } from '../walkthrough/model.shared';
+import type { Walkthrough } from '../slides/model.shared';
 
 const walkthrough: Walkthrough = {
   version: 1,

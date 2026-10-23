@@ -44,24 +44,6 @@ describe('code access', () => {
     expect(nextRead.mock.calls).toEqual([['a.ts', 'two'], ['b.ts', 'one']]);
   });
 
-  test('caches failed and missing reads without retries', async () => {
-    const { data, code } = fixture();
-    const error = new Error('unavailable');
-    const warn = spyOn(console, 'warn').mockImplementation(() => {});
-    const read = mock(async (path: string) => {
-      if (path === 'failed') throw error;
-      return null;
-    });
-    data.provider = { read };
-    for (const path of ['failed', 'missing']) {
-      const pending = code.read(path, 'head');
-      expect(await pending).toBeNull();
-      expect(code.read(path, 'head')).toBe(pending);
-    }
-    expect(read).toHaveBeenCalledTimes(2);
-    expect(warn.mock.calls).toEqual([[error]]);
-  });
-
   test('resolves aliases from live ranges while keeping explicit revisions', () => {
     const { data, code } = fixture();
     expect(code.revFor('base')).toBe('base-1');

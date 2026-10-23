@@ -14,7 +14,7 @@ import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { GitHubAction } from './kernel/state/schema.shared';
-import type { Walkthrough } from './walkthrough/model.shared';
+import type { Walkthrough } from './slides/model.shared';
 import { showPanel } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
@@ -97,12 +97,12 @@ export class ReviewApp {
   walkthroughIssues: string[] | null = null;
   range!: DiffRange;
   dock!: DockviewApi;
-  /** The narrative root element once mounted (inside the narrative panel). */
+  /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
-  /** The PR's description from GitHub: read-only, but commentable like the narrative (anchors target PR_DESCRIPTION). */
+  /** The PR's description from GitHub: read-only, but commentable like the walkthrough (anchors target PR_DESCRIPTION). */
   descDoc: HTMLElement = h('div', { id: PR_DESCRIPTION, class: 'rr-prose rr-doc' }, h('p', { class: 'rr-muted' }, 'Loading…'));
   private descKey?: string;
-  /** Round being viewed in the narrative (current round unless browsing history). */
+  /** Round being viewed in the walkthrough (current round unless browsing history). */
   viewRound = 0;
   selection: Selection = null;
   /** Esc handlers for open overlays, newest last; each returns true if it closed something. */
@@ -270,7 +270,7 @@ export class ReviewApp {
     return hits;
   }
 
-  /** Human name for a narrative element (section title, or "Table in Proto & storage"). */
+  /** Human name for a walkthrough element (section title, or "Table in Proto & storage"). */
   describeDoc(id: string, path?: string): string {
     const el = this.docElement(id, path);
     if (id === PR_DESCRIPTION) return path && el ? describeElement(el) + ' in the PR description' : 'PR description';
@@ -347,10 +347,10 @@ export class ReviewApp {
     if (key === this.descKey) return;
     this.descKey = key;
     this.descDoc.innerHTML = d ? renderMarkdown(d.body.trim() || '_No description._') : '<p class="rr-muted">The description shows for GitHub pull requests.</p>';
-    // ids from the author's HTML would collide with the narrative's anchors
+    // ids from the author's HTML would collide with the walkthrough's anchors
     this.descDoc.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
   }
-  /** The element a doc anchor points at, in the narrative or the PR description. */
+  /** The element a doc anchor points at, in the walkthrough or the PR description. */
   docElement(id: string, path?: string): Element | null {
     if (id === PR_DESCRIPTION) return findDocElement(this.descDoc, '', path);
     return this.doc && findDocElement(this.doc, id, path);

@@ -135,7 +135,7 @@ export function feedbackButton(app: ReviewApp): HTMLElement {
       );
 }
 
-/** Round navigation and the narrative comment picker, in their header order. */
+/** Round navigation and the walkthrough comment picker, in their header order. */
 export function threadHeaderControls(app: ReviewApp): (HTMLElement | null)[] {
   const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Review rounds: view the narrative as it was at the end of an earlier round' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
   roundBtn.onclick = () =>

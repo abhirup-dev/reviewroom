@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
 import type { SearchHit } from '../../src/kernel/state/model.shared.ts';
-import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
+import type { Walkthrough } from '../../src/slides/model.shared.ts';
 import { fixTour, locate, tourText } from './slides-file.ts';
 
 const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);

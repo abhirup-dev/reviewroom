@@ -187,7 +187,7 @@ export function mountSelectionRelease(app: ReviewApp) {
     'pointerdown',
     (e) => {
       if (e.composedPath().some(keeps)) return;
-      // not removeAllRanges(): that would break starting a text selection in the narrative
+      // not removeAllRanges(): that would break starting a text selection in the walkthrough
       app.selection = null;
       app.bus.emit('selection', null);
     },

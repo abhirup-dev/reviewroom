@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
 import { parseRef, symbolHits, symbolQuery } from '../../src/kernel/refs/refs.shared.ts';
-import type { Walkthrough } from '../../src/walkthrough/model.shared.ts';
+import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
 export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
 export interface LinkResult {
@@ -26,14 +26,14 @@ const LINES = /#L(\d+)(?:-L?(\d+))?$/;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1').update(lines.slice(s - 1, e).join('\n')).digest('hex').slice(0, 16);
 
-/** Every distinct rr: link in the narrative, outside HTML comments (trailing sentence punctuation dropped). */
+/** Every distinct rr: link in the walkthrough, outside HTML comments (trailing sentence punctuation dropped). */
 export const extractLinks = (html: string) => [...new Set((html.match(LINK) ?? []).map((l) => l.replace(/[.,;:]+$/, '')))];
 export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 
 /**
  * Check every link in `html`, and in `extra` (walkthrough.json's prose and refs: tourText), against the code. `known` is the ref -> hash map from the last check
- * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the narrative drop out).
+ * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the walkthrough drop out).
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */

@@ -24,14 +24,14 @@ export function memoryBackend(seed = emptyState()) {
   return { backend, writes, persisted: () => structuredClone(state) };
 }
 
-/** Mount actual author elements and optionally the real narrative panel, without a dock or full boot. */
+/** Mount actual author elements and optionally the real walkthrough panel, without a dock or full boot. */
 export async function mountReview(html: string, storage = memoryBackend()) {
   const dom = installDOM();
   try {
     const [{ ReviewApp }, { StaticProvider }, elements, { panelDef }] = await Promise.all([
       import('../app'), import('../review/providers/static'), import('../review/elements'), import('../kernel/dock'),
     ]);
-    await import('../review/narrative');
+    await import('../review/walkthrough');
     const root = document.createElement('rr-app');
     const doc = document.createElement('rr-review');
     // Parse detached: provide the current app before custom-element connection callbacks.
@@ -51,7 +51,7 @@ export async function mountReview(html: string, storage = memoryBackend()) {
     document.body.append(root);
     return {
       app, doc, root, storage, window: dom.window,
-      mountNarrative() {
+      mountWalkthroughPanel() {
         const panel = panelDef('narrative')!.create(app, {}, 'narrative');
         root.append(panel.element);
         app.onDispose(() => panel.dispose?.());

@@ -5,7 +5,7 @@ import type { Anchor, SearchHit } from '../state/model.shared';
 // survives reloads and rounds and can be pasted into comments, markdown, HTML
 // (<a href="rr:...">) or passed to rr.open().
 //
-//   rr:doc/<id>                 a section or any element with an id in the narrative
+//   rr:doc/<id>                 a section or any element with an id in the walkthrough
 //   rr:doc/<id>/<css-path>      an element without an id, addressed below an ancestor id
 //   rr:code/<path>[@base|@head|@<sha>][#L12[-20]]   a file or line range in the diff
 //   rr:file/<path>@<rev>[#L12[-20]]                  the full file at a revision
