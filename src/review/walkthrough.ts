@@ -12,6 +12,8 @@ import { cssPathWithin, formatRef, parseRef } from '../kernel/refs/browser';
 import { linkedSymbol } from './symbols';
 import { plainExcerpt } from '../kernel/markdown';
 import type { Anchor, TextQuote, Thread } from '../kernel/state/model.shared';
+
+type DocThread = Thread & { anchor: Extract<Anchor, { kind: 'doc' }> };
 import { definePanel, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 
@@ -344,8 +346,14 @@ class WalkthroughPanel implements PanelInstance {
   }
 
   // ------------------------------------------------------------ threads: highlights + rail
-  private docThreads(): Thread[] {
-    return this.app.state.threads.filter((t) => t.anchor.kind === 'doc' && (t.anchor.target === PR_DESCRIPTION) === this.isDesc);
+  private docThreads(): DocThread[] {
+    return this.app.state.threads.filter((t): t is DocThread => t.anchor.kind === 'doc' && (t.anchor.target === PR_DESCRIPTION) === this.isDesc);
+  }
+
+  /** A thread's element and, for a quote, the text it marks in it; null when the element is gone. */
+  private locate(t: DocThread) {
+    const el = this.app.docElement(t.anchor.target, t.anchor.path);
+    return el && { el, range: t.anchor.quote ? rangeForQuote(el, t.anchor.quote) : null };
   }
 
   private decorate() {
@@ -353,14 +361,10 @@ class WalkthroughPanel implements PanelInstance {
     const ranges: Range[] = [];
     for (const t of this.docThreads()) {
       if (t.status === 'resolved') continue;
-      const a = t.anchor as Extract<Anchor, { kind: 'doc' }>;
-      const el = this.app.docElement(a.target, a.path);
-      if (!el) continue;
-      if (a.quote && supportsHighlights) {
-        const r = rangeForQuote(el, a.quote);
-        if (r) ranges.push(r);
-        else el.setAttribute('data-rr-anchored', '');
-      } else el.setAttribute('data-rr-anchored', '');
+      const at = this.locate(t);
+      if (!at) continue;
+      if (at.range && supportsHighlights) ranges.push(at.range);
+      else at.el.setAttribute('data-rr-anchored', ''); // no quote, a quote no longer found, or no Highlight API
     }
     if (supportsHighlights) {
       highlightRanges.set(this.rootId, ranges);
@@ -372,17 +376,11 @@ class WalkthroughPanel implements PanelInstance {
   private chipY = new Map<string, number>();
   private layoutRail() {
     const wr = this.wrap.getBoundingClientRect();
-    const items: { t: Thread; y: number }[] = [];
+    const items: { t: DocThread; y: number }[] = [];
     for (const t of this.docThreads()) {
-      const a = t.anchor as Extract<Anchor, { kind: 'doc' }>;
-      const el = this.app.docElement(a.target, a.path);
-      if (!el || this.historic) continue;
-      let top = el.getBoundingClientRect().top;
-      if (a.quote) {
-        const r = rangeForQuote(el, a.quote);
-        if (r) top = r.getBoundingClientRect().top;
-      }
-      items.push({ t, y: top - wr.top });
+      const at = this.historic ? null : this.locate(t);
+      if (!at) continue;
+      items.push({ t, y: (at.range ?? at.el).getBoundingClientRect().top - wr.top });
     }
     items.sort((a, b) => a.y - b.y);
     let floor = -Infinity;
@@ -399,7 +397,7 @@ class WalkthroughPanel implements PanelInstance {
     this.wrap.classList.toggle('has-threads', chips.length > 0);
   }
 
-  private chip(t: Thread): HTMLElement {
+  private chip(t: DocThread): HTMLElement {
     const last = t.messages[t.messages.length - 1];
     const el = h(
       'button',
@@ -418,15 +416,13 @@ class WalkthroughPanel implements PanelInstance {
     return el;
   }
 
-  private hot(t: Thread, on: boolean) {
-    const a = t.anchor as Extract<Anchor, { kind: 'doc' }>;
-    const el = this.app.docElement(a.target, a.path);
-    if (!el) return;
-    if (a.quote && supportsHighlights) {
-      const r = rangeForQuote(el, a.quote);
-      if (on && r) CSS.highlights.set('rr-thread-hot', new Highlight(r));
+  private hot(t: DocThread, on: boolean) {
+    const at = this.locate(t);
+    if (!at) return;
+    if (t.anchor.quote && supportsHighlights) {
+      if (on && at.range) CSS.highlights.set('rr-thread-hot', new Highlight(at.range));
       else CSS.highlights.delete('rr-thread-hot');
-    } else el.toggleAttribute('data-rr-hot', on);
+    } else at.el.toggleAttribute('data-rr-hot', on);
   }
 
   private focusChip(id: string) {
