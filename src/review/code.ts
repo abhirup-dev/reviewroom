@@ -23,7 +23,7 @@ type Ctx = { item: { id: string } };
 // diff colours come from our --rr-add/--rr-del tokens (so review themes reach the code); dark tints are kept low
 // Pierre tints a changed line's body by mixing that tint into the background again (--mix-*), which washes it out; the mixes keep more of it
 import { PIERRE_CSS } from './previews';
-import { codeThreadsOn } from './files.shared';
+import { codeThreadsOn, defaultSide } from './files.shared';
 /** Lines a jump landed on glow a few times while the panel sets --rr-pulse (the reveal machine's glow). */
 const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
 /** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */
@@ -320,7 +320,7 @@ class CodePanel implements PanelInstance {
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added in this PR', modified: 'Modified', deleted: 'Deleted in this PR', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h(
         'button',
-        { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, f.status === 'deleted' ? 'base' : 'head') },
+        { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, defaultSide(f)) },
         f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' → ') : null,
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),

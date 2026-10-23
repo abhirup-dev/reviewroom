@@ -6,6 +6,7 @@ import { keyLabel } from '../kernel/commands';
 import { plainExcerpt } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
 import { renderPreview } from './previews';
+import { defaultSide } from './files.shared';
 
 interface Item {
   kind: 'command' | 'file' | 'section' | 'thread' | 'symbol' | 'text' | 'link';
@@ -63,7 +64,7 @@ export function mountPalette(app: ReviewApp) {
     if (!/^[#/]/.test(q)) {
       for (const f of app.files) {
         const ref = formatRef({ type: 'code', path: f.path, rev: 'head' });
-        add({ kind: 'file', label: f.path.split('/').pop()!, detail: f.path, ref, run: () => app.bus.emit('reveal-code', { path: f.path, side: f.status === 'deleted' ? 'base' : 'head' }) }, f.path);
+        add({ kind: 'file', label: f.path.split('/').pop()!, detail: f.path, ref, run: () => app.bus.emit('reveal-code', { path: f.path, side: defaultSide(f) }) }, f.path);
       }
       for (const s of sections()) {
         const ref = formatRef({ type: 'doc', id: s.id });

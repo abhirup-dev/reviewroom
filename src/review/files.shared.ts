@@ -6,6 +6,9 @@ export const fileType = (p: string) => (p.includes('.') ? p.split('.').pop()!.to
 export const reviewOrder = (a: { path: string }, b: { path: string }) => Number(isTestFile(a.path)) - Number(isTestFile(b.path)) || a.path.localeCompare(b.path);
 
 
+/** The side a file opens on: a deleted file only exists before the change. */
+export const defaultSide = (f: { status: string }) => (f.status === 'deleted' ? 'base' : 'head');
+
 /** A thread on lines of a file. */
 export type CodeThread = Thread & { anchor: Extract<Thread['anchor'], { kind: 'code' }> };
 /** The threads on lines of one file (open or resolved). */

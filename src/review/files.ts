@@ -4,7 +4,7 @@ import { openCentered } from './focus';
 import type { ChangedFile } from '../kernel/state/model.shared';
 import { definePanel, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
-import { codeThreadsOn, fileType, isTestFile, reviewOrder } from './files.shared';
+import { codeThreadsOn, defaultSide, fileType, isTestFile, reviewOrder } from './files.shared';
 
 const TYPE_LABEL: Record<string, string> = { go: 'Go', ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', py: 'Python', proto: 'Protobuf', sql: 'SQL', md: 'Markdown', yaml: 'YAML', yml: 'YAML', json: 'JSON', java: 'Java', kt: 'Kotlin', rs: 'Rust', sh: 'Shell', css: 'CSS', html: 'HTML' };
 
@@ -76,7 +76,7 @@ class FilesPanel implements PanelInstance {
         'data-path': f.path,
         style: `--depth:${depth}`,
         title: f.path + (viewed ? ' · viewed' : '') + ' (double-click to open it big)',
-        onclick: () => app.bus.emit('reveal-code', { path: f.path, side: f.status === 'deleted' ? 'base' : 'head' }),
+        onclick: () => app.bus.emit('reveal-code', { path: f.path, side: defaultSide(f) }),
         ondblclick: () => openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
       },
       h('span', { class: 'rr-file-row__threads' }, ...threadCounts(threads, 'in this file')),
