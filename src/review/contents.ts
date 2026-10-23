@@ -7,6 +7,10 @@ import { definePanel, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 
 // ======================================================================= Contents
+/** A Contents entry: a click scrolls to the element `at`, a double-click opens it big. */
+const tocItem = (app: ReviewApp, at: { id: string; path?: string }, title: string, attrs: Record<string, string>, ...extra: (Node | null)[]) =>
+  h('button', { ...attrs, onclick: () => app.bus.emit('reveal-doc', at), ondblclick: () => openCentered(app, { type: 'doc', ...at }) }, h('span', { class: 'rr-toc-item__title' }, title), ...extra);
+
 class TocPanel implements PanelInstance {
   element: HTMLElement;
   private body: HTMLElement;
@@ -46,16 +50,17 @@ class TocPanel implements PanelInstance {
       const round = s.getAttribute('data-round');
       const n = threadsIn(s);
       items.push(
-        h(
-          'button',
-          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p', onclick: () => app.bus.emit('reveal-doc', { id: s.id }), ondblclick: () => openCentered(app, { type: 'doc', id: s.id }) },
-          h('span', { class: 'rr-toc-item__title' }, title),
+        tocItem(
+          app,
+          { id: s.id },
+          title,
+          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p' },
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
           ...threadCounts(n, 'in this section'),
         ),
       );
       s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
-        items.push(h('button', { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id, onclick: () => app.bus.emit('reveal-doc', { id: sub.id }), ondblclick: () => openCentered(app, { type: 'doc', id: sub.id }) }, h('span', { class: 'rr-toc-item__title' }, app.docTitle(sub.id) ?? sub.id)));
+        items.push(tocItem(app, { id: sub.id }, app.docTitle(sub.id) ?? sub.id, { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id }));
       });
     });
     if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));
@@ -63,11 +68,7 @@ class TocPanel implements PanelInstance {
     const heads = [...app.descDoc.querySelectorAll('h1, h2, h3, h4')].map((el) => {
       const at = { id: PR_DESCRIPTION, path: cssPathWithin(app.descDoc, el) };
       const title = el.textContent?.trim() || 'Heading';
-      return h(
-        'button',
-        { class: 'rr-toc-item' + (/^H[34]$/.test(el.tagName) ? ' rr-toc-item--sub' : ''), title: `Jump to “${title}” in the PR description (double-click to open it big)`, onclick: () => app.bus.emit('reveal-doc', at), ondblclick: () => openCentered(app, { type: 'doc', ...at }) },
-        h('span', { class: 'rr-toc-item__title' }, title),
-      );
+      return tocItem(app, at, title, { class: 'rr-toc-item' + (/^H[34]$/.test(el.tagName) ? ' rr-toc-item--sub' : ''), title: `Jump to “${title}” in the PR description (double-click to open it big)` });
     });
     const pins = app.state.pins;
     this.body.replaceChildren(
