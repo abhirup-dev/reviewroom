@@ -8,6 +8,10 @@ import { h, icon, onDrag } from './dom';
 import type { AppEvents, ReviewApp } from '../app';
 import { panelDefs, type PanelInstance, type PanelSurface } from './dock';
 import { wantsPhone } from './device';
+import { createActor, type ActorRefFrom } from 'xstate';
+import { areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
+import { rising, type codeSheetMachine } from './codesheet.machine';
+import { gestureMachine } from './gesture.machine';
 
 type CodeTarget = AppEvents['reveal-code'];
 export interface PhoneOptions {
@@ -23,8 +27,7 @@ export const isPhone = () => (picked ??= wantsPhone());
 
 type Open = { id: string; title: string; params?: Record<string, unknown>; host: HTMLElement; inst: PanelInstance };
 type Page = { id: string; title: string; params?: Record<string, unknown> };
-type AreaId = 'read' | 'code' | 'threads' | 'files';
-type Area = { id: AreaId; el: HTMLElement; strip: HTMLElement; ind: HTMLElement; pager: HTMLElement; pages: Page[]; sig: string; page: string };
+type Area = { id: AreaId; el: HTMLElement; strip: HTMLElement; ind: HTMLElement; pager: HTMLElement; pages: Page[]; sig: string };
 
 const AREAS: { id: AreaId; title: string; icon: Parameters<typeof icon>[0] }[] = [
   { id: 'read', title: 'Read', icon: 'book' },
@@ -60,48 +63,30 @@ export function onBack(close: () => void) {
 }
 /** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
 const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
-function watchBack(app: ReviewApp) {
+const watchBack = (app: ReviewApp) =>
   app.listen(window, 'popstate', (e: PopStateEvent) => {
     if (skip) return void (--skip || flush());
     // as deep as the entry Back (or the browser's history menu) went to
     const depth = (e.state as { rrBack?: number } | null)?.rrBack ?? 0;
     while (backs.length > depth) backs.pop()!.close();
   });
-  const open = new Map<HTMLDialogElement, () => void>();
-  const dialogs = new MutationObserver((ms) => {
-    for (const { target: d } of ms) {
-      if (!(d instanceof HTMLDialogElement)) continue;
-      if (d.open && !open.has(d)) open.set(d, onBack(() => dismiss(d)));
-      else if (!d.open && open.has(d)) {
-        open.get(d)!();
-        open.delete(d);
-      }
-    }
-  });
-  dialogs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
-  app.onDispose(() => dialogs.disconnect());
-}
 
 export class PhoneShell implements PanelSurface {
   private open = new Map<string, Open>();
-  private sheets: string[] = []; // on-demand panels, newest last
+  private sheetIds = new Set<string>(); // mounted on-demand panels
   private areas = new Map<AreaId, Area>();
-  private area: AreaId = 'read';
+  private shell = createActor(shellMachine);
+  private code!: ActorRefFrom<typeof codeSheetMachine>;
   private stage = h('div', { class: 'rr-phone-stage' });
   private nav = h('nav', { class: 'rr-phone-nav', 'aria-label': 'Areas' });
   private comment = h('button', { class: 'rr-btn rr-btn--primary rr-phone-comment', hidden: true });
-  /** the panel in front when the selection was made: Comment shows only while that panel is */
-  private selectedIn = '';
-  /** A code link tapped outside the Code area peeks: the Code area as a bottom sheet over the page, at its lines. */
-  private peekNext = false;
-  private peeking = false;
+  /** where the latest code link that peeks goes: once the peek is the Code area, it lands there again */
   private peekAt?: CodeTarget;
-  /** history entries (see onBack): the peek's, each sheet's, and the areas visited before this one */
-  private peekBack?: () => void;
-  private sheetBacks = new Map<string, () => void>();
-  private trail: { prev: AreaId; drop: () => void }[] = [];
   private peekTitle = h('span', { class: 'rr-phone-peek-title' });
   private peekLines = h('span', { class: 'rr-phone-peek-lines' });
+  /** history entries (see onBack) for the machine's stack, by key */
+  private backs = new Map<number, () => void>();
+  private dialogs = new Map<number, HTMLDialogElement>();
 
   constructor(
     private app: ReviewApp,
@@ -110,16 +95,22 @@ export class PhoneShell implements PanelSurface {
   ) {
     host.classList.add('rr-phone');
     watchBack(app);
+    this.shell.start();
+    this.code = this.shell.getSnapshot().children.code as ActorRefFrom<typeof codeSheetMachine>;
+    this.shell.subscribe(() => this.render());
+    this.code.subscribe(() => this.render());
+    app.onDispose(() => this.shell.stop());
+    this.watchDialogs();
     // no c key on a phone: a selection (text in the narrative, lines in code) gets a button instead
     const comment = this.comment;
     comment.onclick = () => (app.commands.run('comment.selection'), (comment.hidden = true));
     comment.append(icon('thread', 14), 'Comment');
-    app.bus.on('selection', (s) => ((this.selectedIn = s ? this.front() : ''), this.paint()));
+    app.bus.on('selection', (s) => this.shell.send({ type: 'selection', on: !!s }));
     // before the code panel hears it (it mounts below): lines to show from elsewhere peek, a whole file opens the area
     app.bus.on('reveal-code', (t) => {
-      this.peekNext = !t.panel && !!t.start && this.area !== 'code';
-      if (this.peekNext) this.peekAt = t;
-      if (!this.peekNext) return;
+      this.shell.send({ type: 'reveal', lines: !t.panel && !!t.start });
+      if (!this.ctx().peekNext) return;
+      this.peekAt = t;
       this.peekTitle.textContent = t.path.split('/').pop()!;
       this.peekLines.textContent = `${t.start}${t.end && t.end !== t.start ? '–' + t.end : ''}`;
     });
@@ -127,7 +118,7 @@ export class PhoneShell implements PanelSurface {
       const strip = h('div', { class: 'rr-phone-toptabs', role: 'tablist' });
       const ind = h('span', { class: 'rr-phone-toptabs__ind', 'aria-hidden': 'true' });
       const pager = h('div', { class: 'rr-phone-pager' });
-      const area: Area = { id: a.id, el: h('section', { class: 'rr-phone-area', 'data-area': a.id, 'aria-label': a.title }, strip, pager), strip, ind, pager, pages: [], sig: '', page: '' };
+      const area: Area = { id: a.id, el: h('section', { class: 'rr-phone-area', 'data-area': a.id, 'aria-label': a.title }, strip, pager), strip, ind, pager, pages: [], sig: '' };
       // the page under the finger once the pager settles (a swipe, or a tap on a tab scrolling it); the indicator follows
       pager.addEventListener('scroll', () => (this.settle(area), this.slide(area)), { passive: true });
       this.areas.set(a.id, area);
@@ -135,7 +126,7 @@ export class PhoneShell implements PanelSurface {
     }
     this.peekHead(this.areas.get('code')!.el);
     // a resized pager (rotation, the URL bar) keeps the page it was on
-    const resized = new ResizeObserver(() => this.areas.forEach((a) => (this.scrollTo(a, a.page, 'instant'), this.slide(a))));
+    const resized = new ResizeObserver(() => this.areas.forEach((a) => (this.scrollTo(a, this.ctx().page[a.id], 'instant'), this.slide(a))));
     resized.observe(this.stage);
     app.onDispose(() => resized.disconnect());
     host.append(this.stage, comment, this.nav);
@@ -143,62 +134,63 @@ export class PhoneShell implements PanelSurface {
     app.bus.on('prefs', () => this.paintNav());
     this.paintBar();
     this.show('narrative');
-    app.escapers.push(() => (this.peeking ? (this.unpeek(), true) : this.sheets.length ? (this.close(this.sheets.at(-1)!), true) : false));
+    app.escapers.push(() => (peeking(this.ctx()) || this.ctx().sheets.length ? (this.shell.send({ type: 'escape' }), true) : false));
+  }
+
+  private ctx = () => this.shell.getSnapshot().context;
+
+  /** Every open dialog (the menu, search, a thread) is a layer Back closes. */
+  private watchDialogs() {
+    const ids = new Map<HTMLDialogElement, number>();
+    let n = 0;
+    const dialogs = new MutationObserver((ms) => {
+      for (const { target: d } of ms) {
+        if (!(d instanceof HTMLDialogElement)) continue;
+        if (d.open && !ids.has(d)) {
+          ids.set(d, ++n);
+          this.dialogs.set(n, d);
+          this.shell.send({ type: 'dialog', id: n, open: true });
+        } else if (!d.open && ids.has(d)) {
+          const id = ids.get(d)!;
+          ids.delete(d);
+          this.dialogs.delete(id);
+          this.shell.send({ type: 'dialog', id, open: false });
+        }
+      }
+    });
+    dialogs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+    this.app.onDispose(() => dialogs.disconnect());
   }
 
   /** The peek's handle: drag it up past 70% of the screen for the Code area, down to close; or its two buttons. */
   private peekHead(code: HTMLElement) {
-    const expand = h('button', { class: 'rr-icon-btn', 'aria-label': 'Open in Code', title: 'Open in the Code area', onclick: () => this.expand() }, icon('maximize', 20));
-    const close = h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', onclick: () => this.unpeek() }, icon('close', 20));
+    const expand = h('button', { class: 'rr-icon-btn', 'aria-label': 'Open in Code', title: 'Open in the Code area', onclick: () => this.code.send({ type: 'expand' }) }, icon('maximize', 20));
+    const close = h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', onclick: () => this.code.send({ type: 'close' }) }, icon('close', 20));
     const head = h(
       'div',
       { class: 'rr-phone-peek-head', title: 'Drag up to open in the Code area, down to close' },
       h('span', { class: 'rr-phone-peek-grip', 'aria-hidden': 'true' }),
       h('div', { class: 'rr-phone-peek-row' }, this.peekTitle, this.peekLines, h('span', { class: 'rr-toolbar__spacer' }), expand, close),
     );
-    let from = 0;
+    // the sheet follows once the touch goes up or down (gestureMachine), not sideways
+    const touch = createActor(gestureMachine).start();
+    this.app.onDispose(() => touch.stop());
+    const vertical = () => touch.getSnapshot().matches('vertical');
     onDrag(head, {
-      start: () => ((from = code.offsetHeight), code.classList.add('is-dragging')),
-      move: (_, dy) => {
-        code.style.setProperty('--rr-peek-h', `${Math.max(0, from - dy)}px`);
-        code.classList.toggle('is-rising', (from - dy) / this.stage.clientHeight > 0.7); // the scrim, only up there
+      start: (e) => touch.send({ type: 'start', x: e.clientX, y: e.clientY }),
+      move: (_, dy, e) => {
+        const was = vertical();
+        touch.send({ type: 'move', x: e.clientX, y: e.clientY });
+        if (!vertical()) return;
+        if (!was) this.code.send({ type: 'start', from: code.offsetHeight, max: this.stage.clientHeight });
+        this.code.send({ type: 'move', dy });
       },
       end: (_, dy) => {
-        code.classList.remove('is-dragging', 'is-rising');
-        code.style.removeProperty('--rr-peek-h');
-        const frac = (from - dy) / this.stage.clientHeight;
-        if (frac > 0.7) this.expand();
-        else if (frac < 0.25) this.unpeek();
+        if (vertical()) this.code.send({ type: 'end', dy });
+        touch.send({ type: 'cancel' });
       },
     });
     code.prepend(head);
-  }
-
-  /** The peek becomes the Code area, its lines landed again for the taller view. */
-  private expand() {
-    // it keeps rising from where it was (the expressive spring, phone.css) and lands as the Code area
-    const code = this.areas.get('code')!.el;
-    code.style.setProperty('--rr-from', `${code.offsetTop}px`);
-    code.classList.remove('is-landing');
-    void code.offsetWidth;
-    code.classList.add('is-landing');
-    this.setArea('code');
-    if (this.peekAt) this.app.bus.emit('reveal-code', this.peekAt);
-  }
-
-  private peek() {
-    if (!this.peeking) this.peekBack = onBack(() => this.unpeek());
-    this.peeking = true;
-    this.areas.get('code')!.el.classList.add('is-peek');
-    this.paint();
-  }
-
-  private unpeek() {
-    if (!this.peeking) return;
-    this.peeking = false;
-    this.peekBack?.();
-    this.areas.get('code')!.el.classList.remove('is-peek');
-    this.paint();
   }
 
   /** Each area's pages, in order; those that don't apply (no Last round, no CI) are left out. */
@@ -247,8 +239,8 @@ export class PhoneShell implements PanelSurface {
         ),
         area.ind,
       );
-      if (!pages.some((p) => p.id === area.page)) area.page = pages[0]?.id ?? '';
-      requestAnimationFrame(() => (this.scrollTo(area, area.page, 'instant'), this.slide(area)));
+      this.shell.send({ type: 'pages', area: area.id, ids: pages.map((p) => p.id) });
+      requestAnimationFrame(() => (this.scrollTo(area, this.ctx().page[area.id], 'instant'), this.slide(area)));
       this.paintTabs(area);
     }
     this.paintNav();
@@ -257,23 +249,25 @@ export class PhoneShell implements PanelSurface {
   private navArea = '';
   private paintNav() {
     const open = this.opts.openThreads();
+    const current = this.ctx().area;
     // the indicator grows from the centre when the area changes (not on every repaint)
-    const moved = this.navArea !== this.area;
-    this.navArea = this.area;
+    const moved = this.navArea !== current;
+    this.navArea = current;
     this.nav.replaceChildren(
       ...AREAS.map((a) => {
-        const b = h('button', { class: 'rr-phone-tab' + (moved && a.id === this.area ? ' is-new' : ''), 'data-area': a.id, 'aria-current': String(a.id === this.area), title: a.title });
+        const b = h('button', { class: 'rr-phone-tab' + (moved && a.id === current ? ' is-new' : ''), 'data-area': a.id, 'aria-current': String(a.id === current), title: a.title });
         const pill = h('span', { class: 'rr-phone-tab__pill' }, icon(a.icon, 24));
         b.append(pill, h('span', { class: 'rr-phone-tab__label' }, a.title));
         if (a.id === 'threads' && open) pill.append(h('span', { class: 'rr-badge rr-phone-tab__badge', title: `${open} open thread${open > 1 ? 's' : ''}` }, String(open)));
-        b.onclick = () => (this.sheets.forEach((s) => this.close(s)), this.setArea(a.id));
+        b.onclick = () => this.shell.send({ type: 'nav', area: a.id });
         return b;
       }),
     );
   }
 
   private paintTabs(area: Area) {
-    area.strip.querySelectorAll<HTMLElement>('.rr-phone-toptab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.id === area.page)));
+    const page = this.ctx().page[area.id];
+    area.strip.querySelectorAll<HTMLElement>('.rr-phone-toptab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.id === page)));
   }
 
   /** The tab indicator under the page the pager shows, between two labels mid-swipe (width and place blended). */
@@ -294,46 +288,16 @@ export class PhoneShell implements PanelSurface {
     if (i >= 0) area.pager.scrollTo({ left: i * area.pager.clientWidth, behavior });
   }
 
-  /** Which page the pager shows (the one most on screen); a new one is shown (onShow) and its tab marked. */
+  /** Which page the pager shows (the one most on screen). */
   private settle(area: Area) {
     const w = area.pager.clientWidth;
     const p = w ? area.pages[Math.round(area.pager.scrollLeft / w)] : undefined;
-    if (!p || p.id === area.page) return;
-    area.page = p.id;
-    this.paintTabs(area);
-    this.shown(p.id);
+    if (p && p.id !== this.ctx().page[area.id]) this.shell.send({ type: 'page', area: area.id, id: p.id });
   }
 
   private shown(id: string) {
     const o = this.open.get(id);
     if (o) requestAnimationFrame(() => o.inst.onShow?.());
-  }
-
-  /** `back`: Back brought it here (no new history entry). */
-  private setArea(id: AreaId, back = false) {
-    this.unpeek(); // into the Code area (the same view, now full) or away from it
-    const was = this.area;
-    if (id !== was && !back) {
-      const top = this.trail.at(-1);
-      if (top?.prev === id) {
-        // back where Back would go: the same as going back
-        this.trail.pop();
-        top.drop();
-      } else {
-        const step = { prev: was, drop: () => {} };
-        step.drop = onBack(() => (this.trail.splice(this.trail.indexOf(step), 1), this.setArea(step.prev, true)));
-        this.trail.push(step);
-      }
-    }
-    this.area = id;
-    for (const a of this.areas.values()) a.el.classList.toggle('is-current', a.id === id);
-    this.paintNav();
-    if (was !== id) this.shown(this.areas.get(id)!.page);
-    this.paint();
-  }
-
-  private areaOf(id: string) {
-    return [...this.areas.values()].find((a) => a.pages.some((p) => p.id === id));
   }
 
   private mount(id: string, params?: Record<string, unknown>, title?: string) {
@@ -351,7 +315,10 @@ export class PhoneShell implements PanelSurface {
     }
     const inst = def.create(this.app, params ?? {}, id);
     host.append(inst.element);
-    if (sheet) this.stage.append(host);
+    if (sheet) {
+      this.stage.append(host);
+      this.sheetIds.add(id);
+    }
     o = { id, title, params, host, inst };
     this.open.set(id, o);
     return o;
@@ -363,6 +330,7 @@ export class PhoneShell implements PanelSurface {
     o.inst.dispose?.();
     o.host.remove();
     this.open.delete(id);
+    this.sheetIds.delete(id);
   }
 
   has = (id: string) => this.open.has(id);
@@ -378,51 +346,89 @@ export class PhoneShell implements PanelSurface {
 
   /** Open (if needed) and bring to the front; false if there's no such panel. */
   show(id: string, params?: Record<string, unknown>) {
-    const area = this.areaOf(id);
-    if (area?.id === 'code' && this.peekNext) {
-      this.peekNext = false;
-      if (!this.peeking) this.shown(id);
-      this.peek();
-      return true;
-    }
-    if (area) {
-      this.sheets.forEach((s) => this.close(s));
-      this.setArea(area.id);
-      if (area.page !== id) {
-        area.page = id;
-        this.paintTabs(area);
-        this.scrollTo(area, id, 'instant');
-        this.shown(id);
-      }
-      return true;
-    }
-    if (!this.mount(id, params)) return false;
-    if (!this.sheetBacks.has(id)) this.sheetBacks.set(id, onBack(() => this.close(id)));
-    this.sheets = [...this.sheets.filter((s) => s !== id), id];
-    this.paint();
+    const area = areaOf(this.ctx(), id);
+    if (!area && !this.mount(id, params)) return false;
+    const was = area && this.ctx().page[area];
+    this.shell.send({ type: 'show', id });
+    if (area && was !== id) this.scrollTo(this.areas.get(area)!, id, 'instant');
     return true;
   }
 
+  /** Pages stay mounted (like a dock tab you switch away from); sheets are thrown away. */
   close(id: string) {
-    if (!this.sheets.includes(id)) return; // pages stay mounted (like a dock tab you switch away from); sheets are thrown away
-    this.sheets = this.sheets.filter((s) => s !== id);
-    this.sheetBacks.get(id)?.();
-    this.sheetBacks.delete(id);
-    this.drop(id);
-    this.paint();
+    this.shell.send({ type: 'close', id });
   }
 
   /** The panel in front: the peeked code, the newest sheet, else the area's page. */
-  front = () => (this.peeking ? 'code' : (this.sheets.at(-1) ?? this.areas.get(this.area)!.page));
+  front = () => front(this.ctx());
 
-  private paint() {
-    const front = this.front();
-    this.comment.hidden = this.selectedIn !== front || !front;
-    for (const id of this.sheets) {
-      const o = this.open.get(id)!;
-      const shown = id === front;
-      if (shown && o.host.hidden) this.shown(id);
-      o.host.hidden = !shown;
+  private shownKey = '';
+  private wasFull = false;
+  private render() {
+    const c = this.ctx();
+    const sheet = this.code.getSnapshot();
+    const code = this.areas.get('code')!.el;
+    const full = sheet.matches('full');
+    if (full && !this.wasFull) {
+      // the peek became the Code area: it keeps rising from where it was (the expressive spring, phone.css), and its
+      // lines land again for the taller view once the area is the Code area
+      code.style.setProperty('--rr-from', `${code.offsetTop}px`);
+      code.classList.remove('is-landing');
+      void code.offsetWidth;
+      code.classList.add('is-landing');
+      const at = this.peekAt;
+      if (at) queueMicrotask(() => this.app.bus.emit('reveal-code', at));
     }
+    this.wasFull = full;
+    const dragging = sheet.matches({ open: 'dragging' });
+    code.classList.toggle('is-peek', sheet.matches('open'));
+    code.classList.toggle('is-dragging', dragging);
+    code.classList.toggle('is-rising', dragging && rising(sheet.context)); // the scrim, only up there
+    if (dragging) code.style.setProperty('--rr-peek-h', `${sheet.context.height}px`);
+    else code.style.removeProperty('--rr-peek-h');
+    for (const a of this.areas.values()) {
+      a.el.classList.toggle('is-current', a.id === c.area);
+      this.paintTabs(a);
+    }
+    if (this.navArea !== c.area) this.paintNav();
+    const top = front(c);
+    for (const id of this.sheetIds) {
+      if (!c.sheets.includes(id)) this.drop(id);
+      else this.open.get(id)!.host.hidden = id !== top;
+    }
+    this.comment.hidden = c.selectedIn !== top || !top;
+    // a panel coming to the front catches up (onShow)
+    const key = `${peeking(c) ? 'peek' : c.sheets.length ? 'sheet' : c.area}:${top}`;
+    if (key !== this.shownKey) {
+      this.shownKey = key;
+      this.shown(top);
+    }
+    this.syncHistory();
+  }
+
+  /** Each entry of the machine's stack gets a history entry (onBack), and gives it back once gone; removals first. */
+  private syncing = false;
+  private syncHistory() {
+    if (this.syncing) return;
+    this.syncing = true;
+    queueMicrotask(() => {
+      this.syncing = false;
+      const stack = this.ctx().stack;
+      for (const [key, drop] of this.backs) {
+        if (stack.some((e) => e.key === key)) continue;
+        this.backs.delete(key);
+        drop();
+      }
+      for (const e of stack)
+        if (!this.backs.has(e.key))
+          this.backs.set(
+            e.key,
+            onBack(() => {
+              const d = e.kind === 'dialog' && this.dialogs.get(e.id);
+              if (d) dismiss(d);
+              this.shell.send({ type: 'back', key: e.key });
+            }),
+          );
+    });
   }
 }
