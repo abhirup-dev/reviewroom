@@ -64,7 +64,7 @@ class ThreadsPanel implements PanelInstance {
         { class: 'rr-thread-item__anchor' },
         threadBadge(t, app.services.threads.unreadAgent(t)),
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
-        h('span', null, t.title ?? app.anchorLabel(t.anchor)),
+        h('span', null, t.title ?? app.anchorLabel(t.anchor, { pr: false })),
         app.services.threads.prOf(t) ? h('span', { class: 'rr-round-badge rr-round-badge--pr', title: `On #${app.services.threads.prOf(t)}` }, `#${app.services.threads.prOf(t)}`) : null,
         t.gh ? h('span', { class: 'rr-round-badge', title: 'Started on GitHub by ' + t.messages[0]?.gh?.login }, '@' + t.messages[0]?.gh?.login) : h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound),
       ),

@@ -306,13 +306,14 @@ export class ReviewApp {
     }
     return refLabel(r, this.docTitle);
   }
-  anchorLabel(a: Anchor): string {
+  /** `pr: false` leaves out the " · #n" suffix, for places that show the PR as a badge of their own. */
+  anchorLabel(a: Anchor, { pr = true } = {}): string {
     if (a.kind === 'general') return 'General';
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
     // a thread on one commit's diff names that commit
     const home = this.services.code.homeOf(a);
     // (a layer's own label already names its PR)
-    return this.label(anchorRef(a)!) + (home && home.key !== 'all' && home.key !== `pr-${home.pr}` ? ` · ${home.label.split(' · ')[0]}` : '');
+    return this.label(anchorRef(pr || a.kind !== 'code' ? a : { ...a, pr: undefined })!) + (home && home.key !== 'all' && home.key !== `pr-${home.pr}` ? ` · ${home.label.split(' · ')[0]}` : '');
   }
 
   // ------------------------------------------------------------ threads

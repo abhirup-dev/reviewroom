@@ -43,3 +43,10 @@ test("a plain link inside a data-pr element means that PR's layer; @pr and revs 
   expect(app.services.code.inLayer(parseRef('rr:code/x.go@abc123#L4')!, a)).not.toHaveProperty('pr');
   expect(app.services.code.inLayer(parseRef('rr:code/x.go#L4')!, document.createElement('a'))).not.toHaveProperty('pr');
 });
+
+test("a layer's thread names its PR once: in the label, or in a badge beside it", () => {
+  const app = stackApp();
+  const a = { kind: 'code', path: 'cache/cache.go', rev: 'head', start: 15, end: 15, pr: 2 } as const;
+  expect(app.anchorLabel(a)).toBe('cache.go:15 · #2');
+  expect(app.anchorLabel(a, { pr: false })).toBe('cache.go:15');
+});
