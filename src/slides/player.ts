@@ -7,7 +7,7 @@
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { h, icon, plural } from '../kernel/dom';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
-import { REF_ELEMENTS as LINK, refIcon } from '../kernel/refs/browser';
+import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
 import { paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from './player.machine';
 import type { ReviewApp } from '../app';
@@ -200,7 +200,7 @@ export function mountWalkthrough(app: ReviewApp) {
   left.addEventListener(
     'click',
     (e) => {
-      const link = (e.target as Element).closest(LINK);
+      const link = (e.target as Element).closest(REF_ELEMENTS);
       if (!link) return;
       e.preventDefault();
       e.stopPropagation();

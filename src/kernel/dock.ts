@@ -1,6 +1,7 @@
 // Generic panel registration, dockview rendering, and floating/docking mechanics.
 import { createDockview, type DockviewApi, type IContentRenderer, type DockviewGroupPanel, type IDockviewPanel, type IHeaderActionsRenderer, type CreateComponentOptions } from 'dockview';
 import { h, icon } from './dom';
+import { menuItem, menuLabel, popMenu } from './menus';
 import type { ReviewApp } from '../app';
 
 /** A floating window rather than a docked group. */
@@ -151,9 +152,9 @@ export function showPanel(app: ReviewApp, id: string) {
   return true;
 }
 
-export type Placement = 'right' | 'below' | 'float' | 'center';
+export type DockPlacement = 'right' | 'below' | 'float' | 'center';
 /** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
-export function addPanelAt(app: ReviewApp, panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: Placement, near?: string) {
+export function addPanelAt(app: ReviewApp, panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: DockPlacement, near?: string) {
   const api = app.dock;
   const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
   if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
@@ -186,18 +187,16 @@ function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
   const tab = ((e.target as Element).closest('.dv-tab') ?? e.target) as HTMLElement;
   const g = p.group;
   const floating = isFloating(g);
-  void import('./menus').then(({ popMenu, menuItem }) =>
-    popMenu(tab, (close) => [
-      p.id.startsWith('slot:')
-        ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
-        : floating
-        ? slotOf(app.dock, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
-        : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
-      floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
-      menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
-      g.panels.length > 1 ? menuItem('Close others', () => (close(), g.panels.filter((x) => x !== p).forEach((x) => x.api.close()))) : null,
-    ]),
-  );
+  popMenu(tab, (close) => [
+    p.id.startsWith('slot:')
+      ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
+      : floating
+      ? slotOf(app.dock, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
+      : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
+    floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
+    menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
+    g.panels.length > 1 ? menuItem('Close others', () => (close(), g.panels.filter((x) => x !== p).forEach((x) => x.api.close()))) : null,
+  ]);
 }
 
 function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement) {
@@ -208,18 +207,16 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
     group.api.moveTo({ group: target, position });
   };
   const main = targets.find((g) => g.panels.some((p) => p.id === 'code')) ?? targets.find((g) => g.panels.some((p) => p.id === 'narrative')) ?? targets[0];
-  void import('./menus').then(({ popMenu, menuItem, menuLabel }) =>
-    popMenu(anchor, (close) => [
-      menuLabel(`Dock next to ${main ? named(main) : 'the layout'}`),
-      menuItem('Right', () => (close(), go(main, 'right')), { icon: 'split' }),
-      menuItem('Below', () => (close(), go(main, 'bottom')), { icon: 'unified' }),
-      menuItem('Left', () => (close(), go(main, 'left'))),
-      menuItem('Above', () => (close(), go(main, 'top'))),
-      menuItem('As a tab', () => (close(), go(main, 'center'))),
-      targets.length > 1 ? menuLabel('Or as a tab in') : null,
-      ...(targets.length > 1 ? targets.filter((g) => g !== main).map((g) => menuItem(named(g), () => (close(), go(g, 'center')))) : []),
-    ]),
-  );
+  popMenu(anchor, (close) => [
+    menuLabel(`Dock next to ${main ? named(main) : 'the layout'}`),
+    menuItem('Right', () => (close(), go(main, 'right')), { icon: 'split' }),
+    menuItem('Below', () => (close(), go(main, 'bottom')), { icon: 'unified' }),
+    menuItem('Left', () => (close(), go(main, 'left'))),
+    menuItem('Above', () => (close(), go(main, 'top'))),
+    menuItem('As a tab', () => (close(), go(main, 'center'))),
+    targets.length > 1 ? menuLabel('Or as a tab in') : null,
+    ...(targets.length > 1 ? targets.filter((g) => g !== main).map((g) => menuItem(named(g), () => (close(), go(g, 'center')))) : []),
+  ]);
 }
 
 /** Esc runs `back` once, if the panel is still floating then. */

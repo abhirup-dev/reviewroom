@@ -5,7 +5,7 @@ import { copyText, h, icon, plural, seg, threadBadge, threadCounts } from '../ke
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
-import { addPanelAt, definePanel, setPanelTitle, type PanelInstance, type Placement } from '../kernel/dock';
+import { addPanelAt, definePanel, setPanelTitle, type PanelInstance, type DockPlacement } from '../kernel/dock';
 import { openCentered } from './focus';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 import type { ReviewApp } from '../app';
@@ -605,7 +605,7 @@ let counter = 1;
 export type PopoutView = 'diff' | 'base' | 'head';
 
 /** Open one file in its own code panel: as a diff (optionally at some lines), or the whole file before/after the change. */
-export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: Placement = 'right', near?: string, at?: CodeTarget) {
+export function openInNewPanel(app: ReviewApp, path: string, view: PopoutView = 'diff', placement: DockPlacement = 'right', near?: string, at?: CodeTarget) {
   const id = `code:${++counter}`;
   addPanelAt(app, { id, component: 'code', title: panelTitle(path, view), params: { ...at, pin: path, view } }, placement, near);
   return id;
