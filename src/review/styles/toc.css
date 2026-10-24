@@ -1,0 +1,56 @@
+/* contents: section titles wrap to two lines instead of truncating, indented under their group label; sub-sections hang off a guide line */
+.rr-toc {
+  padding-top: 8px;
+}
+.rr-toc-item {
+  align-items: flex-start;
+  padding: 5px 8px 5px 22px;
+  font: 400 13px/1.4 var(--rr-font);
+}
+.rr-toc-item__title {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-wrap: pretty;
+}
+.rr-toc-item .rr-count-chip,
+.rr-toc-item .rr-round-badge {
+  margin-top: 1px;
+}
+.rr-toc-item.is-active {
+  font-weight: 500;
+}
+.rr-toc-item--sub {
+  width: calc(100% - 22px);
+  margin-left: 22px;
+  padding: 4px 8px;
+  min-height: 24px;
+  border-left: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-radius-sm);
+  font-size: 12.5px;
+  color: var(--rr-muted);
+}
+.rr-toc-item--pin {
+  cursor: default;
+}
+.rr-toc-item--pin .rr-link-btn {
+  color: var(--rr-ink-2);
+  text-align: left;
+}
+.rr-pin-btn {
+  display: inline-flex;
+  flex: none;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  cursor: pointer;
+}
+.rr-pin-btn:hover {
+  color: var(--rr-ink);
+}

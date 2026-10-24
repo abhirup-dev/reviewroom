@@ -1,6 +1,6 @@
 // State ops through a running server, racing CLI writes.
 import { beforeAll, describe, expect, test } from 'bun:test';
-import type { StoredMessage } from '../src/shared/schema.ts';
+import type { StoredMessage } from '../src/kernel/state/schema.shared.ts';
 import { op, read, setup } from './fixture.ts';
 
 describe('ops', () => {

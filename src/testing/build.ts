@@ -1,0 +1,21 @@
+// Test data with valid defaults: override only what the test is about.
+import { emptyState, type Message, type ReviewState, type Thread } from '../kernel/state/model.shared';
+import type { Anchor } from '../kernel/state/schema.shared';
+
+const at = '2026-01-01T00:00:00.000Z';
+type AnchorOf<K extends Anchor['kind']> = Extract<Anchor, { kind: K }>;
+
+export const build = {
+  anchor: {
+    general: (): AnchorOf<'general'> => ({ kind: 'general' }),
+    code: (path = 'a.ts', start = 1, end = start): AnchorOf<'code'> => ({ kind: 'code', path, rev: 'head', start, end }),
+    doc: (target = 'intro'): AnchorOf<'doc'> => ({ kind: 'doc', target }),
+    tour: (chapter: string, step: string): AnchorOf<'tour'> => ({ kind: 'tour', chapter, step }),
+  },
+  message: (over: Partial<Message> = {}): Message => ({ id: 'm_1', author: 'you', round: 1, body: 'unclear', at, ...over }),
+  /** An open thread with one reviewer message (its id `m<thread id>`). */
+  thread: (id: string, over: Partial<Thread> = {}): Thread => ({
+    id, anchor: { kind: 'general' }, status: 'open', createdRound: 1, messages: [build.message({ id: 'm' + id })], ...over,
+  }),
+  state: (over: Partial<ReviewState> = {}): ReviewState => ({ ...emptyState(), ...over }),
+};

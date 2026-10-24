@@ -8,7 +8,8 @@ import { hubApp } from './server.ts';
 import { agentAncestor, lsofCwd, runCapture } from './proc.ts';
 import { readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rr-hub-'));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-hub-'));
+const tmp = () => fs.mkdtempSync(path.join(root, 'd-'));
 const children: Bun.Subprocess[] = [];
 const sleeper = (cwd?: string) => children[children.push(Bun.spawn(['sleep', '30'], { cwd, stdio: ['ignore', 'ignore', 'ignore'] })) - 1];
 const write = (dir: string, name: string, body: unknown) => {
@@ -19,6 +20,7 @@ const home = process.env.REVIEWROOM_HOME;
 afterAll(() => {
   for (const c of children) c.kill();
   process.env.REVIEWROOM_HOME = home;
+  fs.rmSync(root, { recursive: true, force: true });
 });
 let rrHome = '';
 beforeEach(() => (process.env.REVIEWROOM_HOME = rrHome = tmp())); // never the real ~/.reviewroom
@@ -95,16 +97,14 @@ describe('poll', () => {
 
   test('reviewroom: listed while its server answers with its pid, with counts; a dead record is deleted', async () => {
     const repo = tmp();
-    const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1 }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
+    using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1 }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
     const dead = sleeper();
     write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'pr-42'), title: 'Habit events', number: 42, head: 'refs/reviewroom/pr-42', mode: 'review', agent: { name: 'claude-code', pid: 77 }, author: 'mradul' });
     const alsoLive = sleeper(); // answers as itself, with a body that is not JSON: kept
-    const garbled = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('{not json', { headers: { 'x-reviewroom-pid': String(alsoLive.pid) } }) });
+    using garbled = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('{not json', { headers: { 'x-reviewroom-pid': String(alsoLive.pid) } }) });
     write(rrHome, `${alsoLive.pid}.json`, { pid: alsoLive.pid, port: garbled.port, repo, dir: repo, head: 'main', mode: 'serve' });
     write(rrHome, `${dead.pid}.json`, { pid: dead.pid, port: 1, repo, dir: repo, head: 'main', mode: 'serve' }); // alive pid, no server: stale
     const sessions = Object.fromEntries((await new Hub({ critHome: tmp(), plannotatorDataDir: tmp(), healthTimeoutMs: 500 }).poll()).map((x) => [x.id, x]));
-    void server.stop(true);
-    void garbled.stop(true);
     expect(Object.keys(sessions).sort()).toEqual([`reviewroom:${process.pid}`, `reviewroom:${alsoLive.pid}`].sort());
     expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Habit events', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, origin: 'claude-code', parentAgentPid: 77, author: 'mradul' });
     expect(sessions[`reviewroom:${alsoLive.pid}`]).toMatchObject({ health: 'ok', commentCount: null });
@@ -120,32 +120,28 @@ describe('server', () => {
     const impostor = sleeper(); // a reused pid: not plannotator any more
     write(planDir, `${impostor.pid}.json`, { pid: impostor.pid, port: 49124, url: 'http://localhost:49124', mode: 'review' });
     write(planDir, `${child.pid}.json`, { pid: child.pid, port: 49123, url: 'http://localhost:49123', mode: 'review' });
-    const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: hubApp(new Hub({ critHome: tmp(), plannotatorDataDir: planDir, healthTimeoutMs: 20 })).fetch });
+    using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: hubApp(new Hub({ critHome: tmp(), plannotatorDataDir: planDir, healthTimeoutMs: 20 })).fetch });
     const base = `http://127.0.0.1:${server.port}`;
-    try {
-      expect(await (await fetch(base)).text()).toContain('/_rr/hub.js');
-      const health = await (await fetch(`${base}/api/health`)).json();
-      expect(health).toMatchObject({ status: 'ok', sessionCounts: { crit: 0, plannotator: 2, reviewroom: 0 } });
-      expect(health.compatibility.crit.verifiedAgainst).toBe('0.19.0');
-      const sessions = await fetch(`${base}/api/sessions`);
-      expect(sessions.headers.get('cache-control')).toContain('no-store');
-      expect((await sessions.json()).count).toBe(2);
-      expect((await fetch(`${base}/api/nope`)).status).toBe(404);
-      expect((await fetch(`${base}/api/sessions`, { headers: { host: 'evil.example' } })).status).toBe(403); // DNS rebinding
+    expect(await (await fetch(base)).text()).toContain('/_rr/hub.js');
+    const health = await (await fetch(`${base}/api/health`)).json();
+    expect(health).toMatchObject({ status: 'ok', sessionCounts: { crit: 0, plannotator: 2, reviewroom: 0 } });
+    expect(health.compatibility.crit.verifiedAgainst).toBe('0.19.0');
+    const sessions = await fetch(`${base}/api/sessions`);
+    expect(sessions.headers.get('cache-control')).toContain('no-store');
+    expect((await sessions.json()).count).toBe(2);
+    expect((await fetch(`${base}/api/nope`)).status).toBe(404);
+    expect((await fetch(`${base}/api/sessions`, { headers: { host: 'evil.example' } })).status).toBe(403); // DNS rebinding
 
-      const close = (id: string, headers: Record<string, string> = { 'x-reviewroom-action': 'close-session' }) => fetch(`${base}/api/sessions/${encodeURIComponent(id)}/close`, { method: 'POST', headers });
-      expect((await close(`plannotator:${child.pid}`, {})).status).toBe(403);
-      expect(child.exitCode).toBeNull();
-      expect((await close(`plannotator:${child.pid}`, { 'x-reviewroom-action': 'close-session', origin: 'http://evil.example' })).status).toBe(403);
-      const closed = await close(`plannotator:${child.pid}`);
-      expect(closed.status).toBe(202);
-      await child.exited;
-      expect((await close('plannotator:999999')).status).toBe(404);
-      expect((await close(`plannotator:${impostor.pid}`)).status).toBe(409);
-      expect(impostor.exitCode).toBeNull();
-    } finally {
-      void server.stop(true);
-    }
+    const close = (id: string, headers: Record<string, string> = { 'x-reviewroom-action': 'close-session' }) => fetch(`${base}/api/sessions/${encodeURIComponent(id)}/close`, { method: 'POST', headers });
+    expect((await close(`plannotator:${child.pid}`, {})).status).toBe(403);
+    expect(child.exitCode).toBeNull();
+    expect((await close(`plannotator:${child.pid}`, { 'x-reviewroom-action': 'close-session', origin: 'http://evil.example' })).status).toBe(403);
+    const closed = await close(`plannotator:${child.pid}`);
+    expect(closed.status).toBe(202);
+    await child.exited;
+    expect((await close('plannotator:999999')).status).toBe(404);
+    expect((await close(`plannotator:${impostor.pid}`)).status).toBe(409);
+    expect(impostor.exitCode).toBeNull();
   });
 });
 

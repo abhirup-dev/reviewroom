@@ -1,0 +1,47 @@
+/* hover card */
+.rr-hovercard {
+  width: min(460px, 90vw);
+  max-width: calc(100vw - 20px);
+  background: var(--rr-panel);
+  color: var(--rr-ink);
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius-lg);
+  box-shadow: var(--rr-shadow);
+  overflow: hidden;
+  font: var(--rr-text) / 1.4 var(--rr-font);
+}
+.rr-hovercard__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-panel-2);
+  font-size: var(--rr-text-sm);
+  font-weight: 500;
+}
+.rr-hovercard__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-hovercard__body {
+  max-height: 240px;
+  overflow: hidden;
+}
+/* code previews size to their longest line: narrow code, narrow card; wide code spans panes */
+.rr-hovercard:has(.rr-snippet) {
+  width: fit-content;
+  min-width: 320px;
+  max-width: min(1100px, calc(100vw - 20px));
+}
+.rr-hovercard:has(.rr-snippet) .rr-hovercard__body {
+  max-height: min(420px, 60vh);
+  overflow: auto;
+}
+.rr-hovercard.is-wrapped .rr-snippet {
+  --rr-wrap: pre-wrap;
+}
+

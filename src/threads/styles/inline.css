@@ -1,0 +1,36 @@
+.rr-inline-thread-wrap {
+  /* the card takes the code column's width, never sets it: with wrap on it would hold the column wide */
+  contain: inline-size;
+  padding: 6px 10px 6px 12px;
+  font-family: var(--rr-font);
+}
+.rr-inline-thread {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 720px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  background: var(--rr-panel);
+  color: var(--rr-ink);
+  font: var(--rr-text-sm) / 1.4 var(--rr-font);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--rr-shadow-sm);
+}
+.rr-inline-thread:hover {
+  border-color: var(--rr-comment);
+}
+.rr-inline-thread.is-resolved {
+  opacity: 0.6;
+}
+.rr-inline-thread__last {
+  color: var(--rr-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+

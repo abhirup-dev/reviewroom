@@ -4,24 +4,23 @@ import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { feedbackMarkdown } from '../../src/shared/feedback.ts';
+import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
-import type { Anchor, Op } from '../../src/core/types.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub } from './registry.ts';
-import { builtinLayouts, Layout, LayoutId } from '../../src/shared/layout.ts';
-import { applyOp, OpError, ReviewroomError } from '../../src/shared/ops.ts';
+import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
+import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
-import { tourText } from './walkthrough.ts';
+import { tourText } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { FinishRound, GitHubAction, issueText } from '../../src/shared/schema.ts';
+import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 
@@ -200,8 +199,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/api/summary', (c) => {
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
-    const round = s.rounds.find((r) => r.n === s.round);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: open.filter((t) => t.messages.at(-1)?.author === 'you').length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    const round = currentRound(s);
+    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {

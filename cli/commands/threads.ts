@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
-import { anchorText, githubContext } from '../../src/shared/feedback.ts';
-import { anchorOf, anchorRef } from '../../src/shared/refs.ts';
+import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
+import { anchorOf, anchorRef } from '../../src/kernel/refs/refs.shared.ts';
 import { cachedThreads } from '../lib/github.ts';
-import type { ReviewState } from '../../src/core/types.ts';
-import { issueText, type Op } from '../../src/shared/schema.ts';
+import type { ReviewState } from '../../src/kernel/state/model.shared.ts';
+import { issueText, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { z } from 'zod';
 
 function findThread(s: ReviewState, id: string) {

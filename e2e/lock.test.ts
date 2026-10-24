@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { StoredThread } from '../src/shared/schema.ts';
+import type { StoredThread } from '../src/kernel/state/schema.shared.ts';
 import { setup } from './fixture.ts';
 
 describe('lock', () => {

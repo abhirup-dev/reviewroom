@@ -5,10 +5,10 @@ import { makeProvider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
-import { fixTour, locate, tourText } from '../lib/walkthrough.ts';
+import { fixTour, locate, tourText } from '../lib/slides-file.ts';
 import { findingReport, lintTour, type Finding } from '../lib/slide-lint.ts';
 import { PKG } from '../lib/paths.ts';
-import type { Walkthrough } from '../../src/shared/walkthrough.ts';
+import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
 type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[] };
 
@@ -49,8 +49,7 @@ export const schemaReport = (issues: string[]) => `walkthrough.json does not mat
 // Stale-link check of review.html and walkthrough.json. --fix rewrites links whose code moved <=5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.
 export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean; accept?: boolean; json?: boolean }) {
-  const dir = dirForEdit(repo, o.dir);
-  if (!fs.existsSync(path.join(dir, 'review.html'))) fail(`no review.html in ${dir}`);
+  const dir = dirForEdit(repo, o.dir, 'review.html');
   const c = await runCheck(repo, dir, o);
   if ('issues' in c) {
     if (o.json) console.log(JSON.stringify({ links: [], walkthrough: [], schema: c.issues }, null, 2));

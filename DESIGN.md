@@ -112,7 +112,7 @@ components:
 
 # Design System: reviewroom
 
-Source of truth for values is `src/styles/tokens.css` (`--rr-*`). This file explains how to use them; when the two
+Source of truth for values is `src/kernel/styles/tokens.css` (`--rr-*`). This file explains how to use them; when the two
 disagree, the CSS wins and this file is stale. Dark values live under `[data-rr-theme="dark"]` in the same file.
 
 ## Overview

@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023"], "types": [] },
+  "include": ["src/**/*.shared.ts", "src/**/*.machine.ts", "types/shared-runtime.d.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

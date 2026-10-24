@@ -1,0 +1,23 @@
+/* ---------------------------------------------------------------- PR description */
+.rr-description .rr-doc-wrap {
+  padding: 16px 0 40px;
+}
+.rr-description__head {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: var(--rr-text-sm);
+}
+.rr-description__head .rr-avatar {
+  width: 22px;
+  height: 22px;
+}
+.rr-description__open {
+  margin-left: auto;
+}
+.rr-description .rr-doc img {
+  max-width: 100%;
+}
+

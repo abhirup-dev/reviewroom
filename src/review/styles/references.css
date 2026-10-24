@@ -1,0 +1,102 @@
+/* chips (rr-ref) */
+.rr-chip,
+rr-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+  font: 500 12px/1 var(--rr-font);
+  vertical-align: baseline;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+rr-ref:hover,
+.rr-chip:hover {
+  border-color: var(--rr-accent);
+}
+rr-ref:is([data-kind='code'], [data-kind='file'], [data-kind='sym']) {
+  font-family: var(--rr-mono);
+}
+.rr-chip--anchor {
+  height: 26px;
+  font-size: 12px;
+  min-width: 0;
+}
+.rr-chip--static {
+  cursor: default;
+}
+
+/* embeds */
+.rr-embed,
+rr-embed {
+  display: block;
+  margin: 10px 0;
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  background: var(--rr-panel);
+  overflow: hidden;
+}
+.rr-embed__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-panel-2);
+  color: var(--rr-ink-2);
+  font: 500 var(--rr-text-sm) / 1 var(--rr-font);
+  cursor: pointer;
+  text-align: left;
+}
+.rr-embed__title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-embed__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--rr-accent);
+  font-size: var(--rr-text-xs);
+}
+.rr-embed__body {
+  max-height: 260px;
+  overflow: hidden;
+  position: relative;
+}
+.rr-embed__body::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 28px;
+  background: linear-gradient(transparent, var(--rr-panel));
+  pointer-events: none;
+}
+.rr-embed__doc {
+  padding: 10px 14px;
+  font-size: 13px;
+  max-height: 260px;
+  overflow: hidden;
+}
+.rr-embed__doc > * {
+  zoom: 0.9;
+}
+.rr-embed__sub {
+  padding: 6px 10px 0;
+  font: 11px var(--rr-mono);
+  color: var(--rr-muted);
+}

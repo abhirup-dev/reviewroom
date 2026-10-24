@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { takeLock, releaseLock } from './lock.ts';
-import { emptyState, type Op, type ReviewState } from '../../src/core/types.ts';
-import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/shared/ops.ts';
-import { StoredState, issueText } from '../../src/shared/schema.ts';
-import { parseWalkthrough, type Parsed } from '../../src/shared/walkthrough.ts';
+import { emptyState, type ReviewState } from '../../src/kernel/state/model.shared.ts';
+import { applyOp, OpError, ReviewroomError, type OpErrorCode } from '../../src/kernel/state/ops.shared.ts';
+import { StoredState, issueText, type Op } from '../../src/kernel/state/schema.shared.ts';
+import { parseWalkthrough, type Parsed } from '../../src/slides/model.shared.ts';
 
 export const statePath = (dir: string) => path.join(dir, 'state.json');
 export const walkthroughPath = (dir: string) => path.join(dir, 'walkthrough.json');

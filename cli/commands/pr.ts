@@ -7,10 +7,10 @@ import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider }
 import { scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
-import { fetchPr, prTarget as prOf } from '../lib/github.ts';
+import { fetchPr, prTarget } from '../lib/github.ts';
 import { walkthroughPath } from '../lib/state.ts';
-import { pickBlock } from '../lib/walkthrough.ts';
-import { parseWalkthrough } from '../../src/shared/walkthrough.ts';
+import { pickBlock } from '../lib/slides-file.ts';
+import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
@@ -31,7 +31,7 @@ export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boo
 type Target = { dir: string; cfg: ReviewConfig };
 
 /** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
-function prTarget(repo: string, o: PrOpts, n: string): Target {
+function prNumberTarget(repo: string, o: PrOpts, n: string): Target {
   const { remote } = o;
   const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
@@ -72,7 +72,7 @@ function localTarget(repo: string, o: PrOpts): Target {
 /** A PR's own walkthrough (a ```reviewroom-walkthrough block in a comment or the description) when there is no local one. */
 async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean) {
   const file = walkthroughPath(dir);
-  const t = prOf(cfg);
+  const t = prTarget(cfg);
   if (!t || (fs.existsSync(file) && !force)) return;
   let pick;
   try {
@@ -90,7 +90,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
-  const t = n ? prTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
+  const t = n ? prNumberTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
   const dir = o.dir ? path.resolve(o.dir) : t.dir;
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value

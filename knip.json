@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "src/index.ts",
+    "src/main.ts",
     "src/hub/index.ts",
     "cli/reviewroom.ts",
     "scripts/*.ts"
@@ -14,8 +14,7 @@
   ],
   "ignoreDependencies": [
     "@ast-grep/cli",
-    "@fontsource-variable/.+",
-    "emoji-picker-element-data"
+    "@fontsource-variable/.+"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreBinaries": [
