@@ -2,6 +2,7 @@
 // dock on its side, like a computer; it switches on rotation. Tablets keep the dock either way.
 import type { ReviewApp } from '../app';
 import { busy, shouldHoldReload } from './pwa';
+import { ensurePanel, frontPanel } from './dock';
 
 const side = () => Math.min(screen.width, screen.height);
 // no matchMedia (tests without a DOM): the desktop
@@ -29,7 +30,7 @@ export function watchShell(app: ReviewApp, phone: boolean) {
     removeEventListener('resize', check);
     screen.orientation?.removeEventListener('change', check);
     const go = () => {
-      sessionStorage.setItem(KEY, JSON.stringify({ front: app.layout.front(), file: app.activeFile }));
+      sessionStorage.setItem(KEY, JSON.stringify({ front: frontPanel(app), file: app.activeFile }));
       sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0)); // boot() restores it
       location.reload();
     };
@@ -48,5 +49,5 @@ export function restoreShell(app: ReviewApp, phone: boolean) {
   if (!saved) return;
   // the phone shows one area: there the file only when Code was in front; the dock shows code beside the rest
   if (saved.file && (!phone || saved.front === 'code')) app.bus.emit('reveal-code', { path: saved.file, side: 'head' });
-  if (saved.front && !saved.front.includes(':')) app.layout.ensurePanel(saved.front); // not a thread or a filtered list: those need their params
+  if (saved.front && !saved.front.includes(':')) ensurePanel(app, saved.front); // not a thread or a filtered list: those need their params
 }

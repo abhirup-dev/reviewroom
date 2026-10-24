@@ -7,7 +7,7 @@ import type { Thread } from '../kernel/state/model.shared';
 import { recapThreads } from '../kernel/state/ops.shared';
 import { anchorRef } from '../kernel/refs/refs.shared';
 import type { ReviewApp } from '../app';
-import { definePanel, floatInPlace, putBack, type PanelInstance } from '../kernel/dock';
+import { definePanel, ensurePanel, floatInPlace, putBack, type PanelInstance } from '../kernel/dock';
 import { renderPreview } from '../review/previews';
 import { anchorChip, messageList } from './view';
 
@@ -17,7 +17,7 @@ export function recapOnNewRound(app: ReviewApp) {
   const { active, rest, stale } = recapThreads(app.state);
   if (app.state.round < 2 || sessionStorage.getItem(key) === String(app.state.round) || !(active.length + rest.length + stale.length) || !app.state.threads.some((t) => app.services.threads.unreadAgent(t))) return;
   sessionStorage.setItem(key, String(app.state.round));
-  app.layout.ensurePanel('recap');
+  ensurePanel(app, 'recap');
   app.dock?.getPanel('narrative')?.api.setActive(); // the docked spot keeps showing the narrative
   floatInPlace(app, 'recap');
   // a feed, not a tiled window: no tab bar (the panel's own head says what it is and docks it)

@@ -161,6 +161,8 @@ export interface PanelSurface {
   putBack(id: string): void;
   /** Esc runs `back` once, if the panel is still floating then. */
   onEscape(id: string, back: () => void): void;
+  /** The panel in front. */
+  front(): string | undefined;
 }
 
 // The rest of the app asks for panels through these, never dockview itself: the phone shell replaces them.
@@ -169,6 +171,10 @@ export const closePanel = (app: ReviewApp, id: string) => app.surface?.close(id)
 export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.surface?.setTitle(id, title);
 /** The first open panel `match` accepts. */
 export const findPanel = (app: ReviewApp, match: Match) => app.surface?.find(match);
+/** Open a panel (if needed: where the layout puts it) and bring it to the front; false if there's no such panel. */
+export const ensurePanel = (app: ReviewApp, id: string, params?: Record<string, unknown>) => !!app.surface?.show(id, params);
+/** The panel in front: the phone's page or sheet, the dock's active panel. */
+export const frontPanel = (app: ReviewApp) => app.surface?.front();
 /** Bring an open panel to the front; false if it isn't open. */
 export const showPanel = (app: ReviewApp, id: string) => !!app.surface?.toFront(id);
 /** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
@@ -194,6 +200,7 @@ class DockSurface implements PanelSurface {
   close = (id: string) => this.api.getPanel(id)?.api.close();
   setTitle = (id: string, title: string) => this.api.getPanel(id)?.api.setTitle(title);
   find = (match: Match) => this.api.panels.find((p) => match(p.id, p.params))?.id;
+  front = () => this.api.activePanel?.id;
 
   toFront(id: string) {
     const p = this.api.getPanel(id);

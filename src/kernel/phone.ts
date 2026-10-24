@@ -7,6 +7,7 @@
 import { h, icon, onDrag } from './dom';
 import type { AppEvents, ReviewApp } from '../app';
 import { panelDefs, type PanelInstance, type PanelSurface } from './dock';
+import type { MountDockOptions } from './layouts/layout';
 import { createActor, type ActorRefFrom } from 'xstate';
 import { areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
 import { rising, type codeSheetMachine } from './codesheet.machine';
@@ -19,6 +20,16 @@ export interface PhoneOptions {
   available(id: string): boolean;
   /** Open threads the Threads list shows by default: the Threads area's badge. */
   openThreads(): number;
+}
+
+/** The phone shell in place of the dock (main.ts picks one at boot). */
+export function mountPhone(app: ReviewApp, host: HTMLElement, options: MountDockOptions & PhoneOptions) {
+  const availability = options.panelAvailability;
+  app.root.classList.add('is-phone');
+  app.surface = new PhoneShell(app, host, {
+    available: (id) => options.available(id) && (!availability?.ids.includes(id) || availability.isAvailable(id)),
+    openThreads: () => options.openThreads(),
+  });
 }
 
 type Open = { id: string; title: string; params?: Record<string, unknown>; host: HTMLElement; inst: PanelInstance };
