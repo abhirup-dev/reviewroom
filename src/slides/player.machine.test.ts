@@ -3,6 +3,7 @@ import { createActor, fromPromise, waitFor } from 'xstate';
 import { current, deepLink, target, type PaneWant, type Walkthrough } from './model.shared';
 import { paneMachine, walkthroughMachine, type PaneShown } from './player.machine';
 import { until } from '../testing/wait';
+import { fixture, type Fixture } from '../testing/fixture';
 
 const steps = (...ids: string[]) => ids.map((id) => ({ id, text: id }));
 const doc: Walkthrough = {
@@ -13,8 +14,9 @@ const doc: Walkthrough = {
     { id: 'b', title: 'B', steps: steps('b1', 'b2', 'b3') },
   ],
 };
-const start = (d: Walkthrough | null = doc) => {
+const start = (scope: Fixture, d: Walkthrough | null = doc) => {
   const a = createActor(walkthroughMachine).start();
+  scope.defer(() => a.stop());
   a.send({ type: 'load', doc: d });
   return a;
 };
@@ -25,13 +27,15 @@ const where = (a: ReturnType<typeof start>) => {
 };
 
 test('open without a document stays closed', () => {
-  const a = start(null);
+  using scope = fixture();
+  const a = start(scope, null);
   a.send({ type: 'open' });
   expect(where(a)).toEqual(['closed', 0, 0]);
 });
 
 test('next and prev cross chapter edges and stop at the ends', () => {
-  const a = start();
+  using scope = fixture();
+  const a = start(scope);
   a.send({ type: 'open' });
   a.send({ type: 'prev' });
   expect(where(a)).toEqual(['playing', 0, 0]);
@@ -46,7 +50,8 @@ test('next and prev cross chapter edges and stop at the ends', () => {
 });
 
 test('open by ids, unknown ids fall back, goto clamps', () => {
-  const a = start();
+  using scope = fixture();
+  const a = start(scope);
   a.send({ type: 'open', chapter: 'b', step: 'b2' });
   expect(where(a)).toEqual(['playing', 1, 1]);
   a.send({ type: 'open', chapter: 'b', step: 'nope' });
@@ -58,7 +63,8 @@ test('open by ids, unknown ids fall back, goto clamps', () => {
 });
 
 test('pause then resume keeps the step; close then open starts over', () => {
-  const a = start();
+  using scope = fixture();
+  const a = start(scope);
   a.send({ type: 'open', chapter: 'b', step: 'b3' });
   a.send({ type: 'pause' });
   expect(where(a)).toEqual(['paused', 1, 2]);
@@ -70,7 +76,8 @@ test('pause then resume keeps the step; close then open starts over', () => {
 });
 
 test('reloading keeps the position where it exists; a removed document closes', () => {
-  const a = start();
+  using scope = fixture();
+  const a = start(scope);
   a.send({ type: 'open', chapter: 'b', step: 'b3' });
   a.send({ type: 'load', doc: { ...doc, chapters: [doc.chapters[0], { ...doc.chapters[1], steps: steps('b1') }] } });
   expect(where(a)).toEqual(['playing', 1, 0]);
@@ -104,7 +111,7 @@ test('deep link: ?walkthrough=<chapter>/<step>, either part optional', () => {
 
 const code = (path: string) => ({ path, side: 'head' as const, view: 'diff' as const });
 /** A pane whose lookups resolve when told to, recording what it rendered; its code panels land at once unless `held`. */
-function pane({ held = false } = {}) {
+function pane(scope: Fixture, { held = false } = {}) {
   const log: string[] = [];
   const pending: { want: PaneWant; done: (v: PaneShown) => void }[] = [];
   const shown = (s: PaneShown) => (s.kind === 'refs' ? s.slots.map((x) => x.ref).join('+') : s.kind);
@@ -124,12 +131,14 @@ function pane({ held = false } = {}) {
     }),
     { input: null },
   ).start();
+  scope.defer(() => a.stop());
   const settle = (i: number, refs: string[], paths: string[]) => pending[i].done({ kind: 'refs', slots: refs.map((ref, j) => ({ ref, code: code(paths[j]) })) });
   return { a, log, pending, settle };
 }
 
 test('pane: a new show cancels a lookup still running; only the newest is mounted', async () => {
-  const { a, log, settle } = pane();
+  using scope = fixture();
+  const { a, log, settle } = pane(scope);
   a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } });
   a.send({ type: 'show', want: { kind: 'refs', refs: ['r2', 'r3'] } });
   settle(0, ['r1'], ['a.go']); // stale: its state is gone
@@ -139,7 +148,8 @@ test('pane: a new show cancels a lookup still running; only the newest is mounte
 });
 
 test('pane: same files glide without a fade; other files fade and remount; clear unmounts', async () => {
-  const { a, log, settle } = pane();
+  using scope = fixture();
+  const { a, log, settle } = pane(scope);
   a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } });
   settle(0, ['r1'], ['a.go']);
   await waitFor(a, (s) => s.matches('showing'));
@@ -155,6 +165,7 @@ test('pane: same files glide without a fade; other files fade and remount; clear
 
 
 test('the player aims its pane at every step and stops it on close', async () => {
+  using scope = fixture();
   const d: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: 'x', ref: ['rr:code/a.go#L1', 'rr:code/b.go#L2'] }, { id: 's2', text: 'y', ref: 'rr:code/a.go#L5' }] }] };
   const shows: string[] = [];
   let unmounts = 0;
@@ -164,6 +175,7 @@ test('the player aims its pane at every step and stops it on close', async () =>
     delays: { fade: 0 },
   });
   const a = createActor(walkthroughMachine.provide({ actors: { pane: p } })).start();
+  scope.defer(() => a.stop());
   a.send({ type: 'load', doc: d });
   a.send({ type: 'open' });
   await until(() => shows.length === 1);
@@ -176,7 +188,8 @@ test('the player aims its pane at every step and stops it on close', async () =>
 });
 
 test('pane: back to what is on screen during a fade glides and fades back in', async () => {
-  const { a, log, settle } = pane();
+  using scope = fixture();
+  const { a, log, settle } = pane(scope);
   a.send({ type: 'show', want: { kind: 'refs', refs: ['r1'] } });
   settle(0, ['r1'], ['a.go']);
   await waitFor(a, (s) => s.matches('showing'));
@@ -191,7 +204,8 @@ test('pane: back to what is on screen during a fade glides and fades back in', a
 });
 
 test('pane: showing waits until every code chunk has landed; a chunk that never lands times out as late', async () => {
-  const p = pane({ held: true });
+  using scope = fixture();
+  const p = pane(scope, { held: true });
   p.a.send({ type: 'show', want: { kind: 'refs', refs: ['r1', 'r2'] } });
   p.settle(0, ['r1', 'r2'], ['a.go', 'b.go']);
   await waitFor(p.a, (s) => s.matches('landing'));

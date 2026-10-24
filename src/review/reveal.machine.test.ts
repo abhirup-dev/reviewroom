@@ -3,9 +3,10 @@ import { createActor, fromPromise, waitFor } from 'xstate';
 import type { CodeTarget } from './navigation.shared';
 import { revealMachine, type Prepared } from './reveal.machine';
 import { tick } from '../testing/wait';
+import { fixture, type Fixture } from '../testing/fixture';
 
 /** A reveal machine whose preparing and unfolding finish when told to, recording what it did to the view. */
-function revealer() {
+function revealer(scope: Fixture) {
   const log: string[] = [];
   const preps: ((v: Prepared) => void)[] = [];
   const unfolds: ((v: boolean) => void)[] = [];
@@ -17,12 +18,14 @@ function revealer() {
       delays: { glow: 30 },
     }),
   ).start();
+  scope.defer(() => a.stop());
   const reveal = (path: string, start?: number) => a.send({ type: 'reveal', target: { path, side: 'head', start } });
   return { a, log, preps, unfolds, reveal };
 }
 
 test('reveal: prepare, land, unfold and land again, glow and say landed, then let the highlight go', async () => {
-  const r = revealer();
+  using scope = fixture();
+  const r = revealer(scope);
   r.reveal('a.go', 5);
   r.preps[0]('lines');
   await waitFor(r.a, (s) => s.matches('unfolding'));
@@ -32,7 +35,8 @@ test('reveal: prepare, land, unfold and land again, glow and say landed, then le
 });
 
 test("reveal: a newer reveal drops the older one's late work; nothing to highlight still says landed", async () => {
-  const r = revealer();
+  using scope = fixture();
+  const r = revealer(scope);
   r.reveal('a.go', 5);
   r.reveal('b.go');
   r.preps[0]('lines'); // stale: its state is gone
@@ -42,7 +46,8 @@ test("reveal: a newer reveal drops the older one's late work; nothing to highlig
 });
 
 test('reveal: the user selecting while it glows keeps their selection; a reveal while it glows clears first', async () => {
-  const r = revealer();
+  using scope = fixture();
+  const r = revealer(scope);
   r.reveal('a.go', 5);
   r.preps[0]('lines');
   await waitFor(r.a, (s) => s.matches('unfolding'));
@@ -60,7 +65,8 @@ test('reveal: the user selecting while it glows keeps their selection; a reveal 
 });
 
 test('reveal: selecting while it unfolds ends it, nothing clears the selection later; jumping mid-unfold drops our highlight', async () => {
-  const r = revealer();
+  using scope = fixture();
+  const r = revealer(scope);
   r.reveal('a.go', 5);
   r.preps[0]('lines');
   await waitFor(r.a, (s) => s.matches('unfolding'));

@@ -3,6 +3,7 @@ import { createActor, fromCallback, fromPromise, SimulatedClock } from 'xstate';
 import { emptyState, type Op, type ReviewState } from '../state/model.shared.ts';
 import { roundStatus, syncMachine, unsent, view } from './sync.machine.ts';
 import { tick } from '../../testing/wait';
+import { fixture, type Fixture } from '../../testing/fixture';
 
 const pin = (ref: string): Op => ({ op: 'setPin', ref, pinned: true });
 const at = (rev: number, pins: string[] = []): ReviewState => ({ ...emptyState(), rev, pins });
@@ -10,7 +11,7 @@ const T0 = '2026-10-17T10:00:00.000Z';
 const S = T0; // when the server started
 
 /** The server answers when the test says so: `reply()` settles the oldest pending POST. */
-const start = () => {
+const start = (scope: Fixture) => {
   const clock = new SimulatedClock();
   const posts: { ops: Op[]; ok: (v: { rev: number } | { rejected: number; error: string }) => void; fail: (e: Error) => void }[] = [];
   let streams = 0;
@@ -25,6 +26,7 @@ const start = () => {
     }),
     { input: { base: at(1) }, clock },
   );
+  scope.defer(() => a.stop());
   const out: { type: string; text?: string; state?: ReviewState }[] = [];
   for (const t of ['state', 'error', 'reload'] as const) a.on(t, (e) => void out.push(e));
   a.start();
@@ -39,7 +41,8 @@ const start = () => {
 };
 
 test('one send in flight; ops queued meanwhile go next and only what went out is acked', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'op', op: pin('a') });
   t.a.send({ type: 'op', op: pin('b') });
   expect(t.posts.map((p) => p.ops.length)).toEqual([1]);
@@ -55,7 +58,8 @@ test('one send in flight; ops queued meanwhile go next and only what went out is
 });
 
 test('until the server has them, what is shown is its state plus the unsent ops; older broadcasts are ignored', () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'op', op: pin('a') });
   t.a.send({ type: 'state', state: at(0, ['old']) });
   expect(t.ctx().base.rev).toBe(1);
@@ -63,7 +67,8 @@ test('until the server has them, what is shown is its state plus the unsent ops;
 });
 
 test('a stall is said once, retried on the timer, and said again after the next success', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'op', op: pin('a') });
   await t.reply(new TypeError('fetch failed'));
   expect(t.out.map((e) => e.text)).toEqual(['Not saved yet: the reviewroom server is not answering. Retrying.']);
@@ -80,7 +85,8 @@ test('a stall is said once, retried on the timer, and said again after the next 
 });
 
 test('stalled: the server saying hello again, or a flush, sends at once', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'op', op: pin('a') });
   await t.reply(new TypeError('x'));
   t.a.send({ type: 'flush' });
@@ -91,7 +97,8 @@ test('stalled: the server saying hello again, or a flush, sends at once', async 
 });
 
 test('an op that can never apply is dropped and said; the rest of its batch still saves', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'op', op: pin('a') });
   await t.reply(new TypeError('x'));
   t.a.send({ type: 'op', op: pin('b') });
@@ -104,7 +111,8 @@ test('an op that can never apply is dropped and said; the rest of its batch stil
 });
 
 test('the stream reconnects after a drop and catches up; a new run reloads once the send in flight is done', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'hello', hash: 'h1', started: S });
   t.a.send({ type: 'down' });
   t.clock.increment(2000);
@@ -124,7 +132,8 @@ test('the stream reconnects after a drop and catches up; a new run reloads once 
 });
 
 test('a reload waits for ops queued behind the send in flight', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'hello', hash: 'h1', started: S });
   t.a.send({ type: 'op', op: pin('a') });
   t.a.send({ type: 'op', op: pin('b') });
@@ -136,7 +145,8 @@ test('a reload waits for ops queued behind the send in flight', async () => {
 });
 
 test('stalled when a reload is due: one more try at once, then reload whatever it says', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'hello', hash: 'h1', started: S });
   t.a.send({ type: 'op', op: pin('a') });
   await t.reply(new TypeError('x'));
@@ -147,7 +157,8 @@ test('stalled when a reload is due: one more try at once, then reload whatever i
 });
 
 test('a rejection is an answer: a stall that ends in one is over', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'op', op: pin('a') });
   await t.reply(new TypeError('x'));
   t.clock.increment(3000);
@@ -164,7 +175,8 @@ test('round status comes from the state and which run of the server this is', ()
 });
 
 test('a due reload still goes once a send fails, even after a success in between', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'hello', hash: 'h1', started: S });
   t.a.send({ type: 'op', op: pin('a') });
   await t.reply(new TypeError('x'));
@@ -177,7 +189,8 @@ test('a due reload still goes once a send fails, even after a success in between
 });
 
 test('first contact catches up on what changed since the page loaded; the round status waits for it', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.refetch(at(4, ['other tab']));
   t.a.send({ type: 'hello', hash: 'h1', started: S });
   expect(t.a.getSnapshot().hasTag('catchingUp')).toBe(true);

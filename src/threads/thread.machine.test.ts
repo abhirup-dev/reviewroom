@@ -2,10 +2,11 @@ import { expect, test } from 'bun:test';
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { threadMachine } from './thread.machine.ts';
 import { tick } from '../testing/wait';
+import { fixture, type Fixture } from '../testing/fixture';
 
 const anchor = { kind: 'general' } as const;
 /** Requests answer when the test says so: `answer.create(x)` settles the pending create. */
-const start = () => {
+const start = (scope: Fixture) => {
   let cleared = 0;
   const answer: { create?: (v: string | boolean) => void; resolve?: (v: boolean) => void } = {};
   const a = createActor(
@@ -18,12 +19,14 @@ const start = () => {
       delays: { leave: 0 },
     }),
   ).start();
+  scope.defer(() => a.stop());
   const settled = () => waitFor(a, (s) => !s.matches({ composing: 'sending' }) && !s.matches('resolving'));
   return { a, answer, settled, cleared: () => cleared, at: () => a.getSnapshot().value, view: () => a.getSnapshot().context.view };
 };
 
 test('sending the first comment opens the new thread in a fresh view and drops the selection', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'compose', anchor, to: 'agent' });
   const composing = t.view();
   t.a.send({ type: 'compose', anchor: { kind: 'general' } }); // another anchor: still composing, selection kept
@@ -36,7 +39,8 @@ test('sending the first comment opens the new thread in a fresh view and drops t
 });
 
 test('a comment posted on GitHub closes the popup; one not sent stays in the composer', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'compose', anchor });
   t.a.send({ type: 'submit', body: 'hi', toGitHub: true });
   t.answer.create!(false);
@@ -49,7 +53,8 @@ test('a comment posted on GitHub closes the popup; one not sent stays in the com
 });
 
 test('closing a draft drops the selection; closing a thread has nothing to drop', () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'compose', anchor });
   t.a.send({ type: 'close' });
   expect([t.at(), t.view(), t.cleared()]).toEqual(['closed', null, 1]);
@@ -59,7 +64,8 @@ test('closing a draft drops the selection; closing a thread has nothing to drop'
 });
 
 test('opening a thread again gives a fresh view (docked and undocked again, say)', () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'open', id: 't1' });
   const first = t.view();
   t.a.send({ type: 'open', id: 't1' });
@@ -68,7 +74,8 @@ test('opening a thread again gives a fresh view (docked and undocked again, say)
 });
 
 test('resolving fades out then closes; refused, the thread stays up', async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'open', id: 't1' });
   t.a.send({ type: 'resolve' });
   t.answer.resolve!(false);
@@ -86,7 +93,8 @@ test('resolving fades out then closes; refused, the thread stays up', async () =
 });
 
 test("a slow answer for a thread the popup has left doesn't drive the next one", async () => {
-  const t = start();
+  using scope = fixture();
+  const t = start(scope);
   t.a.send({ type: 'open', id: 't1' });
   t.a.send({ type: 'resolve' });
   t.a.send({ type: 'open', id: 't2' });
