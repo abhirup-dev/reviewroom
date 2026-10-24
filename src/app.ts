@@ -2,6 +2,7 @@
 // It owns data (meta, files, threads), preferences, navigation and the dock.
 import { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
+import { createActor, fromPromise, waitFor } from 'xstate';
 import { Commands } from './kernel/commands';
 import { Emitter, loadLocal, saveLocal } from './kernel/store';
 import { refLabel } from './kernel/refs/browser';
@@ -17,6 +18,7 @@ import type { Walkthrough } from './slides/model.shared';
 import { showPanel } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
+import { rangeMachine } from './review/range.machine';
 import type { Anchor, Op } from './kernel/state/schema.shared';
 
 export interface Prefs {
@@ -89,12 +91,18 @@ export class ReviewApp {
   /** The PR's GitHub threads, when the review is a GitHub PR and the server can reach it. */
   github: GitHubSnapshot | null = null;
   prefs: Prefs;
-  files: ChangedFile[] = [];
   commits: Commit[] = [];
   /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;
-  range!: DiffRange;
+  /** The range the panes show and its files (src/review/range.machine.ts): the latest `setRange` wins. */
+  private readonly rangeSwitch = createActor(rangeMachine.provide({ actors: { files: fromPromise(async ({ input }) => (await this.provider.files(input)).sort(reviewOrder)) } })).start();
+  get range(): DiffRange {
+    return this.rangeSwitch.getSnapshot().context.range!;
+  }
+  get files(): ChangedFile[] {
+    return this.rangeSwitch.getSnapshot().context.files;
+  }
   dock!: DockviewApi;
   /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
@@ -128,6 +136,7 @@ export class ReviewApp {
     if (this.disposed) return;
     this.disposed = true;
     for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
+    this.rangeSwitch.stop();
     this.dock?.dispose();
     this.backend?.dispose?.();
     this.bus.clear();
@@ -136,6 +145,8 @@ export class ReviewApp {
   // Keep new ReviewApp(root) compatible; boot supplies its composition explicitly.
   constructor(public root: HTMLElement, createServices = createReviewServices) {
     this.prefs = loadLocal('reviewroom:prefs', defaultPrefs);
+    this.rangeSwitch.on('shown', ({ range, files }) => (this.bus.emit('range', range), this.bus.emit('files', files)));
+    this.rangeSwitch.on('failed', ({ error }) => this.toast(`Could not load that range's changes: ${error instanceof Error ? error.message : String(error)}`, 'error'));
     this.services = createServices({
       github: {
         backend: () => this.backend,
@@ -187,11 +198,10 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ code data
+  /** Show a range; resolves once the latest range asked for is on screen (or its lookup failed). */
   async setRange(r: DiffRange) {
-    this.range = r;
-    this.files = (await this.provider.files(r)).sort(reviewOrder);
-    this.bus.emit('range', r);
-    this.bus.emit('files', this.files);
+    this.rangeSwitch.send({ type: 'select', range: r });
+    await waitFor(this.rangeSwitch, (s) => s.matches('idle'));
   }
   /** The stack PR the panes show (undefined: the whole stack, or no stack). */
   get stackPr() {
@@ -200,10 +210,12 @@ export class ReviewApp {
   /** Show the next (+1) or previous (-1) PR of the stack; from the whole stack, the bottom or top one. */
   stepPr(d: number) {
     const s = this.meta.stack;
-    if (!s) return;
-    const i = s.findIndex((p) => p.number === this.range.pr);
+    if (!s) return Promise.resolve();
+    // from the range on its way, so pressing twice quickly steps twice
+    const from = this.rangeSwitch.getSnapshot().context.want ?? this.range;
+    const i = s.findIndex((p) => p.number === from.pr);
     const to = s[i < 0 ? (d > 0 ? 0 : s.length - 1) : Math.min(s.length - 1, Math.max(0, i + d))];
-    if (to.number !== this.range.pr || this.range.key !== `pr-${to.number}`) void this.setRange(this.services.code.prRange(to.number)!);
+    return this.setRange(this.services.code.prRange(to.number)!);
   }
   /** Switch to the range a code thread was made on, when the active one doesn't draw it. */
   async showRangeOf(a: Anchor) {
@@ -228,7 +240,7 @@ export class ReviewApp {
         // a stack PR's layer: show it first
         const layer = r.pr ? this.services.code.prRange(r.pr) : undefined;
         if (r.pr && !layer) return this.toast(`PR #${r.pr} is not in this review's stack`, 'error');
-        if (layer && this.range.key !== layer.key) await this.setRange(layer);
+        if (layer) await this.setRange(layer);
         const side = r.rev === 'base' ? 'base' : 'head';
         const rev = !r.pr && r.rev !== 'base' && r.rev !== 'head' ? r.rev : undefined;
         // a path outside the diff has no hunks to show: open the whole file instead

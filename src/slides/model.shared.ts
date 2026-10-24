@@ -89,8 +89,8 @@ export type Walkthrough = z.infer<typeof Walkthrough>;
 
 /** A position in a loaded or loading guided walkthrough. Helpers require a loaded document. */
 export type WalkthroughPosition = { doc: Walkthrough | null; chapter: number; step: number };
-/** What the pane is asked to show, before any browser-side code lookup. */
-export type PaneWant = { kind: 'refs'; refs: string[] } | { kind: 'empty' };
+/** What the pane is asked to show, before any browser-side code lookup; `pr`, on a stack: whose layer it shows. */
+export type PaneWant = ({ kind: 'refs'; refs: string[] } | { kind: 'empty' }) & { pr?: number };
 
 /** Where the player is, for views. */
 export function current({ doc, chapter, step }: WalkthroughPosition) {
@@ -103,11 +103,13 @@ export function current({ doc, chapter, step }: WalkthroughPosition) {
  *  last links of an earlier chapter; else nothing. The lead's diagram stays in the lead. */
 export function target({ doc, chapter, step }: WalkthroughPosition): PaneWant {
   const ch = doc!.chapters[chapter];
+  // a chapter of a stack PR shows that PR's layer; one about the whole stack, the whole stack
+  const layer = ch.pr ? { pr: ch.pr } : {};
   const last = (steps: Walkthrough['chapters'][number]['steps']) => stepRefs(steps.findLast((s) => s.ref) ?? {});
   const back = last(ch.steps.slice(0, step + 1));
-  if (back.length) return { kind: 'refs', refs: back };
+  if (back.length) return { kind: 'refs', refs: back, ...layer };
   const earlier = last(doc!.chapters.slice(0, chapter).flatMap((c) => c.steps));
-  return earlier.length ? { kind: 'refs', refs: earlier } : { kind: 'empty' };
+  return earlier.length ? { kind: 'refs', refs: earlier, ...layer } : { kind: 'empty', ...layer };
 }
 
 /** The `?walkthrough=<chapter>/<step>` deep link (either part optional); null when absent. */

@@ -20,18 +20,16 @@ test('a stack offers the whole stack, then each layer before its commits', () =>
   expect(stackApp().services.code.ranges().map((r) => r.key)).toEqual(['all', 'pr-1', 'a', 'pr-2', 'b1', 'b', 'pr-3']);
 });
 
-test('stepping goes layer by layer and stops at the ends', async () => {
+test('stepping goes layer by layer and stops at the ends; two quick steps are two steps', async () => {
   const app = stackApp();
   await app.setRange(app.services.code.ranges()[0]);
-  app.stepPr(-1); // from the whole stack: the top
-  await Promise.resolve();
+  await app.stepPr(-1); // from the whole stack: the top
   expect(app.range.key).toBe('pr-3');
-  app.stepPr(1);
-  await Promise.resolve();
+  await app.stepPr(1);
   expect(app.range.key).toBe('pr-3');
-  app.stepPr(-1);
-  await Promise.resolve();
-  expect(app.range.key).toBe('pr-2');
+  void app.stepPr(-1);
+  await app.stepPr(-1);
+  expect(app.range.key).toBe('pr-1');
 });
 
 test("a plain link inside a data-pr element means that PR's layer; @pr and revs are kept", () => {

@@ -143,7 +143,7 @@ export const walkthroughMachine = setup({
     // a reloaded document keeps the position where it still exists
     load: assign(({ context, event }) => (event.type !== 'load' ? {} : event.doc ? { doc: event.doc, ...at(event.doc, context.chapter, context.step) } : { doc: null })),
     /** point the pane at the current step, or at the links of a `focus` */
-    aim: sendTo('pane', ({ context, event }) => ({ type: 'show' as const, want: event.type === 'focus' && event.refs?.length ? { kind: 'refs' as const, refs: event.refs } : target(context) })),
+    aim: sendTo('pane', ({ context, event }) => ({ type: 'show' as const, want: event.type === 'focus' && event.refs?.length ? { ...target(context), kind: 'refs' as const, refs: event.refs } : target(context) })),
   },
 }).createMachine({
   id: 'walkthrough',

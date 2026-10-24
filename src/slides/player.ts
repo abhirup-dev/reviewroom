@@ -43,8 +43,7 @@ export function mountWalkthrough(app: ReviewApp) {
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
   const split = h('div', { class: 'rr-tour__body' });
-  // a stack of PRs: the layer switch a chapter waits for; the whole walkthrough (app.walkthrough) or this PR's chapters
-  let layer: Promise<void> = Promise.resolve();
+  // a stack of PRs: the whole walkthrough (app.walkthrough) or this PR's chapters
   let scope: 'pr' | 'stack' = 'stack';
   // the display toggles, once for every chunk (prefs: each panel follows them); hidden when no code is shown
   const tools = h('div', { class: 'rr-toolbar rr-tour__tools', hidden: true });
@@ -87,8 +86,8 @@ export function mountWalkthrough(app: ReviewApp) {
   const pane$ = paneMachine.provide({
     actors: {
       resolve: fromPromise(async ({ input }) => {
-        await Promise.resolve(); // the subscriber below may switch the stack layer for this chapter; its code resolves there
-        await layer;
+        // a stack: first the layer the chapter is about (none: the whole stack), so its links resolve there
+        if (app.meta.stack) await app.setRange((input.pr && app.services.code.prRange(input.pr)) || app.services.code.ranges()[0]);
         return input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(app, ref) }))) } : input;
       }),
     },
@@ -279,8 +278,6 @@ export function mountWalkthrough(app: ReviewApp) {
     if (chapter !== last.chapter || d !== last.doc) {
       const stack = app.meta.stack;
       if (stack) {
-        const want = ch.pr ? app.services.code.prRange(ch.pr) : app.services.code.ranges()[0];
-        if (want && want.key !== app.range.key) layer = app.setRange(want);
         const p = stack.find((x) => x.number === ch.pr);
         prChip.hidden = !p;
         if (p) prChip.replaceChildren(h('span', { class: `rr-stack-dot is-${p.state}` }), `#${p.number}`);

@@ -187,6 +187,24 @@ test('the player aims its pane at every step and stops it on close', async () =>
   expect([shows, unmounts]).toEqual([['rr:code/a.go#L1 rr:code/b.go#L2', 'rr:code/a.go#L5', 'rr:sym/Fetcher'], 1]);
 });
 
+test("on a stack, the pane is asked for its chapter's layer, for a step's links or a focus; a stack-wide chapter asks for none", async () => {
+  using scope = fixture();
+  const d: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'all', title: 'All', steps: [{ id: 's0', text: 'x' }] }, { id: 'two', title: 'Two', pr: 2, steps: [{ id: 's1', text: 'x', ref: 'rr:code/a.go#L1' }] }] };
+  const asked: (number | undefined)[] = [];
+  const p = paneMachine.provide({
+    actors: { resolve: fromPromise(async ({ input }: { input: PaneWant }): Promise<PaneShown> => (asked.push(input.pr), { kind: 'empty' })) },
+    delays: { fade: 0 },
+  });
+  const a = createActor(walkthroughMachine.provide({ actors: { pane: p } })).start();
+  scope.defer(() => a.stop());
+  a.send({ type: 'load', doc: d });
+  a.send({ type: 'open' });
+  a.send({ type: 'next' });
+  a.send({ type: 'focus', refs: ['rr:sym/Fetcher'] });
+  await until(() => asked.length === 3);
+  expect(asked).toEqual([undefined, 2, 2]);
+});
+
 test('pane: back to what is on screen during a fade glides and fades back in', async () => {
   using scope = fixture();
   const { a, log, settle } = pane(scope);
