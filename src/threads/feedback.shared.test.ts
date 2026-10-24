@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { emptyState, type ReviewState } from '../kernel/state/model.shared';
+import { build } from '../testing/build';
 import { feedbackMarkdown } from './feedback.shared';
 import type { Walkthrough } from '../slides/model.shared';
 
@@ -10,14 +10,11 @@ const walkthrough: Walkthrough = {
     { id: 'why', title: 'Why this change', steps: [{ id: 's1', text: '<p>One</p>' }, { id: 's2', text: '<p>The <a href="rr:code/a.go">fetcher</a> &amp; its <code>deadline</code>.</p>' }] },
   ],
 };
-const thread = (id: string, anchor: ReviewState['threads'][number]['anchor']) => ({ id, anchor, status: 'open' as const, createdRound: 1, messages: [{ id: 'm' + id, author: 'you' as const, round: 1, body: 'unclear', at: '' }] });
 
 test('tour threads come last, in tour order, with their slide; a removed step is flagged', () => {
-  const state = {
-    ...emptyState(),
-    round: 1,
-    threads: [thread('t_gone', { kind: 'tour', chapter: 'why', step: 'old' }), thread('t_s2', { kind: 'tour', chapter: 'why', step: 's2' }), thread('t_gen', { kind: 'general' })],
-  } as ReviewState;
+  const state = build.state({
+    threads: [build.thread('t_gone', { anchor: build.anchor.tour('why', 'old') }), build.thread('t_s2', { anchor: build.anchor.tour('why', 's2') }), build.thread('t_gen')],
+  });
   const md = feedbackMarkdown(state, { kind: 'feedback', walkthrough });
   const anchors = md.split('\n').filter((l) => l.startsWith('Anchor: '));
   expect(anchors).toEqual([

@@ -1,9 +1,8 @@
-import { afterEach, expect, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { emptyState } from '../state/model.shared';
 import { ServerState } from './server-state';
-import { afterThisTest, replaceGlobal, restoreGlobals } from '../../testing/globals';
+import { fixture, type Fixture } from '../../testing/fixture';
 
-afterEach(restoreGlobals);
 import { tick } from '../../testing/wait';
 
 class Stream extends EventTarget {
@@ -18,43 +17,45 @@ class Stream extends EventTarget {
     this.closed = true;
   }
 }
-function server() {
+function server(t: Fixture) {
   const page = new EventTarget();
-  replaceGlobal('addEventListener', page.addEventListener.bind(page));
-  replaceGlobal('removeEventListener', page.removeEventListener.bind(page));
+  t.global('addEventListener', page.addEventListener.bind(page));
+  t.global('removeEventListener', page.removeEventListener.bind(page));
   Stream.opened = [];
-  replaceGlobal('EventSource', Stream);
+  t.global('EventSource', Stream);
   const backend = new ServerState('/test-api');
-  afterThisTest(() => backend.dispose());
+  t.defer(() => backend.dispose());
   return { backend, page };
 }
 const listen = (backend: ServerState, state = () => {}) => backend.subscribe({ state, error: () => {}, review: () => {} });
 
 test('walkthrough transport preserves 200 and 422 JSON, returns null on 404, and rejects other failures', async () => {
-  const { backend } = server();
+  using t = fixture();
+  const { backend } = server(t);
   const raw = { version: 999, unexpected: true }; // transport must not validate the feature schema
   for (const [status, body] of [[200, raw], [422, { issues: ['invalid chapter'] }]] as const) {
-    replaceGlobal('fetch', async () => Response.json(body, { status }));
+    t.global('fetch', async () => Response.json(body, { status }));
     expect(await backend.walkthrough()).toEqual(body);
   }
-  replaceGlobal('fetch', async () => new Response('not JSON', { status: 404 }));
+  t.global('fetch', async () => new Response('not JSON', { status: 404 }));
   expect(await backend.walkthrough()).toBeNull();
-  replaceGlobal('fetch', async () => new Response('', { status: 503, statusText: 'Unavailable' }));
+  t.global('fetch', async () => new Response('', { status: 503, statusText: 'Unavailable' }));
   expect(backend.walkthrough()).rejects.toThrow('walkthrough.json: 503 Unavailable');
-  replaceGlobal('fetch', async () => new Response('not JSON', { status: 200 }));
+  t.global('fetch', async () => new Response('not JSON', { status: 200 }));
   expect(backend.walkthrough()).rejects.toThrow();
 });
 
 test('dispose closes the stream, aborts actor requests, removes unload prevention, and is idempotent', async () => {
+  using t = fixture();
   let posting: AbortSignal | undefined;
-  replaceGlobal('fetch', async (url: string, init?: RequestInit) => {
+  t.global('fetch', async (url: string, init?: RequestInit) => {
     if (url.endsWith('/ops')) {
       posting = init?.signal ?? undefined;
       return new Promise<Response>(() => {});
     }
     return Response.json(emptyState());
   });
-  const { backend, page } = server();
+  const { backend, page } = server(t);
   await backend.load();
   let states = 0;
   listen(backend, () => states++);
@@ -78,14 +79,15 @@ test('dispose closes the stream, aborts actor requests, removes unload preventio
 });
 
 test('dispose aborts a live state refetch', async () => {
+  using t = fixture();
   let refetch: AbortSignal | undefined;
   let calls = 0;
-  replaceGlobal('fetch', async (_url: string, init?: RequestInit) => {
+  t.global('fetch', async (_url: string, init?: RequestInit) => {
     if (++calls === 1) return Response.json(emptyState());
     refetch = init?.signal ?? undefined;
     return new Promise<Response>(() => {});
   });
-  const { backend } = server();
+  const { backend } = server(t);
   await backend.load();
   listen(backend);
   Stream.opened[0].dispatchEvent(new MessageEvent('hello', { data: JSON.stringify({ hash: 'hash', started: 'now' }) }));
@@ -95,13 +97,14 @@ test('dispose aborts a live state refetch', async () => {
 });
 
 test('dispose during initial load cannot start an actor after a late response', async () => {
+  using t = fixture();
   let reply!: (response: Response) => void;
   let signal: AbortSignal | undefined;
-  replaceGlobal('fetch', (_url: string, init?: RequestInit) => {
+  t.global('fetch', (_url: string, init?: RequestInit) => {
     signal = init?.signal ?? undefined;
     return new Promise<Response>((resolve) => { reply = resolve; });
   });
-  const { backend } = server();
+  const { backend } = server(t);
   const loading = backend.load();
   backend.dispose();
   expect(signal?.aborted).toBe(true);
@@ -111,8 +114,9 @@ test('dispose during initial load cannot start an actor after a late response', 
 });
 
 test('reloading replaces the previous actor and stream', async () => {
-  replaceGlobal('fetch', async () => Response.json(emptyState()));
-  const { backend } = server();
+  using t = fixture();
+  t.global('fetch', async () => Response.json(emptyState()));
+  const { backend } = server(t);
   await backend.load();
   listen(backend);
   const first = Stream.opened[0];

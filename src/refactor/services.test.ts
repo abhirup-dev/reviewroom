@@ -1,30 +1,31 @@
 // Extraction wiring: services see the app's live state, and boot can replace one capability.
 // Consolidate only when the permanent public-contract suite covers these seams.
-import { afterAll, afterEach, expect, mock, test } from 'bun:test';
-import { installDOM } from '../testing/dom';
+import { afterAll, expect, mock, test } from 'bun:test';
+import { fixture, type Fixture } from '../testing/fixture';
+import { build } from '../testing/build';
 import { memoryBackend } from '../testing/mount-review';
 import { createReviewServices } from '../services';
-import { emptyState } from '../kernel/state/model.shared';
+import { installDOM } from '../testing/dom';
 
+// the app's modules touch the DOM as they load
 const dom = installDOM();
 const { ReviewApp } = await import('../app');
-const apps: InstanceType<typeof ReviewApp>[] = [];
-afterEach(() => { for (const app of apps.splice(0)) app.dispose(); });
 afterAll(() => dom.restore());
 
-function fixture(createServices = createReviewServices) {
+function reviewApp(t: Fixture, createServices = createReviewServices) {
   const app = new ReviewApp(document.createElement('div'), createServices);
-  apps.push(app);
+  t.defer(() => app.dispose());
   const storage = memoryBackend();
   app.backend = storage.backend;
   return { app, writes: storage.writes };
 }
 
 test('services observe replaced state through live getters', () => {
-  const { app, writes } = fixture();
+  using t = fixture();
+  const { app, writes } = reviewApp(t);
   const changes = mock(() => {});
   app.bus.on('state', changes);
-  app.state = { ...emptyState(), round: 7 };
+  app.state = build.state({ round: 7 });
   const thread = app.services.threads.createThread({ kind: 'general' }, 'New round');
   if (!thread || thread instanceof Promise) throw new Error('Expected a local thread');
   expect(thread.messages[0].round).toBe(7);
@@ -33,8 +34,9 @@ test('services observe replaced state through live getters', () => {
 });
 
 test('the composition factory can replace one capability without changing the shell', async () => {
+  using t = fixture();
   const read = mock(async (_path: string, _rev: string) => 'injected content');
-  const { app } = fixture((deps) => {
+  const { app } = reviewApp(t, (deps) => {
     const services = createReviewServices(deps);
     return { ...services, code: { ...services.code, read } };
   });
