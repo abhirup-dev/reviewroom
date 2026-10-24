@@ -5,7 +5,7 @@ const KIND: Record<string, string> = {
   FIGURE: 'Figure', FIGCAPTION: 'Caption', PRE: 'Code block', CODE: 'Code', IMG: 'Image', SVG: 'Diagram', CANVAS: 'Chart', VIDEO: 'Video',
   BLOCKQUOTE: 'Quote', DETAILS: 'Details', SUMMARY: 'Summary', H1: 'Title', H2: 'Heading', H3: 'Heading', H4: 'Heading', SECTION: 'Section',
   'RR-FLOW': 'Flow diagram', 'RR-NODE': 'Flow step', 'RR-CHECKLIST': 'Checklist', 'RR-CHECK': 'Checklist item', 'RR-CALLOUT': 'Callout',
-  'RR-CODE': 'Code snippet', 'RR-EMBED': 'Preview', 'RR-REF': 'Link', BUTTON: 'Button', INPUT: 'Control', LABEL: 'Label', A: 'Link',
+  'RR-CODE': 'Code snippet', 'RR-MERMAID': 'Diagram', 'RR-EMBED': 'Preview', 'RR-REF': 'Link', BUTTON: 'Button', INPUT: 'Control', LABEL: 'Label', A: 'Link',
 };
 
 /** Find a walkthrough element by anchor id (+ optional css path below it). */

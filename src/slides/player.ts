@@ -131,11 +131,13 @@ export function mountWalkthrough(app: ReviewApp) {
     const want = target(c);
     const refs = want.kind === 'refs' ? want.refs : [];
     const { focus } = current(c).step;
+    // Mermaid nodes (rendered later: `rr-mermaid:ready` repaints) take their label from the text, their ref from a `click` link
     requestAnimationFrame(() =>
-      root.querySelectorAll('rr-flow').forEach((flow) => {
+      root.querySelectorAll('rr-flow, rr-mermaid').forEach((flow) => {
         let any = false;
-        flow.querySelectorAll('rr-node').forEach((n) => {
-          const on = inFocus({ label: label(n), ref: n.getAttribute('ref') }, focus, refs);
+        flow.querySelectorAll('rr-node, .pele-node').forEach((n) => {
+          const node = n.matches('rr-node') ? { label: label(n), ref: n.getAttribute('ref') } : { label: n.querySelector('.pele-label')?.textContent?.trim() ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
+          const on = inFocus(node, focus, refs);
           n.classList.toggle('is-focus', on);
           any ||= on;
         });
@@ -185,6 +187,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
+  root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
 
   const ctx = () => actor.getSnapshot().context;

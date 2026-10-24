@@ -9,7 +9,7 @@ const nonEmpty = z.string().min(1, 'must be a non-empty string');
 // quoted into the agent's feedback markdown: a line break there could forge a heading
 const title = nonEmpty.max(120, 'must be at most 120 characters').regex(/^[^\r\n]*$/, 'must be one line');
 const id = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'must be lowercase letters, digits and dashes');
-const html = z.string().describe('Narrative HTML: rr: links, <rr-flow>, <rr-code> work as in review.html');
+const html = z.string().describe('Prose HTML: rr: links, <rr-mermaid>, <rr-flow>, <rr-code> work as in review.html');
 // a ref the right pane can show: code/file with ordered, positive lines; sym/doc with a name
 const showable = (input: string) => {
   const r = parseRef(input);
@@ -35,7 +35,7 @@ export const Step = z.object({
   focus: z
     .array(nonEmpty)
     .optional()
-    .describe('Labels of the <rr-node>s that light up on this step, in the lead or the text. Omitted: nodes whose ref overlaps the code the pane shows; [] lights none'),
+    .describe('Labels of the diagram nodes (<rr-node>, or a Mermaid node in an <rr-mermaid>) that light up on this step, in the lead or the text. Omitted: nodes whose ref overlaps the code the pane shows; [] lights none'),
 });
 
 /** A step's pane links as a list (`ref` may be one link or several). */
@@ -49,7 +49,7 @@ const overlaps = (a: Ref | null, b: Ref | null): boolean => {
   return a?.type === 'doc' && b?.type === 'doc' && a.id === b.id;
 };
 
-/** Whether a diagram node lights up on a step: one its `focus` names, else one whose ref overlaps the pane's links. */
+/** Whether a diagram node (an <rr-node>, or a Mermaid node) lights up on a step: one its `focus` names, else one whose ref overlaps the pane's links. */
 export const inFocus = (node: { label: string; ref: string | null }, focus: string[] | undefined, paneRefs: string[]): boolean =>
   focus ? focus.includes(node.label) : !!node.ref && paneRefs.some((r) => overlaps(parseRef(node.ref!), parseRef(r)));
 
@@ -57,7 +57,7 @@ const Chapter = z
   .object({
     id,
     title,
-    lead: html.optional().describe('Static for the whole chapter; may hold an <rr-flow> diagram'),
+    lead: html.optional().describe('Static for the whole chapter; may hold an <rr-mermaid> or <rr-flow> diagram'),
     steps: z.array(Step).min(1, 'needs at least one step'),
   })
   .superRefine((c, ctx) => unique(c.steps.map((s) => s.id), 'step', ctx, (i) => ['steps', i, 'id']));

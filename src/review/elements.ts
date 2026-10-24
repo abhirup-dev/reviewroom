@@ -228,10 +228,21 @@ class RRCheck extends HTMLElement {
 class RRMermaid extends HTMLElement {
   private generation = 0;
   private mounted?: Awaited<ReturnType<typeof import('./markdown/diagram').mountDiagram>>;
+  constructor() {
+    super();
+    // a `click N "rr:…"` statement opens the code like any rr: link
+    this.addEventListener('click', (e) => {
+      const ref = (e.target instanceof Element ? e.target.closest('a') : null)?.getAttribute('href');
+      if (!ref?.startsWith('rr:')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      withApp((a) => a.open(ref));
+    });
+  }
   connectedCallback() {
     if (this.mounted) return;
     const generation = ++this.generation;
-    const source = this.dataset.src ?? this.textContent ?? '';
+    const source = (this.dataset.src ?? this.textContent ?? '').trim(); // indented authoring leaves a blank last line some types reject
     this.dataset.src = source;
     const diagram = h('div', { class: 'rr-mermaid__diagram', role: 'img', 'aria-label': 'Mermaid diagram', 'aria-busy': 'true' });
     const status = h('div', { class: 'rr-muted', role: 'status' }, 'Rendering diagram…');
@@ -243,11 +254,18 @@ class RRMermaid extends HTMLElement {
       if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
       this.mounted = mounted;
       diagram.setAttribute('aria-busy', 'false');
-    }).catch(() => {
+      if (mounted.error) this.failed(mounted.error); // Pele draws its own error message in place of the diagram
+      this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })); // the guided walkthrough lights its nodes
+    }).catch((e) => {
       if (generation !== this.generation) return;
+      this.failed(e);
       diagram.replaceChildren(h('div', { class: 'rr-muted', role: 'status' }, 'Diagram could not be rendered. Expand Diagram source to inspect it.'));
       diagram.setAttribute('aria-busy', 'false');
     });
+  }
+  /** A console error, so `reviewroom shot` and `slide-lint` report the broken diagram (the reviewer sees it broken too). */
+  private failed(e: unknown) {
+    console.error(`rr-mermaid${this.id ? '#' + this.id : ''}: the diagram could not be rendered: ${e instanceof Error ? e.message : String(e)}`);
   }
   disconnectedCallback() {
     queueMicrotask(() => {

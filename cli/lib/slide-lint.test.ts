@@ -77,6 +77,13 @@ test('a step\'s focus must name a diagram node in the chapter lead or the slide'
   expect(fs.map((f) => `${f.where} ${f.message}`)).toEqual(['a/s2 focus names no diagram node: Ranker']);
 });
 
+test('a focus may name a Mermaid node by its label', () => {
+  const lead = '<rr-mermaid>flowchart LR\n  A[Fetcher] --&gt; B[Ranker]</rr-mermaid>';
+  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['Fetcher', 'Ranker', 'Cache'] }];
+  const fs = lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', lead, steps }] }, [], () => undefined).filter((f) => f.check === 'unknown-focus');
+  expect(fs.map((f) => f.message)).toEqual(['focus names no diagram node: Cache']);
+});
+
 test('judge: a step without its own ref does not repeat the pane findings of the step before', () => {
   const audit: StepAudit = { left: { visible: 600, content: 600, lead: 0 }, chunks: [{ ref: 'rr:code/a.go#L1-50', code: true, lines: 50, visible: 30, hidden: 20 }], wide: [], stripped: { lead: [], text: [] }, settled: true };
   const fs = judge([
