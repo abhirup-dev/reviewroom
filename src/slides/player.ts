@@ -293,7 +293,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const immersive = () => chrome.getSnapshot().matches('immersive');
     chrome.subscribe(() => player.classList.toggle('is-immersive', immersive()));
     const wake = () => chrome.send({ type: 'wake' });
-    next.after(h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 24)));
+    left.append(h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20))); // immersive only (phone.css)
     // touching anything while the chrome shows keeps it up
     player.addEventListener('touchstart', () => chrome.send({ type: 'touch' }), { passive: true, capture: true });
     // a tap on the content brings it back (one on a link, a chip or a selection does what it does, and navigating wakes it anyway)
