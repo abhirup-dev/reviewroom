@@ -67,7 +67,13 @@ const styles = [
   ['src/review/styles/content.css'],
   ['src/review/styles/diagrams.css'],
   ['src/kernel/styles/dockview.css'],
-  ['src/kernel/styles/phone.css'],
+  // The phone shell, then each feature's phone rules (they override the shell's and their desktop rules).
+  [
+    'src/kernel/styles/phone.css',
+    'src/review/styles/review.phone.css',
+    'src/threads/styles/threads.phone.css',
+    'src/slides/styles/slides.phone.css',
+  ],
 ];
 
 // Hub cascade: tokens, shell controls, overlays, then hub-specific rules.
