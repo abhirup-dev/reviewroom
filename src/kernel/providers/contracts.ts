@@ -1,6 +1,6 @@
 // Contracts shared by provider implementations and their callers. No runtime dependencies.
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, GitHubSnapshot } from '../state/model.shared';
-import type { GitHubAction } from '../state/schema.shared';
+import type { GitHubAction, Verdicts } from '../state/schema.shared';
 import type { LastLayout, Layout, SavedLayouts } from '../layouts/layout.shared';
 import type { Op } from '../state/schema.shared';
 
@@ -31,7 +31,7 @@ export interface StateBackend {
   /** Live updates (agent replied, review.html changed, GitHub threads refetched) and save problems. */
   subscribe?(on: BackendEvents): void;
   /** End round `round`: send feedback to the agent, or approve. */
-  finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
+  finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number, verdicts?: Verdicts): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
   /** The reviewer's saved layouts and their default, shared by every review. */

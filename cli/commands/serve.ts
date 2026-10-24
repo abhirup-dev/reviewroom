@@ -9,6 +9,7 @@ import { type Finished, startServer, listen, openBrowser } from '../lib/server.t
 import { DIST, PKG } from '../lib/paths.ts';
 import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
 import { agentAncestor } from '../hub/proc.ts';
+import { headChanges, headsOf } from '../lib/git.ts';
 
 const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
 
@@ -41,7 +42,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
   let seen = false; // a page (browser or app tab) connected
-  const { app, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
+  const { app, prov, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
   const server = listen(app, +(portFlag || 4848));
   const port = server.port!;
   const url = `http://127.0.0.1:${port}/`;
@@ -50,7 +51,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const startedAt = new Date().toISOString();
   const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));
-  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt, agent, author: cfg.number ? (cfg.author ?? null) : null });
+  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt, agent, author: cfg.number ? (cfg.author ?? null) : null, stack: cfg.stack ? { id: cfg.stack.id, prs: cfg.stack.prs.map((p) => ({ number: p.number, title: p.title, url: p.url ?? null, state: p.state })) } : null });
   const cleanup = () => {
     releaseLock(dir);
     unregister(process.pid);
@@ -63,6 +64,13 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const s = readState(dir);
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} | round ${s.round} | ${url}`);
   checkNarrative(); // after the lock: it may write state.json
+  // what this round shows; what changed since the last round (pushes, force-pushes, restacks) is for the agent to know
+  const heads = headsOf(prov);
+  const last = s.rounds.filter((r) => r.n < s.round && r.heads).at(-1);
+  const changes = last ? headChanges(repo, last.heads!, heads) : [];
+  if (changes.length) console.error(`reviewroom: since round ${last!.n}:\n  ${changes.join('\n  ')}`);
+  const open = s.rounds.find((r) => r.n === s.round && r.status === 'open');
+  if (open && JSON.stringify(open.heads) !== JSON.stringify(heads)) commit([{ op: 'setHeads', round: s.round, heads }]);
   if (o.open) {
     // a tab from the previous round reconnects on its own; only open one if nobody shows up
     setTimeout(() => !seen && openBrowser(url, !o.browser), 2500);

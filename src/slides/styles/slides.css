@@ -502,3 +502,36 @@ span.rr-tour__chunk-head {
   font-size: var(--rr-text-xs);
   color: var(--rr-muted);
 }
+
+/* ---------------------------------------------------------------- a stack of PRs */
+.rr-tour__pr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border: 1px solid var(--rr-line-strong);
+  border-radius: 2px;
+  background: var(--rr-surface-nav);
+  color: var(--rr-ink-2);
+  font-family: var(--rr-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.rr-tour__pr[hidden],
+.rr-tour__scope[hidden] {
+  display: none;
+}
+.rr-tour__scope {
+  margin-right: 6px;
+}
+.rr-tour__seg.is-pr-start:not(:first-child) {
+  margin-left: 8px;
+}
+.rr-tour__seg-title b {
+  font-family: var(--rr-mono);
+  font-weight: 600;
+  color: var(--rr-ink-2);
+}
+.rr-tour__seg.is-merged .rr-tour__seg-title b {
+  color: var(--rr-merged);
+}

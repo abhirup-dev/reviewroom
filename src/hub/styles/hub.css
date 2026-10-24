@@ -372,3 +372,26 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
   height: 14px;
   font-size: 7px;
 }
+
+/* a stack's PRs under its row: each opens the review on that PR */
+.rr-hub__prs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.rr-hub__pr {
+  padding: 0 5px;
+  border: 1px solid var(--rr-line);
+  border-radius: 4px;
+  font: 500 11px/16px var(--rr-mono);
+  color: var(--rr-muted);
+  text-decoration: none;
+}
+a.rr-hub__pr:hover {
+  color: var(--rr-ink);
+  border-color: var(--rr-accent);
+}
+.rr-hub__pr.is-merged {
+  color: var(--rr-merged);
+}

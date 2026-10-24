@@ -70,10 +70,13 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
     case 'setThreadStatus':
       thread(s, op.threadId).status = op.status;
       break;
-    case 'setViewed':
-      if (op.viewed) s.viewed[op.path] = s.round;
-      else delete s.viewed[op.path];
+    case 'setViewed': {
+      // in a stack, a file is viewed per layer: the next PR may change it again
+      const key = op.pr ? `${op.pr}:${op.path}` : op.path;
+      if (op.viewed) s.viewed[key] = s.round;
+      else delete s.viewed[key];
       break;
+    }
     case 'setPin':
       s.pins = (s.pins ?? []).filter((p) => p !== op.ref);
       if (op.pinned) s.pins.push(op.ref);
@@ -89,13 +92,21 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
       if (op.round !== undefined && op.round !== s.round) throw new OpError('conflict', `round ${op.round} is already finished (now round ${s.round})`);
       if (r && r.status !== 'open') throw new OpError('conflict', `round ${s.round} is already ${r.status}`);
       // deliveredAt null = finished, not yet printed to the agent (absent on rounds from before this field existed)
-      const done: Pick<Round, 'status' | 'sentAt' | 'note' | 'deliveredAt'> = { status: op.kind === 'approve' ? 'approved' : 'sent', sentAt: now, note: op.note || undefined, deliveredAt: null };
+      const kind = finishKind(op);
+      const done: Pick<Round, 'status' | 'sentAt' | 'note' | 'deliveredAt' | 'verdicts'> = { status: kind === 'approve' ? 'approved' : 'sent', sentAt: now, note: op.note || undefined, deliveredAt: null, ...(op.verdicts && { verdicts: op.verdicts }) };
       if (r) Object.assign(r, done);
       else s.rounds.push({ n: s.round, startedAt: now, ...done });
-      if (op.kind === 'feedback') {
+      if (kind === 'feedback') {
         s.round += 1;
         s.rounds.push({ n: s.round, status: 'open', startedAt: now });
       }
+      break;
+    }
+    case 'setHeads': {
+      const r = s.rounds.find((x) => x.n === op.round);
+      if (!r) throw new OpError('not_found', `no round ${op.round}`);
+      if (r.status !== 'open') throw new OpError('conflict', `round ${op.round} is already ${r.status}: what it showed is settled`);
+      r.heads = op.heads;
       break;
     }
     case 'markDelivered': {
@@ -110,6 +121,10 @@ export function applyOp(state: ReviewState, input: Op): ReviewState {
   s.rev = (s.rev ?? 0) + 1;
   return s;
 }
+
+/** What finishing a round amounts to: with per-PR verdicts, an approval only if every PR is approved. */
+export const finishKind = (op: { kind: 'feedback' | 'approve'; verdicts?: Record<string, string> }) =>
+  op.kind === 'approve' && Object.values(op.verdicts ?? {}).some((v) => v !== 'approve') ? 'feedback' : op.kind;
 
 /** Rounds finished but never printed to the agent, oldest first. */
 /** The round the review is on. */

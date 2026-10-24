@@ -95,6 +95,8 @@ export interface SessionInfo {
   browserClients: number | boolean | null;
   /** reviewroom: the review has a guided walkthrough (walkthrough.json) */
   walkthrough?: boolean;
+  /** reviewroom: a review of a stack of PRs, its PRs bottom first (one session for the whole stack) */
+  stack?: { number: number; title: string; url: string | null; state: string }[];
   interacted: boolean | null;
   /** When the hub first saw this session (kept across polls). */
   firstSeenAt: string;

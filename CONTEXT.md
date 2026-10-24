@@ -26,8 +26,18 @@ The code under review: everything between a base and a head, whether it comes fr
 _Avoid_: change, changeset, PR (when no PR is involved)
 
 **Review**:
-One reviewer's review of one diff, with its walkthrough, threads and rounds.
+One reviewer's review of one diff, with its walkthrough, threads and rounds. A stack has one review, whichever of its
+PRs it was opened from.
 _Avoid_: session, workspace
+
+**Stack**:
+A chain of PRs, each based on the head of the one below. Reviewed as one diff, from the bottom PR's base to the top
+PR's head, that the reviewer can narrow to one layer.
+_Avoid_: chain, series, train
+
+**Layer**:
+One PR's own part of a stack: from the head of the PR below to its own head, not from the base branch.
+_Avoid_: slice, level, sub-PR
 
 **Walkthrough**:
 The agent's freeform explanation of the diff, written for the reviewer to read alongside the diff.
@@ -51,7 +61,8 @@ or approves.
 _Avoid_: iteration, pass
 
 **Feedback**:
-Everything the reviewer sends the agent when a round closes, together with the verdict: changes wanted, or approve.
+Everything the reviewer sends the agent when a round closes, together with the verdict: changes wanted, or approve. In
+a stack, a verdict per PR.
 _Avoid_: round summary
 
 **Open question**:

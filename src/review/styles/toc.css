@@ -54,3 +54,24 @@
 .rr-pin-btn:hover {
   color: var(--rr-ink);
 }
+
+/* Contents of a stack: a PR's group header switches the scope to it; PRs out of scope step back */
+.rr-toc-pr {
+  width: 100%;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+}
+.rr-toc-pr:hover {
+  color: var(--rr-ink);
+}
+.rr-toc .is-out {
+  opacity: 0.5;
+}

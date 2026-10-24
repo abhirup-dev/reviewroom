@@ -2,7 +2,8 @@
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
-// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch) and holds:
+// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch; stack-<id>/ for a
+// stack of PRs) and holds:
 //   review.html            the walkthrough (written by the agent, any HTML)
 //   walkthrough.json       the guided walkthrough, optional (written by the agent)
 //   state.json             threads, rounds, viewed files, sign-offs
@@ -46,11 +47,12 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
 
 cli
   .command('pr [target]', 'Create the review (fetching a PR if given one) and serve it')
-  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): ~/.reviewroom/reviews/<owner>-<repo>/<branch> (for a PR, its head branch).')
+  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): ~/.reviewroom/reviews/<owner>-<repo>/<branch> (for a PR, its head branch).\n  A PR in a stack of PRs (GitHub\'s stack, a chain of branches, or "stacked on #<n>" in its description) opens one\n  review of the whole stack, stack-<id>, whichever of its PRs you name; --no-stack reviews the PR alone.\n  A local branch with other local branches below it (each tip on its first-parent path to the base) is a stack of\n  branches, layers numbered 1..n bottom first, kept in that branch\'s dir: name its top branch.')
   .option('--base <ref>', 'Base to diff against (default: the PR base, else the default branch)')
   .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Remote to fetch from', { default: 'origin' })
+  .option('--no-stack', 'Review the PR (or branch) alone, even when it is in a stack of PRs (or of local branches)')
   .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s guided walkthrough)')
   .option('--detach', 'Serve in the background, print the URL and return')
   .option('--wait', 'Then block like `review` until the round ends')
@@ -108,6 +110,7 @@ cli
   .command('publish-slides', 'Post the guided walkthrough (walkthrough.json) to the PR, where `reviewroom pr <n>` picks it up')
   .option('--dry-run', 'Print the comment instead of posting it')
   .option('--allow-stale', 'Post even if some links need attention (never with schema errors)')
+  .option('--pr <n>', 'A stack of PRs: only that PR\'s comment (default: every PR with chapters)')
   .example('  reviewroom publish-slides')
   .action(run(cmdPublishSlides));
 
@@ -147,6 +150,8 @@ const notes: Record<string, string> = {
     '  Runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
+    '  A stack of PRs: each PR gets its own comment with its chapters (a chapter\'s `pr`), the bottom PR the stack-wide',
+    '  ones too; `reviewroom pr <n>` on any of them chains every PR\'s part back in stack order.',
   ].join('\n'),
   shot: [
     '  Renders review.html in a headless browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) as the',
@@ -214,7 +219,7 @@ cli.help((sections) => {
     {
       title: 'The review dir',
       body: [
-        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (REVIEWROOM_HOME moves ~/.reviewroom), outside',
+        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (stack-<id>/ for a stack of PRs; REVIEWROOM_HOME moves ~/.reviewroom), outside',
         '  the repo. review.html, walkthrough.json and any assets next to them are yours; everything else',
         '  (state.json, config.json, layout.json, rounds/) belongs to reviewroom: read and change it through',
         '  these commands only.',

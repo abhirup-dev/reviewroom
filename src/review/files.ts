@@ -32,8 +32,16 @@ class FilesPanel implements PanelInstance {
     const types = [...new Set(app.files.map((f) => fileType(f.path)))].sort();
     const hasTests = app.files.some((f) => isTestFile(f.path));
     const ranges = app.range ? app.services.code.ranges() : [];
-    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' });
-    ranges.forEach((r) => select.append(h('option', { value: r.key, selected: r.key === app.range?.key }, r.label)));
+    const stack = app.meta.stack;
+    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: stack ? 'Review the whole stack, one PR, or one commit' : 'Review all changes or one commit' });
+    const opt = (r: (typeof ranges)[number], label = r.label) => h('option', { value: r.key, selected: r.key === app.range?.key }, label);
+    if (!stack) ranges.forEach((r) => select.append(opt(r)));
+    // a stack: one group per PR, its whole layer first, then its commits
+    else
+      select.append(
+        opt(ranges[0]),
+        ...stack.map((p) => h('optgroup', { label: `#${p.number} · ${p.title}` }, ...ranges.filter((r) => r.pr === p.number).map((r) => opt(r, r.key === `pr-${p.number}` ? `All of #${p.number}` : r.label)))),
+      );
     select.addEventListener('change', () => app.setRange(ranges.find((r) => r.key === select.value)!));
     const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' });
     search.addEventListener('input', () => {
@@ -53,7 +61,7 @@ class FilesPanel implements PanelInstance {
       }),
       hasTests ? h('button', { class: 'rr-filter-chip' + (p.hideTests ? '' : ' is-on'), 'aria-pressed': String(!p.hideTests), title: p.hideTests ? 'Show tests' : 'Hide tests', onclick: () => app.setPref('hideTests', !p.hideTests) }, 'tests') : null,
     );
-    const viewed = app.files.filter((f) => app.state.viewed[f.path] !== undefined).length;
+    const viewed = app.files.filter((f) => app.isViewed(f.path)).length;
     this.head.replaceChildren(
       h('div', { class: 'rr-progress', title: `${viewed} of ${app.files.length} files viewed` }, h('div', { class: 'rr-progress__bar', style: `width:${app.files.length ? (viewed / app.files.length) * 100 : 0}%` }), h('span', null, `${viewed}/${app.files.length} viewed`)),
       ...(ranges.length > 1 ? [select] : []),
@@ -65,8 +73,8 @@ class FilesPanel implements PanelInstance {
 
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
-    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
-    const viewed = app.state.viewed[f.path] !== undefined;
+    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open' && app.services.code.codeShows(t.anchor));
+    const viewed = app.isViewed(f.path);
     return h(
       'button',
       {

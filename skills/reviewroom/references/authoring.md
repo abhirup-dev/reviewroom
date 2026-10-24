@@ -41,6 +41,9 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 |---|---|
 | `rr:code/pkg/x.go#L45-54` | Lines 45–54 of any file in the repo at the head revision |
 | `rr:code/pkg/x.go@base#L45` | The same file at the base (`@<sha>` for any other commit) |
+| `rr:code/pkg/x.go@pr:366#L45` | A stack of PRs: the lines in PR #366's layer, at its head (`@pr:366:base`: the PR below's head). Opening it shows that layer; it survives a force-push. Also `rr:file/…@pr:<n>` |
+
+In a stack, plain `rr:code`/`rr:file` links inside an element with `data-pr="<n>"` in review.html, or in a guided walkthrough chapter with `pr`, are checked (`reviewroom check`) at that PR's layer, as if they said `@pr:<n>`, and open there. `data-pr` also groups the Contents by PR and dims the other PRs' sections while the reviewer looks at one layer (an attribute on them, `data-rr-out`; your content is untouched).
 | `rr:code/pkg/x.go` | The whole file; for a file in the diff its preview shows the changed hunks |
 | `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
 | `rr:sym/Builder.Build` | A symbol narrowed by its receiver, type or package (`habit.RecentEvents`) |
@@ -209,6 +212,7 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 |---|---|
 | chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
 | `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-mermaid>` or `<rr-flow>` |
+| chapter `pr` | A stack of PRs: the PR the chapter is about (its links read at that PR's layer). Omitted: the whole stack (an intro, a hand-off). `reviewroom publish-slides` posts each PR its own chapters |
 | step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
 | no `ref` | The pane keeps the chapter's last links; with none yet, the previous chapter's. The lead's diagram stays in the lead, next to the slide |

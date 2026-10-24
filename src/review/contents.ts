@@ -23,6 +23,7 @@ class TocPanel implements PanelInstance {
     this.offs.push(
       app.bus.on('state', r),
       app.bus.on('prefs', r),
+      app.bus.on('range', r),
       app.bus.on('active-section', (id) => {
         this.active = id;
         this.body.querySelectorAll('.rr-toc-item').forEach((el) => el.classList.toggle('is-active', (el as HTMLElement).dataset.id === id));
@@ -44,9 +45,23 @@ class TocPanel implements PanelInstance {
         const target = a.target ? doc.querySelector(`#${CSS.escape(a.target)}`) : null;
         return target ? el === target || el.contains(target) : false;
       });
+    // a stack: sections grouped under their PR (the nearest data-pr), the PRs not in scope dimmed
+    const stack = app.meta.stack;
+    let lastPr: string | null = null;
     sections.forEach((s) => {
       if (s.parentElement?.closest('section[id]')) return; // nested handled below
       const title = app.docTitle(s.id) ?? s.id;
+      const pr = stack ? s.closest('[data-pr]')?.getAttribute('data-pr') ?? null : null;
+      const p = pr ? stack!.find((x) => String(x.number) === pr) : undefined;
+      const out = !!pr && !!app.range?.pr && pr !== String(app.range.pr);
+      if (stack && pr !== lastPr) {
+        lastPr = pr;
+        items.push(
+          p
+            ? h('button', { class: 'rr-group-label rr-toc-pr' + (out ? ' is-out' : ''), title: `Show #${p.number}'s changes`, onclick: () => app.setRange(app.services.code.prRange(p.number)!) }, `#${p.number} · ${p.title}`)
+            : h('div', { class: 'rr-group-label' }, pr ? `#${pr}` : 'Whole stack'),
+        );
+      }
       const round = s.getAttribute('data-round');
       const n = threadsIn(s);
       items.push(
@@ -54,13 +69,13 @@ class TocPanel implements PanelInstance {
           app,
           { id: s.id },
           title,
-          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p' },
+          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : '') + (out ? ' is-out' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p' },
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
           ...threadCounts(n, 'in this section'),
         ),
       );
       s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
-        items.push(tocItem(app, { id: sub.id }, app.docTitle(sub.id) ?? sub.id, { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id }));
+        items.push(tocItem(app, { id: sub.id }, app.docTitle(sub.id) ?? sub.id, { class: 'rr-toc-item rr-toc-item--sub' + (out ? ' is-out' : ''), 'data-id': sub.id }));
       });
     });
     if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));

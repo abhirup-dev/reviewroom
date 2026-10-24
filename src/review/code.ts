@@ -214,7 +214,7 @@ class CodePanel implements PanelInstance {
       left.push(
         h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, plural(vis.length, 'file')),
         h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels)),
-        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
+        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: this.app.range.key.startsWith('pr-') ? `Showing ${this.app.range.label}: its own changes, on top of the PR below. Pick “Whole stack” in the header to see every PR.` : 'Showing one commit: ' + this.app.range.label + `. Pick “${this.app.meta.stack ? 'Whole stack' : 'All changes'}” in Files to see the whole ${this.app.meta.stack ? 'stack' : 'PR'}.` }, this.app.range.label.split(' · ')[0]) : null,
       );
     }
     this.toolbar.replaceChildren(
@@ -285,7 +285,7 @@ class CodePanel implements PanelInstance {
         }),
       );
       if (token !== this.loadToken) return;
-      this.files = new Map(files.map((f, i) => [f.path, { file: f, diff: diffs[i], collapsed: this.app.state.viewed[f.path] !== undefined }]));
+      this.files = new Map(files.map((f, i) => [f.path, { file: f, diff: diffs[i], collapsed: this.app.isViewed(f.path) }]));
       this.refreshItems();
     })());
   }
@@ -295,7 +295,7 @@ class CodePanel implements PanelInstance {
     const items: CodeViewItem<Meta>[] = [];
     const fv = this.fileView;
     if (this.mode === 'file') {
-      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side), version: ++this.version });
+      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side, fv.rev), version: ++this.version });
     } else {
       for (const [path, f] of this.files) items.push({ id: path, type: 'diff', fileDiff: f.diff ?? NO_DIFF(path), annotations: this.annotations(path), collapsed: f.collapsed, version: ++this.version });
     }
@@ -307,8 +307,8 @@ class CodePanel implements PanelInstance {
     const entry = this.files.get(path);
     if (!entry) return undefined;
     const f = entry.file;
-    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
-    const viewed = app.state.viewed[f.path] !== undefined;
+    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open' && app.services.code.codeShows(t.anchor));
+    const viewed = app.isViewed(f.path);
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
@@ -394,7 +394,7 @@ class CodePanel implements PanelInstance {
   private annotations(path: string): DiffLineAnnotation<Meta>[] {
     if (!this.app.prefs.inlineThreads) return [];
     return codeThreadsOn(this.app.services.threads.threads(), path)
-      .filter(onLine)
+      .filter((t) => onLine(t) && this.app.services.code.codeShows(t.anchor))
       .map((t) => {
         const a = t.anchor;
         const across = a.rev === 'base' ? this.pairedNewLine(path, a.end) : undefined;
@@ -427,9 +427,9 @@ class CodePanel implements PanelInstance {
   }
 
   // ------------------------------------------------------------ full file view
-  private fileAnnotations(path: string, side: 'base' | 'head') {
+  private fileAnnotations(path: string, side: 'base' | 'head', rev?: string) {
     return codeThreadsOn(this.app.services.threads.threads(), path)
-      .filter((t) => t.anchor.rev === side && onLine(t))
+      .filter((t) => t.anchor.rev === side && onLine(t) && this.app.services.code.codeShows(t.anchor, rev ? { base: rev, head: rev } : undefined))
       .map((t) => ({ lineNumber: t.anchor.end, metadata: { threadId: t.id } }));
   }
 

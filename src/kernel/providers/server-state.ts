@@ -2,7 +2,7 @@ import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } fr
 import type { ReviewState } from '../state/model.shared';
 import { roundStatus, syncMachine, unsent } from './sync.machine';
 import type { LastLayout, Layout } from '../layouts/layout.shared';
-import type { GitHubAction } from '../state/schema.shared';
+import type { GitHubAction, Verdicts } from '../state/schema.shared';
 import type { BackendEvents, StateBackend } from './contracts';
 import { json, sendJSON } from './fetch';
 import type { Op } from '../state/schema.shared';
@@ -107,9 +107,9 @@ export class ServerState implements StateBackend {
     }));
     sync.send({ type: 'connect' });
   }
-  async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number) {
+  async finish(kind: 'feedback' | 'approve', note: string | undefined, round: number, verdicts?: Verdicts) {
     if (!(await this.flush())) return { ok: false, message: 'some changes are not saved yet' };
-    const r = await sendJSON(`${this.api}/finish`, 'POST', { kind, note, round });
+    const r = await sendJSON(`${this.api}/finish`, 'POST', { kind, note, round, verdicts });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) return { ok: false, message: b.error || `${r.status} ${r.statusText}` };
     // the finish broadcast may have been missed, and this run of the server stops right after: take the state from the answer

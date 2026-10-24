@@ -1,9 +1,9 @@
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit } from '../lib/config.ts';
+import { dirForEdit, readConfig } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
-import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
+import { anchorText, byPr, githubContext, threadPr } from '../../src/threads/feedback.shared.ts';
 import { anchorOf, anchorRef } from '../../src/kernel/refs/refs.shared.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/kernel/state/model.shared.ts';
@@ -34,14 +34,18 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
     return;
   }
   const walkthrough = validWalkthrough(dir);
+  const stack = readConfig(dir).stack?.prs;
   console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
-  for (const t of list) {
-    const last = t.messages[t.messages.length - 1];
-    console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor, walkthrough)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
-    for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
-    if (last?.author === 'you') console.log('  -> awaiting agent reply');
+  for (const g of byPr(list, stack, (t) => threadPr(t, walkthrough))) {
+    if (stack) console.log(`\n== ${g.pr ? `#${g.pr.number} ${g.pr.title} (branch ${g.pr.headLabel})` : 'the whole stack'}`);
+    for (const t of g.items) {
+      const last = t.messages[t.messages.length - 1];
+      console.log(`\n${t.id}  [${t.status}]  ${anchorText(t.anchor, walkthrough)}${anchorRef(t.anchor) ? `  (${anchorRef(t.anchor)})` : ''}`);
+      for (const m of t.messages) console.log(`  ${m.author}@r${m.round}: ${m.body.split('\n').join('\n    ')}`);
+      if (last?.author === 'you') console.log('  -> awaiting agent reply');
+    }
   }
-  if (github.length) console.log('\n' + githubContext(github).join('\n'));
+  if (github.length) console.log('\n' + githubContext(github, stack).join('\n'));
 }
 
 // Agent replies as ops: `reply <thread> "<md>"`, or `reply --json <file|->` with [{thread, body, resolve?}].
@@ -85,6 +89,8 @@ export async function cmdComment(repo: string | null, o: BodyOpts, [ref, body]: 
   const dir = dirForEdit(repo, o.dir);
   if (!ref) fail('missing rr: ref (or "general")');
   const id = uid('t_');
-  await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
+  const anchor = anchorOf(ref);
+  if (anchor.kind === 'code' && anchor.pr && !readConfig(dir).stack?.prs.some((p) => p.number === anchor.pr)) fail(`PR #${anchor.pr} is not in this review's stack`);
+  await commitOps(dir, [{ op: 'createThread', id, anchor, msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
   console.log(id);
 }

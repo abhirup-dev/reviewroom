@@ -4,17 +4,17 @@ import open from 'open';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
-import { makeProvider, type Provider } from './git.ts';
+import { feedbackMarkdown, threadPr } from '../../src/threads/feedback.shared.ts';
+import { headChanges, makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
-import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import { applyOp, awaitingAgent, currentRound, finishKind, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
-import { tourText } from './slides-file.ts';
+import { tourPieces } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -26,7 +26,8 @@ import { getBunServer, serveStatic } from '@hono/bun';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
-  const text = prov.read(anchor.rev === 'base' ? prov.base : prov.head, anchor.path);
+  const at = prov.layers?.find((l) => l.number === anchor.pr) ?? prov; // a stack PR's layer, else the whole range
+  const text = prov.read(anchor.sha ?? (anchor.rev === 'base' ? at.base : at.head), anchor.path);
   if (!text) return null;
   const lines = text.split('\n');
   return lines.slice(anchor.start - 1, anchor.end).map((l, i) => `${String(anchor.start + i).padStart(4)}  ${l}`).join('\n');
@@ -69,7 +70,7 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       const known = readState(dir).links ?? {};
       // the current head, not the one this server started on: `check` must fingerprint the same code
       const w = readWalkthrough(dir);
-      const tour = w?.ok ? tourText(w.value) : '';
+      const tour = w?.ok ? tourPieces(w.value) : '';
       const checked = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour, w?.ok ? w.value : null);
       const { results } = checked;
       // a walkthrough.json that is broken for now hides its links: keep their fingerprints, or fixing it re-baselines moved code
@@ -200,7 +201,11 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = currentRound(s);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    const waiting = (ts: typeof s.threads) => awaitingAgent({ threads: ts }).length;
+    // a stack: the same counts per PR (threads on the whole stack are in no PR's)
+    const w = cfg.stack && validWalkthrough(dir);
+    const byPr = cfg.stack && Object.fromEntries(cfg.stack.prs.map((p) => { const ts = s.threads.filter((t) => threadPr(t, w) === p.number); return [p.number, { threads: ts.length, open: ts.filter((t) => t.status === 'open').length, awaitingAgent: waiting(ts) }]; }));
+    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: waiting(s.threads), comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)), ...(byPr && { byPr }) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
@@ -287,11 +292,17 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     }),
   );
   app.post('/api/finish', body(FinishRound.omit({ op: true, at: true })), (c) => {
-    const { kind, note, round } = c.req.valid('json');
+    const { note, round, verdicts } = c.req.valid('json');
+    const kind = finishKind(c.req.valid('json')); // a PR with changes wanted makes it a feedback round
+    const unknown = Object.keys(verdicts ?? {}).find((n) => !cfg.stack?.prs.some((p) => p.number === +n));
+    if (unknown) throw new OpError('bad_op', `PR #${unknown} is not in this review's stack`);
     const prev = readState(dir);
     const n = prev.round;
-    const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    const s = applyOp(prev, { op: 'finishRound', kind, note, round, verdicts }); // 409 unless this round is still open
+    // a stack: which PRs moved since the last round, so the agent knows what the reviewer saw
+    const [was, now] = [prev.rounds.filter((r) => r.n < n && r.heads).at(-1), prev.rounds.find((r) => r.n === n)?.heads];
+    const changes = prov.layers && was && now ? { since: was.n, lines: headChanges(repo, was.heads!, now) } : undefined;
+    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir), changes, stack: cfg.stack?.prs, verdicts });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));

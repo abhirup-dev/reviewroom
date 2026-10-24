@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "title": "A read-through cache over the store",
+  "chapters": [
+    {
+      "id": "intro",
+      "title": "The stack in one picture",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>Three PRs, bottom first. The store learns to write (#1, merged), a cache reads through it (#2), and the cache learns to forget (#3).</p>"
+        },
+        {
+          "id": "s2",
+          "text": "<p>Each chapter after this one is about one PR, and the code pane shows only that PR's changes.</p>"
+        }
+      ],
+      "lead": "<rr-flow><rr-node state=\"baseline\">store.Get</rr-node><rr-node state=\"new\" ref=\"rr:code/store/store.go@pr:1#L12-14\">Put, Delete</rr-node><rr-node state=\"new\" ref=\"rr:code/cache/cache.go@pr:2#L11-18\">Cache.Get</rr-node><rr-node state=\"new\" ref=\"rr:code/cache/cache.go@pr:3#L20\">Cache.Forget</rr-node></rr-flow>"
+    },
+    {
+      "id": "store",
+      "title": "The store learns to write",
+      "pr": 1,
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p><a href=\"rr:code/store/store.go#L12\">Put</a> writes straight to the map.</p>",
+          "ref": "rr:code/store/store.go#L12"
+        },
+        {
+          "id": "s2",
+          "text": "<p><a href=\"rr:code/store/store.go#L14\">Delete</a> is its mirror. Next, #2 reads through these.</p>",
+          "ref": "rr:code/store/store.go#L14"
+        }
+      ]
+    },
+    {
+      "id": "cache",
+      "title": "A read-through cache",
+      "pr": 2,
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>The <a href=\"rr:code/cache/cache.go#L6-9\">Cache</a> holds the store and what it has seen.</p>",
+          "ref": "rr:code/cache/cache.go#L6-9"
+        },
+        {
+          "id": "s2",
+          "text": "<p><a href=\"rr:code/cache/cache.go#L11-18\">Get</a> remembers every read, even a missing key. Nothing invalidates it yet: #3 adds Forget.</p>",
+          "ref": "rr:code/cache/cache.go#L11-18"
+        }
+      ]
+    },
+    {
+      "id": "forget",
+      "title": "Forgetting a key",
+      "pr": 3,
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p><a href=\"rr:code/cache/cache.go#L20\">Forget</a> drops one key from the cache.</p>",
+          "ref": "rr:code/cache/cache.go#L20"
+        },
+        {
+          "id": "s2",
+          "text": "<p><a href=\"rr:code/store/store.go#L10-12\">store.Get</a> now documents what a missing key reads as.</p>",
+          "ref": "rr:code/store/store.go#L10-12"
+        }
+      ]
+    }
+  ]
+}

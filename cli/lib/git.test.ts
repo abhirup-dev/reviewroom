@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { parseDiff } from './git.ts';
+import { $ } from 'bun';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { git, makeProvider, parseDiff, stackLayers } from './git.ts';
 
 test('parseDiff: counts from --numstat, status from --name-status (real git -z output)', () => {
   // a.go edited, `a<TAB>b.go` added, img.png binary, a rename to a name with a tab, gone.go renamed to new.go at 71%
@@ -13,4 +17,32 @@ test('parseDiff: counts from --numstat, status from --name-status (real git -z o
     { path: 'new.go', prevPath: 'gone.go', additions: 0, deletions: 2, binary: false, status: 'renamed' },
   ]);
   expect(parseDiff('', '')).toEqual([]);
+});
+
+test('stack layers: each PR from the head of the one below; a rewritten one below is a restack', async () => {
+  const repo = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rr-layers-')), 'r');
+  await $`bash ${path.join(import.meta.dir, '..', '..', 'examples', 'make-stack-repo.sh')} ${repo} --squashed`.quiet();
+  const prs = [1, 2, 3].map((number) => ({ number, head: `stack-${number}` }));
+  const count = (l: { base: string; head: string }) => +git(['rev-list', '--count', `${l.base}..${l.head}`], repo).trim();
+  const layers = stackLayers(repo, 'main', prs);
+  // stack-1 was squash-merged into main: from main, stack-2 would bring stack-1's two commits back
+  expect(+git(['rev-list', '--count', 'main...stack-2', '--right-only'], repo).trim()).toBe(4);
+  expect(layers.map(count)).toEqual([2, 2, 1]);
+  expect(layers[1].base).toBe(layers[0].head);
+  expect(layers.some((l) => l.restack)).toBe(false);
+  // the provider: the whole stack, each PR's layer with its totals, each commit tagged with its PR
+  const stack = { id: 1, source: 'chain' as const, base: 'main', prs: prs.map((p) => ({ ...p, title: `PR ${p.number}`, state: 'open' as const, headLabel: p.head, ...(p.number === 1 && { review: 'approved' as const }) })) };
+  const prov = makeProvider(repo, { base: 'main', head: 'stack-3', stack });
+  const meta = prov.meta();
+  expect([meta.base, meta.head]).toEqual([layers[0].base, layers[2].head]);
+  expect(meta.stack!.map((p) => [p.number, p.state, p.base, p.head, p.files, p.additions])).toEqual([[1, 'approved', layers[0].base, layers[0].head, 1, 4], [2, 'open', layers[1].base, layers[1].head, 1, 18], [3, 'open', layers[2].base, layers[2].head, 2, 5]]);
+  expect(prov.commits().map((c) => c.pr)).toEqual([1, 1, 2, 2, 3]);
+  // no stack: no stack fields
+  const plain = makeProvider(repo, { base: 'main', head: 'stack-3' });
+  expect(['stack' in plain.meta(), plain.commits().some((c) => 'pr' in c)]).toEqual([false, false]);
+  // stack-1 amended after stack-2 was pushed: stack-2's layer starts where they still agree
+  await $`git -C ${repo} checkout -q stack-1 && git -C ${repo} commit -q --amend -m 'store: Delete, reworded'`.quiet();
+  const after = stackLayers(repo, 'main', prs);
+  expect([after[1].restack, count(after[1])]).toEqual([true, 3]);
+  fs.rmSync(path.dirname(repo), { recursive: true, force: true });
 });

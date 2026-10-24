@@ -14,7 +14,8 @@ import type { Anchor } from '../state/schema.shared';
 //   rr:doc/<id>                 a section or any element with an id in the walkthrough
 //   rr:doc/<id>/<css-path>      an element without an id, addressed below an ancestor id
 //   rr:code/<path>[@base|@head|@<sha>][#L12[-20]]   a file or line range in the diff
-//   rr:file/<path>@<rev>[#L12[-20]]                  the full file at a revision
+//   rr:code/<path>@pr:<n>[:base][#L12[-20]]         ... in a stack of PRs, in PR #<n>'s layer (head side, or base)
+//   rr:file/<path>@<rev>[#L12[-20]]                  the full file at a revision (or @pr:<n>[:base])
 //   rr:sym/<name>               a symbol (resolved via provider search): Name, Owner.Name or path/file.go:Name
 //   rr:thread/<id>              a comment thread
 //   rr:round/<n>                a review round
@@ -22,8 +23,8 @@ import type { Anchor } from '../state/schema.shared';
 
 export type Ref =
   | { type: 'doc'; id: string; path?: string }
-  | { type: 'code'; path: string; rev: string; start?: number; end?: number }
-  | { type: 'file'; path: string; rev: string; start?: number; end?: number }
+  | { type: 'code'; path: string; rev: string; start?: number; end?: number; pr?: number }
+  | { type: 'file'; path: string; rev: string; start?: number; end?: number; pr?: number }
   | { type: 'sym'; name: string }
   | { type: 'thread'; id: string }
   | { type: 'round'; n: number }
@@ -42,6 +43,8 @@ const LINE_SPAN = regex`${LINES} $`;
 /** `<path>[@<rev>][#L..]`. A rev follows the last @ and has no /, so `packages/@scope/x.ts` stays a path. */
 // shortcut: an @ in the file name itself (a/x@2.ts) still reads as a rev; escape @ in the path if that shows up
 const LOCATION = regex`^ (?<path> .*? ) (?: @ (?<rev> [^@\/\#]+ ) )? (?: ${LINES} )? $`;
+/** `pr:<n>[:base|:head]`, a rev in a stack of PRs: PR #<n>'s layer. A colon is never part of a git rev, so no branch reads as one. */
+const PR_REV = regex`^ pr: (?<n> [1-9] \d* ) (?: : (?<side> base | head ) )? $`;
 /** `<id>[/<css-path>]`: the path is everything after the first /. */
 const DOC = regex`^ (?<id> [^\/]* ) (?: \/ (?<path> .* ) )? $`;
 /** `<chapter>/<step>`: exactly two parts. */
@@ -72,10 +75,12 @@ const location = <T extends 'code' | 'file'>(type: T) =>
       const g = LOCATION.exec(rest)?.groups;
       if (!g?.path) return null; // a code or file link needs a path
       const start = int(g.start);
+      const pr = g.rev && PR_REV.exec(g.rev)?.groups;
+      if (pr) return { type, path: decodeURI(g.path), rev: pr.side ?? 'head', start, end: int(g.end) ?? start, pr: +pr.n };
       return { type, path: decodeURI(g.path), rev: g.rev ?? 'head', start, end: int(g.end) ?? start };
     },
-    // a code link means head unless it says otherwise; a file link always names its rev
-    format: (r: RefOf<'code' | 'file'>) => encodeURI(r.path) + (type === 'code' && r.rev === 'head' ? '' : '@' + r.rev) + lineSpan(r.start, r.end),
+    // a code link means head unless it says otherwise; a file link always names its rev; a stack PR's layer, its number
+    format: (r: RefOf<'code' | 'file'>) => encodeURI(r.path) + (r.pr ? `@pr:${r.pr}${r.rev === 'base' ? ':base' : ''}` : type === 'code' && r.rev === 'head' ? '' : '@' + r.rev) + lineSpan(r.start, r.end),
   }) as Form<T>;
 
 const forms: { [T in Ref['type']]: Form<T> } = {
@@ -136,7 +141,7 @@ export function anchorRef(a: Anchor): string | null {
     case 'doc':
       return formatRef({ type: 'doc', id: a.target, path: a.path });
     case 'code':
-      return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end });
+      return formatRef({ type: 'code', path: a.path, rev: a.rev, start: a.start, end: a.end, pr: a.pr });
     case 'symbol':
       return formatRef({ type: 'sym', name: a.name });
     case 'tour':
@@ -153,7 +158,8 @@ export function anchorOf(ref: string): Anchor {
     case 'doc':
       return { kind: 'doc', target: r.id, path: r.path };
     case 'code':
-      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1 };
+      // a full sha pins the lines (the file at that commit); a branch or other rev is not stored
+      return { kind: 'code', path: r.path, rev: r.rev === 'base' ? 'base' : 'head', start: r.start ?? 1, end: r.end ?? r.start ?? 1, ...(/^[0-9a-f]{40}$/.test(r.rev) && { sha: r.rev }), ...(r.pr && { pr: r.pr }) };
     case 'sym':
       return { kind: 'symbol', name: r.name };
     case 'tour':

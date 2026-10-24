@@ -62,3 +62,22 @@
   }
 }
 
+/* Send feedback in a stack: a verdict per open PR */
+.rr-verdicts {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.rr-verdicts__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--rr-text-sm);
+}
+.rr-verdicts__t {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--rr-muted);
+}

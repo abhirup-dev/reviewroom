@@ -16,6 +16,27 @@ export interface ReviewMeta {
   head: Rev;
   baseLabel?: string;
   headLabel?: string;
+  /** A stack of PRs (`reviewroom pr` on a PR in one): bottom first; base..head spans them all, `number` is the PR asked for. */
+  stack?: StackPr[];
+}
+
+/** One PR of a stack. Its layer, base..head, is what it adds on the PR below (base = that PR's head). */
+export interface StackPr {
+  number: number;
+  title: string;
+  author?: string;
+  url?: string;
+  /** merged or closed on GitHub; else its review decision (approved, changes wanted) or open */
+  state: 'merged' | 'closed' | 'approved' | 'changes' | 'open';
+  /** its head branch */
+  headLabel: string;
+  base: Rev;
+  head: Rev;
+  /** the PR below was rewritten after this one was pushed: the layer starts where the two still agree */
+  restack?: boolean;
+  additions: number;
+  deletions: number;
+  files: number;
 }
 
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed';
@@ -35,14 +56,20 @@ export interface Commit {
   subject: string;
   author?: string;
   date?: string;
+  /** Its first parent's sha (the base of its own diff); missing: `sha^` */
+  parent?: string;
+  /** In a stack: the PR whose layer it is in */
+  pr?: number;
 }
 
-/** A diff range. 'all' = meta.base..meta.head; a commit sha = sha^..sha. */
+/** A diff range. 'all' = meta.base..meta.head; a commit sha = its parent..sha. */
 export interface DiffRange {
   base: Rev;
   head: Rev;
   label: string;
   key: string;
+  /** a stack PR's layer, or a commit in it: that PR's number */
+  pr?: number;
 }
 
 export interface SearchHit {
@@ -63,6 +90,8 @@ export interface Message extends Omit<StoredMessage, 'author'> {
 
 export interface Thread extends Omit<StoredThread, 'messages'> {
   messages: Message[];
+  /** A GitHub thread of a stack of PRs: the PR it is on */
+  pr?: number;
   /** Set on threads that live on GitHub (ids `gh_...`); they come from /api/github, not state.json. */
   gh?: { node: string; url: string; outdated?: boolean; file?: boolean; conversation?: boolean; canResolve?: boolean; canUnresolve?: boolean; canReply: boolean };
 }
@@ -98,7 +127,12 @@ export interface GitHubSnapshot {
   description?: { body: string; login: string; avatar?: string; at: string };
   /** The PR's commits and their CI checks, newest first. */
   ci?: CiCommit[];
+  /** A stack of PRs: each PR's own part by number (the fields above are the requested PR's; threads hold every PR's). */
+  prs?: Record<number, GitHubPrPart>;
 }
+
+/** One PR of a stack on GitHub: what GitHubSnapshot says of the requested PR, for this one. `pr`: its node id. */
+export type GitHubPrPart = Pick<GitHubSnapshot, 'url' | 'headSha' | 'localHead' | 'stale' | 'pending' | 'description' | 'ci'> & { pr: string };
 
 export type CiState = 'success' | 'failure' | 'pending' | 'none';
 export interface CiCommit {

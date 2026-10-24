@@ -25,6 +25,8 @@ export interface HeaderContributions {
   status: () => (HTMLElement | null)[];
   beforeLayout: () => (HTMLElement | null)[];
   afterTheme: () => (HTMLElement | null)[];
+  /** In the header's empty middle, after the title (a stack's PR switcher). */
+  afterTitle?: () => HTMLElement[];
   subscribe?: (paint: () => void) => void;
 }
 
@@ -60,17 +62,18 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
         h(
           'div',
           { class: 'rr-header__titles' },
-          h('div', { class: 'rr-header__title', title: m.title }, m.number ? h('span', { class: 'rr-muted' }, `#${m.number} `) : null, m.title),
+          stackTitle(app) ?? h('div', { class: 'rr-header__title', title: m.title }, m.number ? h('span', { class: 'rr-muted' }, `#${m.number} `) : null, m.title),
           h(
             'div',
             { class: 'rr-header__meta' },
             m.repo ? h('span', { class: 'rr-pill', title: 'Repository' }, m.repo) : null,
             m.author ? h('span', { class: 'rr-pill', title: 'Author of the change' }, 'by ' + m.author) : null,
-            h('span', { class: 'rr-pill rr-pill--mono', title: `Diff of ${m.headLabel ?? m.head} against ${m.baseLabel ?? m.base} (merge base ${short(m.base)})` }, `${m.baseLabel ?? short(m.base)} ← ${m.headLabel ?? short(m.head)}`),
+            m.stack ? null : h('span', { class: 'rr-pill rr-pill--mono', title: `Diff of ${m.headLabel ?? m.head} against ${m.baseLabel ?? m.base} (merge base ${short(m.base)})` }, `${m.baseLabel ?? short(m.base)} ← ${m.headLabel ?? short(m.head)}`),
             h('span', { class: 'rr-pill', title: 'Files changed' }, `${app.files.length} files`),
           ),
         ),
       ),
+      ...(features.afterTitle?.() ?? []),
       h('div', { class: 'rr-toolbar__spacer' }),
       h(
         'div',
@@ -94,6 +97,16 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
   features.subscribe?.(paint);
   paint();
   return bar;
+}
+
+/** A stack: the title follows the PR the panes show; the whole stack shows its PR range. */
+function stackTitle(app: ReviewApp) {
+  const m = app.meta;
+  if (!m.stack) return null;
+  const p = app.stackPr;
+  const t = p ? p.title : `Stack of ${m.stack.length} PRs`;
+  const n = p ? `#${p.number} ` : `#${m.stack[0].number}–#${m.stack.at(-1)!.number} `;
+  return h('div', { class: 'rr-header__title', title: t }, h('span', { class: 'rr-muted' }, n), t);
 }
 
 const short = (s: string) => (/^[0-9a-f]{12,}$/.test(s) ? s.slice(0, 7) : s);

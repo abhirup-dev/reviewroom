@@ -216,9 +216,10 @@ export function mountHoverCards(app: ReviewApp) {
     clearTimeout(timer);
     timer = setTimeout(async () => {
       current = t;
-      const ref = t.getAttribute('ref') || t.getAttribute('href')!;
-      const r = parseRef(ref);
-      if (!r) return;
+      const p = parseRef(t.getAttribute('ref') || t.getAttribute('href')!);
+      if (!p) return;
+      const r = app.services.code.inLayer(p, t);
+      const ref = formatRef(r);
       const wrapBtn = h('button', { class: 'rr-icon-btn', title: 'Wrap long lines', 'aria-label': 'Wrap long lines', 'aria-pressed': String(wrapped), hidden: true }, icon('wrap', 14));
       wrapBtn.onclick = () => {
         wrapped = !wrapped;

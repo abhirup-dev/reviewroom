@@ -90,3 +90,23 @@ test('recap: active (written in last round), the rest, stale (open over two roun
   const ids = Object.values(recapThreads(s)).map((ts) => ts.map((x) => x.id));
   expect(ids).toEqual([['active'], ['later', 'rest'], ['stale']]);
 });
+
+test('heads: set on the open round only; a finished round keeps what it showed', () => {
+  const s = applyOp(build.state(), { op: 'setHeads', round: 1, heads: { base: 'b', head: 'h', '#1': 'h' } });
+  expect(s.rounds[0].heads).toEqual({ base: 'b', head: 'h', '#1': 'h' });
+  const sent = applyOp(s, { op: 'finishRound', kind: 'feedback' });
+  expect(code(() => applyOp(sent, { op: 'setHeads', round: 1, heads: {} }))).toBe('conflict');
+  expect(code(() => applyOp(sent, { op: 'setHeads', round: 9, heads: {} }))).toBe('not_found');
+});
+
+test('viewed in one layer of a stack is not viewed in another, nor in the whole stack', () => {
+  const s = applyOp(build.state(), { op: 'setViewed', path: 'a.go', viewed: true, pr: 366 });
+  expect(s.viewed).toEqual({ '366:a.go': 1 });
+  expect(applyOp(s, { op: 'setViewed', path: 'a.go', viewed: false, pr: 366 }).viewed).toEqual({});
+});
+
+test('per-PR verdicts: approve stands only if every PR is approved', () => {
+  const changes = applyOp(build.state(), { op: 'finishRound', kind: 'approve', verdicts: { 366: 'approve', 368: 'changes' } });
+  expect([changes.rounds[0].status, changes.round, changes.rounds[0].verdicts]).toEqual(['sent', 2, { 366: 'approve', 368: 'changes' }]);
+  expect(applyOp(build.state(), { op: 'finishRound', kind: 'approve', verdicts: { 366: 'approve' } }).rounds[0].status).toBe('approved');
+});

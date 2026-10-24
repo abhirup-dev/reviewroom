@@ -15,7 +15,16 @@ const at = z.string().optional();
 
 export const TextQuote = z.object({ exact: z.string(), prefix: z.string().optional(), suffix: z.string().optional() });
 
-const CodeAnchor = z.object({ kind: z.literal('code'), path: z.string(), rev: z.enum(['base', 'head']), start: int, end: int });
+const sha = z.string().regex(/^[0-9a-f]{40}$/, 'must be a full 40-hex commit sha');
+const CodeAnchor = z.object({
+  kind: z.literal('code'),
+  path: z.string(),
+  rev: z.enum(['base', 'head']),
+  start: int,
+  end: int,
+  sha: sha.optional().describe("The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head (or its layer's, with pr)"),
+  pr: int.positive().optional().describe("A stack of PRs: the PR whose layer the thread was made on; base and head are that layer's. Missing: the whole stack, or a review of one diff"),
+});
 export const Anchor = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('doc'),
@@ -50,6 +59,10 @@ export const StoredThread = z.object({
   title: z.string().optional(),
 });
 
+/** A stack of PRs: the reviewer's verdict on each PR, by number. */
+const Verdicts = z.record(z.string().regex(/^[1-9]\d*$/, 'a PR number'), z.enum(['approve', 'changes', 'comment']));
+export type Verdicts = z.infer<typeof Verdicts>;
+
 export const Round = z.object({
   n: int,
   status: z.enum(['open', 'sent', 'approved']),
@@ -60,6 +73,11 @@ export const Round = z.object({
     .nullable()
     .optional()
     .describe("When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."),
+  verdicts: Verdicts.optional().describe('A stack of PRs: the verdict on each PR when the round was finished'),
+  heads: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('The commits the round showed, as the server last served them: base and head of the whole range, and in a stack of PRs each PR\'s head as `#<n>`, bottom first. Absent on rounds from before this field existed.'),
 });
 
 export const StoredState = z.object({
@@ -68,7 +86,7 @@ export const StoredState = z.object({
   round: int.min(1).describe('Current round. Agent replies are tagged with it.'),
   rounds: z.array(Round),
   threads: z.array(StoredThread),
-  viewed: z.record(z.string(), int).default({}).describe('path -> round it was marked viewed'),
+  viewed: z.record(z.string(), int).default({}).describe('path (or `<pr>:<path>` for one layer of a stack of PRs) -> round it was marked viewed'),
   pins: z.array(z.string()).default([]),
   checks: z.record(z.string(), CheckValue).optional(),
   links: z
@@ -82,30 +100,31 @@ const ghBody = z.string().trim().min(1, 'body must be a non-empty string');
 export const GitHubAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('comment'), anchor: CodeAnchor, body: ghBody }),
   z.object({ action: z.literal('reply'), thread: z.string(), body: ghBody }),
-  z.object({ action: z.literal('conversation'), body: ghBody }),
+  z.object({ action: z.literal('conversation'), body: ghBody, pr: int.positive().optional().describe('A stack: the PR whose conversation (default: the one the review was opened on)') }),
   z.object({ action: z.literal('edit'), message: z.string(), body: ghBody }),
   z.object({ action: z.literal('delete'), message: z.string() }),
   z.object({ action: z.literal('resolve'), thread: z.string(), resolved: z.boolean() }),
-  z.object({ action: z.literal('submit'), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().optional() }),
-  z.object({ action: z.literal('discard') }),
+  z.object({ action: z.literal('submit'), event: z.enum(['comment', 'approve', 'request_changes']), body: z.string().optional(), pr: int.positive().optional().describe('A stack: the PR to review'), prs: z.array(int.positive()).optional().describe('A stack: one review each, with the same event and body') }),
+  z.object({ action: z.literal('discard'), pr: int.positive().optional() }),
 ]);
 export type GitHubAction = z.infer<typeof GitHubAction>;
 
 /** Every change to the state, applied by applyOp in src/kernel/state/ops.shared.ts. `at` defaults to now. */
-/** POST /api/finish is this op without `op`. */
-export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at });
+/** POST /api/finish is this op without `op`. With verdicts, `approve` stands only if every PR is approved. */
+export const FinishRound = z.object({ op: z.literal('finishRound'), kind: z.enum(['feedback', 'approve']), note: z.string().optional(), round: int.optional(), at, verdicts: Verdicts.optional() });
 export const Op = z.discriminatedUnion('op', [
   z.object({ op: z.literal('createThread'), id: nonEmpty, anchor: Anchor, msgId: nonEmpty, body: nonEmpty, author: Author, at }),
   z.object({ op: z.literal('addMessage'), threadId: nonEmpty, id: nonEmpty, body: nonEmpty, author: Author, at }),
   z.object({ op: z.literal('editMessage'), threadId: nonEmpty, msgId: nonEmpty, body: nonEmpty }),
   z.object({ op: z.literal('deleteMessage'), threadId: z.string(), msgId: z.string() }),
   z.object({ op: z.literal('setThreadStatus'), threadId: nonEmpty, status: ThreadStatus }),
-  z.object({ op: z.literal('setViewed'), path: nonEmpty, viewed: z.boolean() }),
+  z.object({ op: z.literal('setViewed'), path: nonEmpty, viewed: z.boolean(), pr: int.positive().optional().describe('A stack PR: viewed in its layer only (key `<pr>:<path>`)') }),
   z.object({ op: z.literal('setPin'), ref: nonEmpty, pinned: z.boolean() }),
   z.object({ op: z.literal('setCheck'), id: nonEmpty, value: CheckValue }),
   z.object({ op: z.literal('setLinks'), links: z.record(z.string(), z.string()) }),
   FinishRound,
   z.object({ op: z.literal('markDelivered'), round: int, at }),
+  z.object({ op: z.literal('setHeads'), round: int, heads: z.record(z.string(), z.string()) }),
 ]);
 
 export type TextQuote = z.infer<typeof TextQuote>;

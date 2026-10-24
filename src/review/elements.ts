@@ -42,7 +42,7 @@ class RRRef extends HTMLElement {
     this.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      withApp((app) => app.open(ref));
+      withApp((app) => app.open(ref, this));
     });
     this.addEventListener('keydown', (e) => e.key === 'Enter' && this.click());
   }
@@ -113,9 +113,10 @@ class RRCode extends HTMLElement {
       let name = `snippet.${lang || 'txt'}`;
       let headLabel = title || lang || '';
       let renderRange;
-      const r = ref ? parseRef(ref) : null;
+      const p = ref ? parseRef(ref) : null;
+      const r = p && app.services.code.inLayer(p, this);
       if (r && (r.type === 'code' || r.type === 'file')) {
-        contents = (await app.services.code.read(r.path, app.services.code.revOf(r.rev))) ?? '';
+        contents = (await app.services.code.read(r.path, app.services.code.refRev(r) ?? r.rev)) ?? '';
         if (gen !== this.gen) return; // left the page while reading
         name = r.path;
         // the whole file, drawn from start to end with its real line numbers
@@ -165,8 +166,8 @@ class RRNode extends HTMLElement {
     if (ref) {
       this.tabIndex = 0;
       this.classList.add('is-link');
-      this.addEventListener('click', () => withApp((a) => a.open(ref)));
-      this.addEventListener('keydown', (e) => e.key === 'Enter' && withApp((a) => a.open(ref)));
+      this.addEventListener('click', () => withApp((a) => a.open(ref, this)));
+      this.addEventListener('keydown', (e) => e.key === 'Enter' && withApp((a) => a.open(ref, this)));
     }
   }
 }

@@ -58,6 +58,32 @@
                 "type": "null"
               }
             ]
+          },
+          "verdicts": {
+            "description": "A stack of PRs: the verdict on each PR when the round was finished",
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "changes",
+                "comment"
+              ]
+            }
+          },
+          "heads": {
+            "description": "The commits the round showed, as the server last served them: base and head of the whole range, and in a stack of PRs each PR's head as `#<n>`, bottom first. Absent on rounds from before this field existed.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -140,6 +166,17 @@
                   "end": {
                     "type": "integer",
                     "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "sha": {
+                    "description": "The commit the lines were read at (that side of the diff range the thread was made on). Set for a thread on one commit's diff; missing: the review's own base or head (or its layer's, with pr)",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "pr": {
+                    "description": "A stack of PRs: the PR whose layer the thread was made on; base and head are that layer's. Missing: the whole stack, or a review of one diff",
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
                   }
                 },
@@ -267,7 +304,7 @@
     },
     "viewed": {
       "default": {},
-      "description": "path -> round it was marked viewed",
+      "description": "path (or `<pr>:<path>` for one layer of a stack of PRs) -> round it was marked viewed",
       "type": "object",
       "propertyNames": {
         "type": "string"

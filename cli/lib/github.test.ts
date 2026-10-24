@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { PullRequest } from '@octokit/graphql-schema';
-import { ciOf, normalize, prTarget, toGitHubMarkdown } from './github.ts';
+import { ciOf, normalize, prTarget, routeLine, tagged, toGitHubMarkdown } from './github.ts';
 
 const author = (login: string) => ({ login, avatarUrl: `https://avatars.example/${login}` });
 const comment = (databaseId: number, login: string, body: string, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
@@ -71,4 +71,43 @@ test('CI: each commit is running, failed, passed or unchecked, newest first', ()
   const ci = ciOf([commit('a', run('lint', 'COMPLETED', 'SUCCESS'), st('jenkins', 'SUCCESS')), commit('b', run('lint', 'COMPLETED', 'FAILURE'), run('skip', 'COMPLETED', 'SKIPPED')), commit('c', run('lint', 'COMPLETED', 'FAILURE'), st('jenkins', 'PENDING')), commit('d')]);
   expect(ci.map((c) => [c.sha, c.state])).toEqual([['d', 'none'], ['c', 'pending'], ['b', 'failure'], ['a', 'success']]);
   expect(ci[3].checks).toEqual([{ name: 'CI / lint', state: 'success', url: 'd' }, { name: 'jenkins', state: 'success', url: null }]);
+});
+
+test("a stack PR's threads say which PR they are on; each PR has its own conversation", () => {
+  const s = tagged(normalize(pr, 'me', 'b'.repeat(40)), 368);
+  expect(s.stale).toBe(false);
+  expect(s.threads.map((t) => [t.id, t.pr])).toEqual([['gh_1', 368], ['gh_3', 368], ['gh_4', 368], ['gh_5', 368], ['gh_conversation_368', 368]]);
+  expect(s.threads[0].anchor).toEqual({ kind: 'code', path: 'a.go', rev: 'head', start: 10, end: 12, pr: 368 });
+  expect(s.threads.at(-1)!.title).toBe('#368 conversation');
+  // links to them on github.com: each conversation is its own PR's page; the plain one stays the requested PR's
+  const t = { host: 'github.com', owner: 'o', name: 'r', number: 7 };
+  expect(toGitHubMarkdown('[a](rr:thread/gh_conversation_368) [b](rr:thread/gh_conversation)', t, { base: 'B', head: 'H' })).toBe('[a](https://github.com/o/r/pull/368) [b](https://github.com/o/r/pull/7)');
+});
+
+test('a line comment from the whole stack goes to the PR that owns the line, or is refused saying where to comment', () => {
+  const layers = [{ number: 367 }, { number: 368 }, { number: 369 }];
+  const at = (rev: 'base' | 'head') => ({ path: 'a.go', rev, end: 3 });
+  const only = (...ns: number[]) => (n: number) => ns.includes(n);
+  // one PR changes the file: it, either side
+  expect(routeLine(at('base'), layers, only(368), () => [])).toBe(368);
+  // several: the topmost, if it last changed these lines
+  expect(routeLine(at('head'), layers, only(367, 369), () => [369, 369])).toBe(369);
+  expect(routeLine(at('head'), layers, only(367, 369), () => [367, 369])).toBe('a.go changes in #367, #369; these lines were last changed in #367, #369: comment from that PR\'s layer');
+  expect(routeLine(at('head'), layers, only(367, 369), () => [undefined])).toBe("a.go changes in #367, #369, but not these lines: no PR's diff has them");
+  expect(routeLine(at('base'), layers, only(367, 369), () => [])).toMatch(/comment on its old lines from one PR's layer/);
+  expect(routeLine(at('head'), layers, only(), () => [])).toBe('no PR of the stack changes a.go');
+});
+
+test("a @pr:<n> code link becomes a blob link at that PR's layer", () => {
+  const t = { host: 'github.com', owner: 'o', name: 'r', number: 368 };
+  const layers = [{ number: 367, base: 'B7', head: 'H7' }, { number: 368, base: 'H7', head: 'H8' }];
+  expect(toGitHubMarkdown('[x](rr:code/a.go@pr:367#L2) [y](rr:code/a.go@pr:367:base#L2) [z](rr:code/a.go#L2)', t, { base: 'H7', head: 'H8', layers })).toBe(
+    '[x](https://github.com/o/r/blob/H7/a.go#L2) [y](https://github.com/o/r/blob/B7/a.go#L2) [z](https://github.com/o/r/blob/H8/a.go#L2)',
+  );
+});
+
+test("a GitHub thread link goes to that thread's own PR", () => {
+  const t = { host: 'github.com', owner: 'o', name: 'r', number: 368 };
+  const threadPr = (id: string) => (id === 'gh_42' ? 367 : undefined);
+  expect(toGitHubMarkdown('[a](rr:thread/gh_42) [b](rr:thread/gh_43)', t, { base: 'B', head: 'H', threadPr })).toBe('[a](https://github.com/o/r/pull/367#discussion_r42) [b](https://github.com/o/r/pull/368#discussion_r43)');
 });

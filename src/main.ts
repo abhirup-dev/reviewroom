@@ -44,6 +44,7 @@ import './review/contents';
 import './threads/panels';
 import './threads/ci';
 import { recapOnNewRound } from './threads/recap';
+import { stackControl, walkthroughMenu } from './stack';
 
 export { ReviewApp, definePanel, parseRef, formatRef, renderMarkdown, renderPreview, LocalProvider, GitHubProvider, StaticProvider, ServerState, BrowserState };
 export type { CodeProvider, StateBackend, PanelDef, Fixture, ReviewMeta, ReviewState };
@@ -151,7 +152,9 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     app.layout.defaultId = saved?.default ?? null;
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
-    await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
+    // a stack opens on the PR asked for (or ?pr=<n>, the hub's link to one PR), not the whole stack
+    const pr = Number(new URLSearchParams(location.search).get('pr')) || Number(meta.number);
+    await app.setRange((meta.stack && app.prRange(pr)) || app.ranges()[0]);
   } catch (e) {
     app.dispose();
     root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
@@ -161,17 +164,23 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   registerPreviewExtensions({ tour: renderWalkthroughPreview });
   provideFocusCode(app, { openFile: (path, view, at) => openInNewPanel(app, path, view, 'center', undefined, at) });
   provideApp(app);
+  // a stack: the tab says which PR is in scope
+  const title = document.title;
+  const stackTitle = () => app.meta.stack && (document.title = `${title} · ${app.range.pr ? `#${app.range.pr}` : `#${app.meta.stack[0].number}–#${app.meta.stack.at(-1)!.number}`}`);
+  stackTitle();
+  app.bus.on('range', stackTitle);
   const dockHost = h('div', { class: 'rr-dock' });
   root.replaceChildren(buildHeader(app, {
     status: roundStatusControls,
     beforeLayout: () => [
       ...githubControls(app),
       app.walkthrough || app.walkthroughIssues
-        ? h('button', { class: 'rr-hbtn', title: app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
+        ? h('button', { class: 'rr-hbtn', title: app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, 'aria-haspopup': app.meta.stack ? 'menu' : null, onclick: (e: MouseEvent) => (app.meta.stack ? walkthroughMenu(app, e.currentTarget as HTMLElement) : app.bus.emit('walkthrough-open', {})) }, icon('play', 14), h('span', null, 'Guided walkthrough'), app.meta.stack ? icon('chevronDown', 12) : null)
         : null,
       ...threadHeaderControls(app),
     ],
     afterTheme: () => [feedbackButton(app)],
+    afterTitle: () => (app.meta.stack ? [stackControl(app)] : []),
     subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); },
   }), dockHost);
   root.classList.add('rr-root');
@@ -284,6 +293,9 @@ function registerCommands(app: ReviewApp) {
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => app.layout.ensurePanel('threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => app.layout.ensurePanel('toc') },
     { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
+    { id: 'stack.next', title: 'Next PR in the stack', group: 'Navigate', keys: ['shift+n'], when: () => !!app.meta.stack, run: () => app.stepPr(1) },
+    { id: 'stack.prev', title: 'Previous PR in the stack', group: 'Navigate', keys: ['shift+p'], when: () => !!app.meta.stack, run: () => app.stepPr(-1) },
+    { id: 'stack.all', title: 'Whole stack', group: 'Navigate', hint: 'Every PR of the stack as one diff', when: () => !!app.meta.stack, run: () => app.setRange(app.ranges()[0]) },
     { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: () => app.layout.canUndo(), run: () => app.layout.undo() },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', run: () => app.layout.reset() },
@@ -299,7 +311,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'diff.prev', title: 'Previous change', group: 'Code', keys: ['k'], scope: 'code', run: codeCmd('prev') },
     { id: 'diff.nextFile', title: 'Next file', group: 'Code', keys: ['] f', 'shift+j'], scope: 'code', run: codeCmd('nextFile') },
     { id: 'diff.prevFile', title: 'Previous file', group: 'Code', keys: ['[ f', 'shift+k'], scope: 'code', run: codeCmd('prevFile') },
-    { id: 'diff.viewed', title: 'Mark current file viewed', group: 'Code', keys: ['v'], scope: 'code', run: () => app.activeFile && app.setViewed(app.activeFile, app.state.viewed[app.activeFile] === undefined) },
+    { id: 'diff.viewed', title: 'Mark current file viewed', group: 'Code', keys: ['v'], scope: 'code', run: () => app.activeFile && app.setViewed(app.activeFile, !app.isViewed(app.activeFile)) },
     { id: 'files.tests', title: 'Toggle test files', group: 'Files', run: () => app.setPref('hideTests', !app.prefs.hideTests) },
     { id: 'doc.next', title: 'Next section', group: 'Narrative', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
     { id: 'doc.prev', title: 'Previous section', group: 'Narrative', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },

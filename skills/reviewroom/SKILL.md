@@ -49,8 +49,8 @@ tab reconnects by itself. That is expected.
 
 ## Step 2: Relay the URL
 
-The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`,
-outside the repo) and the URL.
+The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`, or
+`.../stack-<id>` when the PR is in a stack of PRs: one review covers the whole stack; outside the repo) and the URL.
 `reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
@@ -107,6 +107,17 @@ Edit `review.html` in the review directory; the open page reloads on every save.
 Optionally, to see it as the reviewer will (or to fix a layout problem they report), run
 `reviewroom shot [section] --dir <dir>`: PNGs of the Review panel, one per section, no browser needed.
 
+### A stack of PRs
+
+The reviewer sees the whole stack or one layer at a time (the requested PR's, first). Read each layer on its own:
+`reviewroom status --json` lists every PR with its base and head, and `git diff <base> <head>` of one PR is its layer.
+Wrap each PR's sections in `<section data-pr="<n>">`, bottom PR first; stack-wide sections (an overview, risks across
+PRs) go without it. Plain `rr:code` links inside a `data-pr` section read at that PR's head (`@pr:<n>` reaches another
+layer). The client groups the Contents by PR and dims the other PRs' sections when the reviewer narrows to one.
+
+A stack is a big review. Past three or four PRs, write the requested PR in depth and the others as a short section each,
+or give each PR's chapter to its own subagent and write the overview and hand-offs yourself.
+
 ## Step 4b: Write the guided walkthrough, when wanted
 
 Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
@@ -114,6 +125,11 @@ files, reconciliation; the diff and description as the only evidence), then "Gui
 `references/authoring.md` (the file and its checks). Write `walkthrough.json`, then run those checks
 until clean. Each finding names the chapter/step and how to fix it. Take a screenshot only of slides
 you need to see.
+
+In a stack, write one chained guided walkthrough: give each chapter about one PR its `pr`, bottom first, and leave it
+off the intro and wrap-up. The reviewer plays the whole stack, or one PR (its chapters with the stack-wide ones); the
+code pane switches to a chapter's layer, and the player hands off to the next PR itself, so don't write a slide that
+only says "next PR".
 
 ## Step 4c: Hand over
 
@@ -164,6 +180,8 @@ If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
 push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
+When a round starts, `reviewroom review` prints what moved since the last one (new commits, or a branch rewritten: a
+force-push or a restack of a stack of PRs, with `git range-diff`'s pairing); the next feedback repeats it for a stack.
 
 A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
 the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a

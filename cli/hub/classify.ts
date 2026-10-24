@@ -7,9 +7,10 @@ export interface ClassificationInput {
   label: string | null;
   args?: string[];
   command?: string | null;
-  /** reviewroom: PR number and head ref from its session record. */
+  /** reviewroom: PR number and head ref from its session record; a stack's PR numbers, bottom first. */
   pr?: number | string | null;
   head?: string | null;
+  stack?: number[] | null;
 }
 
 export interface SessionClassification {
@@ -39,6 +40,8 @@ export function classifySession(input: ClassificationInput): SessionClassificati
 
   if (input.tool === 'reviewroom') {
     const source = 'reviewroom session record';
+    const s = input.stack;
+    if (s && s.length > 1) return is('review', 'pull-request-review', `#${s[0]}..#${s.at(-1)} (${s.length} PRs)`, source);
     if (input.pr) return is('review', 'pull-request-review', `#${input.pr}`, source);
     return is('review', 'code-review', input.head === 'worktree' ? 'uncommitted changes' : clean(input.head), source);
   }

@@ -20,7 +20,8 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Where reviews live
 
-By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo.
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` (`stack-<id>/` for a stack of PRs, see
+`docs/adr/0001-one-review-per-stack.md`), never inside the reviewed repo.
 
 ## Contracts (change deliberately, update the skill when you do)
 
@@ -32,8 +33,9 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/kernel/state/schema.shared.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
-  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
+- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server
+  (`cli/lib/registry.ts` SessionRecord; a stack review adds `stack`, its `number` stays the PR it was opened from), read
+  by `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
   `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the shipped ones
   in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
@@ -71,6 +73,7 @@ bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep`
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
+bun run demo-stack  # a stack of three PRs (no GitHub) + live review
 ```
 
 Verify UI changes in a real browser on the demo (light and dark, wide and laptop widths). To get a new build into

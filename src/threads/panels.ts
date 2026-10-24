@@ -29,6 +29,8 @@ class ThreadsPanel implements PanelInstance {
   private sources: Set<Source> | null = null;
   /** Thread starters to show (see starter()); empty = everyone. */
   private authors = new Set<string>();
+  /** A stack: every PR's threads, not only the scoped PR's. */
+  private everyPr = false;
   private mode = '';
   private filterBtn: HTMLElement;
   private offs: (() => void)[] = [];
@@ -38,10 +40,10 @@ class ThreadsPanel implements PanelInstance {
     this.filterBtn = h('button', { class: 'rr-tool', 'aria-label': 'Filter threads', title: 'Filter threads by source and by who started them', 'aria-haspopup': 'menu', onclick: () => this.filterMenu() }, icon('filter', 14));
     this.body = h('div', { class: 'rr-scroll rr-thread-list' });
     // the PR conversation isn't a thread on anything: it opens from a small button in the footer, not the list
-    this.convo = h('button', { class: 'rr-convo-btn', title: 'PR conversation', 'aria-label': 'PR conversation', onclick: () => app.bus.emit('open-thread', { id: 'gh_conversation' }) });
+    this.convo = h('button', { class: 'rr-convo-btn', title: 'PR conversation', 'aria-label': 'PR conversation', onclick: () => app.bus.emit('open-thread', { id: app.services.threads.conversation()?.id ?? 'gh_conversation' }) });
     this.foot = h('div', { class: 'rr-side-foot' });
     this.element = h('div', { class: 'rr-side' }, this.head, this.body, this.foot);
-    this.offs.push(app.bus.on('state', () => this.render()), app.bus.on('prefs', () => this.render()));
+    this.offs.push(app.bus.on('state', () => this.render()), app.bus.on('prefs', () => this.render()), app.bus.on('range', () => this.render()));
     this.render();
   }
 
@@ -63,6 +65,7 @@ class ThreadsPanel implements PanelInstance {
         threadBadge(t, app.services.threads.unreadAgent(t)),
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         h('span', null, t.title ?? app.anchorLabel(t.anchor)),
+        app.services.threads.prOf(t) ? h('span', { class: 'rr-round-badge rr-round-badge--pr', title: `On #${app.services.threads.prOf(t)}` }, `#${app.services.threads.prOf(t)}`) : null,
         t.gh ? h('span', { class: 'rr-round-badge', title: 'Started on GitHub by ' + t.messages[0]?.gh?.login }, '@' + t.messages[0]?.gh?.login) : h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound),
       ),
       h('div', { class: 'rr-thread-item__text' }, plainExcerpt(t.messages[0]?.body ?? '', 120)),
@@ -89,7 +92,7 @@ class ThreadsPanel implements PanelInstance {
     }
     const every = app.services.threads.threads().filter((t) => !t.gh?.conversation);
     const all = every.filter((t) => this.shown(t));
-    const convo = app.services.threads.threads().find((t) => t.gh?.conversation);
+    const convo = app.services.threads.conversation();
     this.convo.hidden = !convo;
     if (convo) this.convo.replaceChildren(threadBadge(convo));
     const pending = app.services.threads.pendingFeedback().length;
@@ -159,7 +162,10 @@ class ThreadsPanel implements PanelInstance {
   }
   private shown(t: Thread) {
     const src = this.sources ?? this.defaultSources();
-    return src.has(t.gh ? 'github' : 'agent') && (!this.authors.size || this.authors.has(starter(t).key));
+    // a stack scoped to one PR: its threads and the stack-wide ones, unless every PR's are asked for
+    const pr = this.everyPr ? undefined : this.app.range?.pr;
+    const inScope = !pr || (this.app.services.threads.prOf(t) ?? pr) === pr;
+    return inScope && src.has(t.gh ? 'github' : 'agent') && (!this.authors.size || this.authors.has(starter(t).key));
   }
   private describe() {
     const src = this.sources ?? this.defaultSources();
@@ -187,7 +193,15 @@ class ThreadsPanel implements PanelInstance {
         checked: this.authors.has(a.key),
         hint: String(threads.filter((t) => starter(t).key === a.key).length),
       });
+    const stack = this.app.meta.stack;
     popMenu(this.filterBtn, (close) => [
+      ...(stack
+        ? [
+            menuLabel('PRs'),
+            menuItem(this.app.range?.pr ? `#${this.app.range.pr} and the whole stack` : 'The PR in scope', toggle(() => (this.everyPr = false)), { checked: !this.everyPr, hint: 'follows the stack control' }),
+            menuItem(`Every PR (${stack.length})`, toggle(() => (this.everyPr = true)), { checked: this.everyPr }),
+          ]
+        : []),
       menuLabel('Show'),
       menuItem('Agent threads', toggleSource('agent'), { checked: src.has('agent') }),
       menuItem('GitHub threads', toggleSource('github'), { checked: src.has('github') }),

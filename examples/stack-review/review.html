@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A read-through cache over the store</title>
+<script type="module" src="/_rr/reviewroom.js"></script>
+</head>
+<body>
+<rr-app>
+  <script type="application/json" id="rr-meta">{}</script>
+  <rr-review>
+    <h1>A read-through cache over the store</h1>
+    <p class="rr-lede">Three PRs, bottom first: the store learns to write, a cache reads through it, and the cache learns to forget. #1 is already merged.</p>
+
+    <section id="overview">
+      <h2>The stack</h2>
+      <rr-flow>
+        <rr-node state="baseline">store.Get</rr-node>
+        <rr-node state="new" ref="rr:code/store/store.go@pr:1#L12-14">Put, Delete</rr-node>
+        <rr-node state="new" ref="rr:code/cache/cache.go@pr:2#L11-18">Cache.Get</rr-node>
+        <rr-node state="new" ref="rr:code/cache/cache.go@pr:3#L20">Cache.Forget</rr-node>
+      </rr-flow>
+    </section>
+
+    <section id="store-writes" data-pr="1">
+      <h2>The store learns to write</h2>
+      <p><a href="rr:code/store/store.go#L12">Put</a> and <a href="rr:code/store/store.go#L14">Delete</a> are one-liners over the map.</p>
+    </section>
+
+    <section id="cache" data-pr="2">
+      <h2>A read-through cache</h2>
+      <p><a href="rr:code/cache/cache.go#L11-18">Cache.Get</a> answers from <code>seen</code> first, else reads the store and remembers the value.</p>
+      <h3 id="cache-stale">Stale reads</h3>
+      <p>A <code>Put</code> on the store after a read is never seen by the cache: nothing invalidates <code>seen</code> yet.</p>
+    </section>
+
+    <section id="forget" data-pr="3">
+      <h2>Forgetting a key</h2>
+      <p><a href="rr:code/cache/cache.go#L20">Forget</a> drops one key, and <a href="rr:code/store/store.go#L10-12">store.Get</a> now says a missing key reads as <code>""</code>.</p>
+    </section>
+  </rr-review>
+</rr-app>
+</body>
+</html>

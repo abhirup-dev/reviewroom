@@ -23,3 +23,17 @@ test('tour threads come last, in tour order, with their slide; a removed step is
     'Anchor: guided walkthrough "Why this change" slide 2/2: "The fetcher & its deadline."  (rr:tour/why/s2)',
   ]);
 });
+
+test('a stack: a section per PR, bottom first, with its verdict and branch; whole-stack threads last', () => {
+  const code = (pr?: number) => ({ kind: 'code' as const, path: 'a.go', rev: 'head' as const, start: 1, end: 1, ...(pr && { pr }) });
+  const state = build.state({ threads: [build.thread('t_top', { anchor: code(368) }), build.thread('t_all', { anchor: code() }), build.thread('t_low', { anchor: code(366) })] });
+  const stack = [366, 367, 368].map((number) => ({ number, title: `PR ${number}`, headLabel: `b${number}` }));
+  const md = feedbackMarkdown(state, { kind: 'feedback', stack, verdicts: { 366: 'approve', 367: 'approve', 368: 'changes' } });
+  expect(md.split('\n').filter((l) => /^#{2,3} /.test(l))).toEqual(['## #366 PR 366 - approved', '### Thread t_low - open', '## #367 PR 367 - approved', '## #368 PR 368 - changes wanted', '### Thread t_top - open', '## The whole stack', '### Thread t_all - open']);
+  expect(md).toContain('Commit fixes for it on branch `b368`.');
+  expect(md).toContain('Anchor: a.go:1 (#368, new/head side)  (rr:code/a.go@pr:368#L1)');
+  // the same threads without a stack: as before stacks, one flat list
+  const flat = feedbackMarkdown(state, { kind: 'feedback' });
+  expect(flat.split('\n').filter((l) => /^#{2,3} /.test(l))).toEqual(['## Thread t_top - open', '## Thread t_all - open', '## Thread t_low - open']);
+  expect(flat).not.toContain('whole stack');
+});

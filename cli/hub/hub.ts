@@ -204,7 +204,8 @@ export class Hub {
         pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir,
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
-      withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
+      withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head, stack: r.stack?.prs.map((p) => p.number) }));
+      if (r.stack) info.stack = r.stack.prs;
       next.set(info.id, info);
       // nothing answers as this server: it died without cleaning up (SIGKILL, crash)
       const gone = () => (next.delete(info.id), unregister(r.pid));

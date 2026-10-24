@@ -69,6 +69,13 @@ Validation, Failure modes, Tests) instead of parts of the change; slides about w
 a thread introduced on slide 2 that vanishes until chapter 4; the critical contract spread over four
 slides and never named as the centre.
 
+## A stack of PRs
+
+One story across the stack, a chapter (or a few) per PR, bottom first, each with its `pr`. Start with a stack-wide
+chapter (no `pr`) that names what each PR adds and how they build on each other; end each PR's last chapter with what
+the next one builds on, so the hand-off reads as a step in the story. A chapter about one PR shows only that PR's code
+(its links read at its head): a slide that needs an earlier layer's code links it with `@pr:<n>`.
+
 ## With the walkthrough (`review.html`)
 
 One story at two depths:
