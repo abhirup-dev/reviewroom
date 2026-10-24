@@ -851,8 +851,8 @@
 
 /* ---------------------------------------------------------------- guided review */
 /* slides/player.ts: the code under the whole screen, below a status bar of close and the chapter; the slide a
-   large-radius card floating over it; Back / Comment / Next an M3E floating toolbar (full pill, 64px), Next its one
-   filled pill. The walkthrough's progress a thin row at the foot, always on screen. Immersive (.is-immersive, 4 s
+   large-radius card floating over it; an M3E floating toolbar (full pill, 52px): Back and Next round icon buttons either
+   side of Contents | Comment, one joined pill. The walkthrough's progress a thin row at the foot, always on screen. Immersive (.is-immersive, 4 s
    untouched): the bar and the toolbar fade, the code rises into the bar's place and fills the screen edge to edge, the
    card drops to just above the progress row with a small Show controls icon in its corner. */
 .is-phone .rr-tour__player {
@@ -957,7 +957,7 @@
   position: absolute;
   left: 12px;
   right: 12px;
-  bottom: calc(96px + env(safe-area-inset-bottom));
+  bottom: calc(84px + env(safe-area-inset-bottom));
   padding: 0 16px 14px;
   border: 0;
   border-radius: var(--rr-shape-l);
@@ -978,7 +978,7 @@
   font-size: 15px;
 }
 .is-phone .is-immersive .rr-tour__left {
-  translate: 0 calc(96px - 20px); /* down to just above the progress row */
+  translate: 0 calc(84px - 20px); /* down to just above the progress row */
 }
 /* the sheet's detents (player.ts): one line, its text up to 40% of the screen, up to all but the bar and a strip of
    code. Dragged, it follows the finger (inline height); let go, it glides to a detent (.is-settling) */
@@ -986,7 +986,7 @@
   max-height: 40dvh;
 }
 .rr-tour__left[data-detent='tall'] {
-  max-height: calc(100dvh - var(--rr-phone-bar) - 96px - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - var(--rr-phone-bar) - 84px - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 .is-phone .rr-tour__left.is-settling {
   transition:
@@ -1089,22 +1089,23 @@
   align-items: center;
   gap: 4px;
   width: auto;
-  height: 64px;
-  padding: 0 8px;
-  overflow: clip;
+  height: 52px;
+  padding: 0 4px;
   border: 0;
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
   box-shadow: var(--rr-shadow-lg);
   transition:
-    opacity 150ms ease-out,
-    visibility 150ms,
-    translate var(--rr-m-default-ms) var(--rr-m-default);
+    opacity var(--rr-m-fast-ms) var(--rr-m-fast),
+    visibility var(--rr-m-fast-ms),
+    translate var(--rr-m-default-ms) var(--rr-m-default),
+    scale var(--rr-m-default-ms) var(--rr-m-default);
 }
 .is-phone .is-immersive .rr-tour__bottom {
   opacity: 0;
   visibility: hidden;
   translate: -50% 16px;
+  scale: 0.92;
 }
 /* immersive: Show controls, a small icon in the card's bottom-right corner (sticky, so it stays in view while the
    text scrolls); it brings the toolbar and the bar back as they were */
@@ -1137,25 +1138,186 @@
   width: 20px;
   height: 20px;
 }
-.is-phone .rr-tour__back,
-.is-phone .rr-tour__comment {
-  width: 48px;
-  height: 48px;
+/* Back and Next: the same small round icon buttons */
+.is-phone :is(.rr-tour__back, .rr-tour__fwd) {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--rr-shape-full);
   color: var(--rr-ink-2);
+}
+.is-phone :is(.rr-tour__back, .rr-tour__fwd):disabled {
+  opacity: 0.38;
+  background: none;
+  cursor: default;
 }
 .is-phone .rr-tour__back svg {
   transform: scaleX(-1);
 }
-.is-phone .rr-tour__back .rr-icon,
-.is-phone .rr-tour__comment .rr-icon {
+/* the very first slide: Next pulses (navigation blue) until the reviewer has moved on */
+.is-phone .rr-tour__fwd.is-nudge {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+  animation: rr-nudge 2s ease-out 600ms infinite;
+}
+@keyframes rr-nudge {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--rr-accent) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+/* Contents | Comment: one connected pill, two halves 2px apart; Comment in the conversation colour */
+.rr-tour__pair {
+  display: flex;
+  gap: 2px;
+}
+.rr-tour__pair > button {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 40px;
+  border: 0;
+  cursor: pointer;
+}
+.rr-tour__contents {
+  border-radius: var(--rr-shape-full) var(--rr-shape-xs) var(--rr-shape-xs) var(--rr-shape-full);
+  background: var(--rr-surface-nav-2);
+  color: var(--rr-ink-2);
+}
+.is-phone .rr-tour__comment {
+  border-radius: var(--rr-shape-xs) var(--rr-shape-full) var(--rr-shape-full) var(--rr-shape-xs);
+  background: var(--rr-comment-soft);
+  color: var(--rr-comment);
+}
+.is-phone .rr-tour__bottom .rr-icon {
+  width: 20px;
+  height: 20px;
+}
+/* a slide change: the new text rises in on the standard spring */
+@media (prefers-reduced-motion: no-preference) {
+  .is-phone :is(.rr-tour__lead, .rr-tour__step).is-in {
+    animation: rr-tour-in var(--rr-m-default-ms) var(--rr-m-default);
+  }
+}
+
+/* Contents (player.ts): a bottom sheet of the chapters, the current one open on its slides. Kept in the page, so it
+   slides away on close as it rose (display and overlay stay until the transition ends) */
+.rr-modal.rr-sheet.rr-tour-toc {
+  max-height: 75dvh;
+  animation: none;
+  transition:
+    translate var(--rr-m-default-ms) var(--rr-m-default),
+    display var(--rr-m-default-ms) allow-discrete,
+    overlay var(--rr-m-default-ms) allow-discrete;
+}
+.rr-tour-toc:not([open]) {
+  translate: 0 100%;
+}
+.rr-tour-toc::backdrop {
+  animation: none;
+  transition:
+    opacity var(--rr-m-default-ms) var(--rr-m-default),
+    display var(--rr-m-default-ms) allow-discrete,
+    overlay var(--rr-m-default-ms) allow-discrete;
+}
+.rr-tour-toc:not([open])::backdrop {
+  opacity: 0;
+}
+@starting-style {
+  .rr-tour-toc[open] {
+    translate: 0 100%;
+  }
+  .rr-tour-toc[open]::backdrop {
+    opacity: 0;
+  }
+}
+.rr-tour-toc:focus {
+  outline: none;
+}
+.rr-tour-toc__title {
+  margin: 8px 24px 4px;
+  font: 600 16px / 1.3 var(--rr-font);
+}
+.rr-tour-toc__list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 12px 16px;
+}
+.rr-tour-toc__head,
+.rr-tour-toc__slide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: var(--rr-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.rr-tour-toc__head {
+  min-height: 56px;
+  padding: 0 16px 0 12px;
+  font: 500 14px / 1.3 var(--rr-font);
+}
+.rr-tour-toc__head > span:not(.rr-tour-toc__num),
+.rr-tour-toc__slide > span:not(.rr-tour-toc__num) {
+  flex: 1;
+  min-width: 0;
+}
+.rr-tour-toc__head small {
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-tour-toc__num {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-nav-2);
+  color: var(--rr-ink-2);
+  font: 600 12px var(--rr-font);
+}
+.rr-tour-toc__head[aria-current] {
+  background: var(--rr-accent-soft);
+  font-weight: 600;
+}
+.rr-tour-toc__head[aria-current] .rr-tour-toc__num,
+.rr-tour-toc__slide[aria-current] .rr-tour-toc__num {
+  background: var(--rr-accent);
+  color: var(--rr-accent-ink);
+}
+.rr-tour-toc__slides {
+  margin: 4px 0 8px;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+.rr-tour-toc__slide {
+  min-height: 48px;
+  padding: 6px 16px 6px 8px;
+  color: var(--rr-ink-2);
+  font: 400 14px / 1.35 var(--rr-font);
+}
+.rr-tour-toc__slide > span:not(.rr-tour-toc__num) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rr-tour-toc__slide .rr-tour-toc__num {
   width: 24px;
   height: 24px;
+  background: none;
+  font-size: 11px;
 }
-.is-phone .rr-tour__next {
-  height: 48px;
-  padding: 0 16px 0 20px;
-  border-radius: var(--rr-shape-full);
-  font: 600 14px var(--rr-font);
+.rr-tour-toc__slide[aria-current] {
+  color: var(--rr-ink);
+  font-weight: 500;
 }
 
 /* ---------------------------------------------------------------- reduced motion: movement becomes a fade */
@@ -1163,6 +1325,11 @@
   :root:has(.is-phone) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet, .is-phone .rr-tour__left) {
     animation: rr-fade 150ms ease-out !important; /* overlays.css */
     transition: none !important;
+  }
+  /* Next's nudge: a steady highlight, no pulse */
+  .is-phone .rr-tour__fwd.is-nudge {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--rr-accent);
   }
   .is-phone :is(.rr-tour__top, .rr-tour__bottom, .rr-tour__right, .rr-tour__left) {
     transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves */

@@ -5,7 +5,7 @@
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor, type SnapshotFrom } from 'xstate';
-import { h, icon, onDrag, plural } from '../kernel/dom';
+import { backdropCloses, h, icon, onDrag, plural } from '../kernel/dom';
 import { isPhone, onBack } from '../kernel/phone';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
@@ -111,7 +111,8 @@ export function mountWalkthrough(app: ReviewApp) {
   const chapterPrev = btn('chevron', 'Previous chapter', () => go(-1));
   const chapterNext = btn('chevron', 'Next chapter', () => go(1));
   chapterPrev.classList.add('rr-tour__flip');
-  const chapterBtn = h('button', { class: 'rr-tour__chapter', title: 'Jump to a chapter', 'aria-haspopup': 'menu', onclick: () => chapterMenu() });
+  let contentsSheet: (() => void) | undefined; // a phone's chapters and slides (phonePlayer); the desktop's a menu
+  const chapterBtn = h('button', { class: 'rr-tour__chapter', title: 'Jump to a chapter', 'aria-haspopup': 'menu', onclick: () => (contentsSheet ?? chapterMenu)() });
   const position = h('span', { class: 'rr-tour__pos' });
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
@@ -211,18 +212,45 @@ export function mountWalkthrough(app: ReviewApp) {
   app.root.append(root);
   if (phone) phonePlayer();
   /** A phone plays full screen (phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
-   *  floating toolbar of Back, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
+   *  floating toolbar of Back, Contents | Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
    *  untouched the chrome fades and the toolbar shrinks to a round button that brings it back (chromeMachine); the card
    *  drags between one line, its text and tall (cardMachine); it swipes sideways to the next or previous slide
    *  (gestureMachine). Back (the phone's) closes the player. */
   function phonePlayer() {
-    // the floating toolbar: Back and Comment as icon buttons, Next the one filled pill
-    prev.replaceChildren(icon('chevron', 24));
+    // the floating toolbar: Back and Next round icon buttons either side of Contents | Comment, one joined pill
+    prev.replaceChildren(icon('chevron', 20));
     prev.className = 'rr-icon-btn rr-tour__back';
-    comment.replaceChildren(icon('comment', 24));
-    comment.className = 'rr-icon-btn rr-tour__comment';
+    next.className = 'rr-icon-btn rr-tour__fwd';
+    comment.replaceChildren(icon('comment', 20));
+    comment.className = 'rr-tour__comment';
     comment.setAttribute('aria-label', 'Comment on this slide');
-    next.before(comment);
+    const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet!() }, icon('toc', 20));
+    next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents and comment' }, contents, comment));
+    chapterBtn.title = 'Chapters and slides';
+    chapterBtn.setAttribute('aria-haspopup', 'dialog');
+    // Contents: a bottom sheet of the chapters, the current one open on its slides. A <dialog>, so the chrome holds
+    // while it's open and Back closes it (PhoneShell's watchDialogs); kept, so it can slide away (phone.css)
+    const sheet = h('dialog', { class: 'rr-modal rr-sheet rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1', onmousedown: backdropCloses });
+    document.body.append(sheet);
+    const jump = (chapter: number, step: number) => (sheet.close(), actor.send({ type: 'goto', chapter, step }));
+    const gist = (html: string) => Object.assign(h('div'), { innerHTML: sanitizeProse(html) }).textContent.trim();
+    contentsSheet = () => {
+      const { doc, chapter: at, step: on } = ctx();
+      const chapters = doc!.chapters.map((c, ci) =>
+        h(
+          'section',
+          { class: 'rr-tour-toc__chapter' + (ci === at ? ' is-on' : '') },
+          h('button', { class: 'rr-tour-toc__head', title: `Go to ${c.title}`, 'aria-current': ci === at ? 'true' : undefined, onclick: () => jump(ci, 0) }, h('span', { class: 'rr-tour-toc__num' }, String(ci + 1)), h('span', null, c.title), h('small', null, plural(c.steps.length, 'slide'))),
+          ci === at
+            ? h('ol', { class: 'rr-tour-toc__slides' }, ...c.steps.map((s, si) => h('li', null, h('button', { class: 'rr-tour-toc__slide', title: `Go to slide ${si + 1}`, 'aria-current': si === on ? 'step' : undefined, onclick: () => jump(ci, si) }, h('span', { class: 'rr-tour-toc__num' }, String(si + 1)), h('span', null, gist(s.text))))))
+            : null,
+        ),
+      );
+      sheet.replaceChildren(h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
+      sheet.showModal();
+      sheet.focus(); // the sheet, not its first chapter: no ring on open
+      sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest' });
+    };
     player.append(progress); // always on screen, over the code, even immersive
     // the card: a bottom sheet with three detents, kept across slides (cardMachine); this measures and renders
     const DETENTS = ['collapsed', 'default', 'tall'] as const;
@@ -319,7 +347,7 @@ export function mountWalkthrough(app: ReviewApp) {
       }
       chrome.send({ type: playing ? 'wake' : 'stop' });
     });
-    app.onDispose(() => (card.stop(), touch.stop(), chrome.stop()));
+    app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), sheet.remove()));
   }
 
   const ctx = () => actor.getSnapshot().context;
@@ -352,6 +380,7 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ render the player's snapshot
   let last = { chapter: -1, step: -1, doc: null as Walkthrough | null };
+  let moved = false; // past the first slide once: Next stops nudging (phone)
   const prose = (el: HTMLElement, html: string) => (el.innerHTML = sanitizeProse(html));
   // the step (or chapter) changed: new content at once, a CSS entrance (nothing to race)
   const enter = (el: HTMLElement) => {
@@ -404,8 +433,14 @@ export function mountWalkthrough(app: ReviewApp) {
     );
     enter(stepBox);
     prev.toggleAttribute('disabled', cur.isFirst);
-    next.replaceChildren(cur.isLast ? 'Finish' : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
     next.title = cur.isLast ? 'End the guided walkthrough' : 'Next slide';
+    if (phone) {
+      // an icon (a check on the last slide); on the very first, a pulse to start until the reviewer has moved on
+      next.replaceChildren(icon(cur.isLast ? 'check' : 'chevron', 20));
+      next.setAttribute('aria-label', next.title);
+      moved ||= !cur.isFirst;
+      next.classList.toggle('is-nudge', !moved);
+    } else next.replaceChildren(cur.isLast ? 'Finish' : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
     progress.replaceChildren(
       ...d!.chapters.map((c, ci) =>
         h(

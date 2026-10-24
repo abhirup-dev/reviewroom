@@ -66,16 +66,21 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
 - **Drawer** (modal navigation drawer): 300px max, large trailing corners, header with title and facts, 56px items,
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
 - **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
-  toolbar (full pill, 64px, surface-container-high) with Back · Comment · Next; Next is a filled ink pill. Immersive:
-  4 s untouched (not while a menu, the composer or a selection is open), the top bar fades, the code fills the screen
-  edge to edge and the toolbar shrinks (a container transform) to one 48px round button in the bottom
-  right corner, Show controls, which grows it back; so does a tap on the content or any slide change. Reduced motion:
-  they swap. The card is a bottom sheet with three detents, kept across slides: collapsed (grip and the text's first
-  line), default (its content, up to 40% of the screen) and tall (up to all but the bar and a strip of code). Dragging
-  the grip or the card follows the finger and settles on the nearest detent, a flick at least one step; the text
-  scrolls once tall, and a drag down from its top shrinks it. Sideways swipes change the slide. The chapter intro
-  opens its first slide; on the others it folds to its first line with More. The walkthrough's progress (chapters ×
-  slides) is a thin row at the screen's foot, always shown, under the toolbar and the round button.
+  toolbar (full pill, 52px, surface-container-high): Back and Next are the same 44px round icon buttons either side of a
+  connected pair, Contents | Comment (Comment in the conversation colour). Back is disabled on the first slide, where
+  Next pulses (a steady ring under reduced motion) until the reviewer moves on; on the last slide Next is a check that
+  ends the walkthrough. Contents (and the chapter title in the top bar) opens a bottom sheet of the chapters with their
+  slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
+  4 s untouched (not while a menu, the composer, the Contents sheet or a selection is open), the top bar and the
+  toolbar fade, the code fills the screen edge to edge and the card drops to just above the progress row with a small
+  Show controls icon in its corner, which brings them back; so does a tap on the content or any slide change. Reduced
+  motion: they fade, nothing moves. The card is a bottom sheet with three detents, kept across slides: collapsed (grip
+  and the text's first two lines), default (its content, up to 40% of the screen) and tall (up to all but the bar and a
+  strip of code). Dragging the grip or the card follows the finger and settles on the nearest detent, a flick at least
+  one step; the text scrolls once tall, and a drag down from its top shrinks it. Sideways swipes change the slide. The
+  chapter intro opens its first slide; on the others it folds to its first line with More, and a swipe up (or a tall
+  card) opens it. The code is one sheet on the code surface to the bottom edge. The walkthrough's progress (chapters ×
+  slides) is a thin row at the screen's foot, always shown.
 - **Rotation**: a phone on its side gets the dock (from the Tablet layout, never saved over the reviewer's last
   layout); upright, the phone shell. It reloads into the other shell on rotation, keeping the panel in front, the open
   file and the slide (`src/kernel/device.ts`).
