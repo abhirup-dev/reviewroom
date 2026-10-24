@@ -3,7 +3,8 @@
 The phone shell (`src/kernel/phone.ts`, `src/kernel/styles/phone.css`; each feature's phone rules in its own
 `*.phone.css`, the guided review's player in `src/slides/player.phone.ts`) follows Material 3 Expressive (M3E) for shape,
 touch, and motion, and keeps reviewroom's own colour, type, and restraint (`DESIGN.md`). Desktop and the tablet dock
-are unchanged; everything here is scoped to `.rr-phone`, the guided review's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
+are unchanged; everything here is scoped to `.is-phone` (the root), `.rr-phone` (the shell) and `:root:has(.is-phone)`
+(dialogs, outside the root), the guided review's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
 
 ## The deal between the two systems
 

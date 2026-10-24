@@ -132,11 +132,13 @@ src/
   main.ts             boot, public exports, window.rr, feature composition
   app.ts              ReviewApp compatibility facade and lifecycle
   services.ts         composition of narrow code, thread and GitHub services
-  kernel/             state/refs, DOM helpers, dock, layouts, providers, header
+  kernel/             state/refs, DOM helpers, dock and phone shell, layouts, presentation (device), Back history,
+                      sheets, providers, header
   review/             code/walkthrough/files/contents, elements, previews, navigation
   threads/            local/GitHub threads, composer, controls, CI and docking
   slides/             guided walkthrough model, player machines, view and audit
   hub/                standalone hub UI and model
+  pwa/                web app manifest and icons
   testing/            DOM fixtures and integration tests
   */styles/           CSS owned by each feature; build.ts preserves cascade order
   *.shared.ts         DOM-free contracts shared with the CLI (also within folders)

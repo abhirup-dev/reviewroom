@@ -726,7 +726,7 @@
 /* ---------------------------------------------------------------- reduced motion: movement becomes a fade */
 @media (prefers-reduced-motion: reduce) {
   :root:has(.is-phone, .rr-tour[data-form='phone']) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet) {
-    animation: rr-fade 150ms ease-out !important; /* overlays.css */
+    animation: rr-fade 150ms ease-out !important; /* dialogs.css */
     transition: none !important;
   }
   .rr-phone-tab.is-new .rr-phone-tab__pill {

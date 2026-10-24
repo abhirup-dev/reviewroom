@@ -376,7 +376,7 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
     titleMenu: () => (team() ? null : (anchor) => roundMenu(app, anchor)),
     status: roundStatusControls,
     actions: () => [app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: 'Play the guided walkthrough: the main story of this diff, slide by slide', onclick: () => app.commands.run('walkthrough.play') }, icon('play', 24)) : null],
-    // a round ink icon button, its count a badge on the corner (phone.css)
+    // a round ink icon button, its count a badge on the corner (kernel/styles/phone.css)
     send: () => {
       const b = feedbackButton(app);
       b.title = team() ? 'Submit review' : 'Send round';
