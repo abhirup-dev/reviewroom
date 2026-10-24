@@ -81,6 +81,10 @@
           "ref": "rr:code/migrations/004_habit_events.sql#L1-8"
         },
         {
+          "id": "map",
+          "text": "<p>How a row travels: the table row is decoded into a <code>HabitEvent</code>, and up to 50 ride on field 12.</p><rr-mermaid>erDiagram\n  habit_events ||--|| HabitEvent : decode\n  RankerRequest ||--o{ HabitEvent : \"field 12\"</rr-mermaid>"
+        },
+        {
           "id": "s3",
           "text": "<p>Two tests: the deadline fires, and decoding caps at 50. Nothing exercises the degrade branch in <code>Build</code>.</p>",
           "ref": "rr:code/pkg/features/habit/fetcher_test.go#L11-22"
