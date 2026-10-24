@@ -11,6 +11,7 @@
 // palette, theming - is provided. See skills/reviewroom/references/authoring.md.
 import cssText from './bundle.css' with { type: 'text' };
 import { h, icon } from './kernel/dom';
+import { loadRaw } from './kernel/store';
 import { parseRef, formatRef } from './kernel/refs/browser';
 import { anchorOf } from './kernel/refs/refs.shared';
 import { renderMarkdown } from './kernel/markdown';
@@ -80,12 +81,7 @@ async function pickProvider(root: HTMLElement, meta: Partial<ReviewMeta>, fx: Fi
   }
   const repo = root.getAttribute('repo') || meta.repo;
   if (repo && meta.base && meta.head) {
-    let token: string | undefined;
-    try {
-      token = localStorage.getItem('reviewroom:github-token') || undefined;
-    } catch {
-      /* ignore */
-    }
+    const token = loadRaw('reviewroom:github-token') || undefined;
     return { provider: new GitHubProvider(repo, meta.base, meta.head, token), backend: 'browser' };
   }
   throw new Error('No code source: run `reviewroom pr` or `reviewroom review`, or set repo/base/head for GitHub, or embed #rr-fixture.');
