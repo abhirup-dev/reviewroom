@@ -163,6 +163,25 @@
   border-color: var(--rr-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--rr-accent) 35%, transparent), 0 0 14px color-mix(in srgb, var(--rr-accent) 40%, transparent);
 }
+/* the same for a Mermaid diagram's nodes, and the edges between two lit nodes draw themselves */
+.rr-tour rr-mermaid .pele-node {
+  transition: opacity 0.35s ease, filter 0.35s ease;
+}
+.rr-tour rr-mermaid.has-focus .pele-node:not(.is-focus) {
+  opacity: 0.4;
+}
+.rr-tour rr-mermaid .pele-node.is-focus {
+  filter: drop-shadow(0 0 2px var(--rr-accent)) drop-shadow(0 0 8px color-mix(in srgb, var(--rr-accent) 45%, transparent));
+}
+.rr-tour rr-mermaid .pele-node.is-focus :is(rect, polygon, circle, ellipse, path) {
+  stroke: var(--rr-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rr-tour rr-mermaid .pele-edge.is-focus > path:first-child {
+    stroke-dasharray: 7 5;
+    animation: rr-diagram-trace 1.2s linear infinite;
+  }
+}
 .rr-tour__badge {
   display: inline-flex;
   align-items: center;

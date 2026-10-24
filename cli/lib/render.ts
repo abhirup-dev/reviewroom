@@ -77,6 +77,8 @@ export async function openPage(url: string, vp: Viewport, scale = 1): Promise<Pa
     await Promise.race([view.navigate(url), new Promise((r) => setTimeout(r, 20_000).unref())]); // unref: the timer must not keep the process up
     const started = await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`), 25_000, 'waiting for the page');
     if (!started) fail(`the review page did not start in 20 s (review.html must wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
+    // diagrams render after the app starts (Pele loads each type lazily): wait, so their errors count as the page's, not the first slide's
+    await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => !document.querySelector('[aria-busy="true"]') || Date.now() - t0 > 10000 ? ok(true) : setTimeout(t, 50); t(); })`), 15_000, 'waiting for the diagrams');
   } catch (e) {
     view.close();
     throw e;

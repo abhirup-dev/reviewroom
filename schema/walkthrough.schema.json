@@ -29,7 +29,7 @@
             "pattern": "^[^\\r\\n]*$"
           },
           "lead": {
-            "description": "Static for the whole chapter; may hold an <rr-flow> diagram",
+            "description": "Static for the whole chapter; may hold an <rr-mermaid> or <rr-flow> diagram",
             "type": "string"
           },
           "steps": {
@@ -45,7 +45,7 @@
                 "text": {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Narrative HTML: rr: links, <rr-flow>, <rr-code> work as in review.html"
+                  "description": "Prose HTML: rr: links, <rr-mermaid>, <rr-flow>, <rr-code> work as in review.html"
                 },
                 "ref": {
                   "description": "What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (the pane shows only code)",
@@ -65,7 +65,7 @@
                   ]
                 },
                 "focus": {
-                  "description": "Labels of the <rr-node>s that light up on this step, in the lead or the text. Omitted: nodes whose ref overlaps the code the pane shows; [] lights none",
+                  "description": "Labels of the diagram nodes (<rr-node>, or a Mermaid node in an <rr-mermaid>) that light up on this step, in the lead or the text. Omitted: nodes whose ref overlaps the code the pane shows; [] lights none",
                   "type": "array",
                   "items": {
                     "type": "string",

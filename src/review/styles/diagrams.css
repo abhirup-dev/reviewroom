@@ -1,0 +1,146 @@
+/* Opt-in diagram presets. Palette values come from the current review theme. */
+rr-mermaid[class*='rr-diagram-'] {
+  padding: 16px;
+  background: var(--pele-bg);
+  border-radius: var(--rr-radius-lg);
+  --pele-series-1: var(--rr-accent);
+  --pele-series-2: var(--rr-ok);
+  --pele-series-3: var(--rr-warn);
+  --pele-series-4: var(--rr-sym-fn);
+  --pele-series-5: var(--rr-sym-type);
+  --pele-series-6: var(--rr-risk);
+  --pele-series-7: var(--rr-comment);
+  --pele-series-8: var(--rr-muted);
+}
+
+rr-mermaid.rr-diagram-soft {
+  --pele-radius: 14px;
+  --pele-surface: var(--rr-ok-soft);
+  --pele-surface-alt: var(--rr-surface-doc-2);
+  --pele-border: color-mix(in srgb, var(--rr-ok) 40%, var(--rr-surface-doc));
+  --pele-line: var(--rr-ok);
+}
+
+rr-mermaid.rr-diagram-square {
+  --pele-radius: 0px;
+  --pele-surface: var(--rr-surface-doc);
+  --pele-surface-alt: var(--rr-surface-doc-2);
+  --pele-border: var(--rr-muted);
+  --pele-line: var(--rr-ink);
+  border: 1px solid var(--rr-line-strong);
+  border-radius: 0;
+}
+
+rr-mermaid.rr-diagram-warm {
+  --pele-radius: 8px;
+  --pele-bg: var(--rr-comment-soft);
+  --pele-surface: var(--rr-surface-doc);
+  --pele-surface-alt: color-mix(in srgb, var(--rr-comment) 12%, var(--rr-surface-doc));
+  --pele-border: var(--rr-comment);
+  --pele-line: var(--rr-comment);
+  --pele-series-1: var(--rr-comment);
+  --pele-series-2: var(--rr-warn);
+  --pele-series-3: var(--rr-sym-fn);
+}
+
+rr-mermaid.rr-diagram-blueprint {
+  --pele-radius: 2px;
+  --pele-bg: var(--rr-accent-soft);
+  --pele-surface: var(--rr-surface-doc);
+  --pele-surface-alt: var(--rr-accent-soft);
+  --pele-border: var(--rr-accent);
+  --pele-line: var(--rr-accent);
+}
+.rr-diagram-blueprint .pele-node > rect,
+.rr-diagram-blueprint .pele-node > a > rect {
+  stroke-width: 1.5;
+}
+.rr-diagram-blueprint .pele-edge > path:first-child {
+  stroke-dasharray: 5 4;
+}
+
+rr-mermaid.rr-diagram-raised {
+  --pele-radius: 10px;
+  --pele-bg: var(--rr-surface-doc-2);
+  --pele-surface: var(--rr-surface-doc);
+  --pele-border: var(--rr-line-strong);
+}
+.rr-diagram-raised .pele-node {
+  filter: drop-shadow(0 3px 3px color-mix(in srgb, var(--rr-ink) 14%, transparent));
+}
+
+rr-mermaid.rr-diagram-signal {
+  --pele-radius: 6px;
+  --pele-bg: var(--rr-surface-code);
+  --pele-surface: var(--rr-accent-soft);
+  --pele-surface-alt: var(--rr-surface-doc-2);
+  --pele-border: var(--rr-accent);
+  --pele-line: var(--rr-accent);
+}
+.rr-diagram-signal .pele-edge > path:first-child {
+  stroke-width: 2;
+}
+.rr-diagram-signal .pele-node {
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--rr-accent) 24%, transparent));
+}
+
+/* Review semantics use normal Mermaid classes: :::added / :::changed / :::removed. */
+.rr-diagram-delta .pele-node.added :is(rect, polygon, circle, ellipse) {
+  fill: var(--rr-ok-soft);
+  stroke: var(--rr-add);
+}
+.rr-diagram-delta .pele-node.changed :is(rect, polygon, circle, ellipse) {
+  fill: var(--rr-warn-soft);
+  stroke: var(--rr-warn);
+}
+.rr-diagram-delta .pele-node.removed {
+  opacity: 0.7;
+}
+.rr-diagram-delta .pele-node.removed :is(rect, polygon, circle, ellipse) {
+  fill: var(--rr-risk-soft);
+  stroke: var(--rr-del);
+  stroke-dasharray: 4 3;
+}
+.rr-diagram-delta .pele-node.removed .pele-label {
+  text-decoration: line-through;
+}
+
+/* A linked node (a `click` statement) reads as a link by its accent label, as links do in the walkthrough;
+   the walkthrough's underline would cut through the label. */
+.rr-mermaid__diagram svg a {
+  text-decoration: none; /* outranks `.rr-prose a` */
+}
+.rr-mermaid__diagram svg a text {
+  fill: var(--rr-accent);
+}
+
+/* Hover keeps the node's geometry fixed so edges remain attached. */
+rr-mermaid .pele-node.clickable:hover,
+rr-mermaid .pele-node:has(a:focus-visible) {
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--rr-accent) 25%, transparent));
+}
+rr-mermaid a:focus-visible {
+  outline: 2px solid var(--rr-accent);
+  outline-offset: 3px;
+}
+
+/* Optional motion is interaction-triggered and respects reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .rr-diagram-motion:is(:hover, :focus-within) .pele-edge > path:first-child {
+    stroke-dasharray: 7 5;
+    animation: rr-diagram-trace 1.2s linear infinite;
+  }
+}
+@keyframes rr-diagram-trace {
+  to { stroke-dashoffset: -24; }
+}
+
+/* Context that already exists (like `data-baseline` on a block): quiet, so the delta's diagrams stand out. */
+rr-mermaid.rr-diagram-baseline {
+  --pele-bg: var(--rr-surface-doc-2);
+  --pele-surface: var(--rr-surface-doc);
+  --pele-surface-alt: var(--rr-surface-doc-2);
+  --pele-border: var(--rr-line);
+  --pele-line: var(--rr-muted);
+  --pele-fg: var(--rr-muted);
+}

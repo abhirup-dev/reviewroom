@@ -21,14 +21,14 @@ const MAX = 1400; // CSS px per picture: under the ~1568 px edge vision models t
 // not by scrolling: a scroller is never shorter than the window); then where to cut. Sections as in the
 // Contents (top-level section[id] / [data-rr-section][id]); a section starts where the last ended, so the
 // title and lead go with the first. A part over MAX is cut at its last child's top that fits, else at MAX.
-const PLAN = (only: string | undefined, max: number, phone?: number) => `(async () => {
+const PLAN = (only: string | undefined, max: number, width?: number) => `(async () => {
   const s = document.querySelector('.rr-narrative-scroll:not(.rr-description)');
   if (!s) return { error: 'the layout has no Review panel' };
-  const width = ${phone ?? 's.clientWidth'};
+  const width = ${width ?? 's.clientWidth'};
   s.style.cssText += ';position:fixed;top:0;left:0;width:' + width + 'px;height:auto;overflow:visible;z-index:2147483647;background:var(--rr-surface-doc)';
   await document.fonts.ready;
-  // diagrams and late scripts grow the page: wait until its height holds for 300 ms (at most 5 s)
-  for (let h = -1, t0 = Date.now(); h !== s.offsetHeight && Date.now() - t0 < 5000; ) { h = s.offsetHeight; await new Promise((r) => setTimeout(r, 300)); }
+  // diagrams and late scripts grow the page: wait until no diagram is still rendering and its height holds for 300 ms (at most 5 s)
+  for (let h = -1, t0 = Date.now(); (h !== s.offsetHeight || s.querySelector('[aria-busy="true"]')) && Date.now() - t0 < 5000; ) { h = s.offsetHeight; await new Promise((r) => setTimeout(r, 300)); }
   const total = s.offsetHeight, base = s.getBoundingClientRect().top;
   const top = (el) => Math.round(el.getBoundingClientRect().top - base);
   const secs = [...s.querySelectorAll('section[id], [data-rr-section][id]')].filter((x) => !x.parentElement?.closest('section[id]'));
@@ -73,7 +73,10 @@ export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]
   await withServer(repo, dir, (url) =>
     withPage(url, LAPTOP, async (page) => {
       await page.evaluate(`(rr.app.prefs = { ...rr.app.prefs, theme: '${theme}' }, rr.app.applyTheme())`); // this page only: not saved
-      const plan = await page.evaluate<Plan>(PLAN(only, MAX, o.mobile ? PHONE : undefined));
+      // plan at the window the parts are taken at: the page reflows with the window's width, so cuts planned wider drift
+      const width = o.mobile ? PHONE : await page.evaluate<number>(`document.querySelector('.rr-narrative-scroll:not(.rr-description)')?.clientWidth ?? 0`);
+      if (width) await page.resize(width, LAPTOP.height);
+      const plan = await page.evaluate<Plan>(PLAN(only, MAX, width || undefined));
       if (plan.error) fail(plan.error);
       for (const [i, p] of plan.parts!.entries()) {
         await page.resize(plan.width!, p.height);

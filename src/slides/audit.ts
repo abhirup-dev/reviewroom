@@ -20,7 +20,8 @@ function highlight(scroller: Element): [number, number] | null {
 }
 
 /** Wait until the narration stops changing for a few frames: previews in it (<rr-code>, <rr-embed>) fill in when
- *  their code arrives. (The code pane's own landing is paneMachine's `landing` state.) False: still changing after ~4 s. */
+ *  their code arrives, diagrams when Pele has drawn them. (The code pane's own landing is paneMachine's `landing` state.)
+ *  False: still changing after ~4 s. */
 export async function settle(left: HTMLElement): Promise<boolean> {
   await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); // a font that never loads must not hang the audit
   let last = '', still = 0;
@@ -28,7 +29,8 @@ export async function settle(left: HTMLElement): Promise<boolean> {
     await frame();
     await frame();
     const now = `${left.scrollHeight} ${left.scrollWidth}`;
-    still = now === last ? still + 1 : 0;
+    const busy = left.querySelector('[aria-busy="true"]'); // a diagram still rendering (Pele loads its types lazily)
+    still = now === last && !busy ? still + 1 : 0;
     last = now;
   }
   return still >= 6;

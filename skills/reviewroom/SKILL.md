@@ -97,6 +97,11 @@ Before writing, read:
 The walkthrough is usually read in a narrow side panel (about 400px), and later on phones: design every
 diagram, table and widget for that width, never for a wide page.
 
+Pictures come in three first-class forms (`references/visual-formats.md`): Mermaid in `<rr-mermaid>`
+whenever the picture is a graph, sequence, state machine, tree or timeline; `<rr-flow>` for a short
+chain; your own HTML, SVG or table when the shape is something else. Mermaid is the fastest to write
+and renders in reviewroom's theme, so reach for it first, but never bend a picture to fit it.
+
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
 Optionally, to see it as the reviewer will (or to fix a layout problem they report), run

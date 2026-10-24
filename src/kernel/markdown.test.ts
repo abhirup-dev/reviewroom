@@ -39,6 +39,10 @@ test('proseRemoved names what the walkthrough sanitizer takes out, once each', (
   expect(proseRemoved('<p>fine <a href="rr:code/a.go#L1">a</a></p>')).toEqual([]);
 });
 
+test('walkthrough prose keeps a Mermaid diagram\'s preset class, not handlers', () => {
+  expect(sanitizeProse('<rr-mermaid class="rr-diagram-delta" onclick="x()">flowchart LR\nA --&gt; B</rr-mermaid>')).toBe('<rr-mermaid class="rr-diagram-delta">flowchart LR\nA --&gt; B</rr-mermaid>');
+});
+
 test('walkthrough prose keeps a flow diagram\'s direction', () => {
   expect(sanitizeProse('<rr-flow direction="column"><rr-node>a</rr-node></rr-flow>')).toBe('<rr-flow direction="column"><rr-node>a</rr-node></rr-flow>');
 });
