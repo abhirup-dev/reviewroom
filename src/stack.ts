@@ -30,19 +30,19 @@ export function stackControl(app: ReviewApp) {
 function stackMenu(app: ReviewApp, anchor: HTMLElement) {
   const s = app.meta.stack!;
   const chapters = (n: number) => app.walkthrough?.chapters.filter((c) => c.pr === n).length ?? 0;
-  const open = (n: number) => app.services.threads.threads().filter((t) => t.status === 'open' && !t.gh?.conversation && app.prOf(t) === n).length;
+  const open = (n: number) => app.services.threads.threads().filter((t) => t.status === 'open' && !t.gh?.conversation && app.services.threads.prOf(t) === n).length;
   // the verdicts sent last, per PR
   const sent = app.state.rounds.findLast((r) => r.verdicts)?.verdicts ?? {};
   const said = { approve: 'you approved', changes: 'you asked for changes', comment: 'you commented' } as const;
   const row = (p: (typeof s)[number]) =>
     menuItem(
       h('span', { class: 'rr-stack-row' }, dot(p.state), h('span', { class: 'rr-stack-row__n' }, `#${p.number}`), h('span', { class: 'rr-stack-row__t' }, p.title)),
-      () => app.setRange(app.prRange(p.number)!),
+      () => app.setRange(app.services.code.prRange(p.number)!),
       { checked: p.number === app.range?.pr, hint: `+${p.additions} -${p.deletions} · ${STATE_LABEL[p.state]}${open(p.number) ? ` · ${open(p.number)} open` : ''}${sent[p.number] ? ` · ${said[sent[p.number]]}` : ''}${app.github?.prs?.[p.number]?.stale ? ' · updated on GitHub' : ''}${p.restack ? ' · restacked' : ''}${chapters(p.number) ? ' · ▷' : ''}` },
     );
   popMenu(anchor, (close) => [
     menuLabel(`Stack · ${s.length} PRs, bottom to top`),
-    menuItem(h('span', { class: 'rr-stack-row' }, h('span', { class: 'rr-stack-row__n' }, '⇶'), h('span', { class: 'rr-stack-row__t' }, 'Whole stack')), () => (close(), app.setRange(app.ranges()[0])), { checked: !app.range?.pr, hint: `+${s.reduce((a, p) => a + p.additions, 0)} -${s.reduce((a, p) => a + p.deletions, 0)}` }),
+    menuItem(h('span', { class: 'rr-stack-row' }, h('span', { class: 'rr-stack-row__n' }, '⇶'), h('span', { class: 'rr-stack-row__t' }, 'Whole stack')), () => (close(), app.setRange(app.services.code.ranges()[0])), { checked: !app.range?.pr, hint: `+${s.reduce((a, p) => a + p.additions, 0)} -${s.reduce((a, p) => a + p.deletions, 0)}` }),
     ...s.map((p) => {
       const b = row(p);
       b.addEventListener('click', close);

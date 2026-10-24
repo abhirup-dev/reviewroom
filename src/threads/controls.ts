@@ -13,7 +13,7 @@ export function sendDialog(app: ReviewApp) {
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
   // a stack: a verdict per open PR, wanting changes where this round has new comments
   const open = app.meta.stack?.filter((p) => p.state !== 'merged' && p.state !== 'closed');
-  const verdicts: Verdicts | undefined = open && Object.fromEntries(open.map((p) => [String(p.number), pending.some((t) => app.prOf(t) === p.number) ? 'changes' : 'comment']));
+  const verdicts: Verdicts | undefined = open && Object.fromEntries(open.map((p) => [String(p.number), pending.some((t) => app.services.threads.prOf(t) === p.number) ? 'changes' : 'comment']));
   const go = (asked: 'feedback' | 'approve') => async () => {
     const n = app.state.round;
     const text = note.value.trim() || undefined;
@@ -100,7 +100,7 @@ export function submitReviewDialog(app: ReviewApp) {
 /** A stack: one GitHub review per PR picked (those with drafts, else the one in scope), posted one at a time so a
  *  failure leaves the ones already posted unticked and a retry sends only the rest. */
 function submitStackDialog(app: ReviewApp) {
-  const drafts = app.drafts();
+  const drafts = app.services.threads.drafts();
   const prs = app.meta.stack!.filter((p) => p.state !== 'merged' && p.state !== 'closed');
   const picked = new Set(prs.filter((p) => drafts.has(p.number)).map((p) => p.number));
   if (!picked.size && app.range?.pr) picked.add(app.range.pr);
@@ -201,7 +201,7 @@ export function feedbackButton(app: ReviewApp): HTMLElement {
         { class: 'rr-btn rr-btn--primary rr-send-btn', title: 'Post your draft comments to GitHub as one review: comment, approve or request changes', onclick: () => submitReviewDialog(app) },
         icon('send', 14),
         h('span', null, 'Submit review'),
-        app.drafts().size ? h('span', { class: 'rr-badge' }, String([...app.drafts().values()].reduce((a, b) => a + b, 0))) : null,
+        app.services.threads.drafts().size ? h('span', { class: 'rr-badge' }, String([...app.services.threads.drafts().values()].reduce((a, b) => a + b, 0))) : null,
       )
     : h(
         'button',

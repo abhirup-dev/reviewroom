@@ -9,7 +9,7 @@ import { anchorRef, symbolHits, symbolQuery, PR_DESCRIPTION, parseRef, type Ref 
 import { h, uid } from './kernel/dom';
 import { renderMarkdown } from './kernel/markdown';
 import { describeElement, findDocElement } from './kernel/refs/describe';
-import { emptyState, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type ReviewMeta, type ReviewState, type SearchHit, type Thread } from './kernel/state/model.shared';
+import { emptyState, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type ReviewMeta, type ReviewState, type SearchHit } from './kernel/state/model.shared';
 import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
@@ -193,25 +193,6 @@ export class ReviewApp {
     this.bus.emit('range', r);
     this.bus.emit('files', this.files);
   }
-  /** The ranges offered (see CodeService.ranges). */
-  ranges() {
-    return this.services.code.ranges();
-  }
-  prRange(n: number) {
-    return this.services.code.prRange(n);
-  }
-  inLayer(r: Ref, from?: Element | null) {
-    return this.services.code.inLayer(r, from);
-  }
-  refRev(r: { rev: string; pr?: number }) {
-    return this.services.code.refRev(r);
-  }
-  codeShows(a: Anchor, range?: Pick<DiffRange, 'base' | 'head'>) {
-    return this.services.code.codeShows(a, range);
-  }
-  homeOf(a: Anchor) {
-    return this.services.code.homeOf(a);
-  }
   /** The stack PR the panes show (undefined: the whole stack, or no stack). */
   get stackPr() {
     return this.meta.stack?.find((p) => p.number === this.range?.pr);
@@ -222,11 +203,11 @@ export class ReviewApp {
     if (!s) return;
     const i = s.findIndex((p) => p.number === this.range.pr);
     const to = s[i < 0 ? (d > 0 ? 0 : s.length - 1) : Math.min(s.length - 1, Math.max(0, i + d))];
-    if (to.number !== this.range.pr || this.range.key !== `pr-${to.number}`) void this.setRange(this.prRange(to.number)!);
+    if (to.number !== this.range.pr || this.range.key !== `pr-${to.number}`) void this.setRange(this.services.code.prRange(to.number)!);
   }
   /** Switch to the range a code thread was made on, when the active one doesn't draw it. */
   async showRangeOf(a: Anchor) {
-    const home = !this.codeShows(a) && this.homeOf(a);
+    const home = !this.services.code.codeShows(a) && this.services.code.homeOf(a);
     if (home) await this.setRange(home);
   }
   visibleFiles(): ChangedFile[] {
@@ -238,14 +219,14 @@ export class ReviewApp {
   async open(ref: string | Ref, from?: Element | null) {
     const p = typeof ref === 'string' ? parseRef(ref) : ref;
     if (!p) return this.toast(`Unknown link: ${ref as string}`, 'error'); // a Ref always resolves
-    const r = this.inLayer(p, from);
+    const r = this.services.code.inLayer(p, from);
     switch (r.type) {
       case 'doc':
         this.bus.emit('reveal-doc', { id: r.id, path: r.path });
         break;
       case 'code': {
         // a stack PR's layer: show it first
-        const layer = r.pr ? this.prRange(r.pr) : undefined;
+        const layer = r.pr ? this.services.code.prRange(r.pr) : undefined;
         if (r.pr && !layer) return this.toast(`PR #${r.pr} is not in this review's stack`, 'error');
         if (layer && this.range.key !== layer.key) await this.setRange(layer);
         const side = r.rev === 'base' ? 'base' : 'head';
@@ -256,7 +237,7 @@ export class ReviewApp {
         break;
       }
       case 'file': {
-        const rev = this.refRev(r);
+        const rev = this.services.code.refRev(r);
         if (!rev) return this.toast(`PR #${r.pr} is not in this review's stack`, 'error');
         this.bus.emit('reveal-code', { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev: r.pr || !/^(base|head)$/.test(r.rev) ? rev : undefined, view: 'file' });
         break;
@@ -329,7 +310,7 @@ export class ReviewApp {
     if (a.kind === 'general') return 'General';
     if (a.kind === 'doc' && a.quote) return `“${a.quote.exact.length > 48 ? a.quote.exact.slice(0, 47) + '…' : a.quote.exact}”`;
     // a thread on one commit's diff names that commit
-    const home = this.homeOf(a);
+    const home = this.services.code.homeOf(a);
     // (a layer's own label already names its PR)
     return this.label(anchorRef(a)!) + (home && home.key !== 'all' && home.key !== `pr-${home.pr}` ? ` · ${home.label.split(' · ')[0]}` : '');
   }
@@ -346,15 +327,6 @@ export class ReviewApp {
     this.bus.emit('state', this.state);
     this.backend.apply(op, this.state);
     return true;
-  }
-  prOf(t: Thread) {
-    return this.services.threads.prOf(t);
-  }
-  drafts() {
-    return this.services.threads.drafts();
-  }
-  conversation() {
-    return this.services.threads.conversation();
   }
   private renderDescription() {
     const d = this.github?.description;

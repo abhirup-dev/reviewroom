@@ -16,12 +16,12 @@ function stackApp() {
 }
 
 test('a stack offers the whole stack, then each layer before its commits', () => {
-  expect(stackApp().ranges().map((r) => r.key)).toEqual(['all', 'pr-1', 'a', 'pr-2', 'b1', 'b', 'pr-3']);
+  expect(stackApp().services.code.ranges().map((r) => r.key)).toEqual(['all', 'pr-1', 'a', 'pr-2', 'b1', 'b', 'pr-3']);
 });
 
 test('stepping goes layer by layer and stops at the ends', async () => {
   const app = stackApp();
-  await app.setRange(app.ranges()[0]);
+  await app.setRange(app.services.code.ranges()[0]);
   app.stepPr(-1); // from the whole stack: the top
   await Promise.resolve();
   expect(app.range.key).toBe('pr-3');
@@ -38,8 +38,8 @@ test("a plain link inside a data-pr element means that PR's layer; @pr and revs 
   const sec = document.createElement('section');
   sec.dataset.pr = '3';
   const a = sec.appendChild(document.createElement('a'));
-  expect(app.inLayer(parseRef('rr:code/x.go#L4')!, a)).toMatchObject({ pr: 3 });
-  expect(app.inLayer(parseRef('rr:code/x.go@pr:1#L4')!, a)).toMatchObject({ pr: 1 });
-  expect(app.inLayer(parseRef('rr:code/x.go@abc123#L4')!, a)).not.toHaveProperty('pr');
-  expect(app.inLayer(parseRef('rr:code/x.go#L4')!, document.createElement('a'))).not.toHaveProperty('pr');
+  expect(app.services.code.inLayer(parseRef('rr:code/x.go#L4')!, a)).toMatchObject({ pr: 3 });
+  expect(app.services.code.inLayer(parseRef('rr:code/x.go@pr:1#L4')!, a)).toMatchObject({ pr: 1 });
+  expect(app.services.code.inLayer(parseRef('rr:code/x.go@abc123#L4')!, a)).not.toHaveProperty('pr');
+  expect(app.services.code.inLayer(parseRef('rr:code/x.go#L4')!, document.createElement('a'))).not.toHaveProperty('pr');
 });

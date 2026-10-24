@@ -1,6 +1,6 @@
 // Architecture checks use a TypeScript syntax tree and resolved paths, before type erasure.
 import { Glob } from 'bun';
-import { moduleImports } from './features-imports';
+import { moduleImports, serviceForwarders } from './features-imports';
 import { readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
@@ -54,6 +54,10 @@ function visit(file: string, path: string[]) {
   visited.add(file);
 }
 for (const file of files) visit(file, []);
+
+// ReviewApp keeps no pass-through methods: callers use app.services.<x> directly (rr-nim.1, rr-2a3.1).
+for (const name of serviceForwarders('src/app.ts', readFileSync(resolve(root, 'src/app.ts'), 'utf8'), 'ReviewApp'))
+  errors.push(`src/app.ts: ReviewApp.${name} only forwards to a service; call app.services.<x> instead`);
 
 // The CLI may consume shared models, never browser modules or state-machine implementations.
 for (const file of new Glob('cli/**/*.ts').scanSync({ cwd: root }))
