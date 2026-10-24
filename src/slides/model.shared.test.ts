@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { encodeBlock, findBlocks, inFocus, parseWalkthrough, stepRefs, type Walkthrough } from './model.shared';
+import { edgeBetween, encodeBlock, findBlocks, inFocus, parseWalkthrough, stepRefs, type Walkthrough } from './model.shared';
 
 const demo = readFileSync(new URL('../../examples/habit-events/walkthrough.json', import.meta.url), 'utf8');
 const valid = () => ({
@@ -90,4 +90,13 @@ test('a diagram node lights up when its code is on screen, or when the step name
   expect(inFocus(node(null), undefined, pane)).toBe(false);
   expect(inFocus(node(null, 'TFS'), ['TFS'], [])).toBe(true); // named, no code
   expect(inFocus(node('rr:code/pkg/b.go#L20'), [], pane)).toBe(false); // [] lights none
+  expect(inFocus(node(null, ' Two\n  spaces '), ['Two spaces'], [])).toBe(true); // whitespace runs read as one space
+});
+
+test('a Mermaid edge flows only between two lit nodes', () => {
+  expect(edgeBetween('L_A_B_0', ['A', 'B'])).toBe(true); // flowchart
+  expect(edgeBetween('id_Foo_Bar_1', ['Foo', 'Bar'])).toBe(true); // class diagram
+  expect(edgeBetween('L_A_B_0', ['A'])).toBe(false);
+  expect(edgeBetween('L_B_C_0', ['A', 'B'])).toBe(false);
+  expect(edgeBetween('edge0', ['Pending', 'Done'])).toBe(false); // ids that don't name their nodes never light
 });

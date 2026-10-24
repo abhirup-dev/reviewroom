@@ -17,9 +17,10 @@ there before? what changed?" Answer that before they ask, by linking every claim
 The opening carries most of the value:
 
 1. **One paragraph** saying what the diff does and why (`<p class="rr-lede">`).
-2. **One diagram of the delta in context** (`<rr-flow>`): the surrounding flow as `baseline` nodes,
-   the diff as `new` / `changed` / `removed`, every node clickable. Put pure background in
-   `data-baseline` blocks so it stays out of the way.
+2. **One diagram of the delta in context**: the surrounding flow, with the diff marked as added /
+   changed / removed and every node clickable. `<rr-mermaid class="rr-diagram-delta">` for a graph,
+   `<rr-flow>` for a short chain (`visual-formats.md`). Put pure background in `data-baseline` blocks
+   so it stays out of the way.
 3. **A short paragraph** that walks the diagram, linking the two or three hunks that hold most of the
    diff.
 
@@ -47,8 +48,9 @@ Someone who reads only this should know where to look and what to worry about.
 The walkthrough usually sits in a side panel about 400px wide, and reviewroom will get a phone view.
 Write for that width first; a wide window then just has margin.
 
-- Diagrams run top to bottom: `<rr-flow direction="column">` for more than three nodes, tall SVGs
-  rather than wide ones.
+- Diagrams run top to bottom: `flowchart TD`, `<rr-flow direction="column">` for more than three
+  nodes, tall SVGs rather than wide ones. Pele refits a Mermaid diagram to the panel; it can't
+  reflow a wide one.
 - Tables of at most three short columns. Wider comparisons become a list per item, or a table with
   the items as rows.
 - No side-by-side layouts. A before/after is two blocks, one under the other.
@@ -59,9 +61,12 @@ Write for that width first; a wide window then just has margin.
 Prose explains; a picture lets the reader see. Reach for one by default, not as an exception:
 whenever a section has moving parts (a flow, a state machine, a schema, a before/after of a data
 structure, a sequence of calls, a latency budget, a query plan), draw it first and write the paragraph
-that walks it. The lede's `<rr-flow>` is the first of these, not the only one. Plain HTML and SVG are
-enough; a `<table>` is a picture too when the shape of the data is the point. Make the parts clickable
-into the code (`ref` on nodes, `rr.open(…)` in widgets), and build each one for a narrow column.
+that walks it. The lede's delta diagram is the first of these, not the only one. `visual-formats.md`
+matches questions to pictures: Mermaid (`<rr-mermaid>`) for graphs, sequences, states, trees and
+timelines, `<rr-flow>` for a short chain, and your own HTML, SVG or `<table>` when the shape is
+something else (a byte layout, a grid of cases, a before/after of a structure). Mermaid is the
+quickest, not a requirement. Make the parts clickable into the code (`click` in Mermaid, `ref` on
+nodes, `rr.open(…)` in widgets), and build each one for a narrow column.
 
 ## With a guided walkthrough
 

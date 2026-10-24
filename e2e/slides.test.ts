@@ -58,8 +58,8 @@ describe('slides', () => {
   if (!browser) console.log('skipping slide-lint/shot: no browser (Chrome or Chromium) to render in');
   const listing = () => fs.readdirSync(dir).sort().map((f) => `${f} ${fs.statSync(path.join(dir, f)).mtimeMs}`);
   test.skipIf(!browser)('slide-lint measures every step on screen; shot writes one step\'s PNG; neither touches the review', async () => {
-    // a script of the author's that throws: the reviewer would hit it, so lint reports it
-    fs.writeFileSync(path.join(dir, 'review.html'), read(import.meta.dir, '..', 'templates', 'review.html').replace('</rr-review>', '<script>throw new Error("author boom")</script></rr-review>'));
+    // a script of the agent's that throws, and a diagram Pele can't parse: the reviewer would hit both, so lint reports them
+    fs.writeFileSync(path.join(dir, 'review.html'), read(import.meta.dir, '..', 'templates', 'review.html').replace('</rr-review>', '<script>throw new Error("author boom")</script><rr-mermaid id="bad">flowchart TD\n  A --&gt;\n  ((( x</rr-mermaid></rr-review>'));
     const before = listing();
     const lint = await cli(['slide-lint', '--viewport', '1280x720', '--json', ...d]);
     if (!lint.stdout) throw new Error(lint.stderr);
@@ -68,6 +68,7 @@ describe('slides', () => {
     // the demo's longest step needs scrolling on a short screen, and the report says where and how to fix it
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the slide') }));
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
+    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('rr-mermaid#bad: the diagram could not be rendered') }));
     expect(lint.code).toBe(1);
     const png = path.join(dir, '..', 'shots', 'latency-s2-1280x800-light.png');
     const shot = await cli(['shot', 'latency/s2', '--out', path.dirname(png), ...d]);

@@ -64,6 +64,7 @@ const styles = [
   overlaysStyles,
   ['src/slides/styles/slides.css'],
   ['src/review/styles/content.css'],
+  ['src/review/styles/diagrams.css'],
   ['src/kernel/styles/dockview.css'],
 ];
 
