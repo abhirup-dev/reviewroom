@@ -1,24 +1,10 @@
 import { afterEach, expect, test } from 'bun:test';
-import { emptyState } from '../kernel/state/model.shared';
-import { BrowserState } from '../kernel/providers/browser-state';
-import { ServerState } from '../kernel/providers/server-state';
-import { LocalProvider } from '../review/providers/local';
-import { tick } from './wait';
+import { emptyState } from '../state/model.shared';
+import { ServerState } from './server-state';
+import { afterThisTest, replaceGlobal, restoreGlobals } from '../../testing/globals';
 
-const restore: (() => void)[] = [];
-const backends: ServerState[] = [];
-function replaceGlobal(key: string, value: unknown) {
-  const descriptor = Object.getOwnPropertyDescriptor(globalThis, key);
-  Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
-  restore.push(() => {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-    else Reflect.deleteProperty(globalThis, key);
-  });
-}
-afterEach(() => {
-  for (const backend of backends.splice(0)) backend.dispose();
-  for (const reset of restore.splice(0).reverse()) reset();
-});
+afterEach(restoreGlobals);
+import { tick } from '../../testing/wait';
 
 class Stream extends EventTarget {
   static opened: Stream[] = [];
@@ -39,7 +25,7 @@ function server() {
   Stream.opened = [];
   replaceGlobal('EventSource', Stream);
   const backend = new ServerState('/test-api');
-  backends.push(backend);
+  afterThisTest(() => backend.dispose());
   return { backend, page };
 }
 const listen = (backend: ServerState, state = () => {}) => backend.subscribe({ state, error: () => {}, review: () => {} });
@@ -57,13 +43,6 @@ test('walkthrough transport preserves 200 and 422 JSON, returns null on 404, and
   expect(backend.walkthrough()).rejects.toThrow('walkthrough.json: 503 Unavailable');
   replaceGlobal('fetch', async () => new Response('not JSON', { status: 200 }));
   expect(backend.walkthrough()).rejects.toThrow();
-});
-
-test('browser walkthrough returns embedded text unchanged, including malformed JSON, or null when absent', async () => {
-  for (const text of ['{broken', '{"version":999}', '']) {
-    expect(await new BrowserState('review', undefined, text).walkthrough()).toBe(text);
-  }
-  expect(await new BrowserState('review').walkthrough()).toBeNull();
 });
 
 test('dispose closes the stream, aborts actor requests, removes unload prevention, and is idempotent', async () => {
@@ -144,23 +123,4 @@ test('reloading replaces the previous actor and stream', async () => {
   backend.dispose();
   await tick();
   expect(Stream.opened[1].closed).toBe(true);
-});
-
-test('local read treats only 404 as absent; patch falls back on any HTTP failure', async () => {
-  const provider = new LocalProvider('/test-api');
-  replaceGlobal('fetch', async () => new Response('', { status: 404 }));
-  expect(await provider.read('a.ts', 'HEAD')).toBeNull();
-  replaceGlobal('fetch', async () => new Response('', { status: 503 }));
-  expect(provider.read('a.ts', 'HEAD')).rejects.toThrow('read a.ts@HEAD: 503');
-  expect(await provider.patch({ base: 'base', head: 'head', label: 'all', key: 'all' }, false)).toBeNull();
-});
-
-test('JSON transport preserves server and GitHub errors with an HTTP fallback', async () => {
-  const provider = new LocalProvider();
-  for (const [body, message] of [[{ error: 'state moved aside' }, 'state moved aside'], [{ message: 'API limit' }, 'API limit']] as const) {
-    replaceGlobal('fetch', async () => Response.json(body, { status: 500 }));
-    expect(provider.meta()).rejects.toThrow(message);
-  }
-  replaceGlobal('fetch', async () => new Response('not JSON', { status: 503, statusText: 'Unavailable' }));
-  expect(provider.meta()).rejects.toThrow('503 Unavailable');
 });

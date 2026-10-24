@@ -25,3 +25,10 @@ test('saved layouts keep their rules: a taken name is refused, deleting the defa
   await b.saveLayout('mine', null);
   expect(await b.layouts()).toEqual({ layouts: {}, default: null });
 });
+
+test('browser walkthrough returns embedded text unchanged, including malformed JSON, or null when absent', async () => {
+  for (const text of ['{broken', '{"version":999}', '']) {
+    expect(await new BrowserState('review', undefined, text).walkthrough()).toBe(text);
+  }
+  expect(await new BrowserState('review').walkthrough()).toBeNull();
+});
