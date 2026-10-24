@@ -19,7 +19,7 @@ import { menuItem, popMenu } from '../kernel/menus';
 import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools } from '../review/code';
-import { current, deepLink, target, decodeWalkthrough, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
+import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
@@ -144,15 +144,20 @@ export function mountWalkthrough(app: ReviewApp) {
     const want = target(c);
     const refs = want.kind === 'refs' ? want.refs : [];
     const { focus } = current(c).step;
+    // Mermaid nodes (rendered later: `rr-mermaid:ready` repaints) take their label from the text, their ref from a `click` link
     requestAnimationFrame(() =>
-      root.querySelectorAll('rr-flow').forEach((flow) => {
+      root.querySelectorAll('rr-flow, rr-mermaid').forEach((flow) => {
         let any = false;
-        flow.querySelectorAll('rr-node').forEach((n) => {
-          const on = inFocus({ label: label(n), ref: n.getAttribute('ref') }, focus, refs);
+        flow.querySelectorAll('rr-node, .pele-node').forEach((n) => {
+          const node = n.matches('rr-node') ? { label: label(n), ref: n.getAttribute('ref') } : { label: n.querySelector('.pele-label')?.textContent ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
+          const on = inFocus(node, focus, refs);
           n.classList.toggle('is-focus', on);
           any ||= on;
         });
         flow.classList.toggle('has-focus', any);
+        // a Mermaid edge between two lit nodes flows
+        const lit = [...flow.querySelectorAll('.pele-node.is-focus')].map((n) => n.getAttribute('data-id') ?? '');
+        flow.querySelectorAll('.pele-edge').forEach((e) => e.classList.toggle('is-focus', edgeBetween(e.getAttribute('data-id') ?? '', lit)));
       }),
     );
   };
@@ -211,6 +216,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed', 'data-form': phone ? 'phone' : undefined }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
+  root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
   if (phone) phonePlayer();
   /** A phone plays full screen (phone.css): the code under the whole screen, a slide card (a bottom sheet) and a

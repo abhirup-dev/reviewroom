@@ -4,7 +4,7 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 .rr-mermaid__diagram svg { max-width: 100%; height: auto; }
 .rr-mermaid__source { font: var(--rr-text-sm)/1.5 var(--rr-font); margin-top: 8px; color: var(--rr-muted); }
 .rr-mermaid__source summary { cursor: pointer; width: fit-content; }
-.rr-mermaid__source pre { overflow: auto; max-height: 280px; font-family: var(--rr-mono); color: var(--rr-ink); }
+.rr-mermaid__source pre { overflow: auto; max-height: 280px; white-space: pre-wrap; font-family: var(--rr-mono); color: var(--rr-ink); }
 
 /* Default typography for the walkthrough and for markdown in threads.
    Authors can override anything: these are low-specificity element styles under .rr-prose. */

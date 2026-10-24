@@ -110,6 +110,27 @@ next to your answer. A link covers the whole thread, not a single message.
 
 ## Diagrams and other helpers
 
+Pictures are first-class, in three forms, and you choose by the question (the menu, with snippets per
+question and the presets, is `visual-formats.md`): Mermaid in `<rr-mermaid>` for anything with nodes and
+edges, `<rr-flow>` for a short linear delta with badges, and your own HTML, SVG or table for a shape
+neither has. Mermaid is the cheapest, not mandatory: when the picture isn't a graph, draw what it is.
+
+```html
+<rr-mermaid id="request-path" class="rr-diagram-delta">             <!-- Mermaid source, HTML-escaped (&lt; &gt; &amp;) -->
+flowchart TD
+  Req[FeedRequest] --> Fetch[habit.RecentEvents, new]:::added --> Rank[RankerRequest, changed]:::changed
+  click Fetch "rr:code/pkg/features/habit/fetcher.go#L20-28" "the fetcher"   <!-- click-to-code, any rr: link -->
+</rr-mermaid>
+```
+
+Reviewroom renders it with Pele (Mermaid 12 syntax: flowchart, sequence, state, class, treeView, timeline,
+gitGraph, sankey, architecture, C4 and more), fitted to the panel width, in reviewroom's theme.
+Fenced ```` ```mermaid ```` blocks in Markdown (`<rr-markdown>`, thread replies, the PR description) render the
+same way. A `click` statement with an `rr:` address opens the code; JavaScript callbacks, images and HTML labels
+are not supported. One class picks a preset (`rr-diagram-delta`, `-baseline`, `-soft`, `-blueprint`, `-warm`,
+`-square`, `-raised`, `-signal`; see `visual-formats.md`); don't hard-code colours, they break the theme switch.
+Give it an `id` so threads can anchor on it. Pele has no animation; the guided walkthrough lights nodes for you.
+
 ```html
 <rr-flow direction="column">                                                           <!-- top→bottom; omit for left→right -->
   <rr-node state="baseline">FeedRequest</rr-node>
@@ -121,10 +142,10 @@ next to your answer. A link covers the whole thread, not a single message.
 <rr-markdown>## Markdown blocks work too</rr-markdown>
 ```
 
-`<rr-flow>` is for the one diagram every review should have: the delta against the baseline. Give
-every node a `ref` so it is clickable. The panel is narrow (see "Design for a narrow column" in
+`<rr-flow>` is the hand-built form of the delta diagram every walkthrough has: a short chain of states.
+Give every node a `ref` so it is clickable. The panel is narrow (see "Design for a narrow column" in
 `review-craft.md`): a left-to-right flow of more than three nodes wraps and its arrows stop lining up,
-so use `direction="column"` for it.
+so use `direction="column"` for it (Mermaid: `flowchart TD`).
 
 Each `<rr-check>` is one **open question**; the reviewer marks it settled or not, and the feedback
 lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
@@ -188,16 +209,17 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 | Field | |
 |---|---|
 | chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
-| `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-flow>` |
+| `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-mermaid>` or `<rr-flow>` |
 | step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
-| no `ref` | The pane keeps the chapter's last links; with none yet, the lead's `<rr-flow>`; else the previous chapter's |
-| step `focus` | Labels of the `<rr-node>`s (in the lead or the slide's text) that light up on this slide, as written; the rest dim. Omitted: nodes whose `ref` overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
+| no `ref` | The pane keeps the chapter's last links; with none yet, the previous chapter's. The lead's diagram stays in the lead, next to the slide |
+| step `focus` | Labels of the diagram nodes (`<rr-node>` text, or a Mermaid node's label, in the lead or the slide's text; a timeline's or gitGraph's nodes have none) that light up on this slide, as written; the rest dim, and the edges between lit nodes of a Mermaid flowchart or class diagram flow. Omitted: nodes whose `ref` (a `click` link, for Mermaid) overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
 
-Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-flow>`; a code
+Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` and `<rr-flow>`; a code
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
-from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-flow>`, `<rr-callout>`, `<rr-embed>`; styles,
-scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
+from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` (with its preset `class`), `<rr-flow>`, `<rr-callout>`,
+`<rr-embed>`; ids, styles, scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). A figure
+that needs more than that (your own HTML or SVG) lives in `review.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
 
 - `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
   (changed files no slide shows, chapter sizes); problems name the slide (chapter/step). A file linked
