@@ -24,7 +24,7 @@ class ThreadsPanel implements PanelInstance {
   private head: HTMLElement;
   private convo: HTMLElement;
   private foot: HTMLElement;
-  private filter: 'open' | 'resolved' | 'all' | 'mine-pending' = 'open';
+  private filter: 'open' | 'resolved' | 'all' | 'mine-pending';
   /** Agent or GitHub threads; null = what the review mode implies (Agent: agent threads, Team: GitHub's). */
   private sources: Set<Source> | null = null;
   /** Thread starters to show (see starter()); empty = everyone. */
@@ -32,7 +32,9 @@ class ThreadsPanel implements PanelInstance {
   private mode = '';
   private filterBtn: HTMLElement;
   private offs: (() => void)[] = [];
-  constructor(private app: ReviewApp) {
+  /** `fixed`: one list (a phone's Open and Resolved tabs), without the Open/Resolved/All switch. */
+  constructor(private app: ReviewApp, private fixed?: 'open' | 'resolved') {
+    this.filter = fixed ?? 'open';
     this.head = h('div', { class: 'rr-side-head' });
     // kept across renders: the filter menu stays anchored to it while toggles re-render the panel
     this.filterBtn = h('button', { class: 'rr-tool', 'aria-label': 'Filter threads', title: 'Filter threads by source and by who started them', 'aria-haspopup': 'menu', onclick: () => this.filterMenu() }, icon('filter', 14));
@@ -101,7 +103,9 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-side-head__row' },
-        seg(
+        this.fixed
+          ? h('span', { class: 'rr-side-head__count' }, `${count(this.filter)} ${this.describe().replace('threads', count(this.filter) === 1 ? 'thread' : 'threads')}`)
+          : seg(
           (['open', 'resolved', 'all'] as const).map((f) => ({ label: `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`, title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], on: this.filter === f, onclick: () => ((this.filter = f), this.render()) })),
           { class: 'rr-seg rr-seg--small rr-seg--fill', 'aria-label': 'Which threads' },
         ),
@@ -206,4 +210,4 @@ class ThreadsPanel implements PanelInstance {
   }
 }
 
-definePanel({ id: 'threads', title: 'Threads', icon: 'thread', create: (app) => new ThreadsPanel(app) });
+definePanel({ id: 'threads', title: 'Threads', icon: 'thread', create: (app, params) => new ThreadsPanel(app, params.filter as 'open' | 'resolved' | undefined) });

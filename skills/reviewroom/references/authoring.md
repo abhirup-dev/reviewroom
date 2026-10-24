@@ -16,7 +16,8 @@ The building blocks of the walkthrough, `review.html`. For what to write and in 
 ```
 
 Inside `<rr-review>` you may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put
-extra assets (images, js, css) next to `review.html` and reference them relatively.
+extra assets (images, js, css) next to `review.html` and reference them relatively (`diagram.svg`, never
+`/diagram.svg`: the hub also serves the review under `/r/<id>/`). Leave `<rr-app>`'s `api` unset.
 
 `#rr-meta` is optional JSON; leave it `{}` unless you need it. The CLI supplies the repo, PR and
 revisions. `"title"` replaces the review's title. `"theme"` overrides colour tokens per mode, without the
@@ -154,7 +155,7 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.on(event, fn)` | `state`, `theme`, `active-section`, `active-file`, `selection`… |
 | `rr.commands.register({ id, title, keys, run })` | Add palette commands / shortcuts |
 | `rr.definePanel({ id, title, create })` + `rr.addPanel(id)` | Add a whole dockable panel |
-| `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus' \| <saved name>)` | Switch layout (false if there's no such layout) |
+| `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus' \| 'tablet' \| <saved name>)` | Switch layout (false if there's no such layout) |
 | `rr.theme()` | `'light'` or `'dark'` |
 
 ## Guided walkthrough: `walkthrough.json`

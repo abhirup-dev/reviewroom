@@ -5,7 +5,8 @@
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
-import { h, icon, plural } from '../kernel/dom';
+import { h, icon, onDrag, plural } from '../kernel/dom';
+import { isPhone, onBack } from '../kernel/phone';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
@@ -114,9 +115,15 @@ export function mountWalkthrough(app: ReviewApp) {
   // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back
   let leadOpen = true;
   const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
+  // a phone folds it to its first line instead of hiding it: the code above stays in view (phonePlayer)
+  const phone = isPhone();
+  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, onclick: () => ((leadOpen = true), paintLead()) }, 'More');
   const paintLead = () => {
     const has = !!current(ctx()).chapter.lead;
-    lead.hidden = !has || !leadOpen;
+    const fold = phone && !leadOpen;
+    lead.hidden = !has || (!leadOpen && !fold);
+    lead.classList.toggle('is-folded', fold);
+    more.hidden = !has || !fold;
     leadToggle.hidden = !has;
     leadToggle.classList.toggle('is-closed', !leadOpen);
     leadToggle.title = leadOpen ? 'Hide the chapter intro' : 'Show the chapter intro';
@@ -163,7 +170,7 @@ export function mountWalkthrough(app: ReviewApp) {
     badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
     progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
-  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
+  const left = h('div', { class: 'rr-tour__left' }, lead, more, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
   const openHere = btn('popout', 'Pause and open this in the workbench', () => {
     const [ref] = shownRefs();
     actor.send({ type: 'pause' });
@@ -186,6 +193,46 @@ export function mountWalkthrough(app: ReviewApp) {
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   app.root.append(root);
+  if (phone) phonePlayer();
+  /** A phone plays full screen (phone.css): code above a slide card under a floating toolbar of Back, Comment and
+   *  Next; the card swipes to the next or previous slide, and Back (the phone's) closes the player. */
+  function phonePlayer() {
+    // the floating toolbar: Back and Comment as icon buttons, Next the one filled pill
+    prev.replaceChildren(icon('chevron', 24));
+    prev.className = 'rr-icon-btn rr-tour__back';
+    comment.replaceChildren(icon('comment', 24));
+    comment.className = 'rr-icon-btn rr-tour__comment';
+    comment.setAttribute('aria-label', 'Comment on this slide');
+    next.before(comment);
+    // the card: a grip to fold the chapter intro (drag down) or unfold it (drag up, or tap the folded intro), its progress at the foot
+    const grip = h('div', { class: 'rr-tour__grip', title: 'Drag up for the whole chapter intro, down to fold it', 'aria-hidden': 'true' });
+    const fold = (open: boolean) => ((leadOpen = open), paintLead(), left.scrollTo({ top: 0 }));
+    onDrag(grip, { move: () => {}, end: (_, dy) => Math.abs(dy) > 24 && fold(dy < 0) });
+    lead.addEventListener('click', () => lead.classList.contains('is-folded') && fold(true));
+    left.prepend(grip);
+    left.append(progress);
+    let from: { x: number; y: number } | null = null;
+    left.addEventListener('pointerdown', (e) => (from = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY } : null));
+    left.addEventListener('pointercancel', () => (from = null)); // the card scrolled instead
+    left.addEventListener('pointerup', (e) => {
+      if (!from || getSelection()?.toString()) return;
+      const dx = e.clientX - from.x;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(e.clientY - from.y)) {
+        if (dx < 0) next.click();
+        else prev.click();
+      }
+      from = null;
+    });
+    let drop: (() => void) | undefined;
+    actor.subscribe((s) => {
+      const playing = s.matches({ open: 'playing' });
+      if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
+      else if (!playing && drop) {
+        drop();
+        drop = undefined;
+      }
+    });
+  }
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
@@ -252,6 +299,7 @@ export function mountWalkthrough(app: ReviewApp) {
     if (chapter !== last.chapter || d !== last.doc) {
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
       prose(lead, ch.lead ?? '');
+      if (phone) leadOpen = false; // each chapter's intro starts folded on a phone
       paintLead();
       enter(lead);
     }

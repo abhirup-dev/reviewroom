@@ -90,8 +90,12 @@ export function githubControls(app: ReviewApp) {
       menuItem('Refresh comments', () => (close(), app.services.github.refresh().then(() => app.toast('GitHub comments refreshed')))),
       g.url ? menuItem('Open the PR on GitHub', () => (close(), window.open(g.url, '_blank', 'noopener')), { icon: 'popout' }) : null,
     ]);
-  if (!g.ok) return [btn];
-  const modes = seg(
+  return g.ok ? [btn, reviewModeSwitch(app)] : [btn];
+}
+
+/** Agent / Team / All: where new comments go and which threads are listed (a GitHub PR's review mode). */
+export function reviewModeSwitch(app: ReviewApp) {
+  return seg(
     (['agent', 'team', 'all'] as const).map((m) => ({
       label: { agent: 'Agent', team: 'Team', all: 'All' }[m],
       title: {
@@ -104,7 +108,6 @@ export function githubControls(app: ReviewApp) {
     })),
     { class: 'rr-seg rr-seg--small', 'aria-label': 'Review mode: where new comments go and which threads are listed' },
   );
-  return [btn, modes];
 }
 
 /** Finish the agent round or submit the pending GitHub review, according to review mode. */
@@ -131,27 +134,31 @@ export function feedbackButton(app: ReviewApp): HTMLElement {
 /** Round navigation and the walkthrough comment picker, in their header order. */
 export function threadHeaderControls(app: ReviewApp): (HTMLElement | null)[] {
   const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Review rounds: view the narrative as it was at the end of an earlier round' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
-  roundBtn.onclick = () =>
-    popMenu(roundBtn, (close) => [
-      menuLabel('Review rounds'),
-      ...app.state.rounds
-        .slice()
-        .reverse()
-        .map((r) =>
-          menuItem(
-            `Round ${r.n}`,
-            () => {
-              close();
-              app.bus.emit('round-view', r.n === app.state.round ? 0 : r.n);
-            },
-            { checked: (app.viewRound || app.state.round) === r.n, hint: r.status === 'open' ? 'current' : r.status },
-          ),
-        ),
-    ]);
+  roundBtn.onclick = () => roundMenu(app, roundBtn);
   return [
     app.services.threads.teamMode ? null : roundBtn,
     h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
   ];
+}
+
+/** Review rounds: view the narrative as it was at the end of an earlier round. */
+export function roundMenu(app: ReviewApp, anchor: HTMLElement) {
+  popMenu(anchor, (close) => [
+    menuLabel('Review rounds'),
+    ...app.state.rounds
+      .slice()
+      .reverse()
+      .map((r) =>
+        menuItem(
+          `Round ${r.n}`,
+          () => {
+            close();
+            app.bus.emit('round-view', r.n === app.state.round ? 0 : r.n);
+          },
+          { checked: (app.viewRound || app.state.round) === r.n, hint: r.status === 'open' ? 'current' : r.status },
+        ),
+      ),
+  ]);
 }
 
 /** Feature events which affect header controls beyond the shell's ordinary repaint events. */

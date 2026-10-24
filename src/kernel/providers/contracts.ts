@@ -50,6 +50,8 @@ export interface StateBackend {
   /** Raw walkthrough transport: server JSON (including 422 `{ issues }`), embedded text, or null if absent.
    * Schema parsing belongs to the walkthrough feature. Other HTTP failures reject. */
   walkthrough?(): Promise<unknown>;
+  /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
+  pending?(): { unsent: boolean; started: string | null };
 }
 export interface BackendEvents {
   state(s: ReviewState): void;

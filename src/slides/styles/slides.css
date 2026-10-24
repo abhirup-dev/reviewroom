@@ -279,6 +279,14 @@ button.rr-tour__chunk-head:hover {
   border: 0;
   background: none;
   white-space: nowrap;
+  min-width: 0; /* a narrow pane: the name gives way, not the Diff/Before/After switch */
+}
+.rr-toolbar .rr-tour__chunk-head > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-toolbar .rr-tour__chunk-head + .rr-seg {
+  flex: none;
 }
 span.rr-tour__chunk-head {
   cursor: default;

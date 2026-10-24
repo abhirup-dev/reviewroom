@@ -141,15 +141,29 @@ export function addDockPanel(api: DockviewApi, id: string, ref?: { panel?: strin
   });
 }
 
-// The rest of the app asks for panels through these, never dockview itself: a phone or tablet layout replaces them.
-export const hasPanel = (app: ReviewApp, id: string) => !!app.dock?.getPanel(id);
-export const closePanel = (app: ReviewApp, id: string) => app.dock?.getPanel(id)?.api.close();
-export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.dock?.getPanel(id)?.api.setTitle(title);
+/** What stands in for the dock on a phone (phone.ts): one panel at a time, nothing floats or is arranged. */
+export interface PanelSurface {
+  has(id: string): boolean;
+  /** Open (if needed) and bring to the front; false if there's no such panel. */
+  show(id: string, params?: Record<string, unknown>): boolean;
+  close(id: string): void;
+  setTitle(id: string, title: string): void;
+  find(match: (id: string, params: Record<string, unknown> | undefined) => boolean): string | undefined;
+}
+let surface: PanelSurface | null = null;
+/** The phone shell in place of the dock (null: the dock again). */
+export const useSurface = (s: PanelSurface | null) => void (surface = s);
+
+// The rest of the app asks for panels through these, never dockview itself: the phone shell replaces them.
+export const hasPanel = (app: ReviewApp, id: string) => (surface ? surface.has(id) : !!app.dock?.getPanel(id));
+export const closePanel = (app: ReviewApp, id: string) => (surface ? surface.close(id) : app.dock?.getPanel(id)?.api.close());
+export const setPanelTitle = (app: ReviewApp, id: string, title: string) => (surface ? surface.setTitle(id, title) : app.dock?.getPanel(id)?.api.setTitle(title));
 /** The first open panel `match` accepts. */
-export const findPanel = (app: ReviewApp, match: (id: string, params: Record<string, unknown> | undefined) => boolean) => app.dock?.panels.find((p) => match(p.id, p.params))?.id;
+export const findPanel = (app: ReviewApp, match: (id: string, params: Record<string, unknown> | undefined) => boolean) => (surface ? surface.find(match) : app.dock?.panels.find((p) => match(p.id, p.params))?.id);
 
 /** Bring an open panel to the front; false if it isn't open. */
 export function showPanel(app: ReviewApp, id: string) {
+  if (surface) return surface.has(id) && surface.show(id);
   const p = app.dock?.getPanel(id);
   if (!p) return false;
   // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
@@ -163,6 +177,10 @@ export function showPanel(app: ReviewApp, id: string) {
 export type DockPlacement = 'right' | 'below' | 'float' | 'center';
 /** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
 export function addPanelAt(app: ReviewApp, panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: DockPlacement, near?: string) {
+  if (surface) {
+    surface.show(panel.id, panel.params);
+    return surface.setTitle(panel.id, panel.title);
+  }
   const api = app.dock;
   const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
   if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
@@ -229,6 +247,7 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
 
 /** Esc runs `back` once, if the panel is still floating then. */
 export function onEscape(app: ReviewApp, id: string, back: () => void) {
+  if (surface) return; // nothing floats on a phone
   const f = () => {
     app.escapers.splice(app.escapers.indexOf(f), 1);
     const p = app.dock.getPanel(id);
@@ -244,6 +263,7 @@ export function onEscape(app: ReviewApp, id: string, back: () => void) {
  *  Esc, "Put it back" or closing the window returns it to exactly that spot. Every way of floating
  *  a panel (header button, tab double-click or menu, double-clicking a section, file or pin) comes here. */
 export function floatInPlace(app: ReviewApp, id: string) {
+  if (surface) return void surface.show(id);
   if (id.startsWith('slot:')) return putBack(app, id.slice(5)); // the stand-in itself: bring the panel home
   const p = app.dock.getPanel(id);
   if (!p) return;
@@ -255,6 +275,7 @@ export function floatInPlace(app: ReviewApp, id: string) {
 }
 
 export function putBack(app: ReviewApp, id: string) {
+  if (surface) return surface.close(id); // nothing floats on a phone: back to the tab underneath
   const slot = slotOf(app.dock, id);
   if (!slot) return;
   const group = slot.group;

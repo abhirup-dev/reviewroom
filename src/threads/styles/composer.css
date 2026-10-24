@@ -71,3 +71,9 @@
   gap: 4px;
 }
 
+/* no mod+enter to hint at on touch */
+@media (hover: none) {
+  .rr-composer__send-key {
+    display: none;
+  }
+}

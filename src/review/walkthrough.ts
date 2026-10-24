@@ -114,11 +114,22 @@ class WalkthroughPanel implements PanelInstance {
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     this.element = h('div', { class: 'rr-narrative' }, this.scroller);
 
-    this.wrap.addEventListener('pointermove', (e) => this.onMove(e));
-    this.wrap.addEventListener('pointerleave', () => this.scheduleHide(200));
-    this.handle.addEventListener('pointerleave', () => this.scheduleHide());
+    // touch has no hover: a tap shows the block's handle instead (onClick), and lifting the finger doesn't hide it
+    this.wrap.addEventListener('pointerdown', (e) => (this.touched = e.pointerType === 'touch'), true);
+    this.wrap.addEventListener('pointermove', (e) => e.pointerType !== 'touch' && this.onMove(e));
+    this.wrap.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && this.scheduleHide(200));
+    this.handle.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && this.scheduleHide());
     this.wrap.addEventListener('click', (e) => this.onClick(e), true);
     this.wrap.addEventListener('mouseup', (e) => setTimeout(() => this.onMouseUp(e), 0));
+    // a touch selection ends with no mouseup: offer the comment once its handles settle, under the selection
+    const touchSel = debounce(() => {
+      const sel = document.getSelection();
+      if (!matchMedia('(pointer: coarse)').matches || !sel?.rangeCount) return;
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      this.onMouseUp({ clientX: r.left + r.width / 2, clientY: r.bottom } as MouseEvent);
+    }, 400);
+    document.addEventListener('selectionchange', touchSel);
+    this.offs.push(() => document.removeEventListener('selectionchange', touchSel));
     this.scroller.addEventListener('scroll', () => this.hoverBlock && this.hideHandle(), { passive: true });
 
     this.ro = new ResizeObserver(debounce(() => this.layoutRail(), 60));
@@ -256,7 +267,7 @@ class WalkthroughPanel implements PanelInstance {
 
   private pickToggle = false;
   private setPicking(on: boolean) {
-    this.pickToggle = on;
+    this.pickToggle = this.picking = on; // a tap brings no pointermove first to set picking
     this.wrap.classList.toggle('is-picking', on);
   }
 
@@ -318,8 +329,13 @@ class WalkthroughPanel implements PanelInstance {
       e.stopPropagation();
       this.commentOnBlock(t);
       if (this.pickToggle) this.app.bus.emit('picker', false);
+    } else if (this.touched && !t.closest('.rr-block-handle, .rr-rail')) {
+      const el = this.blockAt(t);
+      if (el) this.showFor(el);
+      else this.hideHandle();
     }
   }
+  private touched = false;
 
   private onMouseUp(e: MouseEvent) {
     if (this.historic) return;

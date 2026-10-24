@@ -42,6 +42,23 @@ Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<b
 (the panels as you left them), and `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the
 **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 
+## Use reviewroom from a phone
+
+A phone reaches your reviews through the hub, which serves each one at `/r/<id>/`. reviewroom only binds
+`127.0.0.1` and ships no tunnel or Tailscale code: put any front that ends in HTTPS in front of the hub, then tell
+the hub its public origin once.
+
+```bash
+tailscale serve --bg 4847                                   # or any HTTPS tunnel to 127.0.0.1:4847 that admits only you
+reviewroom hub --public-origin https://mac.tailnet.ts.net   # saved in ~/.reviewroom/config.json; restart the hub to apply
+```
+
+Open the public URL on the phone: the hub lists your reviews, and each opens in a phone layout (bottom tabs,
+sheets, touch commenting). Install it from **More › Install app** or the palette (`Install app`); on iOS, Safari's
+**Share › Add to Home Screen**. It updates itself when you rebuild or upgrade reviewroom, waiting while a comment is
+unsent. Pick the origin for good: an installed app is tied to it. Anyone the front lets through can read and write
+every running review.
+
 ## Guided walkthroughs
 
 An agent can also write a guided walkthrough, `walkthrough.json`: chapters of slides the reviewer plays

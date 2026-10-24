@@ -24,6 +24,18 @@
   background: var(--rr-risk);
   color: #fff;
 }
+.rr-toast__action {
+  margin-left: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  pointer-events: auto;
+}
 .rr-toast.is-out {
   opacity: 0;
   transform: translateY(6px);

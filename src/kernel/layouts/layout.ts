@@ -5,7 +5,9 @@ import type { ReviewApp } from '../../app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
-import { addDockPanel, createDock, isFloating, panelDef, panelDefs } from '../dock';
+import { addDockPanel, createDock, isFloating, panelDef, panelDefs, useSurface } from '../dock';
+import { PhoneShell, type PhoneOptions } from '../phone';
+import { isTablet } from '../device';
 
 /** Conditional panels are offered once, when their provider first has content. */
 export interface PanelAvailability {
@@ -36,6 +38,8 @@ export class Layouts {
   private offered = new Set<string>();
   private undoStack: Snapshot[] = [];
   private last?: Snapshot;
+  /** The phone shell, when it stands in for the dock: one panel at a time, nothing to arrange. */
+  private phone?: PhoneShell;
 
   constructor(private app: ReviewApp) {}
 
@@ -44,9 +48,13 @@ export class Layouts {
   all(): Record<string, Layout> {
     return { ...builtinLayouts, ...this.saved };
   }
-  // the review's starting layout: the reviewer's default, else its layout="" attribute, else Reading
+  // the review's starting layout: the reviewer's default, else Tablet on a tablet, else its layout="" attribute, else Reading
   private startId() {
-    return [this.defaultId ?? '', this.app.root.getAttribute('layout') ?? '', 'reading'].find((id) => this.all()[id])!;
+    return [this.defaultId ?? '', isTablet() ? 'tablet' : '', this.app.root.getAttribute('layout') ?? '', 'reading'].find((id) => this.all()[id])!;
+  }
+  /** Layouts are the dock's: a phone shows one panel at a time, and never writes the desktop's saved arrangements. */
+  canArrange() {
+    return !this.phone;
   }
   private setCurrent(id: string) {
     this.currentId = id;
@@ -67,6 +75,7 @@ export class Layouts {
   apply(id: string) {
     const l = this.all()[id];
     if (!l) return false;
+    if (this.phone) return true; // nothing to arrange
     const api = this.app.dock;
     const availability = this.availability;
     const json = toDockview(l.root, api.width || window.innerWidth, api.height || window.innerHeight, (pid) => {
@@ -90,6 +99,7 @@ export class Layouts {
    *  (and start from, `asDefault`). A taken name (shipped or saved) is refused: false, nothing changed. */
   async save(title: string, asDefault = false) {
     const app = this.app;
+    if (this.phone) return false;
     const id = layoutId(title);
     if (!id) return this.fail('Name it with some letters or digits');
     if (this.all()[id]) return this.fail(`“${title}” is taken: pick another name`);
@@ -107,6 +117,7 @@ export class Layouts {
 
   /** Make saved layout `id` the one reviews start from, or have none (null). */
   async setDefault(id: string | null) {
+    if (this.phone) return false;
     if (!(await this.app.backend.setDefaultLayout(id).catch(() => false))) return this.fail('Could not change the default layout');
     this.defaultId = id;
     if (!id) this.app.toast('No default layout: new reviews start from their built-in layout');
@@ -115,6 +126,7 @@ export class Layouts {
 
   /** Delete one of the reviewer's saved layouts (it stops being the default, if it was). */
   async delete(id: string) {
+    if (this.phone) return;
     const title = this.saved[id]?.title;
     if (!(await this.app.backend.saveLayout(id, null).catch(() => false))) return this.app.toast('Could not delete the layout', 'error');
     delete this.saved[id];
@@ -126,7 +138,7 @@ export class Layouts {
   command(id: string) {
     const i = Object.keys(this.all()).indexOf(id);
     const l = this.all()[id];
-    return { id: 'layout.' + id, title: `Layout: ${l.title}`, group: 'Layout', hint: l.hint, keys: i >= 0 && i < 9 ? [`alt+${i + 1}`] : undefined, when: () => !!this.all()[id], run: () => this.apply(id) };
+    return { id: 'layout.' + id, title: `Layout: ${l.title}`, group: 'Layout', hint: l.hint, keys: i >= 0 && i < 9 ? [`alt+${i + 1}`] : undefined, when: () => this.canArrange() && !!this.all()[id], run: () => this.apply(id) };
   }
 
   private isPassing() {
@@ -204,6 +216,19 @@ export class Layouts {
     return api;
   }
 
+  /** The phone shell in place of the dock (main.ts picks one at boot). */
+  mountPhone(host: HTMLElement, options: MountDockOptions & PhoneOptions) {
+    const app = this.app;
+    const availability = (this.availability = options.panelAvailability);
+    app.root.classList.add('is-phone');
+    this.phone = new PhoneShell(app, host, {
+      available: (id) => options.available(id) && (!availability?.ids.includes(id) || availability.isAvailable(id)),
+      openThreads: () => options.openThreads(),
+    });
+    useSurface(this.phone);
+    app.onDispose(() => useSurface(null));
+  }
+
   /** Add panel `id` where the current layout puts it; undefined if the layout has no place for it. */
   private place(id: string, params?: Record<string, unknown>) {
     const api = this.app.dock;
@@ -223,6 +248,7 @@ export class Layouts {
 
   /** Offer conditional panels once per review as their provider makes them available. */
   offerAvailable() {
+    if (this.phone) return this.phone.paintBar(); // its pages come and go with what's available
     const availability = this.availability;
     if (!availability) return;
     for (const id of availability.ids) {
@@ -235,6 +261,7 @@ export class Layouts {
 
   /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
   ensurePanel(id: string, params?: Record<string, unknown>) {
+    if (this.phone) return void this.phone.show(id, params);
     const api = this.app.dock;
     // back where the layout puts it; one the layout has no place for joins the walkthrough's tabs (as in apply)
     let p = api.getPanel(id) ?? this.place(id, params);

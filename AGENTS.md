@@ -35,7 +35,20 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
   `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
   `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the shipped ones
-  in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default.
+  in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
+  reviewer's settings, so far `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts.
+- **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
+  (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/server.ts`):
+  hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,
+  `build-info.json`) `no-cache`, the API `no-store`; every response carries `x-reviewroom-build`. Keep
+  `_rr/reviewroom.js` unhashed (agent `review.html` names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
+  `start_url` and `scope` `./` (either change orphans installed icons). `src/kernel/pwa.ts` reloads only on
+  `controllerchange`, never while a worker installs, and holds the reload over unsent work. The worker never intercepts
+  `/api/` or `/r/<id>/api/`.
+- **The hub proxy** (ADR 0001): a phone sees only the hub, which serves each review at `/r/<id>/`. `hubAccess()`
+  (`cli/hub/access.ts`) is the single access seam (loopback or the public origin; identity goes there, nowhere else).
+  Client paths are relative (`api`, `_rr/…`) so one build works at `/` and `/r/<id>/`; the manifest link, the worker
+  and All reviews point at the hub root on purpose.
 - **`reviewroom --help`** (`cli/reviewroom.ts`) is the CLI reference: keep it complete.
 - **`window.rr` and the custom elements** are documented in `skills/reviewroom/references/authoring.md`.
 

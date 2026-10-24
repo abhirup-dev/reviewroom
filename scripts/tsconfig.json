@@ -2,5 +2,5 @@
   // Everything Bun runs directly: build scripts, unit and end-to-end tests. Only type-checked.
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["bun"], "allowImportingTsExtensions": true },
-  "include": [".", "../e2e", "../src/**/*.test.ts", "../cli/**/*.test.ts"]
+  "include": [".", "../e2e", "../src/env.d.ts", "../src/**/*.test.ts", "../cli/**/*.test.ts"]
 }

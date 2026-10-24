@@ -15,6 +15,7 @@ import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
 import { showPanel } from './kernel/dock';
+import { isPhone } from './kernel/phone';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
 import type { Anchor, Op } from './kernel/state/schema.shared';
@@ -73,7 +74,7 @@ export interface AppEvents extends Record<string, unknown> {
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
   walkthrough: Walkthrough | null;
-  toast: { text: string; kind?: 'info' | 'error' };
+  toast: { text: string; kind?: 'info' | 'error'; action?: { label: string; run: () => void } };
 }
 
 
@@ -113,6 +114,8 @@ export class ReviewApp {
   readonly services: ReviewServices;
   private cleanups: (() => void)[] = [];
   private disposed = false;
+  // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
+  private prefsKey = isPhone() ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
 
   onDispose(cleanup: () => void) {
     if (this.disposed) cleanup();
@@ -135,7 +138,7 @@ export class ReviewApp {
 
   // Keep new ReviewApp(root) compatible; boot supplies its composition explicitly.
   constructor(public root: HTMLElement, createServices = createReviewServices) {
-    this.prefs = loadLocal('reviewroom:prefs', defaultPrefs);
+    this.prefs = loadLocal(this.prefsKey, isPhone() ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
     this.services = createServices({
       github: {
         backend: () => this.backend,
@@ -168,7 +171,7 @@ export class ReviewApp {
   // ------------------------------------------------------------ prefs/theme
   setPref<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     this.prefs = { ...this.prefs, [k]: v };
-    saveLocal('reviewroom:prefs', this.prefs);
+    saveLocal(this.prefsKey, this.prefs);
     this.bus.emit('prefs', this.prefs);
     if (k === 'theme') this.applyTheme();
   }
@@ -326,8 +329,8 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ misc
-  toast(text: string, kind: 'info' | 'error' = 'info') {
-    this.bus.emit('toast', { text, kind });
+  toast(text: string, kind: 'info' | 'error' = 'info', action?: { label: string; run: () => void }) {
+    this.bus.emit('toast', { text, kind, action });
   }
   showPanel(id: string) {
     return showPanel(this, id);

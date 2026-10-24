@@ -1,0 +1,1056 @@
+/* Phone shell (kernel/phone.ts): four areas along the bottom, each a row of pages under its top tabs; on-demand
+   panels as sheets over them. The look is Material 3 Expressive on reviewroom's tokens (docs/design/phone.md):
+   colour, type and restraint from DESIGN.md; shape, touch and motion from M3E. Desktop and the tablet dock never
+   match these selectors (.is-phone, .rr-phone, :root:has(.is-phone) for the dialogs outside the root). */
+
+/* ---------------------------------------------------------------- phone tokens */
+:root:has(.is-phone) {
+  /* the M3 shape scale (desktop keeps 2px) */
+  --rr-shape-xs: 4px;
+  --rr-shape-s: 8px;
+  --rr-shape-m: 12px;
+  --rr-shape-l: 16px;
+  --rr-shape-xl: 28px;
+  --rr-shape-full: 999px;
+  /* M3 springs sampled as linear(): standard fast (200ms), standard default (280ms), expressive default (480ms) */
+  --rr-m-fast: linear(0, 0.067, 0.174, 0.296, 0.418, 0.53, 0.646, 0.726, 0.791, 0.843, 0.883, 0.915, 0.939, 0.957, 0.97, 0.98, 0.986, 0.991, 0.995, 0.997, 0.999, 0.999, 1, 1, 1);
+  --rr-m-default: linear(0, 0.058, 0.16, 0.279, 0.4, 0.513, 0.613, 0.697, 0.768, 0.824, 0.869, 0.904, 0.931, 0.949, 0.964, 0.976, 0.984, 0.99, 0.994, 0.996, 0.998, 0.999, 1, 1, 1);
+  --rr-m-expressive: linear(0, 0.077, 0.223, 0.388, 0.544, 0.679, 0.786, 0.867, 0.925, 0.964, 0.988, 1.003, 1.01, 1.013, 1.013, 1.011, 1.009, 1.007, 1.005, 1.004, 1.002, 1.001, 1.001, 1, 1);
+  --rr-m-fast-ms: 200ms;
+  --rr-m-default-ms: 280ms;
+  --rr-m-expressive-ms: 480ms;
+  --rr-phone-bar: 64px;
+}
+@keyframes rr-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* ---------------------------------------------------------------- shell */
+.rr-phone {
+  display: flex;
+  flex-direction: column;
+  border-top: 0;
+}
+.rr-phone-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+/* areas stay laid out when not current (visibility, not display): their pages keep their scroll */
+.rr-phone-area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  background: var(--rr-bg);
+}
+.rr-phone-area.is-current {
+  visibility: visible;
+}
+
+/* ---------------------------------------------------------------- top app bar (small, 64px) */
+.rr-phonebar {
+  height: var(--rr-phone-bar);
+  gap: 0;
+  padding: 0 8px 0 4px;
+  background: var(--rr-bg);
+}
+.rr-phonebar .rr-hbtn--icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--rr-shape-full);
+  color: var(--rr-ink-2);
+}
+.rr-phonebar .rr-hbtn .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.rr-phonebar__titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.rr-phonebar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 16px / 1.25 var(--rr-font);
+}
+.rr-phonebar__sub {
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-phonebar .rr-round-status,
+.rr-phonebar .rr-unsaved {
+  height: auto;
+  font-size: inherit;
+}
+/* Send: the one filled control, a round ink icon button; the unsent count an orange badge on its corner */
+.rr-phonebar .rr-send-btn {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-ink);
+  color: var(--rr-bg);
+  box-shadow: none;
+  transform: none;
+}
+.rr-phonebar .rr-send-btn > span:not(.rr-badge) {
+  display: none;
+}
+.rr-phonebar .rr-send-btn .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.rr-phonebar .rr-send-btn .rr-badge,
+.rr-phone-tab__badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 2px solid var(--rr-bg);
+  border-radius: var(--rr-shape-full);
+  box-sizing: content-box;
+  background: var(--rr-comment);
+  color: var(--rr-comment-ink, #fff);
+  font: 700 10px / 18px var(--rr-font);
+}
+
+/* ---------------------------------------------------------------- primary tabs (48px) */
+.rr-phone-toptabs {
+  position: relative; /* the indicator's offsetParent (kernel/phone.ts slide) */
+  flex: none;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-bg);
+}
+.rr-phone-toptab {
+  flex: 1 0 auto;
+  height: 48px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  font: 500 14px / 1 var(--rr-font);
+  white-space: nowrap;
+  transition: color 150ms ease-out;
+}
+.rr-phone-toptab[aria-selected='true'] {
+  color: var(--rr-ink);
+}
+/* 3px, rounded top corners, as wide as the label; follows the pager mid-swipe */
+.rr-phone-toptabs__ind {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--rr-accent);
+  pointer-events: none;
+}
+/* the pages side by side: a sideways swipe scrolls (and snaps) between them */
+.rr-phone-pager {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.rr-phone-pager::-webkit-scrollbar {
+  display: none;
+}
+.rr-phone-page {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--rr-panel, var(--rr-bg)); /* by kind, as on desktop: paper, notebook, code */
+}
+.rr-phone-page > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+/* a wide block scrolled to its end stays put rather than turning the page */
+.rr-phone-page :is(pre, table, .rr-toolbar) {
+  overscroll-behavior-x: contain;
+}
+
+/* ---------------------------------------------------------------- sheets (a thread, a code pop-out) */
+.rr-phone-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-panel, var(--rr-bg));
+  overflow: hidden;
+}
+.rr-phone-panel > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+.rr-phone-sheet-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 56px;
+  padding: 0 8px 0 4px;
+  border-bottom: 1px solid var(--rr-line);
+  font: 600 15px / 1.3 var(--rr-font);
+}
+.rr-phone-sheet-head .rr-icon {
+  transform: rotate(180deg);
+}
+.rr-phone-sheet-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- navigation bar (M3E flexible, 64px) */
+.rr-phone-nav {
+  flex: none;
+  display: flex;
+  height: calc(var(--rr-phone-bar) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--rr-bg);
+}
+.rr-phone-tab {
+  flex: 1 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  font: 500 12px / 16px var(--rr-font);
+}
+.rr-phone-tab[aria-current='true'] {
+  color: var(--rr-ink);
+}
+.rr-phone-tab__pill {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 32px;
+  border-radius: var(--rr-shape-full);
+}
+.rr-phone-tab__pill .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.rr-phone-tab[aria-current='true'] .rr-phone-tab__pill {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+.rr-phone-tab__badge {
+  top: -4px;
+  right: 6px;
+  min-width: 12px;
+  height: 16px;
+  line-height: 16px;
+}
+/* the indicator grows from the centre on the fast spring */
+.rr-phone-tab.is-new .rr-phone-tab__pill {
+  animation: rr-pill-in var(--rr-m-fast-ms) var(--rr-m-fast);
+}
+@keyframes rr-pill-in {
+  from {
+    clip-path: inset(0 50% round 16px);
+  }
+  to {
+    clip-path: inset(0 0 round 16px);
+  }
+}
+.rr-side-head__count {
+  flex: 1;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+
+/* Comment, for a selection (no c key on a phone) */
+.rr-phone-comment {
+  position: absolute;
+  right: 16px;
+  bottom: calc(var(--rr-phone-bar) + 16px + env(safe-area-inset-bottom));
+  z-index: 5;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: var(--rr-shape-full);
+  box-shadow: var(--rr-shadow);
+}
+
+/* ---------------------------------------------------------------- lists: thread cards, file rows */
+.is-phone .rr-thread-item {
+  margin: 0 12px 8px;
+  width: auto;
+  padding: 12px;
+  border-radius: var(--rr-shape-m);
+  background: var(--rr-surface-doc);
+}
+.is-phone .rr-file-row.is-active {
+  border-radius: var(--rr-shape-full);
+}
+.is-phone .rr-prose .rr-chip,
+.is-phone rr-ref {
+  border-radius: var(--rr-shape-xs);
+}
+
+/* ---------------------------------------------------------------- code sheet (standard bottom sheet) */
+/* the Code area itself, at 40% over the page; no scrim at peek, one only while dragged above 70% */
+.rr-phone-peek-head {
+  display: none;
+}
+.rr-phone-area.is-peek {
+  visibility: visible;
+  z-index: 3;
+  top: auto;
+  bottom: max(0px, calc(var(--rr-kb, 0px) - var(--rr-phone-bar)));
+  height: var(--rr-peek-h, 42%);
+  max-height: 100%;
+  border-radius: var(--rr-shape-xl) var(--rr-shape-xl) 0 0;
+  background: var(--rr-surface-overlay);
+  box-shadow: var(--rr-shadow-lg);
+  overflow: hidden;
+  animation: rr-rise var(--rr-m-default-ms) var(--rr-m-default);
+}
+.rr-phone-area.is-peek:not(.is-dragging) {
+  transition: height var(--rr-m-default-ms) var(--rr-m-default);
+}
+.rr-phone-area.is-peek.is-rising {
+  box-shadow: var(--rr-shadow-lg), 0 0 0 100vmax var(--rr-scrim);
+}
+/* past 70% it keeps rising from where it was, on the expressive spring, and lands as the Code area */
+.rr-phone-area.is-landing {
+  animation: rr-land var(--rr-m-expressive-ms) var(--rr-m-expressive);
+}
+@keyframes rr-land {
+  from {
+    transform: translateY(var(--rr-from, 40%));
+  }
+}
+.is-peek .rr-phone-peek-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-surface-overlay);
+  touch-action: none;
+}
+/* 32x4 handle in a 24px strip; the header row under it drags too, so the touch strip is 72px */
+.rr-phone-peek-grip {
+  align-self: center;
+  width: 32px;
+  height: 4px;
+  margin: 10px 0;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+.rr-phone-peek-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 4px 0 16px;
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-phone-peek-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 13px / 1 var(--rr-mono);
+}
+.rr-phone-peek-lines {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: var(--rr-shape-s);
+  background: var(--rr-surface-nav-2);
+  color: var(--rr-muted);
+  font: 500 12px / 1 var(--rr-mono);
+}
+.rr-phone-peek-row .rr-icon-btn {
+  width: 48px;
+  height: 48px;
+}
+/* peeking, the lines are all there is room for */
+.is-peek .rr-code-panel > .rr-toolbar {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
+.is-phone .rr-code-scroll {
+  background: var(--rr-surface-well);
+}
+.is-phone .rr-code-scroll diffs-container {
+  border-radius: var(--rr-shape-m);
+}
+.is-phone .rr-file__head {
+  background: var(--rr-bg);
+  font-size: 12px;
+}
+.rr-file__pos {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: var(--rr-muted);
+  font: 500 12px / 1 var(--rr-font);
+  white-space: nowrap;
+}
+.is-phone .rr-code-panel {
+  position: relative;
+}
+/* a 20px touch strip on the trailing edge; the segments themselves 4px wide (12px while dragged) */
+.rr-code-rail {
+  position: absolute;
+  right: 0;
+  top: var(--rr-bar-h);
+  bottom: 8px;
+  z-index: 4;
+  width: 20px;
+  padding: 4px 4px 0 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  touch-action: none;
+}
+.rr-code-rail__seg {
+  flex: 1 1 0;
+  width: 4px;
+  min-height: 4px;
+  border-radius: var(--rr-shape-s);
+  background: var(--rr-line-strong);
+  transition: width var(--rr-m-fast-ms) var(--rr-m-fast);
+}
+.rr-code-rail.is-dragging .rr-code-rail__seg {
+  width: 12px;
+}
+.rr-code-rail__seg.is-viewed {
+  opacity: 0.5;
+}
+.rr-code-rail__seg.has-threads {
+  background: var(--rr-comment);
+}
+.rr-code-rail__seg.is-current {
+  opacity: 1;
+  background: var(--rr-accent);
+}
+.rr-code-rail__thumb {
+  display: none;
+}
+/* peeking, the rail's room goes to the lines */
+.is-peek .rr-code-rail {
+  display: none;
+}
+.rr-code-panel:has(> .rr-code-rail:not([hidden])) > .rr-code-scroll {
+  margin-right: 12px;
+}
+.is-peek .rr-code-panel:has(> .rr-code-rail) > .rr-code-scroll {
+  margin-right: 0;
+}
+/* menus (the file list, rounds): medium radius, 48px rows */
+:root:has(.is-phone) .rr-menu {
+  border-radius: var(--rr-shape-m);
+  padding: 6px 0;
+}
+:root:has(.is-phone) .rr-menu__item {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 0;
+}
+
+/* ---------------------------------------------------------------- search view (M3E contained) */
+/* the palette is a full-screen view: the <dialog> sits outside .rr-root, hence :has() */
+:root:has(.is-phone) .rr-palette {
+  margin: var(--rr-kb-top, 0px) 0 0;
+  width: 100%;
+  max-width: 100%;
+  /* above the on-screen keyboard (kernel/keyboard.ts) */
+  box-sizing: border-box;
+  height: calc(100dvh - var(--rr-kb-top, 0px));
+  max-height: none;
+  padding: env(safe-area-inset-top) 0 var(--rr-kb, 0px);
+  border: 0;
+  border-radius: 0;
+  background: var(--rr-surface-overlay);
+  transform-origin: calc(100% - 140px) 32px;
+  animation: rr-search-in var(--rr-m-fast-ms) var(--rr-m-fast);
+}
+@keyframes rr-search-in {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+}
+.rr-palette__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 56px;
+  margin: 8px 12px;
+  padding: 0 4px;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-nav-2);
+}
+.rr-palette__bar .rr-icon-btn {
+  width: 48px;
+  height: 48px;
+}
+:root:has(.is-phone) .rr-palette__input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-size: 16px; /* under 16px iOS zooms the page on focus */
+}
+:root:has(.is-phone) .rr-palette__input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.rr-palette__chips {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rr-palette__chips[hidden],
+.rr-palette__chips:not([hidden]) ~ .rr-palette__hint,
+.rr-palette__bar ~ .rr-palette__cancel,
+.rr-palette__clear[hidden] {
+  display: none !important;
+}
+.rr-palette__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-shape-s);
+  background: none;
+  color: var(--rr-ink-2);
+  font: 500 13px / 1 var(--rr-font);
+}
+.rr-palette__chip > span {
+  color: var(--rr-muted);
+  font: 400 12px / 1 var(--rr-font);
+}
+.rr-palette__chip.is-on {
+  padding-left: 8px;
+  border-color: transparent;
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+.rr-palette__group {
+  padding: 16px 16px 6px;
+  font: 600 10.5px / 1 var(--rr-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rr-faint);
+}
+:root:has(.is-phone) .rr-palette__list {
+  flex: 1;
+}
+:root:has(.is-phone) .rr-palette__item {
+  /* the kind's tile, then the label over its detail */
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 12px;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 0;
+}
+:root:has(.is-phone) .rr-palette__kind {
+  grid-row: 1 / span 2;
+}
+:root:has(.is-phone) .rr-palette__label,
+:root:has(.is-phone) .rr-palette__detail {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+:root:has(.is-phone) .rr-palette__detail {
+  justify-self: stretch;
+  max-width: none;
+  margin: 0;
+  font-size: var(--rr-text-sm);
+}
+:root:has(.is-phone) .rr-palette__item.is-sel {
+  background: var(--rr-accent-soft);
+}
+:root:has(.is-phone) .rr-palette__item kbd {
+  display: none;
+}
+:root:has(.is-phone) .rr-palette__kind {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rr-shape-s);
+  background: var(--rr-surface-nav-2);
+  color: var(--rr-ink-2);
+}
+:root:has(.is-phone) .rr-palette__item.is-sel .rr-palette__kind {
+  background: var(--rr-surface-overlay);
+  color: var(--rr-accent);
+}
+:root:has(.is-phone) .rr-palette__cancel {
+  display: inline-flex;
+}
+
+/* ---------------------------------------------------------------- composer: the thread popup as a bottom sheet */
+/* threads/view.ts; padded clear of the on-screen keyboard (kernel/keyboard.ts) */
+.rr-modal.rr-sheet {
+  inset: auto 0 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  max-height: min(85dvh, calc(100dvh - var(--rr-kb-top, 0px)));
+  padding-bottom: calc(var(--rr-kb, 0px) + env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: var(--rr-shape-xl) var(--rr-shape-xl) 0 0;
+  background: var(--rr-surface-overlay);
+  animation: rr-rise var(--rr-m-default-ms) var(--rr-m-default);
+}
+/* the drag-handle bar */
+.rr-modal.rr-sheet::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 32px;
+  height: 4px;
+  margin: 10px 0 2px;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+.rr-modal.rr-sheet > .rr-thread {
+  max-height: none;
+}
+.rr-modal.rr-sheet > .rr-thread > .rr-thread__head {
+  cursor: auto;
+}
+.rr-sheet .rr-composer__input {
+  border-radius: var(--rr-shape-m);
+}
+.rr-sheet .rr-composer__input:focus,
+.rr-sheet .rr-composer__input:focus-within {
+  outline: 2px solid var(--rr-accent);
+  outline-offset: -1px;
+}
+.rr-sheet .rr-btn {
+  height: 40px;
+  border-radius: var(--rr-shape-full);
+}
+/* with the keyboard up, the messages and what it's about give way first, then the reply box, so its buttons stay on
+   screen (flex shrinks by basis times factor; the reply box's factor stays 1, as a sum under 1 shrinks only part way) */
+.rr-sheet .rr-thread__scroll,
+.rr-sheet .rr-thread__ctx {
+  flex-shrink: 1000;
+}
+.rr-sheet .rr-thread__ctx {
+  min-height: 48px;
+}
+.rr-sheet .rr-composer {
+  flex-shrink: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rr-sheet div.rr-composer__input {
+  flex-shrink: 1;
+  min-height: 44px;
+  max-height: 30dvh;
+}
+
+/* ---------------------------------------------------------------- snackbar: above the navigation bar */
+:root:has(.is-phone) .rr-toasts {
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--rr-phone-bar) + 12px + env(safe-area-inset-bottom));
+  transform: none;
+  align-items: stretch;
+}
+:root:has(.is-phone) .rr-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  max-width: none;
+  padding: 4px 6px 4px 16px;
+  border-radius: var(--rr-shape-m);
+  box-shadow: var(--rr-shadow);
+}
+:root:has(.is-phone) .rr-toast__action {
+  margin-left: auto;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: var(--rr-accent-soft);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- menu drawer (modal navigation drawer) */
+/* kernel/header.ts openDrawer: a modal dialog from the left edge, large trailing corners */
+.rr-drawer {
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(300px, 86vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  border: 0;
+  border-radius: 0 var(--rr-shape-l) var(--rr-shape-l) 0;
+  background: var(--rr-surface-overlay);
+  color: var(--rr-ink);
+  font: var(--rr-text) / 1.45 var(--rr-font);
+  box-shadow: var(--rr-shadow-lg);
+  flex-direction: column;
+}
+.rr-drawer[open] {
+  display: flex;
+  animation: rr-drawer-in var(--rr-m-default-ms) var(--rr-m-default);
+}
+.rr-drawer::backdrop {
+  background: var(--rr-scrim);
+}
+.rr-drawer * {
+  box-sizing: border-box;
+}
+@keyframes rr-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+.rr-drawer__head {
+  padding: 28px 28px 16px;
+}
+.rr-drawer__title {
+  font: 600 16px / 1.3 var(--rr-font);
+}
+.rr-drawer__facts {
+  margin-top: 6px;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-drawer__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+.rr-drawer__sep {
+  height: 1px;
+  margin: 8px 16px;
+  background: var(--rr-line);
+}
+.rr-drawer__item,
+.rr-drawer__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: inherit;
+  font: 500 14px / 1.3 var(--rr-font);
+  text-align: left;
+}
+.rr-drawer__item > span,
+.rr-drawer__row > span {
+  flex: 1;
+  min-width: 0;
+}
+.rr-drawer__item small,
+.rr-drawer__row small {
+  color: var(--rr-muted);
+  font: 400 12px / 1.3 var(--rr-font);
+}
+.rr-drawer__item > .rr-icon,
+.rr-drawer__row > .rr-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--rr-muted);
+}
+.rr-drawer__item:active {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+/* a segmented button: full pill outside, three segments */
+.rr-drawer__row .rr-seg {
+  flex: none;
+  height: 40px;
+  border-radius: var(--rr-shape-full);
+  overflow: hidden;
+}
+.rr-drawer__row .rr-seg > button {
+  min-width: 44px;
+  height: 100%;
+  padding: 0 10px;
+  font-weight: 600;
+}
+.rr-drawer__row .rr-seg > button.is-on {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+
+/* ---------------------------------------------------------------- guided review */
+/* slides/player.ts: the code full screen under a status bar of close and the chapter; the slide a large-radius
+   card floating over it; Back / Comment / Next an M3E floating toolbar (full pill, 64px), Next its one filled pill */
+.is-phone .rr-tour__player {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'top' 'code';
+  padding-top: env(safe-area-inset-top);
+  background: var(--rr-surface-well);
+}
+.is-phone .rr-tour__body {
+  display: contents;
+}
+.is-phone .rr-tour__top {
+  grid-area: top;
+  height: var(--rr-phone-bar);
+  padding: 0 8px 0 4px;
+  background: var(--rr-bg);
+  /* close, then the chapter's title over "Chapter n of N" */
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 4px;
+}
+.is-phone .rr-tour__top > .rr-toolbar__spacer {
+  display: none;
+}
+/* chapter arrows, open in the workbench and pause: the card and Back do those on a phone */
+.is-phone .rr-tour__top > .rr-tour__flip,
+.is-phone .rr-tour__top > .rr-icon-btn:not(:last-child) {
+  display: none;
+}
+.is-phone .rr-tour__top > .rr-icon-btn:last-child {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 48px;
+  height: 48px;
+}
+.is-phone .rr-tour__top > .rr-icon-btn:last-child .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.is-phone .rr-tour__pos {
+  display: block;
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0 0 0 4px;
+  font-size: var(--rr-text-sm);
+}
+.is-phone .rr-tour__chapter {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 4px;
+  font: 600 16px var(--rr-font);
+}
+.is-phone .rr-tour__right {
+  grid-area: code;
+  /* room under the code for the card and the toolbar to float over */
+  padding-bottom: 96px;
+}
+.is-phone .rr-tour__tools {
+  display: none;
+}
+/* the slide: a 16px card above the toolbar, at most ~40% of the screen, scrolling on its own */
+.is-phone .rr-tour__left {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  max-height: 40dvh;
+  padding: 0 16px 14px;
+  border: 0;
+  border-radius: var(--rr-shape-l);
+  background: var(--rr-surface-overlay);
+  box-shadow: var(--rr-shadow-lg);
+  touch-action: pan-y;
+  z-index: 1;
+  animation: rr-card-in var(--rr-m-expressive-ms) var(--rr-m-expressive);
+}
+@keyframes rr-card-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+.is-phone .rr-tour__left .rr-prose {
+  font-size: 15px;
+}
+/* drag the grip up for the whole chapter intro, down to fold it */
+.rr-tour__grip {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 24px;
+  margin: 0 -16px 4px;
+  background: var(--rr-surface-overlay);
+  touch-action: none;
+}
+.rr-tour__grip::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: calc(50% - 16px);
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+/* a folded chapter intro: its first line, faded, and More */
+.rr-tour__lead.is-folded {
+  max-height: 1.6em;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, #000 70%, transparent);
+}
+.rr-tour__lead.is-folded > * {
+  margin: 0;
+}
+.rr-tour__more {
+  align-self: flex-start;
+  min-height: 32px;
+  font-weight: 600;
+}
+.is-phone .rr-tour__actions {
+  display: none;
+}
+.is-phone .rr-tour__progress {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+}
+.is-phone .rr-tour__seg {
+  flex: 1 !important;
+}
+.is-phone .rr-tour__seg-title {
+  display: none;
+}
+.is-phone .rr-tour__ticks {
+  gap: 4px;
+}
+.is-phone .rr-tour__tick {
+  height: 4px;
+  border-radius: var(--rr-shape-xs);
+}
+.is-phone .rr-tour__tick.is-on {
+  box-shadow: none;
+}
+.is-phone .rr-tour__bottom {
+  position: absolute;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 64px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-overlay);
+  box-shadow: var(--rr-shadow-lg);
+}
+.is-phone .rr-tour__back,
+.is-phone .rr-tour__comment {
+  width: 48px;
+  height: 48px;
+  color: var(--rr-ink-2);
+}
+.is-phone .rr-tour__back svg {
+  transform: scaleX(-1);
+}
+.is-phone .rr-tour__back .rr-icon,
+.is-phone .rr-tour__comment .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.is-phone .rr-tour__next {
+  height: 48px;
+  padding: 0 16px 0 20px;
+  border-radius: var(--rr-shape-full);
+  font: 600 14px var(--rr-font);
+}
+
+/* ---------------------------------------------------------------- reduced motion: movement becomes a fade */
+@media (prefers-reduced-motion: reduce) {
+  :root:has(.is-phone) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet, .is-phone .rr-tour__left) {
+    animation: rr-fade 150ms ease-out !important; /* overlays.css */
+    transition: none !important;
+  }
+  .rr-phone-tab.is-new .rr-phone-tab__pill,
+  .rr-code-rail__seg {
+    animation: none;
+    transition: none;
+  }
+}
+.rr-drawer:focus {
+  outline: none;
+}

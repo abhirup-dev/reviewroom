@@ -1,6 +1,6 @@
 // Thread panel placement and the availability of panels backed by GitHub.
 import type { ReviewApp } from '../app';
-import { showPanel } from '../kernel/dock';
+import { addPanelAt, showPanel } from '../kernel/dock';
 import type { PanelAvailability } from '../kernel/layouts/layout';
 
 /** Inject into mountDock: these panels wait for a GitHub snapshot that has content. */
@@ -13,8 +13,9 @@ export function githubPanelAvailability(app: ReviewApp): PanelAvailability {
 
 /** A thread as a panel: beside the walkthrough, or stacked with the threads already docked. */
 export function dockThread(app: ReviewApp, id: string, title: string) {
-  const api = app.dock;
   const pid = 'thread:' + id;
+  if (!app.dock) return addPanelAt(app, { id: pid, component: 'thread', title, params: { id } }, 'right'); // a phone: a sheet
+  const api = app.dock;
   if (!api.getPanel(pid)) {
     const other = api.panels.find((p) => p.id.startsWith('thread:'));
     const near = other ?? api.getPanel('narrative') ?? api.activePanel;

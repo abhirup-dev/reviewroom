@@ -3,12 +3,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { answers } from './lock.ts';
 import { hubFile, hubLog, registryDir } from './paths.ts';
 import type { Agent } from '../hub/proc.ts';
 
 /** server.json, written by `serve`. */
 export type ServerRecord = { pid: number; port: number; url: string; startedAt: string };
+/** A review's id: the hub's /r/<id>/ and the client's storage keys. Stable across rounds, restarts and ports (ADR 0001). */
+export const reviewId = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 12);
 export const serverFile = (dir: string) => path.join(dir, 'server.json');
 export function liveServer(dir: string): ServerRecord | null {
   try {
