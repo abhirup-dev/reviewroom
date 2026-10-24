@@ -104,7 +104,7 @@ export class PhoneShell implements PanelSurface {
     // no c key on a phone: a selection (text in the narrative, lines in code) gets a button instead
     const comment = this.comment;
     comment.onclick = () => (app.commands.run('comment.selection'), (comment.hidden = true));
-    comment.append(icon('thread', 14), 'Comment');
+    comment.append(icon('chat', 14), 'Comment');
     app.bus.on('selection', (s) => this.shell.send({ type: 'selection', on: !!s }));
     // before the code panel hears it (it mounts below): lines to show from elsewhere peek, a whole file opens the area
     app.bus.on('reveal-code', (t) => {

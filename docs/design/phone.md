@@ -49,7 +49,10 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   muted) · search · play (only with a walkthrough) · Send. Flat; gains a hairline only when content scrolls under it.
 - **Send**: the one filled control in the bar: a 48px round icon button, ink fill, `send` icon, `title` "Send
   round"; unsent count as an orange badge on its corner. The desktop key cap becomes this on phones (a label doesn't
-  fit beside the title at 360px).
+  fit beside the title at 360px). The other Send buttons (Agent and PR, in the threads list and the composer) are M3E
+  filled full pills with their label: Agent `--rr-comment` fill with `--rr-comment-ink`, PR neutral tonal. All flat: no
+  key-cap edges, lift or press-in; hover (pointers only) and press are an 8% / 12% state layer of the content colour;
+  unavailable is flat and muted (ink at 10% fill, 38% text), not dashed. Dialog buttons are full pills too.
 - **Primary tabs** (48px): Inter 14/500, muted; selected is ink with a 3px accent indicator, rounded top corners,
   width of the label, moving with the swipe (elastic, follows the finger). Hairline under the row.
 - **Navigation bar** (M3E flexible, 64px + safe-area): 4 items, 24px icons, 12px labels (not bold when selected).
@@ -67,7 +70,8 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
 - **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
   toolbar (full pill, 52px, surface-container-high): Back and Next are the same 44px round icon buttons either side of a
-  connected pair, Contents | Comment (Comment in the conversation colour). Back is disabled on the first slide, where
+  connected button group, Contents | Comment, 44px tall, outer ends fully round, the halves 2px apart: Contents neutral,
+  Comment filled `--rr-comment` with a `chat` icon in `--rr-comment-ink`; the state layer follows each half. Back is disabled on the first slide, where
   Next pulses (a steady ring under reduced motion) until the reviewer moves on; on the last slide Next is a check that
   ends the walkthrough. Contents (and the chapter title in the top bar) opens a bottom sheet of the chapters with their
   slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
@@ -92,7 +96,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
 
 24px on phones, drawn on the 16px grid of `src/kernel/dom.ts` (same stroke style, `stroke-width` 1.4 → renders ~2px).
 No emoji. Additions to the set: `menu`, `back`, `home` (all reviews), `book` (Read), `refresh`, `theme` (half
-circle), `info`, `more`. Selected nav icons stay outlined (minimal); the indicator carries the state.
+circle), `info`, `more`, `chat` (Comment: a rounded bubble with a tail and three dots). Selected nav icons stay outlined (minimal); the indicator carries the state.
 
 ## Motion (springs as CSS `linear()`)
 

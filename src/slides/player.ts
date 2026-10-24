@@ -221,7 +221,7 @@ export function mountWalkthrough(app: ReviewApp) {
     prev.replaceChildren(icon('chevron', 20));
     prev.className = 'rr-icon-btn rr-tour__back';
     next.className = 'rr-icon-btn rr-tour__fwd';
-    comment.replaceChildren(icon('comment', 20));
+    comment.replaceChildren(icon('chat', 20));
     comment.className = 'rr-tour__comment';
     comment.setAttribute('aria-label', 'Comment on this slide');
     const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet!() }, icon('toc', 20));

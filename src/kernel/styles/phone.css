@@ -114,6 +114,10 @@
   color: var(--rr-bg);
   box-shadow: none;
   transform: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.rr-phonebar .rr-send-btn:hover {
+  background: var(--rr-ink); /* a state layer instead (Send, below) */
 }
 .rr-phonebar .rr-send-btn > span:not(.rr-badge) {
   display: none;
@@ -689,7 +693,38 @@
 }
 .rr-sheet .rr-btn {
   height: 40px;
+}
+/* every dialog's buttons are full pills, like the sheet's (Finish round's Send feedback, GitHub's Comment) */
+:root:has(.is-phone) .rr-modal .rr-btn {
   border-radius: var(--rr-shape-full);
+}
+/* Send (Agent orange, PR neutral tonal; the threads list and the composer): M3E filled pills, not the desktop key cap.
+   Flat; hover and press are a state layer, not a lift; unavailable is flat and muted, not dashed */
+:root:has(.is-phone) .rr-btn--send,
+:root:has(.is-phone) .rr-btn--send:hover,
+:root:has(.is-phone) .rr-btn--send:active {
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  box-shadow: none;
+  transform: none;
+  filter: none;
+  -webkit-tap-highlight-color: transparent;
+}
+:root:has(.is-phone) .rr-btn--send:not([aria-disabled='true']) {
+  background: var(--cap);
+}
+:root:has(.is-phone) .rr-btn--send[aria-disabled='true'] {
+  background: color-mix(in srgb, var(--rr-ink) 10%, transparent);
+  color: color-mix(in srgb, var(--rr-ink) 38%, transparent);
+}
+/* the M3 state layer: the content colour over the fill, 8% on hover (pointers only), 12% pressed */
+@media (hover: hover) {
+  :root:has(.is-phone) :is(.rr-btn--send:not([aria-disabled='true']), .rr-phonebar .rr-send-btn:enabled, .rr-tour__pair > button):hover {
+    box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+:root:has(.is-phone) :is(.rr-btn--send:not([aria-disabled='true']), .rr-phonebar .rr-send-btn:enabled, .rr-tour__pair > button):active {
+  box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 12%, transparent);
 }
 /* with the keyboard up, the messages and what it's about give way first, then the reply box, so its buttons stay on
    screen (flex shrinks by basis times factor; the reply box's factor stays 1, as a sum under 1 shrinks only part way) */
@@ -1144,6 +1179,7 @@
   height: 44px;
   border-radius: var(--rr-shape-full);
   color: var(--rr-ink-2);
+  -webkit-tap-highlight-color: transparent;
 }
 .is-phone :is(.rr-tour__back, .rr-tour__fwd):disabled {
   opacity: 0.38;
@@ -1168,7 +1204,8 @@
     box-shadow: 0 0 0 8px transparent;
   }
 }
-/* Contents | Comment: one connected pill, two halves 2px apart; Comment in the conversation colour */
+/* Contents | Comment: one connected button group, the outer ends fully round, the halves 2px apart; Contents neutral,
+   Comment a filled half in the conversation colour; the state layer (Send, above) follows each half's shape */
 .rr-tour__pair {
   display: flex;
   gap: 2px;
@@ -1177,19 +1214,20 @@
   display: grid;
   place-items: center;
   width: 48px;
-  height: 40px;
+  height: 44px;
   border: 0;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .rr-tour__contents {
-  border-radius: var(--rr-shape-full) var(--rr-shape-xs) var(--rr-shape-xs) var(--rr-shape-full);
+  border-radius: 22px var(--rr-shape-s) var(--rr-shape-s) 22px; /* half the height: 999px would scale the inner corners to ~0 */
   background: var(--rr-surface-nav-2);
   color: var(--rr-ink-2);
 }
 .is-phone .rr-tour__comment {
-  border-radius: var(--rr-shape-xs) var(--rr-shape-full) var(--rr-shape-full) var(--rr-shape-xs);
-  background: var(--rr-comment-soft);
-  color: var(--rr-comment);
+  border-radius: var(--rr-shape-s) 22px 22px var(--rr-shape-s);
+  background: var(--rr-comment);
+  color: var(--rr-comment-ink);
 }
 .is-phone .rr-tour__bottom .rr-icon {
   width: 20px;
