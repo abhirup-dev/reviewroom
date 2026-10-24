@@ -2,10 +2,10 @@ import { expect, test } from 'bun:test';
 import { createActor, fromCallback, fromPromise, SimulatedClock } from 'xstate';
 import { emptyState, type Op, type ReviewState } from '../state/model.shared.ts';
 import { roundStatus, syncMachine, unsent, view } from './sync.machine.ts';
+import { tick } from '../../testing/wait';
 
 const pin = (ref: string): Op => ({ op: 'setPin', ref, pinned: true });
 const at = (rev: number, pins: string[] = []): ReviewState => ({ ...emptyState(), rev, pins });
-const tick = () => new Promise((r) => setTimeout(r, 0));
 const T0 = '2026-10-17T10:00:00.000Z';
 const S = T0; // when the server started
 

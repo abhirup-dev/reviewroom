@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { current, deepLink, target, type PaneWant, type Walkthrough } from './model.shared';
 import { paneMachine, walkthroughMachine, type PaneShown } from './player.machine';
+import { until } from '../testing/wait';
 
 const steps = (...ids: string[]) => ids.map((id) => ({ id, text: id }));
 const doc: Walkthrough = {
@@ -152,9 +153,6 @@ test('pane: same files glide without a fade; other files fade and remount; clear
   expect(log).toEqual(['fadeOut', 'mount r1', 'fadeIn', 'glide r1b', 'fadeIn', 'fadeOut', 'mount r4', 'fadeIn', 'unmount']);
 });
 
-const until = async (ok: () => boolean) => {
-  for (let i = 0; i < 100 && !ok(); i++) await new Promise((r) => setTimeout(r, 5));
-};
 
 test('the player aims its pane at every step and stops it on close', async () => {
   const d: Walkthrough = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: 'x', ref: ['rr:code/a.go#L1', 'rr:code/b.go#L2'] }, { id: 's2', text: 'y', ref: 'rr:code/a.go#L5' }] }] };

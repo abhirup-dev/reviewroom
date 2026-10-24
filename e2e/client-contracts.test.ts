@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { openPage } from '../cli/lib/render.ts';
-import { read, setup, until } from './fixture.ts';
+import { read, setup } from './fixture.ts';
+import { until } from '../src/testing/wait.ts';
 
 const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
 
@@ -69,7 +70,7 @@ describe('built client author contract', () => {
       const html = await (await fetch(url)).text();
       expect(html).toContain(authored);
       page = await openPage(url, { width: 1280, height: 800 });
-      const result = await until(() => report, 10_000);
+      const result = await until(() => report, { timeout: 10_000 });
       expect(result.error).toBeUndefined();
       expect(result).toMatchObject({ sameAPI: true, commands: true, files: true, read: true, search: true, docs: ['contract'], thread: { kind: 'doc', target: 'contract' }, notifications: 1, flushed: true, authoredSame: true, authorClicks: 1, readyCount: 1 });
       expect(result.methods).toEqual(['open','walkthrough','auditWalkthrough','findSymbol','read','files','search','comment','on','definePanel','addPanel','layout','toast','theme','markdown','tip']);

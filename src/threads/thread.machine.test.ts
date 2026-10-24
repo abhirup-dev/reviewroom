@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { threadMachine } from './thread.machine.ts';
+import { tick } from '../testing/wait';
 
 const anchor = { kind: 'general' } as const;
 /** Requests answer when the test says so: `answer.create(x)` settles the pending create. */
@@ -90,7 +91,7 @@ test("a slow answer for a thread the popup has left doesn't drive the next one",
   t.a.send({ type: 'resolve' });
   t.a.send({ type: 'open', id: 't2' });
   t.answer.resolve!(true);
-  await Bun.sleep(5);
+  await tick(5);
   expect([t.at(), t.view()]).toEqual(['viewing', { id: 't2' }]);
 
   t.a.send({ type: 'compose', anchor });
@@ -98,6 +99,6 @@ test("a slow answer for a thread the popup has left doesn't drive the next one",
   t.a.send({ type: 'compose', anchor: { kind: 'general' } }); // a new draft while the first is sending
   expect(t.at()).toEqual({ composing: 'editing' });
   t.answer.create!(true);
-  await Bun.sleep(5);
+  await tick(5);
   expect(t.at()).toEqual({ composing: 'editing' });
 });

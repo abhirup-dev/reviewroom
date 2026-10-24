@@ -1,6 +1,7 @@
 import { afterAll, afterEach, expect, test } from 'bun:test';
 import { installDOM } from '../../testing/dom';
 import { memoryBackend } from '../../testing/mount-review';
+import { tick } from '../../testing/wait';
 import type { LastLayout } from './layout.shared';
 
 // The layout client against a real dockview in JSDOM. Panels are stand-ins under reviewroom's ids: what's under test
@@ -45,7 +46,7 @@ const tree = (n: { type: string; data: unknown }): Tree => (n.type === 'leaf' ? 
 const docked = (a = app!) => tree((a.dock.toJSON().grid as unknown as { root: { type: string; data: unknown } }).root);
 const floating = (a = app!) => (a.dock.toJSON().floatingGroups ?? []).map((f) => f.data!.views.join(','));
 // dockview reports layout changes asynchronously; the save machine reads the dock 250 ms after the last one
-const settled = () => new Promise((r) => setTimeout(r, 300));
+const settled = () => tick(300);
 
 const READING = [['toc', 'files,threads,ci'], ['description', 'narrative,agent-chart'], 'code'];
 const CODE_FOCUS = ['files,toc', 'code', ['description', 'narrative,agent-chart', 'threads,ci']];

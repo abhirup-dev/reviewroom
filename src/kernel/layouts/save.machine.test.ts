@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { createActor, fromPromise, SimulatedClock } from 'xstate';
 import type { LastLayout } from './layout.shared.ts';
 import { layoutSaveMachine } from './save.machine.ts';
+import { tick } from '../../testing/wait';
 
-const tick = () => new Promise((r) => setTimeout(r, 0));
 const dock = (n: number) => ({ dock: { grid: { root: { type: 'branch', data: [] }, width: n, height: 0, orientation: 'HORIZONTAL' }, panels: {} }, offered: [] }) as LastLayout;
 
 /** The dock is `now`; the server answers a save when the test calls `done()`. */

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { createActor, fromPromise, waitFor } from 'xstate';
 import type { CodeTarget } from './navigation.shared';
 import { revealMachine, type Prepared } from './reveal.machine';
+import { tick } from '../testing/wait';
 
 /** A reveal machine whose preparing and unfolding finish when told to, recording what it did to the view. */
 function revealer() {
@@ -19,7 +20,6 @@ function revealer() {
   const reveal = (path: string, start?: number) => a.send({ type: 'reveal', target: { path, side: 'head', start } });
   return { a, log, preps, unfolds, reveal };
 }
-const tick = () => new Promise((r) => setTimeout(r));
 
 test('reveal: prepare, land, unfold and land again, glow and say landed, then let the highlight go', async () => {
   const r = revealer();

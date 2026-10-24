@@ -3,6 +3,7 @@ import { emptyState } from '../kernel/state/model.shared';
 import { BrowserState } from '../kernel/providers/browser-state';
 import { ServerState } from '../kernel/providers/server-state';
 import { LocalProvider } from '../review/providers/local';
+import { tick } from './wait';
 
 const restore: (() => void)[] = [];
 const backends: ServerState[] = [];
@@ -42,7 +43,6 @@ function server() {
   return { backend, page };
 }
 const listen = (backend: ServerState, state = () => {}) => backend.subscribe({ state, error: () => {}, review: () => {} });
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test('walkthrough transport preserves 200 and 422 JSON, returns null on 404, and rejects other failures', async () => {
   const { backend } = server();

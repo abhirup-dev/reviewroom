@@ -5,6 +5,7 @@ import { $, type Subprocess } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { until } from '../src/testing/wait.ts';
 
 const root = path.resolve(import.meta.dir, '..');
 const entry = path.join(root, 'dist', 'cli', 'reviewroom.js');
@@ -22,14 +23,6 @@ for (const args of [['pr', 'feat/habit-events', '--detach', '--no-open', '--port
   if (r.code) throw new Error(r.stderr);
 }
 
-/** Poll until fn returns something truthy (throwing counts as not yet). */
-export async function until<T>(fn: () => T | Promise<T>, ms = 5000): Promise<NonNullable<T>> {
-  for (const end = Date.now() + ms; ; await Bun.sleep(50)) {
-    const v = await Promise.resolve().then(fn).catch(() => undefined);
-    if (v) return v;
-    if (Date.now() > end) throw new Error('until: timed out');
-  }
-}
 export const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 export const op = (url: string, o: object) => post(url + 'api/ops', { ops: [o] });
 export const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8');
