@@ -67,10 +67,14 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
 - **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
   toolbar (full pill, 64px, surface-container-high) with Back · Comment · Next; Next is a filled ink pill. Immersive:
-  2 s untouched (not while a menu, the composer or a selection is open), the top bar and the toolbar fade and the code
-  takes their room; a tap on the content or any slide change brings them back. The card has two states, kept across
-  slides: expanded (the chapter intro on its first slide, the slide text, links, progress) and collapsed (grip and the
-  text's first line); swipe down or up, or tap the grip or the collapsed card. Sideways swipes change the slide.
+  2 s untouched (not while a menu, the composer or a selection is open), the top bar and the card's progress fade, the
+  code takes the bar's room and the toolbar shrinks (a container transform) to one 48px round button in the bottom
+  right corner, Show controls, which grows it back; so does a tap on the content or any slide change. Reduced motion:
+  they swap. The card is a bottom sheet with three detents, kept across slides: collapsed (grip and the text's first
+  line), default (its content, up to 40% of the screen) and tall (up to all but the bar and a strip of code). Dragging
+  the grip or the card follows the finger and settles on the nearest detent, a flick at least one step; the text
+  scrolls once tall, and a drag down from its top shrinks it. Sideways swipes change the slide. The chapter intro
+  opens its first slide; on the others it folds to its first line with More.
 - **Rotation**: a phone on its side gets the dock (from the Tablet layout, never saved over the reviewer's last
   layout); upright, the phone shell. It reloads into the other shell on rotation, keeping the panel in front, the open
   file and the slide (`src/kernel/device.ts`).

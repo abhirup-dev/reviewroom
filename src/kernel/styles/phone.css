@@ -852,8 +852,9 @@
 /* ---------------------------------------------------------------- guided review */
 /* slides/player.ts: the code under the whole screen, below a status bar of close and the chapter; the slide a
    large-radius card floating over it; Back / Comment / Next an M3E floating toolbar (full pill, 64px), Next its one
-   filled pill. Immersive (.is-immersive, 2 s untouched): the bar and the toolbar fade, the code rises into the bar's
-   place and the card drops into the toolbar's. */
+   filled pill. Immersive (.is-immersive, 2 s untouched): the bar and the card's progress fade, the code rises into
+   the bar's place, the toolbar shrinks into a 48px round button in the corner (Show controls) and the card drops to
+   just above it. */
 .is-phone .rr-tour__player {
   inset: 0;
   border: 0;
@@ -871,15 +872,10 @@
     opacity 150ms ease-out,
     translate var(--rr-m-default-ms) var(--rr-m-default);
 }
-.is-phone .is-immersive :is(.rr-tour__top, .rr-tour__bottom) {
+.is-phone .is-immersive .rr-tour__top {
   opacity: 0;
   pointer-events: none;
-}
-.is-phone .is-immersive .rr-tour__top {
   translate: 0 -16px;
-}
-.is-phone .is-immersive .rr-tour__bottom {
-  translate: 0 16px;
 }
 .is-phone .rr-tour__body {
   display: contents;
@@ -949,7 +945,6 @@
   left: 12px;
   right: 12px;
   bottom: calc(96px + env(safe-area-inset-bottom));
-  max-height: 40dvh;
   padding: 0 16px 14px;
   border: 0;
   border-radius: var(--rr-shape-l);
@@ -970,9 +965,23 @@
   font-size: 15px;
 }
 .is-phone .is-immersive .rr-tour__left {
-  translate: 0 80px; /* into the toolbar's place */
+  translate: 0 24px; /* down to just above the round button */
 }
-/* the grip collapses the card to one line, or expands it (so do swipes down and up, player.ts) */
+/* the sheet's detents (player.ts): one line, its text up to 40% of the screen, up to all but the bar and a strip of
+   code. Dragged, it follows the finger (inline height); let go, it glides to a detent (.is-settling) */
+.rr-tour__left[data-detent='default'] {
+  max-height: 40dvh;
+}
+.rr-tour__left[data-detent='tall'] {
+  max-height: calc(100dvh - var(--rr-phone-bar) - 96px - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+.is-phone .rr-tour__left.is-settling {
+  transition:
+    opacity 150ms ease-out,
+    translate var(--rr-m-default-ms) var(--rr-m-default),
+    height var(--rr-m-default-ms) var(--rr-m-default);
+}
+/* the grip: tap for one line or the text; drag to size the sheet */
 .rr-tour__grip {
   position: sticky;
   top: 0;
@@ -998,18 +1007,27 @@
   border-radius: 2px;
   background: var(--rr-line-strong);
 }
-/* collapsed: the slide text's first line, faded; tap or swipe up for the rest */
-.rr-tour__left.is-collapsed > :not(.rr-tour__grip, .rr-tour__step),
-.rr-tour__left.is-collapsed .rr-tour__refs {
+/* collapsed: the slide text's first line, faded; tap or drag up for the rest. Past the chapter's first slide its
+   intro folds the same way, with More */
+.rr-tour__left[data-detent='collapsed'] > :not(.rr-tour__grip, .rr-tour__step),
+.rr-tour__left[data-detent='collapsed'] .rr-tour__refs {
   display: none;
 }
-.rr-tour__left.is-collapsed .rr-tour__text {
+.rr-tour__left[data-detent='collapsed'] .rr-tour__text,
+.rr-tour__lead.is-folded {
+  flex: none;
   max-height: 1.6em;
   overflow: hidden;
   mask-image: linear-gradient(90deg, #000 70%, transparent);
 }
-.rr-tour__left.is-collapsed .rr-tour__text > * {
+.rr-tour__left[data-detent='collapsed'] .rr-tour__text > *,
+.rr-tour__lead.is-folded > * {
   margin: 0;
+}
+.rr-tour__more {
+  align-self: flex-start;
+  min-height: 32px;
+  font-weight: 600;
 }
 .is-phone .rr-tour__actions {
   display: none;
@@ -1018,6 +1036,13 @@
   display: flex;
   gap: 4px;
   margin-top: 12px;
+  transition:
+    opacity 150ms ease-out,
+    visibility 150ms;
+}
+.is-phone .is-immersive .rr-tour__progress {
+  opacity: 0;
+  visibility: hidden;
 }
 .is-phone .rr-tour__seg {
   flex: 1 !important;
@@ -1039,17 +1064,54 @@
   position: absolute;
   left: 50%;
   bottom: calc(16px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  translate: -50% 0;
   z-index: 1;
   display: flex;
   align-items: center;
   gap: 4px;
+  width: auto;
   height: 64px;
   padding: 0 8px;
+  overflow: clip;
   border: 0;
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
   box-shadow: var(--rr-shadow-lg);
+  /* the morph into the round button and back (a container transform): auto width interpolates */
+  interpolate-size: allow-keywords;
+  transition-property: left, translate, width, height, padding;
+  transition-duration: var(--rr-m-default-ms);
+  transition-timing-function: var(--rr-m-default);
+}
+.is-phone .is-immersive .rr-tour__bottom {
+  left: calc(100% - 16px - 48px);
+  translate: 0 0;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+}
+.is-phone .rr-tour__bottom > * {
+  flex: none;
+  transition:
+    opacity 150ms ease-out,
+    visibility 150ms;
+}
+.is-phone .is-immersive .rr-tour__bottom > :not(.rr-tour__restore),
+.is-phone .rr-tour__player:not(.is-immersive) .rr-tour__restore {
+  opacity: 0;
+  visibility: hidden;
+}
+.is-phone .rr-tour__restore {
+  position: absolute;
+  inset: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--rr-shape-full);
+  color: var(--rr-ink-2);
+}
+.is-phone .rr-tour__restore .rr-icon {
+  width: 24px;
+  height: 24px;
 }
 .is-phone .rr-tour__back,
 .is-phone .rr-tour__comment {
@@ -1079,7 +1141,7 @@
     transition: none !important;
   }
   .is-phone :is(.rr-tour__top, .rr-tour__bottom, .rr-tour__right, .rr-tour__left) {
-    transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves */
+    transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves; the toolbar swaps for its button */
   }
   .rr-phone-tab.is-new .rr-phone-tab__pill,
   .rr-code-rail__seg {

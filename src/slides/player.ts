@@ -115,11 +115,16 @@ export function mountWalkthrough(app: ReviewApp) {
   // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back
   let leadOpen = true;
   const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
-  // a phone has no such toggle: its slide card collapses instead, and shows the intro on the chapter's first slide only
+  // a phone has no such toggle: the intro opens the chapter's first slide, and on the others is folded to its first
+  // line with More (unfolded for that slide only)
   const phone = isPhone();
+  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, title: 'Show the whole chapter intro', onclick: () => ((leadOpen = true), paintLead()) }, 'More');
   const paintLead = () => {
     const has = !!current(ctx()).chapter.lead;
-    lead.hidden = !has || !leadOpen || (phone && ctx().step > 0);
+    const fold = phone && ctx().step > 0 && !leadOpen;
+    lead.hidden = !has || (!phone && !leadOpen);
+    lead.classList.toggle('is-folded', fold);
+    more.hidden = !has || !fold;
     leadToggle.hidden = !has || phone;
     leadToggle.classList.toggle('is-closed', !leadOpen);
     leadToggle.title = leadOpen ? 'Hide the chapter intro' : 'Show the chapter intro';
@@ -166,7 +171,7 @@ export function mountWalkthrough(app: ReviewApp) {
     badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
     progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
-  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
+  const left = h('div', { class: 'rr-tour__left' }, lead, more, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
   const openHere = btn('popout', 'Pause and open this in the workbench', () => {
     const [ref] = shownRefs();
     actor.send({ type: 'pause' });
@@ -190,10 +195,10 @@ export function mountWalkthrough(app: ReviewApp) {
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   app.root.append(root);
   if (phone) phonePlayer();
-  /** A phone plays full screen (phone.css): the code under the whole screen, a slide card and a floating toolbar of
-   *  Back, Comment and Next over it. The chrome (top bar, toolbar) fades after 2 s untouched; the card collapses to
-   *  one line (swipe down) and back (swipe up, or tap it); it swipes sideways to the next or previous slide. Back
-   *  (the phone's) closes the player. */
+  /** A phone plays full screen (phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
+   *  floating toolbar of Back, Comment and Next over it. After 2 s untouched the chrome fades and the toolbar shrinks
+   *  to a round button that brings it back; the card drags between one line, its text and tall; it swipes sideways to
+   *  the next or previous slide. Back (the phone's) closes the player. */
   function phonePlayer() {
     // the floating toolbar: Back and Comment as icon buttons, Next the one filled pill
     prev.replaceChildren(icon('chevron', 24));
@@ -202,41 +207,88 @@ export function mountWalkthrough(app: ReviewApp) {
     comment.className = 'rr-icon-btn rr-tour__comment';
     comment.setAttribute('aria-label', 'Comment on this slide');
     next.before(comment);
-    // the card: a grip to collapse or expand it, its progress at the foot; collapsed stays so across slides
-    let collapsed = false;
-    const grip = h('button', { class: 'rr-tour__grip', onclick: () => collapse(!collapsed) });
-    const collapse = (on: boolean) => {
-      collapsed = on;
-      left.classList.toggle('is-collapsed', on);
-      grip.title = on ? 'Show the whole slide (swipe up)' : 'Collapse the slide to one line (swipe down)';
-      grip.setAttribute('aria-label', grip.title);
-      grip.setAttribute('aria-expanded', String(!on));
-      left.scrollTo({ top: 0 });
+    // the card: a bottom sheet with three detents, kept across slides: one line, its text up to 40% of the screen,
+    // up to ~80%. The grip taps between one line and the text; dragging the grip or the card follows the finger and
+    // settles on the nearest detent (a 40px flick at least one step its way). Its progress at the foot.
+    const DETENTS = ['collapsed', 'default', 'tall'] as const;
+    let detent = 1;
+    const grip = h('button', { class: 'rr-tour__grip', onclick: () => size(detent ? 0 : 1) });
+    /** The card's height at detent d (its CSS max-height and its content decide). */
+    const heightAt = (d: number) => {
+      const css = left.style.cssText;
+      left.style.cssText = '';
+      left.dataset.detent = DETENTS[d];
+      const px = left.offsetHeight;
+      left.dataset.detent = DETENTS[detent];
+      left.style.cssText = css;
+      return px;
     };
-    collapse(false);
-    left.addEventListener('click', (e) => collapsed && !(e.target as Element).closest('button, a') && collapse(false));
+    let settled = 0;
+    const done = () => (left.classList.remove('is-settling'), (left.style.cssText = ''));
+    /** Settle on detent d, gliding from the card's height now. */
+    const size = (d: number) => {
+      const from = left.offsetHeight;
+      clearTimeout(settled);
+      done();
+      const to = heightAt(d);
+      detent = d;
+      left.dataset.detent = DETENTS[d];
+      grip.title = d ? 'Collapse the slide to one line (or drag)' : 'Show the whole slide (or drag up)';
+      grip.setAttribute('aria-label', grip.title);
+      grip.setAttribute('aria-expanded', String(d > 0));
+      if (!d) left.scrollTo({ top: 0 });
+      if (!from) return;
+      left.style.cssText = `height:${from}px;max-height:none`;
+      void left.offsetHeight;
+      left.classList.add('is-settling');
+      left.style.height = `${to}px`;
+      settled = window.setTimeout(done, 400); // not transitionend: reduced motion has no transition
+    };
+    size(1);
+    left.addEventListener('click', (e) => !detent && !(e.target as Element).closest('button, a') && size(1));
+    lead.addEventListener('click', () => lead.classList.contains('is-folded') && more.click());
     left.prepend(grip);
     left.append(progress);
-    // swipes on the card: the axis is the one mostly travelled once past 10px (docs/design/phone.md)
-    let from: { x: number; y: number; top: number; axis?: 'x' | 'y' } | null = null;
+    // touches on the card: the axis is the one mostly travelled once past 10px (docs/design/phone.md). Sideways
+    // changes the slide; up and down size the sheet (from the grip always; from the text when growing short of tall,
+    // or shrinking from its top), else the text scrolls
+    type Touch = { x: number; y: number; h: number; top: number; grip: boolean; axis?: 'x' | 'y' | 'scroll'; min?: number; max?: number };
+    let from: Touch | null = null;
     const at = (e: TouchEvent) => e.changedTouches[0];
-    left.addEventListener('touchstart', (e) => (from = e.touches.length === 1 ? { x: at(e).clientX, y: at(e).clientY, top: left.scrollTop } : null), { passive: true });
+    left.addEventListener('touchstart', (e) => (from = e.touches.length === 1 ? { x: at(e).clientX, y: at(e).clientY, h: left.offsetHeight, top: left.scrollTop, grip: e.target === grip } : null), { passive: true });
     left.addEventListener('touchmove', (e) => {
-      if (!from || from.axis) return;
+      if (!from || from.axis === 'x' || from.axis === 'scroll') return;
       const dx = at(e).clientX - from.x, dy = at(e).clientY - from.y;
-      if (Math.hypot(dx, dy) > 10) from.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-    }, { passive: true });
+      if (!from.axis) {
+        if (Math.hypot(dx, dy) <= 10) return;
+        from.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : from.grip || (dy < 0 ? detent < 2 : from.top <= 0) ? 'y' : 'scroll';
+        if (from.axis !== 'y') return;
+        clearTimeout(settled);
+        done();
+        [from.min, from.max] = [heightAt(0), Math.max(heightAt(2), from.h)];
+      }
+      e.preventDefault();
+      left.style.cssText = `height:${Math.min(from.max!, Math.max(from.min!, from.h - dy))}px;max-height:none`;
+    }, { passive: false });
+    left.addEventListener('touchcancel', () => from?.axis === 'y' && ((from = null), size(detent)));
     left.addEventListener('touchend', (e) => {
       const f = from;
       from = null;
-      if (!f?.axis || getSelection()?.toString()) return;
-      const dx = at(e).clientX - f.x, dy = at(e).clientY - f.y;
-      if (f.axis === 'x' && Math.abs(dx) > 60) (dx < 0 ? next : prev).click();
-      // down from the top of the card (not scrolling its text back up) collapses it; up expands it
-      else if (f.axis === 'y' && dy > 40 && f.top <= 0) collapse(true);
-      else if (f.axis === 'y' && dy < -40) collapse(false);
+      if (f?.axis === 'y') {
+        const hs = DETENTS.map((_, i) => heightAt(i)), now = left.offsetHeight;
+        let d = hs.reduce((best, px, i) => (Math.abs(px - now) < Math.abs(hs[best] - now) ? i : best), 0);
+        const dy = at(e).clientY - f.y;
+        if (d === detent && Math.abs(dy) > 40) d = Math.min(2, Math.max(0, detent + (dy < 0 ? 1 : -1)));
+        if (d === 2 && hs[2] - hs[1] < 8) d = 1; // the text fits: no taller detent
+        return size(d);
+      }
+      if (f?.axis !== 'x' || getSelection()?.toString()) return;
+      const dx = at(e).clientX - f.x;
+      if (Math.abs(dx) > 60) (dx < 0 ? next : prev).click();
     });
-    // immersive: the chrome fades 2 s after the last touch or slide change, never while a menu, the composer or a selection is open
+    // immersive: 2 s after the last touch or slide change (never while a menu, the composer or a selection is open)
+    // the top bar and the card's progress fade and the toolbar shrinks to one round button in the corner, which grows
+    // it back (so does a tap on the content)
     let idle = 0;
     const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
     const sleep = () => (held() ? (idle = window.setTimeout(sleep, 2000)) : player.classList.add('is-immersive'));
@@ -245,6 +297,9 @@ export function mountWalkthrough(app: ReviewApp) {
       clearTimeout(idle);
       if (actor.getSnapshot().matches({ open: 'playing' })) idle = window.setTimeout(sleep, 2000);
     };
+    next.after(h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 24)));
+    // touching anything while the chrome shows keeps it up
+    player.addEventListener('touchstart', () => !player.classList.contains('is-immersive') && wake(), { passive: true, capture: true });
     // a tap on the content brings it back (one on a link, a chip or a selection does what it does, and navigating wakes it anyway)
     player.addEventListener('click', (e) => {
       if (player.classList.contains('is-immersive') && ((e.target as Element).closest(`button, a, ${REF_ELEMENTS}`) || getSelection()?.toString())) return;
@@ -334,6 +389,7 @@ export function mountWalkthrough(app: ReviewApp) {
       prose(lead, ch.lead ?? '');
       enter(lead);
     }
+    if (phone) leadOpen = false; // each slide folds the intro again (but the chapter's first)
     paintLead();
     position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);

@@ -235,6 +235,12 @@
   min-height: 0;
   background: var(--rr-surface-code);
 }
+/* dark: the code on the code panel's own near-black surfaces (as in the dock), not the overlay's grey the narration
+   and the phone's slide card sit on */
+:root[data-rr-theme='dark'] .rr-tour__right {
+  --rr-panel: var(--rr-surface-code);
+  --rr-panel-2: var(--rr-surface-well);
+}
 .rr-tour__pane {
   flex: 1;
   min-height: 0;
@@ -422,7 +428,15 @@ span.rr-tour__chunk-head {
   background: var(--rr-accent);
 }
 
-@media (max-width: 900px) {
+/* a short screen (a phone on its side): the player takes all of it, still side by side */
+@media (max-height: 500px) {
+  .rr-tour__player {
+    inset: 0;
+    border-radius: 0;
+  }
+}
+/* narrow (but not short): the narration over the code */
+@media (max-width: 900px) and (min-height: 501px) {
   .rr-tour__player {
     inset: 10px;
   }

@@ -24,6 +24,7 @@ export function watchShell(app: ReviewApp, phone: boolean) {
   const check = () => {
     if (wantsPhone() === phone) return;
     removeEventListener('resize', check);
+    screen.orientation?.removeEventListener('change', check);
     const go = () => {
       sessionStorage.setItem(KEY, JSON.stringify({ front: app.layout.front(), file: app.activeFile }));
       sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0)); // boot() restores it
@@ -33,6 +34,8 @@ export function watchShell(app: ReviewApp, phone: boolean) {
     else go();
   };
   addEventListener('resize', check);
+  // a phone may fire resize before its orientation turns: check again when it does
+  screen.orientation?.addEventListener('change', check);
 }
 
 /** After watchShell's reload: the panel that was in front, and the file that was open. */
