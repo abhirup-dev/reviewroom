@@ -14,7 +14,7 @@ import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
-import { showPanel } from './kernel/dock';
+import { showPanel, type PanelSurface } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
 import type { Anchor, Op } from './kernel/state/schema.shared';
@@ -105,6 +105,8 @@ export class ReviewApp {
   /** The dock, once mounted; none on a phone. */
   dock?: DockviewApi;
   readonly presentation: Presentation;
+  /** Where panels open, once mounted: the dock's surface, or the phone shell. */
+  surface?: PanelSurface;
   /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
   /** The PR's description from GitHub: read-only, but commentable like the walkthrough (anchors target PR_DESCRIPTION). */

@@ -2,7 +2,7 @@
 // An area with several pages has tabs along its top and pages side by side in a horizontal scroll-snap pager: a
 // sideways swipe follows the finger and snaps (native scrolling, so vertical scroll, text selection and long press
 // keep working). On-demand panels (a thread, a code pop-out) open as a full-screen sheet over them with a back
-// button. The dock.ts facade (useSurface) sends every panel request here when this shell is mounted, so the rest of
+// button. The dock.ts facade (app.surface) sends every panel request here when this shell is mounted, so the rest of
 // the app doesn't know. What depends on features (which pages apply, the open thread count) comes in as options.
 import { h, icon, onDrag } from './dom';
 import type { AppEvents, ReviewApp } from '../app';
@@ -324,6 +324,17 @@ export class PhoneShell implements PanelSurface {
   close(id: string) {
     this.shell.send({ type: 'close', id });
   }
+
+  toFront = (id: string) => this.has(id) && this.show(id);
+  /** Placement is the dock's: here a page comes to the front, anything else opens as a sheet. */
+  add(panel: { id: string; title: string; params: Record<string, unknown> }) {
+    this.show(panel.id, panel.params);
+    this.setTitle(panel.id, panel.title);
+  }
+  // nothing floats on a phone: a panel just comes to the front, and back is to the tab underneath
+  float = (id: string) => void this.show(id);
+  putBack = (id: string) => this.close(id);
+  onEscape() {}
 
   /** The panel in front: the peeked code, the newest sheet, else the area's page. */
   front = () => front(this.ctx());

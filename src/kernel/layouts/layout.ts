@@ -5,7 +5,7 @@ import type { ReviewApp } from '../../app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
-import { addDockPanel, createDock, isFloating, panelDef, panelDefs, useSurface } from '../dock';
+import { addDockPanel, createDock, isFloating, panelDef, panelDefs } from '../dock';
 import { PhoneShell, type PhoneOptions } from '../phone';
 import { isTablet } from '../device';
 
@@ -229,8 +229,7 @@ export class Layouts {
       available: (id) => options.available(id) && (!availability?.ids.includes(id) || availability.isAvailable(id)),
       openThreads: () => options.openThreads(),
     });
-    useSurface(this.phone);
-    app.onDispose(() => useSurface(null));
+    app.surface = this.phone;
   }
 
   /** Add panel `id` where the current layout puts it; undefined if the layout has no place for it. */
