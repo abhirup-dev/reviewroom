@@ -60,7 +60,7 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-thread-item__anchor' },
-        threadBadge(t, app.unreadAgent(t)),
+        threadBadge(t, app.services.threads.unreadAgent(t)),
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         h('span', null, t.title ?? app.anchorLabel(t.anchor)),
         t.gh ? h('span', { class: 'rr-round-badge', title: 'Started on GitHub by ' + t.messages[0]?.gh?.login }, '@' + t.messages[0]?.gh?.login) : h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound),
@@ -87,12 +87,12 @@ class ThreadsPanel implements PanelInstance {
       this.sources = null;
       this.authors.clear();
     }
-    const every = app.threads().filter((t) => !t.gh?.conversation);
+    const every = app.services.threads.threads().filter((t) => !t.gh?.conversation);
     const all = every.filter((t) => this.shown(t));
-    const convo = app.threads().find((t) => t.gh?.conversation);
+    const convo = app.services.threads.threads().find((t) => t.gh?.conversation);
     this.convo.hidden = !convo;
     if (convo) this.convo.replaceChildren(threadBadge(convo));
-    const pending = app.pendingFeedback().length;
+    const pending = app.services.threads.pendingFeedback().length;
     const count = (f: typeof this.filter) => all.filter((t) => this.match(t, f)).length;
     const narrowed = this.authors.size > 0 || (this.sources !== null && !sameSet(this.sources, this.defaultSources()));
     this.filterBtn.classList.toggle('is-on', narrowed);
@@ -111,7 +111,7 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-side-head__row rr-side-head__row--center' },
-        ...app.commentTargets({ kind: 'general' }).map((b) =>
+        ...app.services.threads.commentTargets({ kind: 'general' }).map((b) =>
           h('button', { class: 'rr-btn rr-btn--small rr-btn--send' + (b.to === 'agent' ? ' rr-btn--agent' : ''), title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => b.off || app.compose({ kind: 'general' }, undefined, b.to) }, icon('send', 12), b.label),
         ),
       ),
@@ -170,7 +170,7 @@ class ThreadsPanel implements PanelInstance {
   private filterMenu() {
     const src = this.sources ?? this.defaultSources();
     // only people whose threads the sources let through (Team review: no Agent), plus anyone already picked
-    const threads = this.app.threads().filter((t) => !t.gh?.conversation && (src.has(t.gh ? 'github' : 'agent') || this.authors.has(starter(t).key)));
+    const threads = this.app.services.threads.threads().filter((t) => !t.gh?.conversation && (src.has(t.gh ? 'github' : 'agent') || this.authors.has(starter(t).key)));
     const starters = new Map<string, ReturnType<typeof starter>>();
     threads.forEach((t) => starters.set(starter(t).key, starter(t)));
     // several toggles in a row: each re-renders the list and reopens the menu where it was

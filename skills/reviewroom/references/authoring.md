@@ -131,6 +131,8 @@ characters of its text stand in, and rewording it loses the reviewer's mark.
 
 ## Scripting: `window.rr`
 
+Use only the functions documented below: `rr.app` is reviewroom's internal state and may change between versions.
+
 Interactive widgets can drive the reviewer straight into the code:
 
 ```html

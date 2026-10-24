@@ -44,8 +44,8 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Panels via `definePanel()`; UI coordination goes through `ReviewApp` and its event bus. Palette commands and shortcuts go
   through the registry in `src/kernel/commands.ts`.
 - Domain services take narrow typed capabilities and live getters, never `ReviewApp` or DOM dependencies.
-  `src/services.ts` composes code, thread and GitHub services; boot supplies the factory to the app. Keep public app methods
-  as compatibility delegates. Provider contracts live in `src/kernel/providers/contracts.ts`, separate from implementations.
+  `src/services.ts` composes code, thread and GitHub services; boot supplies the factory to the app; callers use
+  `app.services.*`. `rr.app` is internal and may change; review pages use only the documented `window.rr` API. Provider contracts live in `src/kernel/providers/contracts.ts`, separate from implementations.
 - Colours and fonts only through `--rr-*` tokens (`src/kernel/styles/tokens.css`).
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).
 - No raw `rr:` strings, ids or CSS paths in visible text: use `app.label()` / `describeElement()`.

@@ -47,7 +47,7 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
   const card = h(
     'button',
     {
-      class: 'rr-inline-thread' + (t.status === 'resolved' ? ' is-resolved' : '') + (app.unreadAgent(t) ? ' has-agent' : ''),
+      class: 'rr-inline-thread' + (t.status === 'resolved' ? ' is-resolved' : '') + (app.services.threads.unreadAgent(t) ? ' has-agent' : ''),
       'data-thread': t.id,
       title: `Open thread · ${plural(t.messages.length, 'message')}${t.status === 'resolved' ? ' · resolved' : ''}`,
       onclick: (e: Event) => {
@@ -55,7 +55,7 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
         app.bus.emit('open-thread', { id: t.id });
       },
     },
-    threadBadge(t, app.unreadAgent(t)),
+    threadBadge(t, app.services.threads.unreadAgent(t)),
     h('span', { class: 'rr-inline-thread__text' }, plainExcerpt(first?.body ?? '', 110)),
     last && last !== first ? h('span', { class: 'rr-inline-thread__last' }, (last.author === 'github' ? last.gh?.login : last.author) + ': ' + plainExcerpt(last.body, 60)) : null,
     t.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok' }, 'resolved') : null,
@@ -273,8 +273,8 @@ class CodePanel implements PanelInstance {
           const fromPatch = parsed.get(f.path);
           if (fromPatch) return fromPatch;
           const [oldText, newText] = await Promise.all([
-            f.status === 'added' ? null : this.app.read(f.prevPath ?? f.path, r.base),
-            f.status === 'deleted' ? null : this.app.read(f.path, r.head),
+            f.status === 'added' ? null : this.app.services.code.read(f.prevPath ?? f.path, r.base),
+            f.status === 'deleted' ? null : this.app.services.code.read(f.path, r.head),
           ]);
           if (oldText === null && newText === null) return null;
           return parseDiffFromFile(
@@ -307,7 +307,7 @@ class CodePanel implements PanelInstance {
     const entry = this.files.get(path);
     if (!entry) return undefined;
     const f = entry.file;
-    const threads = codeThreadsOn(app.threads(), f.path).filter((t) => t.status === 'open');
+    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
@@ -377,7 +377,7 @@ class CodePanel implements PanelInstance {
       unsafeCSS: PIERRE_CSS + PULSE_CSS + focusCSS,
       renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
       renderAnnotation: (a: { metadata: Meta }) => {
-        const t = this.app.thread(a.metadata.threadId);
+        const t = this.app.services.threads.thread(a.metadata.threadId);
         return t ? threadCard(this.app, t) : undefined;
       },
       onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => r && !fv?.rev && this.onSelect(ctx.item.id, side(r)),
@@ -385,7 +385,7 @@ class CodePanel implements PanelInstance {
       loadDiffFiles: async (d: FileDiffMetadata) => {
         const { base, head } = this.app.range;
         const old = this.files.get(d.name)?.file.prevPath ?? d.name; // our file list knows renames GitHub's hunks don't say
-        const [o, n] = await Promise.all([this.app.read(old, base), this.app.read(d.name, head)]);
+        const [o, n] = await Promise.all([this.app.services.code.read(old, base), this.app.services.code.read(d.name, head)]);
         return { oldFile: { name: old, contents: o ?? '', cacheKey: `${base}:${old}` }, newFile: { name: d.name, contents: n ?? '', cacheKey: `${head}:${d.name}` } };
       },
     };
@@ -393,7 +393,7 @@ class CodePanel implements PanelInstance {
 
   private annotations(path: string): DiffLineAnnotation<Meta>[] {
     if (!this.app.prefs.inlineThreads) return [];
-    return codeThreadsOn(this.app.threads(), path)
+    return codeThreadsOn(this.app.services.threads.threads(), path)
       .filter(onLine)
       .map((t) => {
         const a = t.anchor;
@@ -428,7 +428,7 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ full file view
   private fileAnnotations(path: string, side: 'base' | 'head') {
-    return codeThreadsOn(this.app.threads(), path)
+    return codeThreadsOn(this.app.services.threads.threads(), path)
       .filter((t) => t.anchor.rev === side && onLine(t))
       .map((t) => ({ lineNumber: t.anchor.end, metadata: { threadId: t.id } }));
   }
@@ -442,7 +442,7 @@ class CodePanel implements PanelInstance {
     this.showEmpty();
     this.cv.setOptions(this.options());
     this.cv.setItems([]);
-    const text = await this.app.read(path, rev ?? this.app.revFor(side));
+    const text = await this.app.services.code.read(path, rev ?? this.app.services.code.revFor(side));
     if (this.fileView !== fv) return false;
     if (text === null) return (this.showEmpty(`${path} does not exist at ${rev ?? side}.`), false);
     fv.text = text;

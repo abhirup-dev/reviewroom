@@ -70,7 +70,7 @@ export function mountPalette(app: ReviewApp) {
         const ref = formatRef({ type: 'doc', id: s.id });
         add({ kind: 'section', label: s.title, detail: 'Section', ref, run: () => app.bus.emit('reveal-doc', { id: s.id }) }, s.title + ' ' + s.id);
       }
-      for (const t of app.threads()) {
+      for (const t of app.services.threads.threads()) {
         const ref = formatRef({ type: 'thread', id: t.id });
         add({ kind: 'thread', label: plainExcerpt(t.messages[0]?.body ?? '', 70), detail: app.anchorLabel(t.anchor), ref, run: () => app.bus.emit('open-thread', { id: t.id }) }, t.messages.map((m) => m.body).join(' '));
       }
@@ -87,7 +87,7 @@ export function mountPalette(app: ReviewApp) {
       return paint();
     }
     hint.textContent = 'Searching…';
-    const hits = await app.search(term, symbol).catch(() => []);
+    const hits = await app.services.code.search(term, symbol).catch(() => []);
     if (id !== reqId) return;
     remote = hits.slice(0, 40).map((hit, i) => {
       const inDiff = app.files.some((f) => f.path === hit.path);

@@ -312,7 +312,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
     );
   };
 
-  const resolve = (t: Thread) => (t.status === 'open' && o.onResolve ? o.onResolve() : app.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open'));
+  const resolve = (t: Thread) => (t.status === 'open' && o.onResolve ? o.onResolve() : app.services.threads.setStatus(t.id, t.status === 'open' ? 'resolved' : 'open'));
 
   const messages = (t: Thread) => {
     const list = h('div', { class: 'rr-thread__msgs' });
@@ -326,7 +326,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       // a link to another comment on this PR opens its thread here instead of on github.com
       body.addEventListener('click', (e) => {
         const a = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
-        const id = a && !e.metaKey && !e.ctrlKey && app.githubThreadFor(a.href);
+        const id = a && !e.metaKey && !e.ctrlKey && app.services.threads.githubThreadFor(a.href);
         if (id) {
           e.preventDefault();
           app.bus.emit('open-thread', { id });
@@ -342,7 +342,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
                 class: 'rr-link-btn',
                 onclick: () => {
                   if (!body.isConnected) return; // already editing
-                  const c = composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() });
+                  const c = composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.services.threads.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() });
                   body.replaceWith(c.el);
                 },
               }, 'edit'),
@@ -350,13 +350,13 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
                 class: 'rr-link-btn',
                 title: t.messages.length === 1 ? 'Delete this comment and its thread' : 'Delete this comment',
                 onclick: (e: Event) => {
-                  if (t.messages.length > 1) return app.deleteMessage(t.id, m.id);
+                  if (t.messages.length > 1) return app.services.threads.deleteMessage(t.id, m.id);
                   // the only message: deleting it deletes the thread, so ask inline first
                   const bar = (e.currentTarget as HTMLElement).parentElement!;
                   bar.style.opacity = '1'; // actions show on hover only; keep the question up
                   bar.replaceChildren(
                     h('span', { class: 'rr-muted' }, 'Delete the whole thread?'),
-                    h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => (app.deleteMessage(t.id, m.id), o.onClose?.()) }, 'delete'),
+                    h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => (app.services.threads.deleteMessage(t.id, m.id), o.onClose?.()) }, 'delete'),
                     h('button', { class: 'rr-link-btn', title: 'Keep the thread', onclick: () => render() }, 'keep'),
                   );
                 },
@@ -391,7 +391,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 
   // Your GitHub comments: edit in place; delete always asks, since a posted comment can't come back
   const githubActions = (m: Thread['messages'][number], body: HTMLElement) => {
-    const t = app.thread(o.id!)!;
+    const t = app.services.threads.thread(o.id!)!;
     const gh = m.gh!;
     if (!gh.canEdit && !gh.canDelete) return null;
     const bar = h('div', { class: 'rr-msg__actions' });
@@ -399,13 +399,13 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       bar.style.opacity = '1';
       bar.replaceChildren(
         h('span', { class: 'rr-muted' }, gh.pending ? 'Delete this draft?' : 'Delete on GitHub for everyone?'),
-        h('button', { class: 'rr-link-btn', onclick: () => app.deleteMessage(t.id, m.id) }, 'delete'),
+        h('button', { class: 'rr-link-btn', onclick: () => app.services.threads.deleteMessage(t.id, m.id) }, 'delete'),
         h('button', { class: 'rr-link-btn', onclick: () => render() }, 'keep'),
       );
     };
     bar.append(
       gh.canEdit
-        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.isConnected && body.replaceWith(composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() }).el) }, 'edit')
+        ? h('button', { class: 'rr-link-btn', title: gh.pending ? 'Edit this draft' : 'Edit on GitHub', onclick: () => body.isConnected && body.replaceWith(composer(app, { placeholder: 'Edit comment', buttons: [{ label: 'Save', onSubmit: (b) => app.services.threads.editMessage(t.id, m.id, b) }], initial: m.body, autofocus: true, onCancel: () => render() }).el) }, 'edit')
         : '',
       gh.canDelete ? h('button', { class: 'rr-link-btn', title: 'Delete this comment', onclick: ask }, 'delete') : '',
     );
@@ -414,7 +414,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
 
   const ctxHost = h('div', { class: 'rr-thread__ctx' });
   const render = () => {
-    const t = o.id ? app.thread(o.id) : undefined;
+    const t = o.id ? app.services.threads.thread(o.id) : undefined;
     const anchor = t?.anchor ?? o.anchor ?? { kind: 'general' };
     if (o.id && !t) {
       drop(root);
@@ -426,17 +426,17 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         // GitHub files any reply into the viewer's pending review while one is open
         : t.messages.some((m) => m.gh?.pending) || app.github?.pending ? ['Reply (a draft too, until you submit the review)…', 'Add to review'] : ['Reply on GitHub…', 'Reply on GitHub']
       : t ? ['Reply…', 'Reply']
-      : ['Comment for the agent' + (app.commentTargets(anchor).length > 1 ? ', or on the PR…' : '…'), null];
+      : ['Comment for the agent' + (app.services.threads.commentTargets(anchor).length > 1 ? ', or on the PR…' : '…'), null];
     if (t?.gh && !t.gh.canReply) root.classList.add('is-readonly');
     const buttons = t
-      ? [{ label: replyLabel!, icon: true, onSubmit: (body: string) => app.reply(t.id, body) }]
-      : app.commentTargets(anchor).map((b) => ({ ...b, icon: true, main: o.to === b.to, onSubmit: (body: string) => o.onCreate?.(body, b.to === 'github') }));
+      ? [{ label: replyLabel!, icon: true, onSubmit: (body: string) => app.services.threads.reply(t.id, body) }]
+      : app.services.threads.commentTargets(anchor).map((b) => ({ ...b, icon: true, main: o.to === b.to, onSubmit: (body: string) => o.onCreate?.(body, b.to === 'github') }));
     const c = composer(app, {
       placeholder,
       buttons,
       autofocus: true,
       // drafts keep today's keys: the review mode still picks the GitHub one
-      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : (app.commentsToGitHub(anchor) ? 'gh:' : '') + JSON.stringify(anchor)}`,
+      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : (app.services.threads.commentsToGitHub(anchor) ? 'gh:' : '') + JSON.stringify(anchor)}`,
       onCancel: o.onClose,
     });
     const msgs = t ? messages(t) : null;
@@ -452,13 +452,13 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       });
     }
   };
-  const anchor = (o.id ? app.thread(o.id)?.anchor : o.anchor) ?? { kind: 'general' as const };
+  const anchor = (o.id ? app.services.threads.thread(o.id)?.anchor : o.anchor) ?? { kind: 'general' as const };
   void anchorContext(app, anchor, o.quote).then((ctx) => ctx && ctxHost.replaceChildren(ctx));
   render();
   off = app.bus.on('state', () => {
     // don't clobber an in-progress draft: only re-render the message list
     if (!o.id) return; // composing a new thread: nothing else on screen depends on state
-    const t = app.thread(o.id);
+    const t = app.services.threads.thread(o.id);
     if (!t) return render();
     const scroll = root.querySelector('.rr-thread__scroll');
     if (scroll) {
@@ -489,7 +489,7 @@ export function mountThreadPopup(app: ReviewApp) {
       actors: {
         create: fromPromise(({ input: { anchor, body, toGitHub } }) =>
           (sending = (async () => {
-            const nt = app.createThread(anchor, body, 'you', toGitHub);
+            const nt = app.services.threads.createThread(anchor, body, 'you', toGitHub);
             if (!(nt instanceof Promise)) return nt?.id ?? false;
             const ok = await nt;
             if (ok) app.toast(anchor.kind === 'code' ? 'Added to your GitHub review — submit it from the header' : 'Posted on GitHub');
@@ -497,7 +497,7 @@ export function mountThreadPopup(app: ReviewApp) {
           })()),
         ),
         // a GitHub resolve that failed returns false: keep the popup up
-        resolve: fromPromise(async ({ input }) => (await app.setStatus(input.id, 'resolved')) !== false),
+        resolve: fromPromise(async ({ input }) => (await app.services.threads.setStatus(input.id, 'resolved')) !== false),
       },
       delays: { leave: () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500) },
     }),
@@ -545,7 +545,7 @@ export function mountThreadPopup(app: ReviewApp) {
   });
   const dock = (id: string) => {
     close();
-    const t = app.thread(id)!;
+    const t = app.services.threads.thread(id)!;
     dockThread(app, id, t.title ?? app.anchorLabel(t.anchor));
   };
   app.onDispose(() => { flow.stop(); current?.dispose(); box.remove(); });

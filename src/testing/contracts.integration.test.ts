@@ -72,14 +72,14 @@ test('walkthrough thread decorations leave authored nodes, content, and handlers
   await Promise.resolve();
   let notifications = 0;
   f.app.bus.on('state', () => notifications++);
-  const thread = f.app.createThread({ kind: 'doc', target: 'overview' }, 'Explain this');
+  const thread = f.app.services.threads.createThread({ kind: 'doc', target: 'overview' }, 'Explain this');
   if (!thread || thread instanceof Promise) throw new Error('Expected a local thread');
   expect(panel.element.querySelectorAll('.rr-rail-chip')).toHaveLength(1);
   const opened: string[] = [];
   f.app.bus.on('open-thread', ({ id }) => opened.push(id));
   panel.element.querySelector<HTMLButtonElement>('.rr-rail-chip')!.click();
   expect(opened).toEqual([thread.id]);
-  void f.app.setStatus(thread.id, 'resolved');
+  void f.app.services.threads.setStatus(thread.id, 'resolved');
   expect(panel.element.querySelector('.rr-rail-chip')!.classList.contains('is-resolved')).toBe(true);
   expect(notifications).toBe(2);
   expect(f.storage.writes).toHaveLength(2);
@@ -97,7 +97,7 @@ test('dispose removes app listeners once and rejects invalid operations without 
   const errors: unknown[] = [];
   f.app.bus.on('state', () => notifications++);
   f.app.bus.on('toast', (error) => errors.push(error));
-  void f.app.reply('missing-thread', 'Cannot save');
+  void f.app.services.threads.reply('missing-thread', 'Cannot save');
   expect(f.app.state).toBe(original);
   expect(errors).toHaveLength(1);
   expect(notifications).toBe(0);

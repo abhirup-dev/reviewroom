@@ -164,7 +164,7 @@ class WalkthroughPanel implements PanelInstance {
         let target: string | string[] | undefined;
         if (r?.type === 'sym') target = (await this.app.searchSymbol(r.name).catch(() => [])).find((x) => x.kind === 'definition')?.text;
         else if ((r?.type === 'code' || r?.type === 'file') && r.start)
-          target = (await this.app.read(r.path, this.app.revOf(r.rev)))?.split('\n').slice(r.start - 1, Math.max(r.end ?? r.start, r.start + 8));
+          target = (await this.app.services.code.read(r.path, this.app.services.code.revOf(r.rev)))?.split('\n').slice(r.start - 1, Math.max(r.end ?? r.start, r.start + 8));
         const kind = target && linkedSymbol(a.textContent ?? '', target);
         if (kind) a.dataset.rrSymbol = kind;
       }),
@@ -304,7 +304,7 @@ class WalkthroughPanel implements PanelInstance {
   private onClick(e: MouseEvent) {
     const t = e.target as Element;
     // description: a link to a comment on this PR opens its thread here
-    const gh = this.isDesc && !e.metaKey && !e.ctrlKey && this.app.githubThreadFor(t.closest<HTMLAnchorElement>('a[href]')?.href ?? '');
+    const gh = this.isDesc && !e.metaKey && !e.ctrlKey && this.app.services.threads.githubThreadFor(t.closest<HTMLAnchorElement>('a[href]')?.href ?? '');
     if (gh) return e.preventDefault(), this.app.bus.emit('open-thread', { id: gh });
     const link = t.closest('a[href^="rr:"], rr-ref');
     if (link) {
@@ -402,14 +402,14 @@ class WalkthroughPanel implements PanelInstance {
     const el = h(
       'button',
       {
-        class: 'rr-rail-chip' + (t.status === 'resolved' ? ' is-resolved' : '') + (this.app.unreadAgent(t) ? ' has-agent' : ''),
+        class: 'rr-rail-chip' + (t.status === 'resolved' ? ' is-resolved' : '') + (this.app.services.threads.unreadAgent(t) ? ' has-agent' : ''),
         'data-thread': t.id,
         title: plainExcerpt(t.messages[0]?.body ?? '', 200),
         onclick: () => this.app.bus.emit('open-thread', { id: t.id }),
         onpointerenter: () => this.hot(t, true),
         onpointerleave: () => this.hot(t, false),
       },
-      threadBadge(t, this.app.unreadAgent(t)),
+      threadBadge(t, this.app.services.threads.unreadAgent(t)),
       h('span', { class: 'rr-rail-chip__text' }, plainExcerpt(t.messages[0]?.body ?? '', 46)),
       last?.author === 'agent' ? h('span', { class: 'rr-dot', title: 'Agent replied' }) : null,
     );

@@ -31,7 +31,7 @@ class FilesPanel implements PanelInstance {
     const p = app.prefs;
     const types = [...new Set(app.files.map((f) => fileType(f.path)))].sort();
     const hasTests = app.files.some((f) => isTestFile(f.path));
-    const ranges = app.range ? app.ranges() : [];
+    const ranges = app.range ? app.services.code.ranges() : [];
     const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' });
     ranges.forEach((r) => select.append(h('option', { value: r.key, selected: r.key === app.range?.key }, r.label)));
     select.addEventListener('change', () => app.setRange(ranges.find((r) => r.key === select.value)!));
@@ -65,7 +65,7 @@ class FilesPanel implements PanelInstance {
 
   private row(f: ChangedFile, label: string, depth: number) {
     const app = this.app;
-    const threads = codeThreadsOn(app.threads(), f.path).filter((t) => t.status === 'open');
+    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
     return h(
       'button',

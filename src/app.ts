@@ -9,11 +9,10 @@ import { anchorRef, symbolHits, symbolQuery, PR_DESCRIPTION } from './kernel/ref
 import { h, uid } from './kernel/dom';
 import { renderMarkdown } from './kernel/markdown';
 import { describeElement, findDocElement } from './kernel/refs/describe';
-import { emptyState, type Anchor, type Author, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type Op, type ReviewMeta, type ReviewState, type SearchHit, type Thread } from './kernel/state/model.shared';
+import { emptyState, type Anchor, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type Op, type ReviewMeta, type ReviewState, type SearchHit } from './kernel/state/model.shared';
 import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
-import type { GitHubAction } from './kernel/state/schema.shared';
 import type { Walkthrough } from './slides/model.shared';
 import { showPanel } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
@@ -159,7 +158,7 @@ export class ReviewApp {
         getGitHub: () => this.github,
         getReviewMode: () => this.prefs.reviewMode,
         apply: (op) => this.apply(op),
-        githubAct: (action) => this.githubAct(action),
+        githubAct: (action) => this.services.github.act(action),
         uid,
       },
     });
@@ -186,31 +185,14 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ code data
-  revFor(side: 'base' | 'head', range = this.range) {
-    return this.services.code.revFor(side, range);
-  }
-  /** A ref's rev ('base' | 'head' | sha) as a concrete revision. */
-  revOf(rev: string) {
-    return this.services.code.revOf(rev);
-  }
-  read(path: string, rev: string): Promise<string | null> {
-    return this.services.code.read(path, rev);
-  }
   async setRange(r: DiffRange) {
     this.range = r;
     this.files = (await this.provider.files(r)).sort(reviewOrder);
     this.bus.emit('range', r);
     this.bus.emit('files', this.files);
   }
-  ranges(): DiffRange[] {
-    return this.services.code.ranges();
-  }
   visibleFiles(): ChangedFile[] {
     return this.files.filter((f) => !(this.prefs.hideTests && isTestFile(f.path)) && !this.prefs.hiddenTypes.includes(fileType(f.path)));
-  }
-
-  async search(q: string, symbol = false): Promise<SearchHit[]> {
-    return this.services.code.search(q, symbol);
   }
 
   // ------------------------------------------------------------ navigation
@@ -251,7 +233,7 @@ export class ReviewApp {
   // shortcut: filters the first 60 hits (definitions come first), so a qualifier can miss when a name has more
   // definitions than that; pass a larger limit through search() if that shows up.
   async searchSymbol(name: string): Promise<SearchHit[]> {
-    return symbolHits(await this.search(symbolQuery(name).word, true), name);
+    return symbolHits(await this.services.code.search(symbolQuery(name).word, true), name);
   }
 
   async findSymbol(name: string) {
@@ -286,7 +268,7 @@ export class ReviewApp {
     if (!r) return 'Link';
     if (r.type === 'doc') return this.describeDoc(r.id, r.path);
     if (r.type === 'thread') {
-      const t = this.thread(r.id);
+      const t = this.services.threads.thread(r.id);
       return t ? 'Thread on ' + this.anchorLabel(t.anchor) : 'Thread';
     }
     if (r.type === 'sym') return r.name;
@@ -316,29 +298,6 @@ export class ReviewApp {
     this.backend.apply(op, this.state);
     return true;
   }
-  /** Every thread: the review's own (state.json) and the PR's GitHub threads. */
-  threads(): Thread[] {
-    return this.services.threads.threads();
-  }
-  thread(id: string) {
-    return this.services.threads.thread(id);
-  }
-  /** Team mode: new code and general comments go to GitHub by default instead of the agent. */
-  get teamMode() {
-    return this.services.threads.teamMode;
-  }
-  /** Where a new comment on this anchor goes by default. Narrative comments always go to the agent. */
-  commentsToGitHub(anchor: Anchor) {
-    return this.services.threads.commentsToGitHub(anchor);
-  }
-  /** The send buttons a new comment on this anchor offers, the same everywhere one starts: Agent, plus PR for code
-   *  and general comments; the review mode (or there being no GitHub PR) greys out (`off`, saying why) the side it leaves out. */
-  commentTargets(anchor: Anchor): { to: 'agent' | 'github'; label: string; title: string; off?: string }[] {
-    return this.services.threads.commentTargets(anchor);
-  }
-  setGitHub(s: GitHubSnapshot) {
-    this.services.github.set(s);
-  }
   private renderDescription() {
     const d = this.github?.description;
     // only on change: rebuilding drops the reader's open <details> and moves highlights
@@ -354,49 +313,12 @@ export class ReviewApp {
     if (id === PR_DESCRIPTION) return findDocElement(this.descDoc, '', path);
     return this.doc && findDocElement(this.doc, id, path);
   }
-  async refreshGitHub() {
-    await this.services.github.refresh();
-  }
-  /** The thread holding the comment a github.com link on this PR points at (`#discussion_r<n>`, `files#r<n>`, `#issuecomment-<n>`). */
-  githubThreadFor(href: string): string | undefined {
-    return this.services.threads.githubThreadFor(href);
-  }
-  /** One GitHub action (see cli/lib/github.ts); false (with a toast) if GitHub refused it. */
-  async githubAct(action: GitHubAction): Promise<boolean> {
-    return this.services.github.act(action);
-  }
-
-  /** Local threads change at once; GitHub ones resolve once GitHub has taken the comment (undefined thread). */
-  createThread(anchor: Anchor, body: string, author: Author = 'you', toGitHub = this.commentsToGitHub(anchor)): Thread | undefined | Promise<boolean> {
-    return this.services.threads.createThread(anchor, body, author, toGitHub);
-  }
-  reply(threadId: string, body: string, author: Author = 'you') {
-    return this.services.threads.reply(threadId, body, author);
-  }
-  editMessage(threadId: string, msgId: string, body: string) {
-    return this.services.threads.editMessage(threadId, msgId, body);
-  }
-  /** Deleting the last message deletes the thread (the UI confirms that first). */
-  deleteMessage(threadId: string, msgId: string) {
-    return this.services.threads.deleteMessage(threadId, msgId);
-  }
-  setStatus(threadId: string, status: Thread['status']) {
-    return this.services.threads.setStatus(threadId, status);
-  }
   togglePin(ref: string) {
     this.apply({ op: 'setPin', ref, pinned: !this.state.pins.includes(ref) });
   }
   setViewed(path: string, viewed: boolean) {
     this.apply({ op: 'setViewed', path, viewed });
   }
-  /** Threads with reviewer messages added in the current round (what "Send feedback" will deliver). */
-  pendingFeedback() {
-    return this.services.threads.pendingFeedback();
-  }
-  unreadAgent(t: Thread) {
-    return this.services.threads.unreadAgent(t);
-  }
-
   /** `to`: the send button ⌘↵ uses, when the comment can go to the agent or GitHub. */
   compose(anchor: Anchor, quote?: string, to?: 'agent' | 'github') {
     this.bus.emit('compose-thread', { anchor, quote, to });

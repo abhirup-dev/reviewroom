@@ -9,7 +9,7 @@ import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 
 
 export function sendDialog(app: ReviewApp) {
-  const pending = app.pendingFeedback();
+  const pending = app.services.threads.pendingFeedback();
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Overall note for the agent (optional, markdown)' });
   const go = (kind: 'feedback' | 'approve') => async () => {
     const n = app.state.round;
@@ -48,7 +48,7 @@ export function sendDialog(app: ReviewApp) {
 export function submitReviewDialog(app: ReviewApp) {
   const drafts = app.github?.pending?.drafts ?? 0;
   const note = h('textarea', { class: 'rr-composer__input', rows: '4', placeholder: 'Review summary (optional, markdown)' });
-  const go = (done: string, action: () => GitHubAction) => async () => (await app.githubAct(action())) && (app.toast(done), true);
+  const go = (done: string, action: () => GitHubAction) => async () => (await app.services.github.act(action())) && (app.toast(done), true);
   const submit = (event: Extract<GitHubAction, { action: 'submit' }>['event'], done: string) => go(done, () => ({ action: 'submit', event, body: note.value }));
   noteDialog(
     'Submit review on GitHub',
@@ -87,7 +87,7 @@ export function githubControls(app: ReviewApp) {
       menuLabel(g.ok ? `Signed in as @${g.viewer} · fetched ${relTime(g.at ?? '')}` : 'GitHub'),
       g.error ? h('div', { class: 'rr-menu__note' }, g.error) : null,
       g.stale ? h('div', { class: 'rr-menu__note' }, `The PR has commits you aren't reviewing yet. Run \`reviewroom pr ${app.meta.number ?? '<n>'}\` again to update; comments still land on the right lines meanwhile.`) : null,
-      menuItem('Refresh comments', () => (close(), app.refreshGitHub().then(() => app.toast('GitHub comments refreshed')))),
+      menuItem('Refresh comments', () => (close(), app.services.github.refresh().then(() => app.toast('GitHub comments refreshed')))),
       g.url ? menuItem('Open the PR on GitHub', () => (close(), window.open(g.url, '_blank', 'noopener')), { icon: 'popout' }) : null,
     ]);
   if (!g.ok) return [btn];
@@ -109,9 +109,9 @@ export function githubControls(app: ReviewApp) {
 
 /** Finish the agent round or submit the pending GitHub review, according to review mode. */
 export function feedbackButton(app: ReviewApp): HTMLElement {
-  const pending = app.pendingFeedback().length;
+  const pending = app.services.threads.pendingFeedback().length;
   const round = currentRound(app.state);
-  return app.teamMode
+  return app.services.threads.teamMode
     ? h(
         'button',
         { class: 'rr-btn rr-btn--primary rr-send-btn', title: 'Post your draft comments to GitHub as one review: comment, approve or request changes', onclick: () => submitReviewDialog(app) },
@@ -149,7 +149,7 @@ export function threadHeaderControls(app: ReviewApp): (HTMLElement | null)[] {
         ),
     ]);
   return [
-    app.teamMode ? null : roundBtn,
+    app.services.threads.teamMode ? null : roundBtn,
     h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
   ];
 }

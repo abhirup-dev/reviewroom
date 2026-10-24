@@ -114,7 +114,7 @@ class RRCode extends HTMLElement {
       let renderRange;
       const r = ref ? parseRef(ref) : null;
       if (r && (r.type === 'code' || r.type === 'file')) {
-        contents = (await app.read(r.path, app.revOf(r.rev))) ?? '';
+        contents = (await app.services.code.read(r.path, app.services.code.revOf(r.rev))) ?? '';
         if (gen !== this.gen) return; // left the page while reading
         name = r.path;
         // the whole file, drawn from start to end with its real line numbers

@@ -44,8 +44,8 @@ const track = (box: HTMLElement, inst: { cleanUp(): void }) => {
 export const range = (start: number, end: number) => ({ startingLine: start - 1, totalLines: end - start + 1, bufferBefore: 0, bufferAfter: 0 });
 
 async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }>, context = 2, opts: { endAt?: number } = {}): Promise<HTMLElement> {
-  const rev = app.revOf(r.rev);
-  const text = await app.read(r.path, rev);
+  const rev = app.services.code.revOf(r.rev);
+  const text = await app.services.code.read(r.path, rev);
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
   const box = h('div', { class: 'rr-snippet' });
   // a changed file without lines: its hunks
@@ -69,7 +69,7 @@ async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }
 async function changedDiff(app: ReviewApp, path: string, head: string) {
   const f = app.files.find((x) => x.path === path);
   if (!f || (f.status !== 'modified' && f.status !== 'renamed')) return null;
-  const base = await app.read(f.prevPath ?? path, app.revFor('base'));
+  const base = await app.services.code.read(f.prevPath ?? path, app.services.code.revFor('base'));
   if (base === null) return null;
   return parseDiffFromFile({ name: f.prevPath ?? path, contents: base }, { name: path, contents: head });
 }
@@ -125,12 +125,12 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: PreviewOp
       const hits = await app.searchSymbol(r.name);
       const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
       if (!d) return h('div', { class: 'rr-empty' }, `No definition of ${r.name}`);
-      const text = await app.read(d.path, d.rev);
+      const text = await app.services.code.read(d.path, d.rev);
       const endAt = text === null ? d.line : declEnd(text.split('\n'), d.line);
       return h('div', null, h('div', { class: 'rr-embed__sub' }, `${d.path}:${d.line}`), await snippet(app, { type: 'file', path: d.path, rev: d.rev, start: d.line, end: d.line }, 1, { endAt }));
     }
     case 'thread': {
-      const t = app.thread(r.id);
+      const t = app.services.threads.thread(r.id);
       if (!t) return h('div', { class: 'rr-empty' }, 'Thread not found');
       return h(
         'div',

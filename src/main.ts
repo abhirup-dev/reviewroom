@@ -196,7 +196,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     unsaved: (on) => app.root.classList.toggle('is-unsaved', on),
     status: (s) => (['waiting', 'approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
     ready: (round) => app.toast(`Round ${round} is ready.`),
-    github: (s) => app.setGitHub(s),
+    github: (s) => app.services.github.set(s),
     // the backend has let a save in flight finish first
     review: () => {
       sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
@@ -215,19 +215,19 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     // the server answers from its cache at once; refetch when that cache is old
     app.backend.github().then(
       (s) => {
-        app.setGitHub(s);
-        if (s.ok && age() > 30_000) app.refreshGitHub().catch(() => {});
+        app.services.github.set(s);
+        if (s.ok && age() > 30_000) app.services.github.refresh().catch(() => {});
       },
       () => {},
     );
     app.bus.on('state', () => app.layout.offerAvailable());
     // colleagues comment while you read: refetch when you come back to the tab
     app.listen(document, 'visibilitychange', () => {
-      if (document.visibilityState === 'visible' && app.github?.ok && age() > 30_000) app.refreshGitHub().catch(() => {});
+      if (document.visibilityState === 'visible' && app.github?.ok && age() > 30_000) app.services.github.refresh().catch(() => {});
     });
     // while CI runs on the latest commit, follow it
     const refreshTimer = setInterval(() => {
-      if (document.visibilityState === 'visible' && app.github?.ci?.[0]?.state === 'pending' && age() > 30_000) app.refreshGitHub().catch(() => {});
+      if (document.visibilityState === 'visible' && app.github?.ci?.[0]?.state === 'pending' && age() > 30_000) app.services.github.refresh().catch(() => {});
     }, 10_000);
     app.onDispose(() => clearInterval(refreshTimer));
   }
@@ -241,12 +241,12 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     /** For `reviewroom slide-lint`, not for review authors: measure a step on screen. */
     auditWalkthrough: tour.audit,
     findSymbol: (name: string) => app.findSymbol(name),
-    read: (path: string, rev: Rev = 'head') => app.read(path, rev === 'base' || rev === 'head' ? app.revFor(rev) : rev),
+    read: (path: string, rev: Rev = 'head') => app.services.code.read(path, rev === 'base' || rev === 'head' ? app.services.code.revFor(rev) : rev),
     files: () => app.files,
-    search: (q: string, symbol = false) => app.search(q, symbol),
+    search: (q: string, symbol = false) => app.services.code.search(q, symbol),
     comment: (ref: string, body?: string) => {
       const anchor = anchorOf(ref);
-      return body ? app.createThread(anchor, body) : app.compose(anchor);
+      return body ? app.services.threads.createThread(anchor, body) : app.compose(anchor);
     },
     on: app.bus.on.bind(app.bus),
     commands: app.commands,
@@ -308,8 +308,8 @@ function registerCommands(app: ReviewApp) {
       app.compose(s.kind === 'code' ? { kind: 'code', path: s.path, rev: s.side, start: s.start, end: s.end } : s.anchor, s.kind === 'doc' ? s.label : undefined);
     } },
     { id: 'comment.general', title: 'New general comment', group: 'Comments', run: () => app.compose({ kind: 'general' }) },
-    { id: 'round.send', title: 'Finish round & send feedback (Team review: submit your GitHub review)', group: 'Rounds', keys: ['mod+shift+enter'], run: () => (app.teamMode ? submitReviewDialog(app) : sendDialog(app)) },
-    { id: 'github.refresh', title: 'Refresh GitHub comments', group: 'GitHub', run: () => app.refreshGitHub() },
+    { id: 'round.send', title: 'Finish round & send feedback (Team review: submit your GitHub review)', group: 'Rounds', keys: ['mod+shift+enter'], run: () => (app.services.threads.teamMode ? submitReviewDialog(app) : sendDialog(app)) },
+    { id: 'github.refresh', title: 'Refresh GitHub comments', group: 'GitHub', run: () => app.services.github.refresh() },
     { id: 'round.current', title: 'Back to current round', group: 'Rounds', run: () => app.bus.emit('round-view', 0) },
     { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
       // innermost first: overlays (newest first), then the selection, then pick mode
