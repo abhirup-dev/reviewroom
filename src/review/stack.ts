@@ -1,8 +1,8 @@
-// A stack of PRs in the header: the PR switcher and the walkthrough's "this PR or the whole stack" menu.
-import { h, icon } from './kernel/dom';
-import { keyLabel } from './kernel/commands';
-import { popMenu, menuItem, menuLabel } from './kernel/menus';
-import type { ReviewApp } from './app';
+// A stack of PRs in the header: which PR the panes show, and the menu of every PR with its state.
+import { h, icon } from '../kernel/dom';
+import { keyLabel } from '../kernel/commands';
+import { popMenu, menuItem, menuLabel } from '../kernel/menus';
+import type { ReviewApp } from '../app';
 
 const STATE_LABEL = { merged: 'merged', closed: 'closed', approved: 'approved', changes: 'changes requested', open: 'open' } as const;
 const dot = (state: string) => h('span', { class: `rr-stack-dot is-${state}`, 'aria-hidden': 'true' });
@@ -49,22 +49,5 @@ function stackMenu(app: ReviewApp, anchor: HTMLElement) {
       return b;
     }),
     h('div', { class: 'rr-menu__note' }, `${keyLabel('shift+n')} / ${keyLabel('shift+p')}: next / previous PR · ▷ has a guided walkthrough`),
-  ]);
-}
-
-/** With a stack the Guided walkthrough button asks which story: this PR's chapters, or the whole stack's. */
-export function walkthroughMenu(app: ReviewApp, anchor: HTMLElement) {
-  const p = app.stackPr;
-  const doc = app.walkthrough!;
-  const mine = p && doc.chapters.some((c) => c.pr === p.number) ? doc.chapters.filter((c) => !c.pr || c.pr === p.number) : [];
-  const slides = (cs: typeof doc.chapters) => cs.reduce((a, c) => a + c.steps.length, 0);
-  popMenu(anchor, (close) => [
-    menuLabel('Guided walkthrough'),
-    p
-      ? mine.length
-        ? menuItem(`This PR · #${p.number}`, () => (close(), app.bus.emit('walkthrough-open', { scope: 'pr' })), { icon: 'play', hint: `${mine.length} ch · ${slides(mine)} slides` })
-        : h('div', { class: 'rr-menu__note' }, `#${p.number} has no walkthrough yet`)
-      : null,
-    menuItem(`Whole stack · ${app.meta.stack!.length} PRs`, () => (close(), app.bus.emit('walkthrough-open', { scope: 'stack' })), { icon: 'split', hint: `${doc.chapters.length} ch${p ? ` · resumes at #${p.number}` : ''}` }),
   ]);
 }

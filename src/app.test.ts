@@ -1,3 +1,4 @@
+// ReviewApp over a stack of PRs: its ranges, stepping between layers, links in a layer, thread labels.
 import { expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
 

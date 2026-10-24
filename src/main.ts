@@ -44,7 +44,8 @@ import './review/contents';
 import './threads/panels';
 import './threads/ci';
 import { recapOnNewRound } from './threads/recap';
-import { stackControl, walkthroughMenu } from './stack';
+import { stackControl } from './review/stack';
+import { walkthroughMenu } from './slides/stack-menu';
 
 export { ReviewApp, definePanel, parseRef, formatRef, renderMarkdown, renderPreview, LocalProvider, GitHubProvider, StaticProvider, ServerState, BrowserState };
 export type { CodeProvider, StateBackend, PanelDef, Fixture, ReviewMeta, ReviewState };

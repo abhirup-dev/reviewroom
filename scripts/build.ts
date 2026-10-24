@@ -10,6 +10,7 @@ const at = (p: string) => root + p;
 // must stay interleaved: regrouping them by owner would change the cascade.
 const shellStyles = [
   'src/kernel/styles/shell.css',
+  'src/review/styles/stack.css',
   'src/threads/styles/feedback-status.css',
   'src/review/styles/selection-cursor.css',
   'src/kernel/styles/buttons.css',
