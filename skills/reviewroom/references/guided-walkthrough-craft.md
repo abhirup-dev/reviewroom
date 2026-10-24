@@ -57,8 +57,8 @@ chapter opens on its flow, then walks it line by line. Slides take `<rr-mermaid>
 **A map that stays while the slides walk it.** A chapter that walks several parts of one system
 draws the whole system once, as the lead's `<rr-mermaid>` (or `<rr-flow>`), with each node linked to
 its code (a `click` statement; `ref` on an `<rr-node>`). The diagram stays put while ← → move through
-the slides, and the node each slide is about lights up (the rest dim, and the edges between lit nodes
-flow): any node whose link overlaps the code the pane shows does so on its own. A slide's `focus`
+the slides, and the node each slide is about lights up (the rest dim, and in a flowchart the edges
+between lit nodes flow): any node whose link overlaps the code the pane shows does so on its own. A slide's `focus`
 names the nodes outright, by label, when they have no code (a service, a queue, a concept), or to pick
 among several. The reader can fold a tall lead away. When the map would crowd every slide, put the
 same diagram in each slide's text instead; the same rule lights it there. This is the chapter's

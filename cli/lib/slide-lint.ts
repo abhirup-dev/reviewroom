@@ -3,21 +3,27 @@
 import type { ChangedFile } from '../../src/kernel/state/model.shared.ts';
 import { plain } from '../../src/threads/feedback.shared.ts';
 import { parseRef } from '../../src/kernel/refs/refs.shared.ts';
-import { stepRefs, type StepAudit, type Walkthrough } from '../../src/slides/model.shared.ts';
+import { nodeLabel, stepRefs, type StepAudit, type Walkthrough } from '../../src/slides/model.shared.ts';
 import { extractLinks, uncomment } from './links.ts';
 import { tourText } from './slides-file.ts';
 import { render } from 'pele';
 
 export type Finding = { check: string; level: 'warn' | 'info'; where?: string; message: string; fix: string };
 
-/** The node labels a slide's diagrams show: <rr-node> text, and the labels Pele lays out for each <rr-mermaid>. */
+const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+/** Markup's text as the page's textContent reads it: tags dropped, entities decoded, newlines kept. */
+export const textOf = (markup: string) =>
+  markup.replace(/<[^>]*>/g, '').replace(/&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi, (all, dec: string, hex: string, name: string) =>
+    dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : (ENTITY[name.toLowerCase()] ?? all));
+
+/** The node labels a slide's diagrams show: <rr-node> text, and the labels Pele lays out for each <rr-mermaid>,
+ *  read the way the guided walkthrough reads them on the page. */
 export const diagramLabels = (html: string): string[] => [
-  ...[...html.matchAll(/<rr-node\b[^>]*>([\s\S]*?)<\/rr-node>/g)].map((m) => plain(m[1])),
+  ...[...html.matchAll(/<rr-node\b[^>]*>([\s\S]*?)<\/rr-node>/g)].map((m) => nodeLabel(plain(m[1]))),
   ...[...html.matchAll(/<rr-mermaid\b[^>]*>([\s\S]*?)<\/rr-mermaid>/g)].flatMap((m) => {
     try {
-      const source = m[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); // the HTML-escaped source, newlines kept
-      const svg = render(source, { links: false, images: false, measurer: { width: (t, size) => t.length * size * 0.6 } }).svg;
-      return [...svg.matchAll(/<text class="pele-label"[^>]*>([\s\S]*?)<\/text>/g)].map((t) => plain(t[1]));
+      const svg = render(textOf(m[1]).trim(), { links: false, images: false, measurer: { width: (t, size) => t.length * size * 0.6 } }).svg;
+      return [...svg.matchAll(/<text class="pele-label"[^>]*>([\s\S]*?)<\/text>/g)].map((t) => nodeLabel(textOf(t[1])));
     } catch {
       return []; // a diagram that doesn't render is reported by `lint` itself
     }
@@ -61,7 +67,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
       const where = `${c.id}/${s.id}`;
       if (s.focus) {
         const labels = diagramLabels((c.lead ?? '') + s.text);
-        const gone = s.focus.filter((l) => !labels.includes(l));
+        const gone = s.focus.filter((l) => !labels.includes(nodeLabel(l)));
         if (gone.length) out.push({ check: 'unknown-focus', level: 'warn', where, message: `focus names no diagram node: ${gone.join(', ')}`, fix: 'Use an <rr-node> label or a Mermaid node label from the chapter lead or this slide, exactly as written.' });
       }
       if (!estimates) return;

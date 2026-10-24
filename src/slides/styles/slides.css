@@ -177,7 +177,7 @@
   stroke: var(--rr-accent);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .rr-tour rr-mermaid.has-focus .pele-edge > path:first-child {
+  .rr-tour rr-mermaid .pele-edge.is-focus > path:first-child {
     stroke-dasharray: 7 5;
     animation: rr-diagram-trace 1.2s linear infinite;
   }

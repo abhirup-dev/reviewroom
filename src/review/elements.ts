@@ -250,12 +250,12 @@ class RRMermaid extends HTMLElement {
     this.replaceChildren(diagram, h('details', { class: 'rr-mermaid__source' }, h('summary', null, 'Diagram source'), h('pre', null, h('code', null, source))));
     void import('./markdown/diagram').then(async ({ mountDiagram }) => {
       if (generation !== this.generation || !this.isConnected) return;
-      const mounted = await mountDiagram(diagram, source);
+      // every render, redraws for a new width too (they replace the nodes): the guided walkthrough relights them
+      const mounted = await mountDiagram(diagram, source, () => this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })));
       if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
       this.mounted = mounted;
       diagram.setAttribute('aria-busy', 'false');
       if (mounted.error) this.failed(mounted.error); // Pele draws its own error message in place of the diagram
-      this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })); // the guided walkthrough lights its nodes
     }).catch((e) => {
       if (generation !== this.generation) return;
       this.failed(e);

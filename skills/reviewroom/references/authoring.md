@@ -212,7 +212,7 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 | step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
 | no `ref` | The pane keeps the chapter's last links; with none yet, the previous chapter's. The lead's diagram stays in the lead, next to the slide |
-| step `focus` | Labels of the diagram nodes (`<rr-node>` text, or a Mermaid node's label, in the lead or the slide's text) that light up on this slide, as written; the rest dim, and the edges between lit Mermaid nodes flow. Omitted: nodes whose `ref` (a `click` link, for Mermaid) overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
+| step `focus` | Labels of the diagram nodes (`<rr-node>` text, or a Mermaid node's label, in the lead or the slide's text; a timeline's or gitGraph's nodes have none) that light up on this slide, as written; the rest dim, and the edges between lit nodes of a Mermaid flowchart or class diagram flow. Omitted: nodes whose `ref` (a `click` link, for Mermaid) overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
 
 Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` and `<rr-flow>`; a code
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come

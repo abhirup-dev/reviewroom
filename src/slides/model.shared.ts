@@ -49,9 +49,18 @@ const overlaps = (a: Ref | null, b: Ref | null): boolean => {
   return a?.type === 'doc' && b?.type === 'doc' && a.id === b.id;
 };
 
+/** A diagram node's label as `focus` compares it: whitespace runs collapsed (the player reads it from the page, slide-lint from Pele's SVG). */
+export const nodeLabel = (text: string) => text.replace(/\s+/g, ' ').trim();
+
 /** Whether a diagram node (an <rr-node>, or a Mermaid node) lights up on a step: one its `focus` names, else one whose ref overlaps the pane's links. */
 export const inFocus = (node: { label: string; ref: string | null }, focus: string[] | undefined, paneRefs: string[]): boolean =>
-  focus ? focus.includes(node.label) : !!node.ref && paneRefs.some((r) => overlaps(parseRef(node.ref!), parseRef(r)));
+  focus ? focus.some((f) => nodeLabel(f) === nodeLabel(node.label)) : !!node.ref && paneRefs.some((r) => overlaps(parseRef(node.ref!), parseRef(r)));
+
+/** Whether a Mermaid edge runs between two lit nodes. Pele ids flowchart edges `L_<from>_<to>_<n>` and class-diagram
+ *  edges `id_<from>_<to>_<n>`; other types' edge ids don't name their nodes, so their edges never light.
+ *  shortcut: node ids with `_` can make two lit pairs read alike (an extra edge flows); upgrade if Pele exposes edge endpoints. */
+export const edgeBetween = (edgeId: string, lit: string[]): boolean =>
+  lit.some((a) => lit.some((b) => edgeId.startsWith(`L_${a}_${b}_`) || edgeId.startsWith(`id_${a}_${b}_`)));
 
 const Chapter = z
   .object({

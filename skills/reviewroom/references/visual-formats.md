@@ -9,7 +9,7 @@ each node a link to its code.
 
 | Draw it as | When | Lights up in a guided walkthrough |
 |---|---|---|
-| `<rr-mermaid>` (Mermaid, rendered by Pele) | Anything with nodes and edges: flows, sequences, states, trees, contracts, timelines. Fast to write, themed, clickable | yes (`focus` by node label) |
+| `<rr-mermaid>` (Mermaid, rendered by Pele) | Anything with nodes and edges: flows, sequences, states, trees, contracts, timelines. Fast to write, themed, clickable | yes, by node label, where the boxes have labels: flowchart, state, class, sequence, treeView, architecture. Not timeline or gitGraph |
 | `<rr-flow>` | A short linear delta against the baseline, with `new` / `changed` / `removed` badges | yes (`focus` by node label) |
 | Your own HTML, SVG or `<table>` | A shape neither of the above has: a byte layout, a grid of cases, a before/after of a data structure, a latency budget, a tiny widget the reviewer can poke | no (embed it with `rr:doc/`) |
 
@@ -133,4 +133,4 @@ tokens and follow light and dark mode.
 
 Pele has no animation of its own (`animate: true` on an edge parses and renders static). The guided
 walkthrough animates diagrams for you: the nodes a slide is about light up, the rest dim, and the
-edges between lit nodes flow. Don't add motion by hand for that.
+edges between lit nodes flow (in flowcharts and class diagrams). Don't add motion by hand for that.

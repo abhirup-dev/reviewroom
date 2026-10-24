@@ -14,7 +14,7 @@ import type { ReviewApp } from '../app';
 import { menuItem, popMenu } from '../kernel/menus';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools } from '../review/code';
-import { current, deepLink, target, decodeWalkthrough, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
+import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
@@ -136,12 +136,15 @@ export function mountWalkthrough(app: ReviewApp) {
       root.querySelectorAll('rr-flow, rr-mermaid').forEach((flow) => {
         let any = false;
         flow.querySelectorAll('rr-node, .pele-node').forEach((n) => {
-          const node = n.matches('rr-node') ? { label: label(n), ref: n.getAttribute('ref') } : { label: n.querySelector('.pele-label')?.textContent?.trim() ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
+          const node = n.matches('rr-node') ? { label: label(n), ref: n.getAttribute('ref') } : { label: n.querySelector('.pele-label')?.textContent ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
           const on = inFocus(node, focus, refs);
           n.classList.toggle('is-focus', on);
           any ||= on;
         });
         flow.classList.toggle('has-focus', any);
+        // a Mermaid edge between two lit nodes flows
+        const lit = [...flow.querySelectorAll('.pele-node.is-focus')].map((n) => n.getAttribute('data-id') ?? '');
+        flow.querySelectorAll('.pele-edge').forEach((e) => e.classList.toggle('is-focus', edgeBetween(e.getAttribute('data-id') ?? '', lit)));
       }),
     );
   };
