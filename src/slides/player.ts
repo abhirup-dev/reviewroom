@@ -6,7 +6,8 @@
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor, type SnapshotFrom } from 'xstate';
 import { backdropCloses, h, icon, onDrag, plural } from '../kernel/dom';
-import { isPhone, onBack, watchBack } from '../kernel/phone';
+import { isPhone } from '../kernel/phone';
+import { onBack, watchBack } from '../kernel/history';
 import { phonePlayer as phoneSized } from '../kernel/device';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';

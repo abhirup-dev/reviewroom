@@ -12,6 +12,7 @@ import { createActor, type ActorRefFrom } from 'xstate';
 import { areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
 import { rising, type codeSheetMachine } from './codesheet.machine';
 import { gestureMachine } from './gesture.machine';
+import { onBack, watchBack } from './history';
 
 type CodeTarget = AppEvents['reveal-code'];
 export interface PhoneOptions {
@@ -38,39 +39,8 @@ const AREAS: { id: AreaId; title: string; icon: Parameters<typeof icon>[0] }[] =
 /** reviewroom's own panels; any other (an agent's) is a page of Read, as it joins the narrative's tabs in the dock */
 const OWN = ['narrative', 'description', 'recap', 'code', 'threads', 'files', 'toc', 'ci', 'thread', 'slot'];
 
-// Back (Android's button, the browser's): each layer opened (a dialog such as the menu, search or a thread; the code
-// peek; a sheet) and each area visited is a history entry, and Back closes the newest. A layer closed some other way
-// takes its entry back out. Chrome on Android closes a modal dialog on Back by itself (a close watcher), without
-// traversing history: its close then drops the entry like any other.
-type Entry = { close: () => void; pushed: boolean };
-const backs: Entry[] = [];
-let skip = 0; // popstates our own history.back() calls cause
-// entries opened while such a back is on its way wait for it (pushed before it lands, it would go back over them)
-const flush = () => backs.forEach((e, i) => !e.pushed && ((e.pushed = true), history.pushState({ rrBack: i + 1 }, '')));
-/** A history entry for a layer; returns what to call when it closes some other way. */
-export function onBack(close: () => void) {
-  const e: Entry = { close, pushed: false };
-  backs.push(e);
-  if (!skip) flush();
-  return () => {
-    const i = backs.indexOf(e);
-    if (i < 0) return; // Back closed it
-    backs.splice(i, 1);
-    if (!e.pushed) return;
-    skip++;
-    history.back();
-  };
-}
 /** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
 const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
-/** Back closes onBack's layers: the phone shell listens, and the phone player under the dock (a turned phone). */
-export const watchBack = (app: ReviewApp) =>
-  app.listen(window, 'popstate', (e: PopStateEvent) => {
-    if (skip) return void (--skip || flush());
-    // as deep as the entry Back (or the browser's history menu) went to
-    const depth = (e.state as { rrBack?: number } | null)?.rrBack ?? 0;
-    while (backs.length > depth) backs.pop()!.close();
-  });
 
 export class PhoneShell implements PanelSurface {
   private open = new Map<string, Open>();
@@ -80,7 +50,7 @@ export class PhoneShell implements PanelSurface {
   private code!: ActorRefFrom<typeof codeSheetMachine>;
   private stage = h('div', { class: 'rr-phone-stage' });
   private nav = h('nav', { class: 'rr-phone-nav', 'aria-label': 'Areas' });
-  private comment = h('button', { class: 'rr-btn rr-btn--primary rr-phone-comment', hidden: true });
+  private comment = h('button', { class: 'rr-btn rr-btn--primary rr-phone-comment', hidden: true, 'data-rr-keeps-selection': true });
   /** where the latest code link that peeks goes: once the peek is the Code area, it lands there again */
   private peekAt?: CodeTarget;
   private peekTitle = h('span', { class: 'rr-phone-peek-title' });
