@@ -4,15 +4,18 @@
 // A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack, under one set of
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
-import { createActor, fromPromise, waitFor } from 'xstate';
-import { h, icon, plural } from '../kernel/dom';
+import { createActor, fromPromise, waitFor, type SnapshotFrom } from 'xstate';
+import { h, icon, onDrag, plural } from '../kernel/dom';
 import { isPhone, onBack } from '../kernel/phone';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
 import { paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from './player.machine';
+import { cardMachine, chromeMachine, type Detent } from './phone.machine';
+import { gestureMachine } from '../kernel/gesture.machine';
 import type { ReviewApp } from '../app';
 import { menuItem, popMenu } from '../kernel/menus';
+import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools } from '../review/code';
 import { current, deepLink, target, decodeWalkthrough, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
@@ -177,7 +180,19 @@ export function mountWalkthrough(app: ReviewApp) {
     actor.send({ type: 'pause' });
     if (ref) void app.open(ref);
   });
-  const right = h('div', { class: 'rr-tour__right' }, tools, pane);
+  // the boundary between the narration and the code drags to resize (side by side only: CSS hides it otherwise); the
+  // share of the width is kept per device, a double-click goes back to the default
+  const SPLIT = 'reviewroom:tour-split';
+  const splitAt = (f: unknown) => (typeof f === 'number' ? split.style.setProperty('--rr-tour-split', `clamp(240px, ${f * 100}%, calc(100% - 240px))`) : split.style.removeProperty('--rr-tour-split'));
+  splitAt(loadJSON(SPLIT));
+  const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => (saveLocal(SPLIT, null), splitAt(null)) });
+  let box: DOMRect, share = 0;
+  onDrag(resize, {
+    start: () => (box = split.getBoundingClientRect()),
+    move: (_dx, _dy, e) => splitAt((share = (e.clientX - box.left) / box.width)),
+    end: (dx) => dx && saveLocal(SPLIT, share),
+  });
+  const right = h('div', { class: 'rr-tour__right' }, resize, tools, pane);
   const prev = btn('chevron', 'Previous slide', () => actor.send({ type: 'prev' }), '←');
   prev.classList.add('rr-tour__flip');
   const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
@@ -196,9 +211,10 @@ export function mountWalkthrough(app: ReviewApp) {
   app.root.append(root);
   if (phone) phonePlayer();
   /** A phone plays full screen (phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
-   *  floating toolbar of Back, Comment and Next over it. After 2 s untouched the chrome fades and the toolbar shrinks
-   *  to a round button that brings it back; the card drags between one line, its text and tall; it swipes sideways to
-   *  the next or previous slide. Back (the phone's) closes the player. */
+   *  floating toolbar of Back, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
+   *  untouched the chrome fades and the toolbar shrinks to a round button that brings it back (chromeMachine); the card
+   *  drags between one line, its text and tall (cardMachine); it swipes sideways to the next or previous slide
+   *  (gestureMachine). Back (the phone's) closes the player. */
   function phonePlayer() {
     // the floating toolbar: Back and Comment as icon buttons, Next the one filled pill
     prev.replaceChildren(icon('chevron', 24));
@@ -207,119 +223,101 @@ export function mountWalkthrough(app: ReviewApp) {
     comment.className = 'rr-icon-btn rr-tour__comment';
     comment.setAttribute('aria-label', 'Comment on this slide');
     next.before(comment);
-    // the card: a bottom sheet with three detents, kept across slides: one line, its text up to 40% of the screen,
-    // up to ~80%. The grip taps between one line and the text; dragging the grip or the card follows the finger and
-    // settles on the nearest detent (a 40px flick at least one step its way). Its progress at the foot.
+    player.append(progress); // always on screen, over the code, even immersive
+    // the card: a bottom sheet with three detents, kept across slides (cardMachine); this measures and renders
     const DETENTS = ['collapsed', 'default', 'tall'] as const;
-    let detent = 1;
-    const grip = h('button', { class: 'rr-tour__grip', onclick: () => size(detent ? 0 : 1) });
+    const card = createActor(cardMachine).start();
+    const detent = () => card.getSnapshot().context.detent;
     /** The card's height at detent d (its CSS max-height and its content decide). */
     const heightAt = (d: number) => {
       const css = left.style.cssText;
       left.style.cssText = '';
       left.dataset.detent = DETENTS[d];
       const px = left.offsetHeight;
-      left.dataset.detent = DETENTS[detent];
+      left.dataset.detent = DETENTS[detent()];
       left.style.cssText = css;
       return px;
     };
-    let settled = 0;
-    const done = () => (left.classList.remove('is-settling'), (left.style.cssText = ''));
-    /** Settle on detent d, gliding from the card's height now. */
-    const size = (d: number) => {
-      const from = left.offsetHeight;
-      clearTimeout(settled);
-      done();
-      const to = heightAt(d);
-      detent = d;
+    const heights = () => [heightAt(0), heightAt(1), heightAt(2)] as [number, number, number];
+    const size = (d: Detent) => card.send({ type: 'size', detent: d, height: left.offsetHeight, heights: heights() });
+    const grip = h('button', { class: 'rr-tour__grip', onclick: () => size(detent() ? 0 : 1) });
+    const paintCard = (s: SnapshotFrom<typeof cardMachine>) => {
+      const d = s.context.detent;
       left.dataset.detent = DETENTS[d];
       grip.title = d ? 'Collapse the slide to one line (or drag)' : 'Show the whole slide (or drag up)';
       grip.setAttribute('aria-label', grip.title);
       grip.setAttribute('aria-expanded', String(d > 0));
+      left.classList.remove('is-settling');
+      if (s.matches('rest')) return void (left.style.cssText = '');
+      if (s.matches('dragging')) return void (left.style.cssText = `height:${s.context.height}px;max-height:none`);
+      // settling: glide from where it was to the detent's height
       if (!d) left.scrollTo({ top: 0 });
-      if (!from) return;
-      left.style.cssText = `height:${from}px;max-height:none`;
+      left.style.cssText = `height:${s.context.from}px;max-height:none`;
       void left.offsetHeight;
       left.classList.add('is-settling');
-      left.style.height = `${to}px`;
-      settled = window.setTimeout(done, 400); // not transitionend: reduced motion has no transition
+      left.style.height = `${s.context.heights[d]}px`;
     };
-    size(1);
-    left.addEventListener('click', (e) => !detent && !(e.target as Element).closest('button, a') && size(1));
+    paintCard(card.getSnapshot());
+    card.subscribe(paintCard);
+    left.addEventListener('click', (e) => !detent() && !(e.target as Element).closest('button, a') && size(1));
     lead.addEventListener('click', () => lead.classList.contains('is-folded') && more.click());
     left.prepend(grip);
-    left.append(progress);
-    // touches on the card: the axis is the one mostly travelled once past 10px (docs/design/phone.md). Sideways
-    // changes the slide; up and down size the sheet (from the grip always; from the text when growing short of tall,
-    // or shrinking from its top), else the text scrolls
-    type Touch = { x: number; y: number; h: number; top: number; grip: boolean; axis?: 'x' | 'y' | 'scroll'; min?: number; max?: number };
-    let from: Touch | null = null;
-    const at = (e: TouchEvent) => e.changedTouches[0];
-    left.addEventListener('touchstart', (e) => (from = e.touches.length === 1 ? { x: at(e).clientX, y: at(e).clientY, h: left.offsetHeight, top: left.scrollTop, grip: e.target === grip } : null), { passive: true });
+    // touches on the card (gestureMachine): sideways changes the slide; up and down size the sheet when the card
+    // claims that way (cardMachine's draggable), else the text scrolls
+    const touch = createActor(gestureMachine).start();
+    const pt = (e: TouchEvent) => ({ x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY });
+    const claims = (e: TouchEvent, up: boolean) => card.getSnapshot().can({ type: 'grab', up, grip: e.target === grip, scrollTop: left.scrollTop, height: 0, heights: [0, 0, 0] });
+    const cancel = () => (touch.send({ type: 'cancel' }), card.send({ type: 'cancel' }));
+    left.addEventListener('touchstart', (e) => (e.touches.length === 1 ? touch.send({ type: 'start', ...pt(e), up: claims(e, true), down: claims(e, false) }) : cancel()), { passive: true });
     left.addEventListener('touchmove', (e) => {
-      if (!from || from.axis === 'x' || from.axis === 'scroll') return;
-      const dx = at(e).clientX - from.x, dy = at(e).clientY - from.y;
-      if (!from.axis) {
-        if (Math.hypot(dx, dy) <= 10) return;
-        from.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : from.grip || (dy < 0 ? detent < 2 : from.top <= 0) ? 'y' : 'scroll';
-        if (from.axis !== 'y') return;
-        clearTimeout(settled);
-        done();
-        [from.min, from.max] = [heightAt(0), Math.max(heightAt(2), from.h)];
-      }
+      const was = touch.getSnapshot();
+      touch.send({ type: 'move', ...pt(e) });
+      const g = touch.getSnapshot();
+      if (!g.matches('vertical')) return;
+      if (!was.matches('vertical')) card.send({ type: 'grab', up: g.context.dy < 0, grip: e.target === grip, scrollTop: left.scrollTop, height: left.offsetHeight, heights: heights() });
       e.preventDefault();
-      left.style.cssText = `height:${Math.min(from.max!, Math.max(from.min!, from.h - dy))}px;max-height:none`;
+      card.send({ type: 'drag', dy: g.context.dy });
     }, { passive: false });
-    left.addEventListener('touchcancel', () => from?.axis === 'y' && ((from = null), size(detent)));
+    left.addEventListener('touchcancel', cancel);
     left.addEventListener('touchend', (e) => {
-      const f = from;
-      from = null;
-      if (f?.axis === 'y') {
-        const hs = DETENTS.map((_, i) => heightAt(i)), now = left.offsetHeight;
-        let d = hs.reduce((best, px, i) => (Math.abs(px - now) < Math.abs(hs[best] - now) ? i : best), 0);
-        const dy = at(e).clientY - f.y;
-        if (d === detent && Math.abs(dy) > 40) d = Math.min(2, Math.max(0, detent + (dy < 0 ? 1 : -1)));
-        if (d === 2 && hs[2] - hs[1] < 8) d = 1; // the text fits: no taller detent
-        return size(d);
-      }
-      if (f?.axis !== 'x' || getSelection()?.toString()) return;
-      const dx = at(e).clientX - f.x;
-      if (Math.abs(dx) > 60) (dx < 0 ? next : prev).click();
+      touch.send({ type: 'end', ...pt(e) });
+      const g = touch.getSnapshot();
+      if (g.matches('vertical')) card.send({ type: 'release', dy: g.context.dy });
+      else if (g.matches('horizontal') && !getSelection()?.toString() && Math.abs(g.context.dx) > 60) (g.context.dx < 0 ? next : prev).click();
     });
-    // immersive: 2 s after the last touch or slide change (never while a menu, the composer or a selection is open)
-    // the top bar and the card's progress fade and the toolbar shrinks to one round button in the corner, which grows
-    // it back (so does a tap on the content)
-    let idle = 0;
+    // immersive (chromeMachine): IDLE_MS after the last touch or slide change, never while a menu, the composer or a
+    // selection is open, the top bar fades and the toolbar shrinks to one round button in the corner, which grows it
+    // back (so does a tap on the content)
     const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
-    const sleep = () => (held() ? (idle = window.setTimeout(sleep, 2000)) : player.classList.add('is-immersive'));
-    const wake = () => {
-      player.classList.remove('is-immersive');
-      clearTimeout(idle);
-      if (actor.getSnapshot().matches({ open: 'playing' })) idle = window.setTimeout(sleep, 2000);
-    };
+    const chrome = createActor(chromeMachine.provide({ guards: { held } })).start();
+    const immersive = () => chrome.getSnapshot().matches('immersive');
+    chrome.subscribe(() => player.classList.toggle('is-immersive', immersive()));
+    const wake = () => chrome.send({ type: 'wake' });
     next.after(h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 24)));
     // touching anything while the chrome shows keeps it up
-    player.addEventListener('touchstart', () => !player.classList.contains('is-immersive') && wake(), { passive: true, capture: true });
+    player.addEventListener('touchstart', () => chrome.send({ type: 'touch' }), { passive: true, capture: true });
     // a tap on the content brings it back (one on a link, a chip or a selection does what it does, and navigating wakes it anyway)
     player.addEventListener('click', (e) => {
-      if (player.classList.contains('is-immersive') && ((e.target as Element).closest(`button, a, ${REF_ELEMENTS}`) || getSelection()?.toString())) return;
+      if (immersive() && ((e.target as Element).closest(`button, a, ${REF_ELEMENTS}`) || getSelection()?.toString())) return;
       wake();
     }, true);
     let drop: (() => void) | undefined;
-    let was = '';
+    let was = '', wasPlaying = false;
     actor.subscribe((s) => {
       // a new slide: the card from its top, so a swipe down collapses it rather than scrolling
-      const now = `${s.context.chapter}/${s.context.step}`;
-      if (now !== was) left.scrollTo({ top: 0 });
-      was = now;
       const playing = s.matches({ open: 'playing' });
+      const slide = `${s.context.chapter}/${s.context.step}`;
+      if (slide === was && playing === wasPlaying) return; // not every snapshot is a move: a code panel landing must not wake the chrome
+      if (slide !== was) left.scrollTo({ top: 0 });
+      [was, wasPlaying] = [slide, playing];
       if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
       else if (!playing && drop) {
         drop();
         drop = undefined;
       }
-      wake();
+      chrome.send({ type: playing ? 'wake' : 'stop' });
     });
+    app.onDispose(() => (card.stop(), touch.stop(), chrome.stop()));
   }
 
   const ctx = () => actor.getSnapshot().context;

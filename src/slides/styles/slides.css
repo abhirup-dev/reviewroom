@@ -95,8 +95,31 @@
 /* body: narration | code */
 .rr-tour__body {
   display: grid;
-  grid-template-columns: minmax(320px, 34%) minmax(0, 1fr);
+  /* --rr-tour-split: the narration's width, dragged (player.ts) */
+  grid-template-columns: var(--rr-tour-split, minmax(320px, 34%)) minmax(0, 1fr);
   min-height: 0;
+}
+/* the boundary's handle: a 48px strip over it, a line on hover and while dragged */
+.rr-tour__resize {
+  position: absolute;
+  inset: 0 auto 0 -24px;
+  z-index: 2;
+  width: 48px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.rr-tour__resize::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 23px;
+  width: 2px;
+  background: var(--rr-accent);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.rr-tour__resize:hover::after,
+.rr-tour__resize:active::after {
+  opacity: 1;
 }
 .rr-tour__body.is-solo {
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
@@ -434,6 +457,9 @@ span.rr-tour__chunk-head {
     inset: 0;
     border-radius: 0;
   }
+  .rr-tour__body {
+    grid-template-columns: var(--rr-tour-split, minmax(0, 1fr)) minmax(0, 1fr);
+  }
 }
 /* narrow (but not short): the narration over the code */
 @media (max-width: 900px) and (min-height: 501px) {
@@ -447,6 +473,9 @@ span.rr-tour__chunk-head {
   .rr-tour__left {
     border-right: 0;
     border-bottom: 1px solid var(--rr-line);
+  }
+  .rr-tour__resize {
+    display: none;
   }
   .rr-tour__pos {
     display: none;
