@@ -117,3 +117,12 @@ export const currentRound = (s: Pick<ReviewState, 'rounds' | 'round'>) => s.roun
 /** Open threads whose last word is the reviewer's: the agent owes them a reply. */
 export const awaitingAgent = (s: Pick<ReviewState, 'threads'>) => s.threads.filter((t) => t.status === 'open' && t.messages.at(-1)?.author === 'you');
 export const undelivered = (s: ReviewState) => s.rounds.filter((r) => r.status !== 'open' && r.deliveredAt === null);
+
+/** Open threads at the start of a round: `active` the reviewer wrote in last round, `stale` the others open across more
+ *  than two rounds, `rest` the others. */
+export function recapThreads(s: ReviewState) {
+  const open = s.threads.filter((t) => t.status === 'open');
+  const active = open.filter((t) => t.messages.some((m) => m.author === 'you' && m.round === s.round - 1));
+  const stale = open.filter((t) => !active.includes(t) && s.round - t.createdRound >= 2);
+  return { active, stale, rest: open.filter((t) => !active.includes(t) && !stale.includes(t)) };
+}

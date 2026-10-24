@@ -39,6 +39,7 @@ const panelsStyles = [
   'src/review/styles/description.css',
   'src/threads/styles/markers.css',
   'src/kernel/styles/slot.css',
+  'src/threads/styles/recap.css',
 ];
 
 const overlaysStyles = [

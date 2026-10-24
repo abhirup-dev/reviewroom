@@ -20,7 +20,7 @@ export interface MountDockOptions {
 type Snapshot = { raw: string; key: string; w: number; h: number; layout?: string };
 
 // the panels reviewroom itself defines; any other a layout leaves out (an agent's own) joins the walkthrough's tabs
-const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'];
+const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap'];
 
 export class Layouts {
   /** The reviewer's saved layouts by id, beside the shipped ones. */

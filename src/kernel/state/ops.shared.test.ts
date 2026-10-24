@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { applyOp, awaitingAgent, currentRound, OpError, undelivered } from './ops.shared';
+import { applyOp, awaitingAgent, currentRound, OpError, recapThreads, undelivered } from './ops.shared';
 import type { ReviewState } from './model.shared';
 import { build } from '../../testing/build';
 import type { Op } from './schema.shared';
@@ -78,4 +78,15 @@ test('awaitingAgent: open threads whose last message is the reviewer’s; curren
   const s = { threads: [t('a', 'open', 'agent', 'you'), t('b', 'open', 'you', 'agent'), t('c', 'resolved', 'you'), t('d', 'open')] } as unknown as ReviewState;
   expect(awaitingAgent(s).map((x) => x.id)).toEqual(['a']);
   expect(currentRound({ round: 2, rounds: [{ n: 1 }, { n: 2 }] } as unknown as ReviewState)).toEqual({ n: 2 } as never);
+});
+
+test('recap: active (written in last round) beats stale (open over two rounds); resolved ones are left out', () => {
+  const msg = (author: 'you' | 'agent', round: number) => build.message({ id: `${author}${round}`, author, round });
+  const t = (id: string, createdRound: number, status: 'open' | 'resolved', ...messages: ReturnType<typeof msg>[]) => build.thread(id, { createdRound, status, messages });
+  const s = build.state({
+    round: 3,
+    threads: [t('stale', 1, 'open', msg('you', 1), msg('agent', 2)), t('active', 1, 'open', msg('you', 2), msg('agent', 3)), t('rest', 2, 'open', msg('agent', 2)), t('done', 1, 'resolved', msg('you', 1))],
+  });
+  const ids = Object.values(recapThreads(s)).map((ts) => ts.map((x) => x.id));
+  expect(ids).toEqual([['active'], ['stale'], ['rest']]);
 });

@@ -43,6 +43,7 @@ import './review/files';
 import './review/contents';
 import './threads/panels';
 import './threads/ci';
+import { recapOnNewRound } from './threads/recap';
 
 export { ReviewApp, definePanel, parseRef, formatRef, renderMarkdown, renderPreview, LocalProvider, GitHubProvider, StaticProvider, ServerState, BrowserState };
 export type { CodeProvider, StateBackend, PanelDef, Fixture, ReviewMeta, ReviewState };
@@ -209,6 +210,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   }
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
+  recapOnNewRound(app);
   if (app.backend.github) {
     const age = () => Date.now() - Date.parse(app.github?.at ?? '');
     // the server answers from its cache at once; refetch when that cache is old
