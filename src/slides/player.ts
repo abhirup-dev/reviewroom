@@ -273,6 +273,8 @@ export function mountWalkthrough(app: ReviewApp) {
       const was = touch.getSnapshot();
       touch.send({ type: 'move', ...pt(e) });
       const g = touch.getSnapshot();
+      // a swipe up opens everything: the folded chapter intro too (before the heights are measured), not a second tap on More
+      if (was.matches('pending') && g.context.dy < 0 && (g.matches('vertical') || g.matches('scroll')) && !more.hidden) more.click();
       if (!g.matches('vertical')) return;
       if (!was.matches('vertical')) card.send({ type: 'grab', up: g.context.dy < 0, grip: e.target === grip, scrollTop: left.scrollTop, height: left.offsetHeight, heights: heights() });
       e.preventDefault();
@@ -387,7 +389,7 @@ export function mountWalkthrough(app: ReviewApp) {
       prose(lead, ch.lead ?? '');
       enter(lead);
     }
-    if (phone) leadOpen = false; // each slide folds the intro again (but the chapter's first)
+    if (phone) leadOpen = left.dataset.detent === 'tall'; // each slide folds the intro again (but the chapter's first), unless the card is tall
     paintLead();
     position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);
