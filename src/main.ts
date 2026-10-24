@@ -24,8 +24,7 @@ import { buildHeader, buildPhoneBar, hubHref, saveLayoutDialog, type PhoneBarCon
 import { mountPhone } from './kernel/phone';
 import { restoreShell, turnedPhone, wantsPhone, watchShell } from './kernel/device';
 import { startUpdates } from './kernel/pwa';
-import { recapThreads } from './kernel/state/ops.shared';
-import { githubPanelAvailability } from './threads/docking';
+import { githubPanelAvailability, recapAvailable } from './threads/docking';
 import { sendDialog, submitReviewDialog, githubControls, feedbackButton, threadHeaderControls, roundStatusControls, subscribeThreadHeader, roundMenu, reviewModeSwitch } from './threads/controls';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { BrowserState } from './kernel/providers/browser-state';
@@ -196,7 +195,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       panelAvailability: githubPanelAvailability(app),
       // Last round while a round has threads from the last one; the PR conversation for a GitHub PR that has one
       available: (id) =>
-        id === 'recap' ? app.state.round >= 2 && Object.values(recapThreads(app.state)).some((ts) => ts.length) : id === 'thread:gh_conversation' ? app.services.threads.threads().some((t) => t.gh?.conversation) : true,
+        id === 'recap' ? recapAvailable(app) : id === 'thread:gh_conversation' ? app.services.threads.threads().some((t) => t.gh?.conversation) : true,
       openThreads: () => openThreadCount(app),
     });
   else app.layout.mount(dockHost, turnedPhone() ? null : lastLayout, { panelAvailability: githubPanelAvailability(app), save: !turnedPhone() });

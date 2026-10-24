@@ -12,6 +12,7 @@ import { createActor, type ActorRefFrom } from 'xstate';
 import { areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
 import { rising, type codeSheetMachine } from './codesheet.machine';
 import { gestureMachine } from './gesture.machine';
+import phoneLayout from './layouts/phone.json';
 import { onBack, watchBack } from './history';
 
 type CodeTarget = AppEvents['reveal-code'];
@@ -36,14 +37,11 @@ type Open = { id: string; title: string; params?: Record<string, unknown>; host:
 type Page = { id: string; title: string; params?: Record<string, unknown> };
 type Area = { id: AreaId; el: HTMLElement; strip: HTMLElement; ind: HTMLElement; pager: HTMLElement; pages: Page[]; sig: string };
 
-const AREAS: { id: AreaId; title: string; icon: Parameters<typeof icon>[0] }[] = [
-  { id: 'read', title: 'Read', icon: 'book' },
-  { id: 'code', title: 'Code', icon: 'code' },
-  { id: 'threads', title: 'Threads', icon: 'thread' },
-  { id: 'files', title: 'Files', icon: 'files' },
-];
-/** reviewroom's own panels; any other (an agent's) is a page of Read, as it joins the narrative's tabs in the dock */
-const OWN = ['narrative', 'description', 'recap', 'code', 'threads', 'files', 'toc', 'ci', 'thread', 'slot'];
+// the areas and their pages, in order (layouts/phone.json: the phone's counterpart of the dock's shipped layouts)
+const AREAS = phoneLayout.areas as { id: AreaId; title: string; icon: Parameters<typeof icon>[0]; pages: Page[] }[];
+/** reviewroom's own panels (the pages' kinds; on-demand ones never become pages); any other (an agent's) is a page of
+ *  Read, as it joins the narrative's tabs in the dock */
+const OWN = AREAS.flatMap((a) => a.pages.map((p) => p.id.split(':')[0]));
 
 /** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
 const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
@@ -172,29 +170,10 @@ export class PhoneShell implements PanelSurface {
 
   /** Each area's pages, in order; those that don't apply (no Last round, no CI) are left out. */
   private pagesOf(id: AreaId): Page[] {
-    const pages: Page[] =
-      id === 'read'
-        ? [
-            { id: 'narrative', title: 'Review' },
-            { id: 'description', title: 'Description' },
-            { id: 'recap', title: 'Last round' },
-            ...panelDefs()
-              .filter((d) => !d.onDemand && !OWN.includes(d.id))
-              .map((d) => ({ id: d.id, title: d.title })),
-          ]
-        : id === 'code'
-          ? [{ id: 'code', title: 'Code' }]
-          : id === 'threads'
-            ? [
-                { id: 'threads', title: 'Open', params: { filter: 'open' } },
-                { id: 'threads:resolved', title: 'Resolved', params: { filter: 'resolved' } },
-                { id: 'thread:gh_conversation', title: 'PR conversation', params: { id: 'gh_conversation' } },
-              ]
-            : [
-                { id: 'files', title: 'Files' },
-                { id: 'toc', title: 'Contents' },
-                { id: 'ci', title: 'CI' },
-              ];
+    const pages: Page[] = [
+      ...AREAS.find((a) => a.id === id)!.pages,
+      ...(id === 'read' ? panelDefs().filter((d) => !d.onDemand && !OWN.includes(d.id)).map((d) => ({ id: d.id, title: d.title })) : []),
+    ];
     return pages.filter((p) => this.opts.available(p.id));
   }
 

@@ -2,6 +2,7 @@
 import type { ReviewApp } from '../app';
 import { addPanelAt, showPanel } from '../kernel/dock';
 import type { PanelAvailability } from '../kernel/layouts/layout';
+import { recapThreads } from '../kernel/state/ops.shared';
 
 /** Inject into mountDock: these panels wait for a GitHub snapshot that has content. */
 export function githubPanelAvailability(app: ReviewApp): PanelAvailability {
@@ -24,3 +25,7 @@ export function dockThread(app: ReviewApp, id: string, title: string) {
   }
   showPanel(app, pid);
 }
+
+/** Last round applies while a round has threads from the last one: a page of Read on a phone; the dock floats it in
+ *  once per round (recap.ts). */
+export const recapAvailable = (app: ReviewApp) => app.state.round >= 2 && Object.values(recapThreads(app.state)).some((ts) => ts.length);

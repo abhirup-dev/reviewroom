@@ -10,12 +10,12 @@ import type { ReviewApp } from '../app';
 import { definePanel, ensurePanel, floatInPlace, putBack, type PanelInstance } from '../kernel/dock';
 import { renderPreview } from '../review/previews';
 import { anchorChip, messageList } from './view';
+import { recapAvailable } from './docking';
 
 /** A new round the agent has answered: float the panel over the dock, once per round in this tab. */
 export function recapOnNewRound(app: ReviewApp) {
   const key = `reviewroom:recap:${app.meta.id}`;
-  const { active, rest, stale } = recapThreads(app.state);
-  if (app.state.round < 2 || sessionStorage.getItem(key) === String(app.state.round) || !(active.length + rest.length + stale.length) || !app.state.threads.some((t) => app.services.threads.unreadAgent(t))) return;
+  if (!recapAvailable(app) || sessionStorage.getItem(key) === String(app.state.round) || !app.state.threads.some((t) => app.services.threads.unreadAgent(t))) return;
   sessionStorage.setItem(key, String(app.state.round));
   ensurePanel(app, 'recap');
   app.dock?.getPanel('narrative')?.api.setActive(); // the docked spot keeps showing the narrative
