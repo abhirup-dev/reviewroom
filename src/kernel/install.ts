@@ -7,7 +7,7 @@ import { backdropCloses, h, icon } from './dom';
 type InstallPrompt = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 
 let deferred: InstallPrompt | null = null;
-const standalone = () => matchMedia('(display-mode: standalone)');
+const standalone = () => matchMedia('(display-mode: standalone), (display-mode: fullscreen)'); // installed (manifest: fullscreen)
 /** iPhone, iPad, or an iPad asking for the desktop site (it says MacIntel but has touch). */
 const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 

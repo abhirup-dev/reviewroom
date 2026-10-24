@@ -29,7 +29,7 @@ test('chrome: a touch while shown restarts the wait; a touch while immersive doe
   expect(c.is()).toBe('immersive');
   c.a.send({ type: 'touch' });
   expect(c.is()).toBe('immersive');
-  c.a.send({ type: 'wake' }); // navigation, the restore button, a tap on the content
+  c.a.send({ type: 'wake' }); // Show controls
   expect(c.is()).toBe('shown');
 });
 

@@ -49,7 +49,7 @@ export async function expectClientHeaders(url: string, api: string) {
     if (p === 'manifest.webmanifest') {
       expect(r.headers.get('content-type')).toStartWith('application/manifest+json');
       const m = await r.json();
-      expect(m).toMatchObject({ name: 'reviewroom', start_url: './', scope: './', display: 'standalone' });
+      expect(m).toMatchObject({ name: 'reviewroom', start_url: './', scope: './', display: 'fullscreen' });
       expect('id' in m).toBe(false); // an id, or a new start_url, orphans installed icons
       for (const i of m.icons) expect((await fetch(new URL(i.src, url + p))).status).toBe(200);
     }

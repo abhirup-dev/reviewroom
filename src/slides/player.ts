@@ -350,18 +350,15 @@ export function mountWalkthrough(app: ReviewApp) {
     };
     orient();
     land.onchange = orient; // ?phone in a window turned; a phone reloads into the other shell anyway
-    // touching anything while the chrome shows keeps it up
+    // touching anything while the chrome shows keeps it up; once immersive, only Show controls brings it back
     player.addEventListener('touchstart', () => chrome.send({ type: 'touch' }), { passive: true, capture: true });
-    // a tap on the content brings it back (one on a link, a chip or a selection does what it does, and navigating wakes it anyway)
-    player.addEventListener('click', (e) => {
-      if (immersive() && ((e.target as Element).closest(`button, a, ${REF_ELEMENTS}`) || getSelection()?.toString())) return;
-      wake();
-    }, true);
+    player.addEventListener('click', () => chrome.send({ type: 'touch' }), true);
     // full screen while it plays (Fullscreen API): no status or navigation bar, and the code under a cutout too. It
     // needs a tap, so the opening tap and every later one ask; once the reviewer leaves it (Back), only a reopen asks
     let declined = false;
+    const installedFullscreen = matchMedia('(display-mode: fullscreen)').matches; // the installed app already is (manifest): asking again only shows Chrome's notice
     const fullscreen = () => {
-      if (declined || !document.fullscreenEnabled || document.fullscreenElement || !actor.getSnapshot().matches({ open: 'playing' })) return;
+      if (declined || installedFullscreen || !document.fullscreenEnabled || document.fullscreenElement || !actor.getSnapshot().matches({ open: 'playing' })) return;
       document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); // no tap to go on: the next one asks
     };
     player.addEventListener('pointerup', fullscreen, true);
@@ -385,7 +382,7 @@ export function mountWalkthrough(app: ReviewApp) {
       if (playing) fullscreen();
       else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
       if (!playing) declined = false;
-      chrome.send({ type: playing ? 'wake' : 'stop' });
+      chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
     });
     app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), sheet.remove()));
   }

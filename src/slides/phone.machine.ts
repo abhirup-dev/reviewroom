@@ -3,8 +3,8 @@
 //   chromeMachine   off ─wake─▶ shown ─(IDLE_MS untouched)─▶ immersive ─wake─▶ shown
 //                   off: paused or closed (`stop` from any state). shown: a `wake` or a `touch` restarts the wait;
 //                   `held` (a menu, the composer or a selection open) waits another IDLE_MS. immersive: the bars fade,
-//                   the toolbar is one round button; a `touch` does nothing there (a tap on the content, the button or a
-//                   slide change send `wake`)
+//                   the toolbar is one round button; a `touch` (a tap, a swipe, a drag, a slide change) does nothing
+//                   there; only Show controls sends `wake`
 //
 //   cardMachine     the slide card, a bottom sheet with detents collapsed (0), default (1), tall (2)
 //                   rest ─grab─▶ dragging ─release / cancel─▶ settling ─(SETTLE_MS)─▶ rest

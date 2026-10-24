@@ -4,7 +4,7 @@
   "description": "Agent-guided code reviews",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "any",
   "theme_color": "#e4e2db",
   "background_color": "#e4e2db",
