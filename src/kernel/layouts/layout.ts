@@ -5,7 +5,7 @@ import type { ReviewApp } from '../../app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
-import { addDockPanel, createDock, isFloating, panelDef, panelDefs } from '../dock';
+import { addDockPanel, createDock, isFloating, ownPanels, panelDef, panelDefs } from '../dock';
 import { isTablet } from '../device';
 
 /** Conditional panels are offered once, when their provider first has content. */
@@ -22,9 +22,6 @@ export interface MountDockOptions {
 // the dock was built from, which undo brings back with it.
 type Snapshot = { raw: string; key: string; w: number; h: number; layout?: string };
 
-// the panels reviewroom itself defines; any other a layout leaves out (an agent's own) joins the walkthrough's tabs
-const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap'];
-
 export class Layouts {
   /** The reviewer's saved layouts by id, beside the shipped ones. */
   saved: Record<string, Layout> = {};
@@ -40,7 +37,9 @@ export class Layouts {
   private undoStack: Snapshot[] = [];
   private last?: Snapshot;
   /** The dock, once mounted. */
-  private api!: DockviewApi;
+  private get api() {
+    return this.app.dock!;
+  }
 
   constructor(private app: ReviewApp) {}
 
@@ -171,7 +170,7 @@ export class Layouts {
   mount(host: HTMLElement, saved: LastLayout | null, options: MountDockOptions = {}): DockviewApi {
     const app = this.app;
     this.availability = options.panelAvailability;
-    const api = (this.api = createDock(app, host));
+    const api = createDock(app, host);
     let restored = false;
     if (saved) {
       try {

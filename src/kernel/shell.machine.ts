@@ -1,6 +1,6 @@
 // The phone shell's navigation, render-agnostic (the view, src/kernel/phone.ts, mounts panels and keeps history):
 //
-//   area      one of four (Read, Code, Threads, Files), each with its pages and the one its pager shows
+//   area      one of the areas (layouts/phone.json), each with its pages and the one its pager shows
 //   sheets    on-demand panels (a thread, a code pop-out) over the area, the front one last
 //   code      the code sheet (codesheet.machine.ts), invoked: a code link outside the Code area peeks
 //   stack     what Back undoes, oldest first: each layer opened (a dialog such as the menu or search, the peek, a
@@ -49,7 +49,7 @@ export type ShellEvent =
   | { type: 'code.shut' }
   | { type: 'code.full' };
 
-const AREAS: AreaId[] = ['read', 'code', 'threads', 'files'];
+export const AREAS: AreaId[] = ['read', 'code', 'threads', 'files'];
 const each = <T>(f: (a: AreaId) => T) => Object.fromEntries(AREAS.map((a) => [a, f(a)])) as Record<AreaId, T>;
 
 export const areaOf = (c: ShellContext, id: string) => AREAS.find((a) => c.pages[a].includes(id));

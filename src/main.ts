@@ -116,7 +116,6 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   injectCSS();
   defineElements();
   const app = new ReviewApp(root, createReviewServices, wantsPhone() ? 'phone' : 'dock');
-  const phone = app.presentation.kind === 'phone';
   startUpdates(app); // before loading: an old shell that can't load the review still updates
   app.applyTheme();
   const themeQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -170,6 +169,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   provideFocusCode(app, { openFile: (path, view, at) => openInNewPanel(app, path, view, 'center', undefined, at) });
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
+  const phone = app.presentation.kind === 'phone';
   root.replaceChildren(phone ? buildPhoneBar(app, phoneBar(app)) : buildHeader(app, {
     status: roundStatusControls,
     beforeLayout: () => [
@@ -199,7 +199,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       openThreads: () => openThreadCount(app),
     });
   else app.layout.mount(dockHost, turnedPhone() ? null : lastLayout, { panelAvailability: githubPanelAvailability(app), save: !turnedPhone() });
-  watchShell(app, phone);
+  watchShell(app);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.onDispose(app.commands.attach(document));
@@ -225,7 +225,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     sessionStorage.removeItem('reviewroom:scroll');
     requestAnimationFrame(() => document.querySelector('.rr-narrative-scroll')?.scrollTo({ top: +y }));
   }
-  restoreShell(app, phone);
+  restoreShell(app);
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
   recapOnNewRound(app);
@@ -239,7 +239,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       },
       () => {},
     );
-    if (!phone) app.bus.on('state', () => app.layout.offerAvailable()); // the phone shell repaints its pages on state itself
+    if (app.presentation.canArrange) app.bus.on('state', () => app.layout.offerAvailable()); // the phone shell repaints its pages on state itself
     // colleagues comment while you read: refetch when you come back to the tab
     app.listen(document, 'visibilitychange', () => {
       if (document.visibilityState === 'visible' && app.github?.ok && age() > 30_000) app.services.github.refresh().catch(() => {});

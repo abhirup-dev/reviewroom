@@ -26,7 +26,8 @@ const KEY = 'reviewroom:shell';
 /** When the screen stops suiting the shell picked at boot (a phone rotated, a foldable opened), reload into the right
  *  one, keeping the panel in front and the open file (restoreShell; the walkthrough's slide rides in the URL). Over
  *  unsent work, offer the reload instead. */
-export function watchShell(app: ReviewApp, phone: boolean) {
+export function watchShell(app: ReviewApp) {
+  const phone = app.presentation.kind === 'phone';
   const check = () => {
     if (wantsPhone() === phone) return;
     removeEventListener('resize', check);
@@ -45,11 +46,11 @@ export function watchShell(app: ReviewApp, phone: boolean) {
 }
 
 /** After watchShell's reload: the panel that was in front, and the file that was open. */
-export function restoreShell(app: ReviewApp, phone: boolean) {
+export function restoreShell(app: ReviewApp) {
   const saved = JSON.parse(sessionStorage.getItem(KEY) ?? 'null') as { front?: string; file?: string } | null;
   sessionStorage.removeItem(KEY);
   if (!saved) return;
   // the phone shows one area: there the file only when Code was in front; the dock shows code beside the rest
-  if (saved.file && (!phone || saved.front === 'code')) app.bus.emit('reveal-code', { path: saved.file, side: 'head' });
+  if (saved.file && (app.presentation.kind !== 'phone' || saved.front === 'code')) app.bus.emit('reveal-code', { path: saved.file, side: 'head' });
   if (saved.front && !saved.front.includes(':')) ensurePanel(app, saved.front); // not a thread or a filtered list: those need their params
 }

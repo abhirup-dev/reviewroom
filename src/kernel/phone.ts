@@ -1,4 +1,4 @@
-// Phone shell: the same panels as the dock, grouped into four areas along the bottom (Read, Code, Threads, Files).
+// Phone shell: the same panels as the dock, grouped into areas along the bottom (layouts/phone.json).
 // An area with several pages has tabs along its top and pages side by side in a horizontal scroll-snap pager: a
 // sideways swipe follows the finger and snaps (native scrolling, so vertical scroll, text selection and long press
 // keep working). On-demand panels (a thread, a code pop-out) open as a full-screen sheet over them with a back
@@ -6,10 +6,10 @@
 // the app doesn't know. What depends on features (which pages apply, the open thread count) comes in as options.
 import { h, icon, onDrag } from './dom';
 import type { AppEvents, ReviewApp } from '../app';
-import { panelDefs, type PanelInstance, type PanelSurface } from './dock';
+import { ownPanels, panelDefs, type PanelInstance, type PanelSurface } from './dock';
 import type { MountDockOptions } from './layouts/layout';
 import { createActor, type ActorRefFrom } from 'xstate';
-import { areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
+import { AREAS as AREA_IDS, areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
 import { rising, type codeSheetMachine } from './codesheet.machine';
 import { gestureMachine } from './gesture.machine';
 import phoneLayout from './layouts/phone.json';
@@ -24,7 +24,7 @@ export interface PhoneOptions {
 }
 
 /** The phone shell in place of the dock (main.ts picks one at boot). */
-export function mountPhone(app: ReviewApp, host: HTMLElement, options: MountDockOptions & PhoneOptions) {
+export function mountPhone(app: ReviewApp, host: HTMLElement, options: PhoneOptions & Pick<MountDockOptions, 'panelAvailability'>) {
   const availability = options.panelAvailability;
   app.root.classList.add('is-phone');
   app.surface = new PhoneShell(app, host, {
@@ -39,14 +39,13 @@ type Area = { id: AreaId; el: HTMLElement; strip: HTMLElement; ind: HTMLElement;
 
 // the areas and their pages, in order (layouts/phone.json: the phone's counterpart of the dock's shipped layouts)
 const AREAS = phoneLayout.areas as { id: AreaId; title: string; icon: Parameters<typeof icon>[0]; pages: Page[] }[];
-/** reviewroom's own panels (the pages' kinds; on-demand ones never become pages); any other (an agent's) is a page of
- *  Read, as it joins the narrative's tabs in the dock */
-const OWN = AREAS.flatMap((a) => a.pages.map((p) => p.id.split(':')[0]));
+// the machine keeps its own list (it imports nothing): the two must agree
+if (AREAS.map((a) => a.id).join() !== AREA_IDS.join()) throw new Error('reviewroom: layouts/phone.json areas differ from shell.machine.ts');
 
 /** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
 const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
 
-export class PhoneShell implements PanelSurface {
+class PhoneShell implements PanelSurface {
   private open = new Map<string, Open>();
   private sheetIds = new Set<string>(); // mounted on-demand panels
   private areas = new Map<AreaId, Area>();
@@ -172,13 +171,13 @@ export class PhoneShell implements PanelSurface {
   private pagesOf(id: AreaId): Page[] {
     const pages: Page[] = [
       ...AREAS.find((a) => a.id === id)!.pages,
-      ...(id === 'read' ? panelDefs().filter((d) => !d.onDemand && !OWN.includes(d.id)).map((d) => ({ id: d.id, title: d.title })) : []),
+      ...(id === 'read' ? panelDefs().filter((d) => !d.onDemand && !ownPanels.includes(d.id)).map((d) => ({ id: d.id, title: d.title })) : []),
     ];
     return pages.filter((p) => this.opts.available(p.id));
   }
 
   /** The areas' pages, again whenever the PR's own panels or Last round may have come or gone (only what changed). */
-  paintBar() {
+  private paintBar() {
     for (const area of this.areas.values()) {
       const pages = this.pagesOf(area.id);
       const sig = pages.map((p) => p.id).join();

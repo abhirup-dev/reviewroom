@@ -25,8 +25,8 @@ export interface PanelInstance {
 }
 
 const registry = new Map<string, PanelDef>();
-/** Register a panel type. Agents can add their own (a metrics chart, a query runner...) from review.html. */
-/** Register a panel kind; the returned function restores what was registered under its id before. */
+/** Register a panel kind; agents can add their own (a metrics chart, a query runner...) from review.html. The returned
+ *  function restores what was registered under its id before. */
 export function definePanel(def: PanelDef) {
   const before = registry.get(def.id);
   registry.set(def.id, def);
@@ -34,6 +34,8 @@ export function definePanel(def: PanelDef) {
 }
 export const panelDefs = () => [...registry.values()];
 export const panelDef = (id: string) => registry.get(id);
+/** The panel kinds reviewroom itself defines; any other (an agent's) joins the narrative's tabs, a page of Read on a phone. */
+export const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap'];
 
 /** Create the dock surface; saved-layout selection and persistence belong to layout.ts. */
 export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
@@ -165,7 +167,7 @@ export interface PanelSurface {
   front(): string | undefined;
 }
 
-// The rest of the app asks for panels through these, never dockview itself: the phone shell replaces them.
+// The rest of the app asks for panels through these, never dockview itself: through `app.surface` (DockSurface or PhoneShell).
 export const hasPanel = (app: ReviewApp, id: string) => !!app.surface?.has(id);
 export const closePanel = (app: ReviewApp, id: string) => app.surface?.close(id);
 export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.surface?.setTitle(id, title);
@@ -259,7 +261,7 @@ class DockSurface implements PanelSurface {
 
 // ------------------------------------------------------------------ floating / docking helpers
 /** Where a floating window opens: right half of the dock, inside the viewport. */
-export function floatBox(api: DockviewApi, w = 0.5, hgt = 0.62) {
+function floatBox(api: DockviewApi, w = 0.5, hgt = 0.62) {
   const W = api.width || window.innerWidth;
   const H = api.height || window.innerHeight;
   const width = Math.round(Math.min(980, Math.max(420, W * w)));
@@ -268,7 +270,7 @@ export function floatBox(api: DockviewApi, w = 0.5, hgt = 0.62) {
 }
 
 /** A large window centred on the dock. */
-export function centerBox(api: DockviewApi) {
+function centerBox(api: DockviewApi) {
   const W = api.width || window.innerWidth;
   const H = api.height || window.innerHeight;
   const width = Math.round(W * 0.8);

@@ -1,5 +1,5 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
-// It owns data (meta, files, threads), preferences, navigation and the dock.
+// It owns data (meta, files, threads), preferences, navigation and the panel surface (dock or phone shell).
 import { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
 import { Commands } from './kernel/commands';
