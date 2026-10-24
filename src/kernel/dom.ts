@@ -148,7 +148,10 @@ export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number)
 /** A GitHub avatar URL asking for a `px`-wide image. */
 export const avatarUrl = (url: string, px: number) => url + (url.includes('?') ? '&' : '?') + 's=' + px;
 
-/** Touch has no hover: a finger held still ~450ms stands in for it. `fn` gets the press's composed path and returns
+/** How long a touch holds still to be a long press. */
+const LONG_PRESS_MS = 450;
+
+/** Touch has no hover: a finger held still LONG_PRESS_MS stands in for it. `fn` gets the press's composed path and returns
  *  true if it used the press; then the browser's own long-press menu and any click that follows are swallowed.
  *  Returns what removes its listeners. */
 export function onLongPress(fn: (path: EventTarget[]) => boolean): () => void {
@@ -164,7 +167,7 @@ export function onLongPress(fn: (path: EventTarget[]) => boolean): () => void {
     if (e.pointerType !== 'touch') return;
     ({ clientX: x, clientY: y } = e);
     const path = e.composedPath();
-    timer = setTimeout(() => (used = fn(path)), 450);
+    timer = setTimeout(() => (used = fn(path)), LONG_PRESS_MS);
   };
   const move = (e: PointerEvent) => Math.hypot(e.clientX - x, e.clientY - y) > 10 && cancel();
   const on: [string, EventListener][] = [

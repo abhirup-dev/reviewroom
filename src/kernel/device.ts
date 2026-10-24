@@ -7,7 +7,9 @@ import { ensurePanel, frontPanel } from './dock';
 const side = () => Math.min(screen.width, screen.height);
 // no matchMedia (tests without a DOM): the desktop
 const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-const small = () => touch() && side() <= 720;
+/** The shorter screen side, CSS px: a phone at most PHONE_MAX, a tablet at most TABLET_MAX. */
+const PHONE_MAX = 720, TABLET_MAX = 1024;
+const small = () => touch() && side() <= PHONE_MAX;
 const landscape = () => screen.orientation?.type.startsWith('landscape') ?? matchMedia('(orientation: landscape)').matches;
 const forced = () => new URLSearchParams(globalThis.location?.search).has('phone');
 /** The phone shell: a phone held upright, or `?phone` to try it on any device. */
@@ -15,10 +17,10 @@ export const wantsPhone = () => (small() && !landscape()) || forced();
 /** A phone on its side: the dock, from the `tablet` layout, never saved over the reviewer's last layout. */
 export const turnedPhone = () => small() && !wantsPhone();
 /** The guided review's phone player: a phone either way up, under either shell (or `?phone`); tablets and computers
- *  get the desktop player. Its portrait or landscape variant follows the viewport (slides/player.ts). */
+ *  get the desktop player. Its portrait or landscape variant follows the viewport (slides/player.phone.ts). */
 export const phonePlayer = () => small() || forced();
 /** A tablet (touch, shorter side 721–1024px) or a turned phone: the dock, starting from the `tablet` layout. */
-export const isTablet = () => touch() && side() <= 1024 && !wantsPhone();
+export const isTablet = () => touch() && side() <= TABLET_MAX && !wantsPhone();
 
 const KEY = 'reviewroom:shell';
 /** When the screen stops suiting the shell picked at boot (a phone rotated, a foldable opened), reload into the right

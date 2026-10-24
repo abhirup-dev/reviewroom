@@ -1,9 +1,9 @@
-// The phone's guided review, render-agnostic (the view, src/slides/player.ts, measures, renders and sends):
+// The phone's guided review, render-agnostic (the view, src/slides/player.phone.ts, measures, renders and sends):
 //
 //   chromeMachine   off ─wake─▶ shown ─(IDLE_MS untouched)─▶ immersive ─wake─▶ shown
 //                   off: paused or closed (`stop` from any state). shown: a `wake` or a `touch` restarts the wait;
-//                   `held` (a menu, the composer or a selection open) waits another IDLE_MS. immersive: the bars fade,
-//                   the toolbar is one round button; a `touch` (a tap, a swipe, a drag, a slide change) does nothing
+//                   `held` (a menu, the composer or a selection open) waits another IDLE_MS. immersive: the bars and the
+//                   toolbar fade, Show controls in the card's corner; a `touch` (a tap, a swipe, a drag, a slide change) does nothing
 //                   there; only Show controls sends `wake`
 //
 //   cardMachine     the slide card, a bottom sheet with detents collapsed (0), default (1), tall (2)
@@ -15,7 +15,7 @@
 import { assign, setup } from 'xstate';
 
 export const IDLE_MS = 4000;
-/** The card's glide to a detent (phone.css); not transitionend: reduced motion has no transition. */
+/** The card's glide to a detent (slides.phone.css); not transitionend: reduced motion has no transition. */
 export const SETTLE_MS = 400;
 /** A release this far past where it started moves at least one detent its way. */
 const FLICK = 40;

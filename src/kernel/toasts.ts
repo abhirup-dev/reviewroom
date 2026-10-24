@@ -1,6 +1,9 @@
 import { h } from './dom';
 import type { ReviewApp } from '../app';
 
+/** How long a toast shows; one with a button stays long enough to reach it. */
+const SHOW_MS = 2600, ACTION_MS = 10000;
+
 // ================================================================ toasts
 export function mountToasts(app: ReviewApp) {
   const host = h('div', { class: 'rr-toasts', 'aria-live': 'polite', popover: 'manual' });
@@ -14,7 +17,7 @@ export function mountToasts(app: ReviewApp) {
     host.hidePopover();
     host.showPopover();
     // one with a button stays long enough to reach it
-    const ms = action ? 10000 : 2600;
+    const ms = action ? ACTION_MS : SHOW_MS;
     setTimeout(() => t.classList.add('is-out'), ms);
     setTimeout(() => t.remove(), ms + 400);
   });

@@ -30,12 +30,15 @@ export type PhoneParts = {
   chapterBtn: HTMLElement;
 };
 
-/** A phone plays full screen (phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
+/** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
  *  floating toolbar of Back, Contents, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
- *  untouched the chrome fades and the toolbar shrinks to a round button that brings it back (chromeMachine); the card
+ *  untouched the chrome fades, and only Show controls in the card's corner brings it back (chromeMachine); the card
  *  drags between one line, its text and tall (cardMachine); it swipes sideways to the next or previous slide
- *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient, phone.css) the slide is a column
+ *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
+/** How far sideways a swipe on the card goes to turn the slide. */
+const SWIPE_PX = 60;
+
 export function phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, more, prev, next, comment, chapterBtn }: PhoneParts) {
   const ctx = () => actor.getSnapshot().context;
   if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
@@ -52,7 +55,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
   // Contents: a bottom sheet of the chapters, the current one open on its slides. A <dialog>, so the chrome holds
-  // while it's open and Back closes it (kernel/sheet.ts); kept, so it can slide away (slides.phone.css)
+  // while it's open and Back closes it (PhoneShell's watchDialogs); kept, so it can slide away (slides.phone.css)
   const sheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1' });
   const jump = (chapter: number, step: number) => (sheet.close(), actor.send({ type: 'goto', chapter, step }));
   const gist = (html: string) => Object.assign(h('div'), { innerHTML: sanitizeProse(html) }).textContent.trim();
@@ -138,19 +141,18 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
     touch.send({ type: 'end', ...pt(e) });
     const g = touch.getSnapshot();
     if (g.matches('vertical')) card.send({ type: 'release', dy: g.context.dy });
-    else if (g.matches('horizontal') && !getSelection()?.toString() && Math.abs(g.context.dx) > 60) (g.context.dx < 0 ? next : prev).click();
+    else if (g.matches('horizontal') && !getSelection()?.toString() && Math.abs(g.context.dx) > SWIPE_PX) (g.context.dx < 0 ? next : prev).click();
   });
   // scrolling the code brings a tall card back to its default, so the code it covered shows
   right.addEventListener('touchmove', () => !land.matches && detent() === 2 && card.getSnapshot().matches('rest') && size(1), { passive: true });
   // immersive (chromeMachine): IDLE_MS after the last touch or slide change, never while a menu, the composer or a
-  // selection is open, the top bar fades and the toolbar shrinks to one round button in the corner, which grows it
-  // back (so does a tap on the content)
+  // selection is open, the top bar and the toolbar fade; Show controls, in the card's corner, brings them back
   const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
   const chrome = createActor(chromeMachine.provide({ guards: { held } })).start();
   const immersive = () => chrome.getSnapshot().matches('immersive');
   chrome.subscribe(() => player.classList.toggle('is-immersive', immersive()));
   const wake = () => chrome.send({ type: 'wake' });
-  const restore = h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20)); // immersive only (phone.css)
+  const restore = h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20)); // immersive only (slides.phone.css)
   // upright: Show controls in the card's corner, the toolbar at the screen's foot; on its side: Show controls top
   // right, the toolbar at the foot of the code
   const orient = () => {

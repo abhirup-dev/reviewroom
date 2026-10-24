@@ -1,6 +1,7 @@
 # Phone design: Material 3 Expressive on the Reading Desk
 
-The phone shell (`src/kernel/phone.ts`, `src/kernel/styles/phone.css`) follows Material 3 Expressive (M3E) for shape,
+The phone shell (`src/kernel/phone.ts`, `src/kernel/styles/phone.css`; each feature's phone rules in its own
+`*.phone.css`, the guided review's player in `src/slides/player.phone.ts`) follows Material 3 Expressive (M3E) for shape,
 touch, and motion, and keeps reviewroom's own colour, type, and restraint (`DESIGN.md`). Desktop and the tablet dock
 are unchanged; everything here is scoped to `.rr-phone`, the guided review's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
 
@@ -58,7 +59,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
 - **Navigation bar** (M3E flexible, 64px + safe-area): 4 items, 24px icons, 12px labels (not bold when selected).
   Active indicator 56×32 full pill in `--rr-accent-soft`, icon in `--rr-accent`. Badges: orange, 16px, top-end of
   the icon. The indicator grows from the centre with the fast spatial spring when switching.
-- **Code sheet** (standard bottom sheet): extra-large top corners, drag handle 32×4 in a 48px touch strip, header with
+- **Code sheet** (standard bottom sheet): extra-large top corners, drag handle 32×4 in a 24px strip (with the header row under it, 72px drag), header with
   file (mono 13), a line chip, and expand / close icon buttons. Detents: peek 40%, full → becomes the Code area.
   Shadow `--rr-shadow-lg`; no scrim at peek (the text stays usable), scrim only while dragging above 70%.
 - **Code area**: files as medium-radius cards on `--rr-surface-well`, 8px apart; sticky file header (surface-container,

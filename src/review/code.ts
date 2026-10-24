@@ -36,6 +36,9 @@ import { formatRef } from '../kernel/refs/refs.shared';
 const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
 /** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */
 const HEADER_HEIGHT = 38;
+// the guided review on a phone: the last lines can rise to just above the slide card at its default
+// (slides.phone.css: 40dvh, 84px up)
+const CARD_SHARE = 0.4, CARD_LIFT_PX = 96;
 /** Stands in for a file whose contents can't be shown (binary, unreadable): the header alone. */
 const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hunks: [], splitLineCount: 0, unifiedLineCount: 0, isPartial: false, deletionLines: [], additionLines: [] });
 
@@ -380,7 +383,7 @@ class CodePanel implements PanelInstance {
       disableFileHeader: this.mode === 'file',
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
       // the guided review on a phone: room to scroll the last lines above the slide card and toolbar over the code
-      layout: this.app.presentation.kind === 'phone' && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * 0.4) + 96 /* the last lines can rise to just above the slide card at its default (phone.css: 40dvh, 84px up) */, gap: 8 } : undefined,
+      layout: this.app.presentation.kind === 'phone' && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX, gap: 8 } : undefined,
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,

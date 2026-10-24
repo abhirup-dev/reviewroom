@@ -11,7 +11,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `slides/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
 - The guided walkthrough (`walkthrough.json`): schema and PR block in `src/slides/model.shared.ts`, player in
-  `src/slides/player.ts`, CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
+  `src/slides/player.ts` (its phone and desktop parts in `player.phone.ts`, `player.desktop.ts`), CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks), `cli/lib/slides-file.ts` (file and PR-block helpers), and `cli/lib/render.ts` (the headless browser,
   `Bun.WebView`: its only user).
 - `e2e/`: the built CLI under Bun against the demo repo. `examples/`: demo review and demo repo script.
@@ -59,6 +59,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Domain services take narrow typed capabilities and live getters, never `ReviewApp` or DOM dependencies.
   `src/services.ts` composes code, thread and GitHub services; boot supplies the factory to the app; callers use
   `app.services.*`. `rr.app` is internal and may change; review pages use only the documented `window.rr` API. Provider contracts live in `src/kernel/providers/contracts.ts`, separate from implementations.
+- The presentation is chosen once (`app.presentation`: the dock or the phone shell). Features expose panels, commands
+  and events and don't branch on phone vs desktop; phone-only or desktop-only UI lives in its presentation's files
+  (`src/kernel/phone.ts`, `*.phone.ts`, `*.desktop.ts`, `*.phone.css`). Checks on input modality (touch, `hover: none`)
+  are fine anywhere.
 - Colours and fonts only through `--rr-*` tokens (`src/kernel/styles/tokens.css`).
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).
 - No raw `rr:` strings, ids or CSS paths in visible text: use `app.label()` / `describeElement()`.
@@ -66,7 +70,7 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Use `walkthrough` for the freeform explanation (`src/review/walkthrough.ts`) and `slides` for guided-walkthrough
   modules (`src/slides/`). Preserve the existing `narrative` panel/scope/CSS identifiers, `narrative-focus` layout
   key, `walkthrough.json`, `rr:tour` links and public API names for compatibility.
-- Runtime dependencies flow `threads`/`walkthrough` -> `review` -> `kernel`; `hub` -> `kernel`.
+- Runtime dependencies flow `threads`/`slides` -> `review` -> `kernel`; `hub` -> `kernel`.
   Root composition modules may import all features. `bun run check` rejects runtime cycles and layer violations.
 - Type-only dependencies may reference `ReviewApp` at the composition root or shared contracts; otherwise follow layers.
 - Shared contracts import only shared contracts and DOM-free dependencies. Machines import no views or app.
