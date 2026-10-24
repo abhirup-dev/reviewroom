@@ -89,7 +89,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   chapter intro opens its first slide; on the others it folds to its first line with More, and a swipe up (or a tall
   card) opens it. The code is one sheet on the code surface to the bottom edge. The walkthrough's progress (chapters ×
   slides) is a thin row at the screen's foot, always shown.
-- **Guided review on its side**: the phone player goes by the device (`phonePlayer()` in `src/kernel/device.ts`: a
+- **Guided review on its side**: the phone player goes by the device (`usesPhonePlayer()` in `src/kernel/device.ts`: a
   phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get
   the desktop player. It marks itself `data-form="phone"` and `data-orient` (the viewport's, live), and its styles key
   off those. Landscape: the slide is a column on the left, the code on the right edge to edge, the desktop's draggable

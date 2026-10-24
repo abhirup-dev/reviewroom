@@ -36,8 +36,8 @@ import { formatRef } from '../kernel/refs/refs.shared';
 const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
 /** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */
 const HEADER_HEIGHT = 38;
-// the guided review on a phone: the last lines can rise to just above the slide card at its default
-// (slides.phone.css: 40dvh, 84px up)
+// the guided review with its card below the code: the last lines can rise to just above the card at its default
+// (slides.phone.css: 40dvh, 84px up, plus a 12px gap)
 const CARD_SHARE = 0.4, CARD_LIFT_PX = 96;
 /** Stands in for a file whose contents can't be shown (binary, unreadable): the header alone. */
 const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hunks: [], splitLineCount: 0, unifiedLineCount: 0, isPartial: false, deletionLines: [], additionLines: [] });
@@ -119,6 +119,8 @@ class CodePanel implements PanelInstance {
   private optionsInit = false;
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
+  /** Embedded: the phone player's slide card sits over the code's lower part (player.phone.ts, upright). */
+  private cardBelow: boolean;
   /** Embedded: the walkthrough's name for this chunk, first in the toolbar (its own path label is left out). */
   private head?: HTMLElement;
   /** Reveals (src/review/reveal.machine.ts): a new one cancels the last one's wait, unfold and glow. */
@@ -130,6 +132,7 @@ class CodePanel implements PanelInstance {
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
+    this.cardBelow = !!params.cardBelow;
     this.head = params.head as HTMLElement | undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
@@ -382,8 +385,8 @@ class CodePanel implements PanelInstance {
       stickyHeaders: true,
       disableFileHeader: this.mode === 'file',
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
-      // the guided review on a phone: room to scroll the last lines above the slide card and toolbar over the code
-      layout: this.app.presentation.kind === 'phone' && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX, gap: 8 } : undefined,
+      // the slide card below: room to scroll the last lines above it and the toolbar over the code
+      layout: this.cardBelow ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX, gap: 8 } : undefined,
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,
@@ -523,14 +526,14 @@ class CodePanel implements PanelInstance {
     return !signal.aborted;
   }
 
-  /** Highlight the target's lines and scroll them to 30% from the top (a phone's guided review: the top). */
+  /** Highlight the target's lines and scroll them to 30% from the top (the slide card below: the top). */
   private land(t: CodeTarget) {
     const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
-    // a phone's guided review: to the top, clear of the slide card over the code's lower part
-    const offset = this.app.presentation.kind === 'phone' && this.embedded ? 8 : this.scroller.clientHeight * 0.3;
+    // the slide card below: to the top, clear of it over the code's lower part
+    const offset = this.cardBelow ? 8 : this.scroller.clientHeight * 0.3;
     this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset });
   }
 

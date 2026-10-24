@@ -18,7 +18,7 @@ export const wantsPhone = () => (small() && !landscape()) || forced();
 export const turnedPhone = () => small() && !wantsPhone();
 /** The guided review's phone player: a phone either way up, under either shell (or `?phone`); tablets and computers
  *  get the desktop player. Its portrait or landscape variant follows the viewport (slides/player.phone.ts). */
-export const phonePlayer = () => small() || forced();
+export const usesPhonePlayer = () => small() || forced();
 /** A tablet (touch, shorter side 721–1024px) or a turned phone: the dock, starting from the `tablet` layout. */
 export const isTablet = () => touch() && side() <= TABLET_MAX && !wantsPhone();
 

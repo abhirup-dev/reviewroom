@@ -7,7 +7,7 @@
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { h, icon, onDrag } from '../kernel/dom';
-import { phonePlayer as phoneSized } from '../kernel/device';
+import { usesPhonePlayer } from '../kernel/device';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
@@ -25,6 +25,16 @@ import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
 
 let panes = 0;
+
+/** What the desktop and phone players (player.desktop.ts, player.phone.ts) do their own way. */
+type PlayerForm = {
+  contents(): void;
+  paintNav(cur: ReturnType<typeof current>): void;
+  /** each slide: fold the chapter intro its own way */
+  foldLead?(): void;
+  /** the slide card sits over the code's lower part: the code pane leaves it room */
+  cardBelow?(): boolean;
+};
 
 /** Where a slide's link lands in the code pane; null for links that show no code. */
 export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null> {
@@ -68,7 +78,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : slot.code ? h('span', { class: 'rr-tour__chunk-head' }) : null;
     if (head) nameHead(head, slot.ref);
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head }, id) : null;
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, cardBelow: form.cardBelow?.() }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     views.push({ panel, id, head });
@@ -111,24 +121,18 @@ export function mountWalkthrough(app: ReviewApp) {
   const chapterPrev = btn('chevron', 'Previous chapter', () => go(-1));
   const chapterNext = btn('chevron', 'Next chapter', () => go(1));
   chapterPrev.classList.add('rr-tour__flip');
-  const chapterBtn = h('button', { class: 'rr-tour__chapter', title: 'Jump to a chapter', 'aria-haspopup': 'menu', onclick: () => form.contents() });
+  const chapterBtn = h('button', { class: 'rr-tour__chapter', onclick: () => form.contents() });
   const position = h('span', { class: 'rr-tour__pos' });
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
-  // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back
+  // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back (a phone folds it
+  // its own way: form.foldLead)
   let leadOpen = true;
   const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
-  // a phone has no such toggle: the intro opens the chapter's first slide, and on the others is folded to its first
-  // line with More (unfolded for that slide only). The phone player goes by the device, either way up, under either shell
-  const phone = phoneSized();
-  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, title: 'Show the whole chapter intro', onclick: () => ((leadOpen = true), paintLead()) }, 'More');
   const paintLead = () => {
     const has = !!current(ctx()).chapter.lead;
-    const fold = phone && ctx().step > 0 && !leadOpen;
-    lead.hidden = !has || (!phone && !leadOpen);
-    lead.classList.toggle('is-folded', fold);
-    more.hidden = !has || !fold;
-    leadToggle.hidden = !has || phone;
+    lead.hidden = !has || !leadOpen;
+    leadToggle.hidden = !has;
     leadToggle.classList.toggle('is-closed', !leadOpen);
     leadToggle.title = leadOpen ? 'Hide the chapter intro' : 'Show the chapter intro';
     leadToggle.setAttribute('aria-label', leadToggle.title);
@@ -179,7 +183,7 @@ export function mountWalkthrough(app: ReviewApp) {
     badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
     progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
-  const left = h('div', { class: 'rr-tour__left' }, lead, more, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
+  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
   const openHere = btn('popout', 'Pause and open this in the workbench', () => {
     const [ref] = shownRefs();
     actor.send({ type: 'pause' });
@@ -213,12 +217,13 @@ export function mountWalkthrough(app: ReviewApp) {
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
-  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed', 'data-form': phone ? 'phone' : undefined }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
+  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
-  // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels
-  const form = phone
-    ? phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, more, prev, next, comment, chapterBtn })
+  // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
+  // The phone player goes by the device, either way up, under either shell
+  const form: PlayerForm = usesPhonePlayer()
+    ? phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
     : desktopPlayer({ actor, chapterBtn, next });
 
   const ctx = () => actor.getSnapshot().context;
@@ -282,8 +287,8 @@ export function mountWalkthrough(app: ReviewApp) {
       prose(lead, ch.lead ?? '');
       enter(lead);
     }
-    if (phone) leadOpen = left.dataset.detent === 'tall'; // each slide folds the intro again (but the chapter's first), unless the card is tall
     paintLead();
+    form.foldLead?.();
     position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);
     chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);
@@ -297,7 +302,6 @@ export function mountWalkthrough(app: ReviewApp) {
     );
     enter(stepBox);
     prev.toggleAttribute('disabled', cur.isFirst);
-    next.title = cur.isLast ? 'End the guided walkthrough' : 'Next slide';
     form.paintNav(cur);
     progress.replaceChildren(
       ...d!.chapters.map((c, ci) =>

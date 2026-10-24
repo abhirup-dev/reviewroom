@@ -9,10 +9,10 @@ import { gestureMachine } from '../kernel/gesture.machine';
 import type { ReviewApp } from '../app';
 import type { walkthroughMachine } from './player.machine';
 import { cardMachine, chromeMachine, type Detent } from './phone.machine';
-import type { current } from './model.shared';
+import { current } from './model.shared';
 
 /** The skeleton's parts the phone player rearranges and listens on. */
-export type PhoneParts = {
+type PhoneParts = {
   app: ReviewApp;
   actor: Actor<typeof walkthroughMachine>;
   root: HTMLElement;
@@ -23,24 +23,25 @@ export type PhoneParts = {
   bottom: HTMLElement;
   progress: HTMLElement;
   lead: HTMLElement;
-  more: HTMLElement;
+  leadToggle: HTMLElement;
   prev: HTMLElement;
   next: HTMLElement;
   comment: HTMLElement;
   chapterBtn: HTMLElement;
 };
 
-/** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
- *  floating toolbar of Back, Contents, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
- *  untouched the chrome fades, and only Show controls in the card's corner brings it back (chromeMachine); the card
- *  drags between one line, its text and tall (cardMachine); it swipes sideways to the next or previous slide
- *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
- *  beside the code, not a sheet over it. */
 /** How far sideways a swipe on the card goes to turn the slide. */
 const SWIPE_PX = 60;
 
-export function phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, more, prev, next, comment, chapterBtn }: PhoneParts) {
+/** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
+ *  floating toolbar of Back, Contents, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
+ *  untouched the chrome fades, and only Show controls in the card's corner brings it back (chromeMachine); the card
+ *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
+ *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
+ *  beside the code, not a sheet over it. */
+export function phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts) {
   const ctx = () => actor.getSnapshot().context;
+  root.dataset.form = 'phone';
   if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
   // the floating toolbar: Back, Contents, Comment and Next, plain icon buttons on one pill
   prev.replaceChildren(icon('chevron', 20));
@@ -54,8 +55,20 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
   next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents and comment' }, contents, comment));
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
+  // no intro toggle: the intro opens the chapter's first slide, and on the others is folded to its first line with More
+  // (unfolded for that slide only)
+  leadToggle.remove();
+  let leadOpen = true;
+  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, title: 'Show the whole chapter intro', onclick: () => ((leadOpen = true), paintLead()) }, 'More');
+  lead.after(more);
+  const paintLead = () => {
+    const fold = ctx().step > 0 && !leadOpen;
+    lead.classList.toggle('is-folded', fold);
+    more.hidden = !current(ctx()).chapter.lead || !fold;
+  };
   // Contents: a bottom sheet of the chapters, the current one open on its slides. A <dialog>, so the chrome holds
-  // while it's open and Back closes it (PhoneShell's watchDialogs); kept, so it can slide away (slides.phone.css)
+  // while it's open and Back closes it (PhoneShell's watchDialogs; under the dock, its own entry); kept, so it can slide
+  // away (slides.phone.css)
   const sheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1' });
   const jump = (chapter: number, step: number) => (sheet.close(), actor.send({ type: 'goto', chapter, step }));
   const gist = (html: string) => Object.assign(h('div'), { innerHTML: sanitizeProse(html) }).textContent.trim();
@@ -71,6 +84,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
           : null,
       ),
     );
+    // under the dock no PhoneShell gives the sheet a history entry: without one, Back would close the player under it
+    if (!sheet.open && app.presentation.kind !== 'phone') sheet.addEventListener('close', onBack(() => sheet.close()), { once: true });
     openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
     sheet.focus(); // the sheet, not its first chapter: no ring on open
     sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest' });
@@ -98,7 +113,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
   const paintCard = (s: SnapshotFrom<typeof cardMachine>) => {
     const d = s.context.detent;
     left.dataset.detent = DETENTS[d];
-    grip.title = d ? 'Collapse the slide to one line (or drag)' : 'Show the whole slide (or drag up)';
+    grip.title = d ? 'Collapse the slide to two lines (or drag)' : 'Show the whole slide (or drag up)';
     grip.setAttribute('aria-label', grip.title);
     grip.setAttribute('aria-expanded', String(d > 0));
     left.classList.remove('is-settling');
@@ -161,7 +176,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
     (land.matches ? split : player).append(bottom);
   };
   orient();
-  land.onchange = orient; // ?phone in a window turned; a phone reloads into the other shell anyway
+  land.addEventListener('change', orient); // ?phone in a window turned; a phone reloads into the other shell anyway
+  app.onDispose(() => land.removeEventListener('change', orient));
   // touching anything while the chrome shows keeps it up; once immersive, only Show controls brings it back
   player.addEventListener('touchstart', () => chrome.send({ type: 'touch' }), { passive: true, capture: true });
   player.addEventListener('click', () => chrome.send({ type: 'touch' }), true);
@@ -174,7 +190,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); // no tap to go on: the next one asks
   };
   player.addEventListener('pointerup', fullscreen, true);
-  document.addEventListener('fullscreenchange', () => {
+  app.listen(document, 'fullscreenchange', () => {
     if (!document.fullscreenElement && actor.getSnapshot().matches({ open: 'playing' })) declined = true;
   });
   let drop: (() => void) | undefined;
@@ -199,6 +215,10 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
   app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), sheet.remove()));
   return {
     contents: contentsSheet,
+    // each slide folds the intro again (but the chapter's first), unless the card is tall
+    foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
+    // upright, the card is over the code's lower part
+    cardBelow: () => !land.matches,
     // the last slide's Next is off: the top bar's close ends the walkthrough
     paintNav: ({ isFirst, isLast }: ReturnType<typeof current>) => {
       next.toggleAttribute('disabled', isLast);
