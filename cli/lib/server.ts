@@ -17,6 +17,8 @@ import { checkLinks, problems, report } from './links.ts';
 import { tourText } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { compress } from 'hono/compress';
+import { etag, RETAINED_304_HEADERS } from 'hono/etag';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
@@ -160,6 +162,8 @@ export function withHead(html: string) {
  * css, build-info.json, sw.js, the manifest) revalidates so a new build never mixes with stale files.
  */
 export function serveClient(app: Hono) {
+  // no-cache files revalidate: an unchanged 2 MB entry costs a 304, not a download (a phone on a slow tailnet)
+  for (const p of ['/_rr/*', '/manifest.webmanifest', '/sw.js']) app.use(p, etag({ retainedHeaders: [...RETAINED_304_HEADERS, 'x-reviewroom-pid', 'x-reviewroom-build'] })); // the hub proxy checks the pid on a 304 too
   const policy = (p: string) => (p.startsWith('/_rr/chunks/') ? 'public, max-age=31536000, immutable' : p.startsWith('/_rr/fonts/') ? 'max-age=86400' : 'no-cache');
   app.get('/_rr/*', async (c, next) => (c.header('cache-control', policy(c.req.path)), next()), serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
   app.get('/manifest.webmanifest', async (c, next) => (c.header('cache-control', 'no-cache'), next()), serveStatic({ root: DIST, mimes: { webmanifest: 'application/manifest+json' } }));
@@ -216,6 +220,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
 
   const app = new Hono();
   app.use(localOnly);
+  app.use(compress()); // skips the event stream (text/event-stream) and small bodies
   if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {

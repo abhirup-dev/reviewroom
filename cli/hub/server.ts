@@ -6,6 +6,7 @@
 //   ALL  /r/<review id>/*           the review whose dir hashes to the id, proxied to its server (ADR 0001)
 // Behind hubAccess: loopback, or the configured public origin.
 import { Hono } from 'hono';
+import { compress } from 'hono/compress';
 import { hubAccess } from './access.ts';
 import { assessCompatibility } from './compat.ts';
 import type { Hub } from './hub.ts';
@@ -29,6 +30,7 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
   const started = Date.now();
   const app = new Hono();
   app.use(guarded((c) => hubAccess(c, publicOrigin)));
+  app.use(compress()); // the phone's link is the slow one: compress here, proxied responses included
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.get('/', (c) => c.html(PAGE, 200, { 'cache-control': 'no-cache' }));
   serveClient(app);
@@ -43,12 +45,13 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
     const u = new URL(c.req.url);
     const headers = new Headers(c.req.raw.headers);
     headers.set('host', up);
+    headers.set('accept-encoding', 'identity'); // loopback: the review answers plain (fetch adds gzip if unset), the compress above encodes once
     if (headers.has('origin')) headers.set('origin', `http://${up}`);
     try {
       const res = await fetch(`http://${up}${u.pathname.slice(`/r/${id}`.length)}${u.search}`, { method: c.req.method, headers, body: c.req.raw.body, redirect: 'manual', signal: c.req.raw.signal });
       // another process took the port since the last poll: say nothing of what it answered
       if (res.headers.get('x-reviewroom-pid') !== String(s.pid)) return (void res.body?.cancel(), c.json({ error: 'the review server is gone' }, 502));
-      return res; // as the review sent it: its own cache, pid and build headers
+      return new Response(res.body, res); // as the review sent it (its cache, pid and build headers), with headers compress can set
     } catch (e) {
       return c.json({ error: `the review server did not answer: ${(e as Error).message}` }, 502);
     }

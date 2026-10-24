@@ -69,6 +69,15 @@ describe('hub', () => {
 
     test("passes the review's cache and build headers through unchanged", () => expectClientHeaders(r, 'api/state'));
 
+    test('gzips the entry once, and an unchanged entry revalidates as a 304', async () => {
+      const res = await fetch(r + '_rr/reviewroom.js', { headers: { 'accept-encoding': 'gzip' }, decompress: false });
+      expect(res.headers.get('content-encoding')).toBe('gzip');
+      const zipped = new Uint8Array(await res.arrayBuffer());
+      expect(Bun.gunzipSync(zipped).length).toBeGreaterThan(zipped.length * 2); // valid gzip, encoded once
+      const again = await fetch(r + '_rr/reviewroom.js', { headers: { 'if-none-match': res.headers.get('etag')! } });
+      expect(again.status).toBe(304);
+    });
+
     test('the event stream passes through and delivers an op', async () => {
       const ac = new AbortController();
       const res = await fetch(r + 'api/events', { signal: ac.signal });
