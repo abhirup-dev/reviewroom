@@ -1033,6 +1033,12 @@
   overflow: hidden;
   mask-image: linear-gradient(90deg, #000 70%, transparent);
 }
+/* the slide's collapsed card: two lines, fading out at the foot, clear of the Show controls icon */
+.rr-tour__left[data-detent='collapsed'] .rr-tour__text {
+  max-height: 3.2em;
+  padding-right: 40px;
+  mask-image: linear-gradient(#000 55%, transparent);
+}
 .rr-tour__left[data-detent='collapsed'] .rr-tour__text > *,
 .rr-tour__lead.is-folded > * {
   margin: 0;
@@ -1122,7 +1128,7 @@
 /* a one-line card is shorter than the icon: centred on its right edge instead */
 .is-phone .is-immersive .rr-tour__left[data-detent='collapsed'] .rr-tour__restore {
   position: absolute;
-  top: 50%;
+  top: calc(50% + 12px); /* the text's middle, under the grip */
   right: 8px;
   translate: 0 -50%;
   margin: 0;
