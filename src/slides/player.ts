@@ -6,7 +6,8 @@
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor, type SnapshotFrom } from 'xstate';
 import { backdropCloses, h, icon, onDrag, plural } from '../kernel/dom';
-import { isPhone, onBack } from '../kernel/phone';
+import { isPhone, onBack, watchBack } from '../kernel/phone';
+import { phonePlayer as phoneSized } from '../kernel/device';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
@@ -120,8 +121,8 @@ export function mountWalkthrough(app: ReviewApp) {
   let leadOpen = true;
   const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
   // a phone has no such toggle: the intro opens the chapter's first slide, and on the others is folded to its first
-  // line with More (unfolded for that slide only)
-  const phone = isPhone();
+  // line with More (unfolded for that slide only). The phone player goes by the device, either way up, under either shell
+  const phone = phoneSized();
   const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, title: 'Show the whole chapter intro', onclick: () => ((leadOpen = true), paintLead()) }, 'More');
   const paintLead = () => {
     const has = !!current(ctx()).chapter.lead;
@@ -198,28 +199,32 @@ export function mountWalkthrough(app: ReviewApp) {
   prev.classList.add('rr-tour__flip');
   const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
   const progress = h('div', { class: 'rr-tour__progress' });
+  const bottom = h('div', { class: 'rr-tour__bottom' }, prev, progress, next);
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
     h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
     (split.append(left, right), split),
-    h('div', { class: 'rr-tour__bottom' }, prev, progress, next),
+    bottom,
   );
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
-  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
+  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed', 'data-form': phone ? 'phone' : undefined }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   app.root.append(root);
   if (phone) phonePlayer();
   /** A phone plays full screen (phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
-   *  floating toolbar of Back, Contents | Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
+   *  floating toolbar of Back, Contents, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
    *  untouched the chrome fades and the toolbar shrinks to a round button that brings it back (chromeMachine); the card
    *  drags between one line, its text and tall (cardMachine); it swipes sideways to the next or previous slide
-   *  (gestureMachine). Back (the phone's) closes the player. */
+   *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient, phone.css) the slide is a column
+   *  beside the code, not a sheet over it. */
   function phonePlayer() {
-    // the floating toolbar: Back and Next round icon buttons either side of Contents | Comment, one joined pill
+    if (!isPhone()) watchBack(app); // a turned phone has the dock: no phone shell to hear Back
+    // the floating toolbar: Back, Contents, Comment and Next, plain icon buttons on one pill
     prev.replaceChildren(icon('chevron', 20));
     prev.className = 'rr-icon-btn rr-tour__back';
+    next.replaceChildren(icon('chevron', 20));
     next.className = 'rr-icon-btn rr-tour__fwd';
     comment.replaceChildren(icon('chat', 20));
     comment.className = 'rr-tour__comment';
@@ -252,6 +257,8 @@ export function mountWalkthrough(app: ReviewApp) {
       sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest' });
     };
     player.append(progress); // always on screen, over the code, even immersive
+    // the viewport, not the screen: `?phone` in a window follows its shape
+    const land = matchMedia('(orientation: landscape)');
     // the card: a bottom sheet with three detents, kept across slides (cardMachine); this measures and renders
     const DETENTS = ['collapsed', 'default', 'tall'] as const;
     const card = createActor(cardMachine).start();
@@ -294,7 +301,7 @@ export function mountWalkthrough(app: ReviewApp) {
     // claims that way (cardMachine's draggable), else the text scrolls
     const touch = createActor(gestureMachine).start();
     const pt = (e: TouchEvent) => ({ x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY });
-    const claims = (e: TouchEvent, up: boolean) => card.getSnapshot().can({ type: 'grab', up, grip: e.target === grip, scrollTop: left.scrollTop, height: 0, heights: [0, 0, 0] });
+    const claims = (e: TouchEvent, up: boolean) => !land.matches && card.getSnapshot().can({ type: 'grab', up, grip: e.target === grip, scrollTop: left.scrollTop, height: 0, heights: [0, 0, 0] });
     const cancel = () => (touch.send({ type: 'cancel' }), card.send({ type: 'cancel' }));
     left.addEventListener('touchstart', (e) => (e.touches.length === 1 ? touch.send({ type: 'start', ...pt(e), up: claims(e, true), down: claims(e, false) }) : cancel()), { passive: true });
     left.addEventListener('touchmove', (e) => {
@@ -323,7 +330,16 @@ export function mountWalkthrough(app: ReviewApp) {
     const immersive = () => chrome.getSnapshot().matches('immersive');
     chrome.subscribe(() => player.classList.toggle('is-immersive', immersive()));
     const wake = () => chrome.send({ type: 'wake' });
-    left.append(h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20))); // immersive only (phone.css)
+    const restore = h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20)); // immersive only (phone.css)
+    // upright: Show controls in the card's corner, the toolbar at the screen's foot; on its side: Show controls top
+    // right, the toolbar at the foot of the code
+    const orient = () => {
+      root.dataset.orient = land.matches ? 'landscape' : 'portrait';
+      (land.matches ? player : left).append(restore);
+      (land.matches ? split : player).append(bottom);
+    };
+    orient();
+    land.onchange = orient; // ?phone in a window turned; a phone reloads into the other shell anyway
     // touching anything while the chrome shows keeps it up
     player.addEventListener('touchstart', () => chrome.send({ type: 'touch' }), { passive: true, capture: true });
     // a tap on the content brings it back (one on a link, a chip or a selection does what it does, and navigating wakes it anyway)
@@ -380,7 +396,6 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ render the player's snapshot
   let last = { chapter: -1, step: -1, doc: null as Walkthrough | null };
-  let moved = false; // past the first slide once: Next stops nudging (phone)
   const prose = (el: HTMLElement, html: string) => (el.innerHTML = sanitizeProse(html));
   // the step (or chapter) changed: new content at once, a CSS entrance (nothing to race)
   const enter = (el: HTMLElement) => {
@@ -435,11 +450,12 @@ export function mountWalkthrough(app: ReviewApp) {
     prev.toggleAttribute('disabled', cur.isFirst);
     next.title = cur.isLast ? 'End the guided walkthrough' : 'Next slide';
     if (phone) {
-      // an icon (a check on the last slide); on the very first, a pulse to start until the reviewer has moved on
-      next.replaceChildren(icon(cur.isLast ? 'check' : 'chevron', 20));
+      // the last slide's Next is off: the top bar's close ends the walkthrough
+      next.toggleAttribute('disabled', cur.isLast);
+      next.title = cur.isLast ? 'Last slide' : 'Next slide';
+      prev.title = cur.isFirst ? 'First slide' : 'Previous slide';
       next.setAttribute('aria-label', next.title);
-      moved ||= !cur.isFirst;
-      next.classList.toggle('is-nudge', !moved);
+      prev.setAttribute('aria-label', prev.title);
     } else next.replaceChildren(cur.isLast ? 'Finish' : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
     progress.replaceChildren(
       ...d!.chapters.map((c, ci) =>

@@ -1,10 +1,12 @@
 /* Phone shell (kernel/phone.ts): four areas along the bottom, each a row of pages under its top tabs; on-demand
    panels as sheets over them. The look is Material 3 Expressive on reviewroom's tokens (docs/design/phone.md):
    colour, type and restraint from DESIGN.md; shape, touch and motion from M3E. Desktop and the tablet dock never
-   match these selectors (.is-phone, .rr-phone, :root:has(.is-phone) for the dialogs outside the root). */
+   match these selectors (.is-phone, .rr-phone, :root:has(.is-phone) for the dialogs outside the root). The guided
+   review's phone player keys off its own [data-form='phone'] (slides/player.ts): a phone gets it either way up, even
+   under the dock. */
 
 /* ---------------------------------------------------------------- phone tokens */
-:root:has(.is-phone) {
+:root:has(.is-phone, .rr-tour[data-form='phone']) {
   /* the M3 shape scale (desktop keeps 2px) */
   --rr-shape-xs: 4px;
   --rr-shape-s: 8px;
@@ -719,11 +721,11 @@
 }
 /* the M3 state layer: the content colour over the fill, 8% on hover (pointers only), 12% pressed */
 @media (hover: hover) {
-  :root:has(.is-phone) :is(.rr-btn--send:not([aria-disabled='true']), .rr-phonebar .rr-send-btn:enabled, .rr-tour__pair > button):hover {
+  :root:has(.is-phone) :is(.rr-btn--send:not([aria-disabled='true']), .rr-phonebar .rr-send-btn:enabled):hover {
     box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 8%, transparent);
   }
 }
-:root:has(.is-phone) :is(.rr-btn--send:not([aria-disabled='true']), .rr-phonebar .rr-send-btn:enabled, .rr-tour__pair > button):active {
+:root:has(.is-phone) :is(.rr-btn--send:not([aria-disabled='true']), .rr-phonebar .rr-send-btn:enabled):active {
   box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 12%, transparent);
 }
 /* with the keyboard up, the messages and what it's about give way first, then the reply box, so its buttons stay on
@@ -885,12 +887,13 @@
 }
 
 /* ---------------------------------------------------------------- guided review */
-/* slides/player.ts: the code under the whole screen, below a status bar of close and the chapter; the slide a
-   large-radius card floating over it; an M3E floating toolbar (full pill, 52px): Back and Next round icon buttons either
-   side of Contents | Comment, one joined pill. The walkthrough's progress a thin row at the foot, always on screen. Immersive (.is-immersive, 4 s
-   untouched): the bar and the toolbar fade, the code rises into the bar's place and fills the screen edge to edge, the
-   card drops to just above the progress row with a small Show controls icon in its corner. */
-.is-phone .rr-tour__player {
+/* slides/player.ts, on a phone either way up ([data-form='phone'], even under the dock). Upright: the code under the
+   whole screen, below a status bar of close and the chapter; the slide a large-radius card floating over it; an M3E
+   floating toolbar (full pill, 52px) of plain icon buttons: Back, Contents, Comment, Next. The walkthrough's progress a
+   thin row at the foot, always on screen. Immersive (.is-immersive, 4 s untouched): the bar and the toolbar fade, the
+   code rises into the bar's place and fills the screen edge to edge, the card drops to just above the progress row with
+   a small Show controls icon in its corner. On its side: see landscape, below. */
+[data-form='phone'] .rr-tour__player {
   inset: 0;
   border: 0;
   border-radius: 0;
@@ -899,23 +902,23 @@
   padding-top: env(safe-area-inset-top);
   background: var(--rr-surface-well);
 }
-.is-phone .rr-tour__top,
-.is-phone .rr-tour__bottom,
-.is-phone .rr-tour__right,
-.is-phone .rr-tour__left {
+[data-form='phone'] .rr-tour__top,
+[data-form='phone'] .rr-tour__bottom,
+[data-form='phone'] .rr-tour__right,
+[data-form='phone'] .rr-tour__left {
   transition:
     opacity 150ms ease-out,
     translate var(--rr-m-default-ms) var(--rr-m-default);
 }
-.is-phone .is-immersive .rr-tour__top {
+[data-form='phone'] .is-immersive .rr-tour__top {
   opacity: 0;
   pointer-events: none;
   translate: 0 -16px;
 }
-.is-phone .rr-tour__body {
+[data-form='phone'] .rr-tour__body {
   display: contents;
 }
-.is-phone .rr-tour__top {
+[data-form='phone'] .rr-tour__top {
   grid-area: 1 / 1;
   z-index: 2;
   height: var(--rr-phone-bar);
@@ -928,32 +931,32 @@
   align-content: center;
   column-gap: 4px;
 }
-.is-phone .rr-tour__top > .rr-toolbar__spacer {
+[data-form='phone'] .rr-tour__top > .rr-toolbar__spacer {
   display: none;
 }
 /* chapter arrows, open in the workbench and pause: the card and Back do those on a phone */
-.is-phone .rr-tour__top > .rr-tour__flip,
-.is-phone .rr-tour__top > .rr-icon-btn:not(:last-child) {
+[data-form='phone'] .rr-tour__top > .rr-tour__flip,
+[data-form='phone'] .rr-tour__top > .rr-icon-btn:not(:last-child) {
   display: none;
 }
-.is-phone .rr-tour__top > .rr-icon-btn:last-child {
+[data-form='phone'] .rr-tour__top > .rr-icon-btn:last-child {
   grid-column: 1;
   grid-row: 1 / span 2;
   width: 48px;
   height: 48px;
 }
-.is-phone .rr-tour__top > .rr-icon-btn:last-child .rr-icon {
+[data-form='phone'] .rr-tour__top > .rr-icon-btn:last-child .rr-icon {
   width: 24px;
   height: 24px;
 }
-.is-phone .rr-tour__pos {
+[data-form='phone'] .rr-tour__pos {
   display: block;
   grid-column: 2;
   grid-row: 2;
   margin: 0 0 0 4px;
   font-size: var(--rr-text-sm);
 }
-.is-phone .rr-tour__chapter {
+[data-form='phone'] .rr-tour__chapter {
   grid-column: 2;
   grid-row: 1;
   justify-self: start;
@@ -962,33 +965,33 @@
   padding: 0 4px;
   font: 600 16px var(--rr-font);
 }
-.is-phone .rr-tour__right {
+[data-form='phone'] .rr-tour__right {
   /* the whole screen, edge to edge, held under the bar until immersive (its bottom then runs off screen) */
   position: absolute;
   inset: 0;
   translate: 0 calc(var(--rr-phone-bar) + env(safe-area-inset-top));
 }
-.is-phone .rr-tour__resize {
+[data-form='phone'] .rr-tour__resize {
   display: none;
 }
-.is-phone .is-immersive .rr-tour__right {
+[data-form='phone'] .is-immersive .rr-tour__right {
   translate: none;
 }
 /* one sheet of code to the bottom edge: no file card on a darker well that ends where the diff does */
-.is-phone .rr-tour__right .rr-code-scroll {
+[data-form='phone'] .rr-tour__right .rr-code-scroll {
   background: var(--rr-surface-code);
 }
-.is-phone .rr-tour__right .rr-code-scroll diffs-container {
+[data-form='phone'] .rr-tour__right .rr-code-scroll diffs-container {
   margin-inline: 0;
   border-radius: 0;
   box-shadow: none;
 }
 /* room to scroll the last lines above the card: the code panel's own bottom padding (review/code.ts) */
-.is-phone .rr-tour__tools {
+[data-form='phone'] .rr-tour__tools {
   display: none;
 }
 /* the slide: a 16px card above the toolbar, at most ~40% of the screen, scrolling on its own */
-.is-phone .rr-tour__left {
+[data-form='phone'] .rr-tour__left {
   position: absolute;
   left: 12px;
   right: 12px;
@@ -1009,10 +1012,10 @@
     opacity: 0;
   }
 }
-.is-phone .rr-tour__left .rr-prose {
+[data-form='phone'] .rr-tour__left .rr-prose {
   font-size: 15px;
 }
-.is-phone .is-immersive .rr-tour__left {
+[data-form='phone'] .is-immersive .rr-tour__left {
   translate: 0 calc(84px - 20px); /* down to just above the progress row */
 }
 /* the sheet's detents (player.ts): one line, its text up to 40% of the screen, up to all but the bar and a strip of
@@ -1023,7 +1026,7 @@
 .rr-tour__left[data-detent='tall'] {
   max-height: calc(100dvh - var(--rr-phone-bar) - 84px - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
-.is-phone .rr-tour__left.is-settling {
+[data-form='phone'] .rr-tour__left.is-settling {
   transition:
     opacity 150ms ease-out,
     translate var(--rr-m-default-ms) var(--rr-m-default),
@@ -1083,12 +1086,12 @@
   min-height: 32px;
   font-weight: 600;
 }
-.is-phone .rr-tour__actions {
+[data-form='phone'] .rr-tour__actions {
   display: none;
 }
 /* the progress: a thin row over the code at the screen's foot, under the toolbar and its round button; shown, not
    a control (4px targets) */
-.is-phone .rr-tour__progress {
+[data-form='phone'] .rr-tour__progress {
   position: absolute;
   left: 16px;
   right: 16px;
@@ -1098,23 +1101,23 @@
   gap: 4px;
   pointer-events: none;
 }
-.is-phone .rr-tour__seg {
+[data-form='phone'] .rr-tour__seg {
   flex: 1 !important;
 }
-.is-phone .rr-tour__seg-title {
+[data-form='phone'] .rr-tour__seg-title {
   display: none;
 }
-.is-phone .rr-tour__ticks {
+[data-form='phone'] .rr-tour__ticks {
   gap: 4px;
 }
-.is-phone .rr-tour__tick {
+[data-form='phone'] .rr-tour__tick {
   height: 4px;
   border-radius: var(--rr-shape-xs);
 }
-.is-phone .rr-tour__tick.is-on {
+[data-form='phone'] .rr-tour__tick.is-on {
   box-shadow: none;
 }
-.is-phone .rr-tour__bottom {
+[data-form='phone'] .rr-tour__bottom {
   position: absolute;
   left: 50%;
   bottom: calc(16px + env(safe-area-inset-bottom));
@@ -1136,7 +1139,7 @@
     translate var(--rr-m-default-ms) var(--rr-m-default),
     scale var(--rr-m-default-ms) var(--rr-m-default);
 }
-.is-phone .is-immersive .rr-tour__bottom {
+[data-form='phone'] .is-immersive .rr-tour__bottom {
   opacity: 0;
   visibility: hidden;
   translate: -50% 16px;
@@ -1144,10 +1147,10 @@
 }
 /* immersive: Show controls, a small icon in the card's bottom-right corner (sticky, so it stays in view while the
    text scrolls); it brings the toolbar and the bar back as they were */
-.is-phone .rr-tour__restore {
+[data-form='phone'] .rr-tour__restore {
   display: none;
 }
-.is-phone .is-immersive .rr-tour__restore {
+[data-form='phone'] .is-immersive .rr-tour__restore {
   display: grid;
   place-items: center;
   position: sticky;
@@ -1162,88 +1165,132 @@
   color: var(--rr-ink-2);
 }
 /* a one-line card is shorter than the icon: centred on its right edge instead */
-.is-phone .is-immersive .rr-tour__left[data-detent='collapsed'] .rr-tour__restore {
+[data-form='phone'] .is-immersive .rr-tour__left[data-detent='collapsed'] .rr-tour__restore {
   position: absolute;
   top: calc(50% + 12px); /* the text's middle, under the grip */
   right: 8px;
   translate: 0 -50%;
   margin: 0;
 }
-.is-phone .rr-tour__restore .rr-icon {
+[data-form='phone'] .rr-tour__restore .rr-icon {
   width: 20px;
   height: 20px;
 }
-/* Back and Next: the same small round icon buttons */
-.is-phone :is(.rr-tour__back, .rr-tour__fwd) {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--rr-shape-full);
-  color: var(--rr-ink-2);
-  -webkit-tap-highlight-color: transparent;
-}
-.is-phone :is(.rr-tour__back, .rr-tour__fwd):disabled {
-  opacity: 0.38;
-  background: none;
-  cursor: default;
-}
-.is-phone .rr-tour__back svg {
-  transform: scaleX(-1);
-}
-/* the very first slide: Next pulses (navigation blue) until the reviewer has moved on */
-.is-phone .rr-tour__fwd.is-nudge {
-  background: var(--rr-accent-soft);
-  color: var(--rr-accent);
-  animation: rr-nudge 2s ease-out 600ms infinite;
-}
-@keyframes rr-nudge {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--rr-accent) 45%, transparent);
-  }
-  70%,
-  100% {
-    box-shadow: 0 0 0 8px transparent;
-  }
-}
-/* Contents | Comment: one connected button group, the outer ends fully round, the halves 2px apart; Contents neutral,
-   Comment a filled half in the conversation colour; the state layer (Send, above) follows each half's shape */
-.rr-tour__pair {
-  display: flex;
-  gap: 2px;
-}
-.rr-tour__pair > button {
+/* the toolbar's buttons: plain icons on the pill, no fills of their own; Back and Next bright ink (disabled at either
+   end, muted), Contents quieter, Comment marked by its orange stroke. Pressed or hovered, a round state layer */
+[data-form='phone'] .rr-tour__bottom button {
   display: grid;
   place-items: center;
-  width: 48px;
+  width: 44px;
   height: 44px;
   border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: var(--rr-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.rr-tour__contents {
-  border-radius: 22px var(--rr-shape-s) var(--rr-shape-s) 22px; /* half the height: 999px would scale the inner corners to ~0 */
-  background: var(--rr-surface-nav-2);
+[data-form='phone'] .rr-tour__bottom button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+@media (hover: hover) {
+  [data-form='phone'] .rr-tour__bottom button:enabled:hover {
+    box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+[data-form='phone'] .rr-tour__bottom button:enabled:active {
+  box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 12%, transparent);
+}
+[data-form='phone'] .rr-tour__back svg {
+  transform: scaleX(-1);
+}
+.rr-tour__pair {
+  display: flex;
+  gap: 4px;
+}
+[data-form='phone'] .rr-tour__bottom .rr-tour__contents {
   color: var(--rr-ink-2);
 }
-.is-phone .rr-tour__comment {
-  border-radius: var(--rr-shape-s) 22px 22px var(--rr-shape-s);
-  background: var(--rr-comment);
-  color: var(--rr-comment-ink);
+[data-form='phone'] .rr-tour__bottom .rr-tour__comment {
+  color: var(--rr-comment);
 }
-.is-phone .rr-tour__bottom .rr-icon {
+[data-form='phone'] .rr-tour__bottom .rr-icon {
   width: 20px;
   height: 20px;
 }
 /* a slide change: the new text rises in on the standard spring */
 @media (prefers-reduced-motion: no-preference) {
-  .is-phone :is(.rr-tour__lead, .rr-tour__step).is-in {
+  [data-form='phone'] :is(.rr-tour__lead, .rr-tour__step).is-in {
     animation: rr-tour-in var(--rr-m-default-ms) var(--rr-m-default);
   }
+}
+
+/* on its side ([data-orient='landscape']): the slide a column on the left, the code on the right edge to edge, the
+   divider between them dragging as on the desktop; the toolbar floats at the foot of the code (player.ts moves it into
+   the body). Immersive: the bar folds away and Show controls sits in the screen's top-right corner */
+[data-form='phone'][data-orient='landscape'] .rr-tour__player {
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  transition: grid-template-rows var(--rr-m-default-ms) var(--rr-m-default);
+}
+[data-form='phone'][data-orient='landscape'] .is-immersive {
+  grid-template-rows: 0 minmax(0, 1fr);
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--rr-tour-split, minmax(0, 1fr)) minmax(0, 1fr);
+  min-height: 0;
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__left,
+[data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__left {
+  position: static;
+  max-height: none;
+  padding: 12px 24px 28px; /* clear of the progress row */
+  border-right: 1px solid var(--rr-line);
+  border-radius: 0;
+  background: var(--rr-surface-doc);
+  box-shadow: none;
+  translate: none;
+  animation: none;
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__body.is-solo {
+  grid-template-columns: minmax(0, 1fr); /* no code: the slide alone */
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__grip {
+  display: none;
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__right,
+[data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__right {
+  position: relative;
+  inset: auto;
+  translate: none;
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__resize {
+  display: block;
+}
+[data-form='phone'][data-orient='landscape'] .rr-tour__bottom {
+  left: calc((100% + var(--rr-tour-split, 50%)) / 2); /* the code's middle */
+  bottom: calc(20px + env(safe-area-inset-bottom));
+}
+[data-form='phone'][data-orient='landscape'] .is-solo .rr-tour__bottom {
+  left: 50%;
+}
+[data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__restore {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(8px + env(safe-area-inset-right));
+  bottom: auto;
+  z-index: 3;
+  margin: 0;
 }
 
 /* Contents (player.ts): a bottom sheet of the chapters, the current one open on its slides. Kept in the page, so it
    slides away on close as it rose (display and overlay stay until the transition ends) */
 .rr-modal.rr-sheet.rr-tour-toc {
   max-height: 75dvh;
+  max-width: 640px; /* M3's widest bottom sheet: a phone on its side */
+  margin-inline: auto;
   animation: none;
   transition:
     translate var(--rr-m-default-ms) var(--rr-m-default),
@@ -1360,16 +1407,15 @@
 
 /* ---------------------------------------------------------------- reduced motion: movement becomes a fade */
 @media (prefers-reduced-motion: reduce) {
-  :root:has(.is-phone) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet, .is-phone .rr-tour__left) {
+  :root:has(.is-phone, .rr-tour[data-form='phone']) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet) {
     animation: rr-fade 150ms ease-out !important; /* overlays.css */
     transition: none !important;
   }
-  /* Next's nudge: a steady highlight, no pulse */
-  .is-phone .rr-tour__fwd.is-nudge {
-    animation: none;
-    box-shadow: 0 0 0 2px var(--rr-accent);
+  [data-form='phone'] .rr-tour__left {
+    animation: rr-fade 150ms ease-out !important; /* overlays.css */
+    transition: none !important;
   }
-  .is-phone :is(.rr-tour__top, .rr-tour__bottom, .rr-tour__right, .rr-tour__left) {
+  [data-form='phone'] :is(.rr-tour__top, .rr-tour__bottom, .rr-tour__right, .rr-tour__left) {
     transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves */
   }
   .rr-phone-tab.is-new .rr-phone-tab__pill,

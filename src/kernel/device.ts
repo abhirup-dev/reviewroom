@@ -13,6 +13,9 @@ const forced = () => new URLSearchParams(globalThis.location?.search).has('phone
 export const wantsPhone = () => (small() && !landscape()) || forced();
 /** A phone on its side: the dock, from the `tablet` layout, never saved over the reviewer's last layout. */
 export const turnedPhone = () => small() && !wantsPhone();
+/** The guided review's phone player: a phone either way up, under either shell (or `?phone`); tablets and computers
+ *  get the desktop player. Its portrait or landscape variant follows the viewport (slides/player.ts). */
+export const phonePlayer = () => small() || forced();
 /** A tablet (touch, shorter side 721–1024px) or a turned phone: the dock, starting from the `tablet` layout. */
 export const isTablet = () => touch() && side() <= 1024 && !wantsPhone();
 

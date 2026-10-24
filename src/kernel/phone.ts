@@ -63,7 +63,8 @@ export function onBack(close: () => void) {
 }
 /** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
 const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
-const watchBack = (app: ReviewApp) =>
+/** Back closes onBack's layers: the phone shell listens, and the phone player under the dock (a turned phone). */
+export const watchBack = (app: ReviewApp) =>
   app.listen(window, 'popstate', (e: PopStateEvent) => {
     if (skip) return void (--skip || flush());
     // as deep as the entry Back (or the browser's history menu) went to

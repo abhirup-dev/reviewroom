@@ -2,7 +2,7 @@
 
 The phone shell (`src/kernel/phone.ts`, `src/kernel/styles/phone.css`) follows Material 3 Expressive (M3E) for shape,
 touch, and motion, and keeps reviewroom's own colour, type, and restraint (`DESIGN.md`). Desktop and the tablet dock
-are unchanged; everything here is scoped to `.rr-phone`. Mock: `docs/design/phone-mock.html`.
+are unchanged; everything here is scoped to `.rr-phone`, the guided review's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
 
 ## The deal between the two systems
 
@@ -69,11 +69,11 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
 - **Drawer** (modal navigation drawer): 300px max, large trailing corners, header with title and facts, 56px items,
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
 - **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
-  toolbar (full pill, 52px, surface-container-high): Back and Next are the same 44px round icon buttons either side of a
-  connected button group, Contents | Comment, 44px tall, outer ends fully round, the halves 2px apart: Contents neutral,
-  Comment filled `--rr-comment` with a `chat` icon in `--rr-comment-ink`; the state layer follows each half. Back is disabled on the first slide, where
-  Next pulses (a steady ring under reduced motion) until the reviewer moves on; on the last slide Next is a check that
-  ends the walkthrough. Contents (and the chapter title in the top bar) opens a bottom sheet of the chapters with their
+  toolbar (full pill, 52px, surface-container-high, the only surface): Back, Contents, Comment and Next are plain 44px
+  icon buttons on it, no fills of their own; pressed or hovered, a round 12% / 8% state layer. Back and Next are
+  `--rr-ink`; Contents `--rr-ink-2`; Comment is marked only by its `chat` icon's `--rr-comment` stroke. On the first
+  slide Back is disabled (muted), on the last Next is ("Last slide"): the close in the top bar ends the walkthrough. No
+  blue, no pulse. Contents (and the chapter title in the top bar) opens a bottom sheet of the chapters with their
   slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
   4 s untouched (not while a menu, the composer, the Contents sheet or a selection is open), the top bar and the
   toolbar fade, the code fills the screen edge to edge and the card drops to just above the progress row with a small
@@ -85,9 +85,16 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   chapter intro opens its first slide; on the others it folds to its first line with More, and a swipe up (or a tall
   card) opens it. The code is one sheet on the code surface to the bottom edge. The walkthrough's progress (chapters ×
   slides) is a thin row at the screen's foot, always shown.
+- **Guided review on its side**: the phone player goes by the device (`phonePlayer()` in `src/kernel/device.ts`: a
+  phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get
+  the desktop player. It marks itself `data-form="phone"` and `data-orient` (the viewport's, live), and its styles key
+  off those. Landscape: the slide is a column on the left, the code on the right edge to edge, the desktop's draggable
+  divider between them (half and half by default); the toolbar floats at the foot of the code, centred on it; the top
+  bar folds away when immersive and Show controls sits in the screen's top-right corner. The rest (immersive, toolbar,
+  swipes, Contents) is the same; the card's detents are portrait only.
 - **Rotation**: a phone on its side gets the dock (from the Tablet layout, never saved over the reviewer's last
   layout); upright, the phone shell. It reloads into the other shell on rotation, keeping the panel in front, the open
-  file and the slide (`src/kernel/device.ts`).
+  file and the slide (`src/kernel/device.ts`); the guided review comes back in the other orientation's variant.
 - **Composer**: extra-large top corners, sits on `--rr-kb`; text field medium radius with accent focus outline.
 - **Toast** (snackbar): medium radius, inverse surface (`--rr-ink` fill, `--rr-bg` text), action in
   `--rr-accent-soft`; sits above the navigation bar.
