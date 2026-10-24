@@ -376,7 +376,7 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
     sub: () => (team() ? 'Team review' : `Round ${app.viewRound && app.viewRound !== app.state.round ? app.viewRound + ' of ' + app.state.round : app.state.round}`),
     titleMenu: () => (team() ? null : (anchor) => roundMenu(app, anchor)),
     status: roundStatusControls,
-    actions: () => [app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: 'Play the guided walkthrough: the main story of this diff, slide by slide', onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 24)) : null],
+    actions: () => [app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: 'Play the guided walkthrough: the main story of this diff, slide by slide', onclick: () => app.commands.run('walkthrough.play') }, icon('play', 24)) : null],
     // a round ink icon button, its count a badge on the corner (phone.css)
     send: () => {
       const b = feedbackButton(app);
@@ -393,16 +393,16 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
       const g = app.github;
       const chapters = app.walkthrough?.chapters.length ?? 0;
       return {
-        top: [app.walkthrough ? item('Play guided review', 'play', () => app.bus.emit('walkthrough-open', {}), { hint: `${chapters} chapter${chapters === 1 ? '' : 's'}` }) : null],
+        top: [app.walkthrough ? item('Play guided review', 'play', 'walkthrough.play', { hint: `${chapters} chapter${chapters === 1 ? '' : 's'}` }) : null],
         review: [
           ...(onGitHub(app)
             ? [
                 g?.url ? item('Open PR on GitHub', 'github', () => window.open(g.url, '_blank', 'noopener')) : null,
-                item('Refresh comments', 'round', () => void app.services.github.refresh().then(() => app.toast('GitHub comments refreshed'))),
+                item('Refresh comments', 'round', 'github.refresh'),
                 g?.ok ? h('div', { class: 'rr-drawer__row' }, icon('thread', 24), h('span', null, 'Review'), reviewModeSwitch(app)) : null,
               ]
             : []),
-          item('Comment on an element', 'target', () => app.bus.emit('picker', true), { title: 'Pick an element to comment on' }),
+          item('Comment on an element', 'target', 'pick', { title: 'Pick an element to comment on' }),
         ],
       };
     },

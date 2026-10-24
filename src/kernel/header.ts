@@ -6,7 +6,7 @@ import { closePanel, hasPanel, panelDefs } from './dock';
 import type { ReviewApp } from '../app';
 import { noteDialog } from './dialog';
 import { popMenu, menuItem, menuLabel } from './menus';
-import { canInstall, install, installButton } from './install';
+import { installButton } from './install';
 import { updateReady } from './pwa';
 
 // ---------------------------------------------------------------- save a named layout
@@ -110,8 +110,9 @@ const shellStatus = () => [
   h('span', { class: 'rr-pill rr-pill--draft rr-unsaved', title: 'The reviewroom server has not stored your latest changes. Reviewroom keeps retrying; keep this tab open' }, 'Not saved yet'),
 ];
 
-/** A drawer entry: closes the drawer, then runs. */
-export type DrawerItem = (label: string, ic: Parameters<typeof icon>[0], run: () => void, opts?: { title?: string; hint?: string }) => HTMLElement;
+/** A drawer entry: closes the drawer, then runs `run`, a command's id (shown while its `when` holds; see commands.ts)
+ *  or, for what no command does, a function. */
+export type DrawerItem = (label: string, ic: Parameters<typeof icon>[0], run: string | (() => void), opts?: { title?: string; hint?: string }) => HTMLElement | null;
 /** Live feature controls in the phone's status bar and menu drawer. */
 export interface PhoneBarContributions {
   /** Under the title, after the repo: "Round 2", "Team review". */
@@ -166,8 +167,11 @@ export function buildPhoneBar(app: ReviewApp, features: PhoneBarContributions): 
 function openDrawer(app: ReviewApp, features: PhoneBarContributions) {
   const m = app.meta;
   const close = () => box.close();
-  const item: DrawerItem = (label, ic, run, opts = {}) =>
-    h('button', { class: 'rr-drawer__item', title: opts.title, onclick: () => (close(), run()) }, icon(ic, 24), h('span', null, label), opts.hint ? h('small', null, opts.hint) : null);
+  const item: DrawerItem = (label, ic, run, opts = {}) => {
+    const c = typeof run === 'string' ? app.commands.get(run) : null;
+    if (c === undefined || (c?.when && !c.when())) return null;
+    return h('button', { class: 'rr-drawer__item', title: opts.title, onclick: () => (close(), typeof run === 'string' ? app.commands.run(run) : run()) }, icon(ic, 24), h('span', null, label), opts.hint ? h('small', null, opts.hint) : null);
+  };
   const sep = () => h('div', { class: 'rr-drawer__sep', role: 'separator' });
   const more = features.drawer(item);
   // a segmented button: light, auto (the system's), dark
@@ -198,14 +202,14 @@ function openDrawer(app: ReviewApp, features: PhoneBarContributions) {
     h(
       'nav',
       { class: 'rr-drawer__list' },
-      app.backend.kind === 'server' ? item('All reviews', 'home', () => window.open(hubHref(), '_blank'), { title: 'Every review running on this machine' }) : null,
-      item('Search', 'search', () => app.openPalette('')),
+      item('All reviews', 'home', 'hub', { title: 'Every review running on this machine' }),
+      item('Search', 'search', 'palette'),
       ...more.top,
       sep(),
       ...more.review,
       sep(),
       h('div', { class: 'rr-drawer__row' }, icon('theme', 24), h('span', null, 'Theme'), theme),
-      canInstall() ? item('Install app', 'install', () => void install(), { title: 'An icon on the home screen, in a window of its own' }) : null,
+      item('Install app', 'install', 'app.install', { title: 'An icon on the home screen, in a window of its own' }),
       update
         ? item(`reviewroom ${__RR_BUILD__.slice(0, 7)}`, 'info', update, { hint: 'Update ready: reload', title: 'Reload into the new version of reviewroom' })
         : h('div', { class: 'rr-drawer__row rr-drawer__version' }, icon('info', 24), h('span', null, `reviewroom ${__RR_BUILD__.slice(0, 7)}`), h('small', null, 'Up to date')),
