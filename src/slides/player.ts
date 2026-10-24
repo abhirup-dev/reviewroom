@@ -330,6 +330,8 @@ export function mountWalkthrough(app: ReviewApp) {
       if (g.matches('vertical')) card.send({ type: 'release', dy: g.context.dy });
       else if (g.matches('horizontal') && !getSelection()?.toString() && Math.abs(g.context.dx) > 60) (g.context.dx < 0 ? next : prev).click();
     });
+    // scrolling the code brings a tall card back to its default, so the code it covered shows
+    right.addEventListener('touchmove', () => !land.matches && detent() === 2 && card.getSnapshot().matches('rest') && size(1), { passive: true });
     // immersive (chromeMachine): IDLE_MS after the last touch or slide change, never while a menu, the composer or a
     // selection is open, the top bar fades and the toolbar shrinks to one round button in the corner, which grows it
     // back (so does a tap on the content)

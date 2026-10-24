@@ -380,7 +380,7 @@ class CodePanel implements PanelInstance {
       disableFileHeader: this.mode === 'file',
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
       // the guided review on a phone: room to scroll the last lines above the slide card and toolbar over the code
-      layout: this.app.presentation.kind === 'phone' && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * 0.6), gap: 8 } : undefined,
+      layout: this.app.presentation.kind === 'phone' && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * 0.4) + 96 /* the last lines can rise to just above the slide card at its default (phone.css: 40dvh, 84px up) */, gap: 8 } : undefined,
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,
@@ -520,13 +520,15 @@ class CodePanel implements PanelInstance {
     return !signal.aborted;
   }
 
-  /** Highlight the target's lines and scroll them to 30% from the top. */
+  /** Highlight the target's lines and scroll them to 30% from the top (a phone's guided review: the top). */
   private land(t: CodeTarget) {
     const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
-    this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset: this.scroller.clientHeight * 0.3 });
+    // a phone's guided review: to the top, clear of the slide card over the code's lower part
+    const offset = this.app.presentation.kind === 'phone' && this.embedded ? 8 : this.scroller.clientHeight * 0.3;
+    this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset });
   }
 
   /** The first line of every run of changed lines in the files on screen, top to bottom. */
