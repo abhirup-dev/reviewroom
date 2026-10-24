@@ -1,12 +1,13 @@
 // Command palette (⌘K), click-away selection release, link hover previews.
 import { single } from 'fuzzysort';
 import { h, icon, debounce, placeNear, backdropCloses } from '../kernel/dom';
-import { REF_ELEMENTS, formatRef, parseRef, refIcon } from '../kernel/refs/browser';
+import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { keyLabel } from '../kernel/commands';
 import { plainExcerpt } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
 import { renderPreview } from './previews';
 import { defaultSide } from './files.shared';
+import { formatRef, parseRef } from '../kernel/refs/refs.shared';
 
 interface Item {
   kind: 'command' | 'file' | 'section' | 'thread' | 'symbol' | 'text' | 'link';

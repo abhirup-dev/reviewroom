@@ -1,7 +1,5 @@
 import { icon } from '../dom';
 import type { Ref } from './refs.shared';
-// the rr: grammar lives in src/kernel/refs/refs.shared.ts (the CLI parses it too)
-export { parseRef, formatRef, type Ref } from './refs.shared';
 /** Elements that carry an rr: link: links, chips and diagram nodes. */
 export const REF_ELEMENTS = 'a[href^="rr:"], rr-ref, rr-node[ref]';
 /** Short human label for chips; never shows ids or CSS paths (ReviewApp.label adds DOM-aware names). */

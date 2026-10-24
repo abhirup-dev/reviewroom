@@ -7,11 +7,11 @@
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
-import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
-import { cssPathWithin, formatRef, parseRef } from '../kernel/refs/browser';
+import { PR_DESCRIPTION, formatRef, parseRef } from '../kernel/refs/refs.shared';
+import { cssPathWithin } from '../kernel/refs/browser';
 import { linkedSymbol } from './symbols';
 import { plainExcerpt } from '../kernel/markdown';
-import type { Anchor, TextQuote, Thread } from '../kernel/state/model.shared';
+import type { Thread } from '../kernel/state/model.shared';
 
 type DocThread = Thread & { anchor: Extract<Anchor, { kind: 'doc' }> };
 import { definePanel, type PanelInstance } from '../kernel/dock';
@@ -25,6 +25,7 @@ const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
 const highlightRanges = new Map<string, Range[]>();
 
 import { describeElement } from '../kernel/refs/describe';
+import type { Anchor, TextQuote } from '../kernel/state/schema.shared';
 
 export function anchorFor(doc: HTMLElement, el: Element): { target: string; path?: string } {
   if (el.id) return { target: el.id };

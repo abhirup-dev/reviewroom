@@ -55,9 +55,6 @@ export interface SearchHit {
 
 // ---------------------------------------------------------------- anchors
 
-// The stored shapes (state.json) and ops are defined once as Zod schemas in src/kernel/state/schema.shared.ts.
-export type { Anchor, Author, Op, TextQuote } from './schema.shared';
-
 /** A stored message, or (author 'github') a comment on the PR on GitHub; those are never stored in state.json. */
 export interface Message extends Omit<StoredMessage, 'author'> {
   author: Author | 'github';

@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { applyOp, awaitingAgent, currentRound, OpError, undelivered } from './ops.shared';
-import type { Op, ReviewState } from './model.shared';
+import type { ReviewState } from './model.shared';
 import { build } from '../../testing/build';
+import type { Op } from './schema.shared';
 
 const run = (s: ReviewState, ...ops: Op[]) => ops.reduce(applyOp, s);
 const create: Op = { op: 'createThread', id: 't_1', anchor: { kind: 'general' }, msgId: 'm_1', body: 'hi', author: 'you' };

@@ -1,8 +1,9 @@
-import type { Op, ReviewState } from '../kernel/state/model.shared';
+import type { ReviewState } from '../kernel/state/model.shared';
 import type { StateBackend } from '../kernel/providers/contracts';
 import { applyOp } from '../kernel/state/ops.shared';
 import { emptyState } from '../kernel/state/model.shared';
 import { installDOM } from './dom';
+import type { Op } from '../kernel/state/schema.shared';
 
 /** An independent persisted copy: detect a divergent optimistic state using the real reducer. */
 export function memoryBackend(seed = emptyState()) {

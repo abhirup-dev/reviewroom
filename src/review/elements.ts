@@ -11,10 +11,11 @@
 //   <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  reviewer sign-off, persisted
 import { File as PierreFile } from '@pierre/diffs';
 import { h, icon } from '../kernel/dom';
-import { parseRef, refIcon, refLabel } from '../kernel/refs/browser';
+import { refIcon, refLabel } from '../kernel/refs/browser';
 import { renderMarkdown } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
 import { codeOptions, range, renderPreview } from './previews';
+import { parseRef } from '../kernel/refs/refs.shared';
 
 let APP: ReviewApp | null = null;
 const waiters: ((a: ReviewApp) => void)[] = [];

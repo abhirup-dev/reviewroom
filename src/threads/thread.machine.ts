@@ -3,7 +3,7 @@
 // The requests a popup makes (send the first comment, resolve) run inside the state that made them,
 // so an answer arriving after the popup moved on is dropped.
 import { assertEvent, assign, fromPromise, setup } from 'xstate';
-import type { Anchor } from '../kernel/state/model.shared';
+import type { Anchor } from '../kernel/state/schema.shared';
 
 /** A thread by id, or a new comment on an anchor. */
 export type ThreadTarget = { id?: string; anchor?: Anchor; quote?: string; to?: 'agent' | 'github' };

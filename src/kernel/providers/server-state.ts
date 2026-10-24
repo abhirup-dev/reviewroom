@@ -1,10 +1,11 @@
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
-import type { Op, ReviewState } from '../state/model.shared';
+import type { ReviewState } from '../state/model.shared';
 import { roundStatus, syncMachine, unsent } from './sync.machine';
 import type { LastLayout, Layout } from '../layouts/layout.shared';
 import type { GitHubAction } from '../state/schema.shared';
 import type { BackendEvents, StateBackend } from './contracts';
 import { json, sendJSON } from './fetch';
+import type { Op } from '../state/schema.shared';
 
 // Saving and live updates are src/kernel/providers/sync.machine.ts; this is its fetch/EventSource side.
 export class ServerState implements StateBackend {

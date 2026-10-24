@@ -1,7 +1,7 @@
-import type { Op, ReviewState } from '../state/model.shared';
+import type { ReviewState } from '../state/model.shared';
 import { loadJSON, saveLocal } from '../store';
 import type { LastLayout, Layout, SavedLayouts } from '../layouts/layout.shared';
-import { StoredState } from '../state/schema.shared';
+import { StoredState, type Op } from '../state/schema.shared';
 import type { StateBackend } from './contracts';
 
 const LS_KEY = (id: string) => `reviewroom:state:${id}`;

@@ -1,6 +1,7 @@
-import type { Anchor, Author, GitHubSnapshot, Op, ReviewState, Thread } from '../kernel/state/model.shared';
+import type { GitHubSnapshot, ReviewState, Thread } from '../kernel/state/model.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
 import { yoursIn } from './feedback.shared';
+import type { Anchor, Author, Op } from '../kernel/state/schema.shared';
 
 interface ThreadServiceDeps {
   getState(): ReviewState;

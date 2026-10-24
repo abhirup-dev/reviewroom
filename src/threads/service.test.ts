@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
-import { type Anchor, type GitHubSnapshot, type Op, type Thread } from '../kernel/state/model.shared';
+import { type GitHubSnapshot, type Thread } from '../kernel/state/model.shared';
 import { applyOp } from '../kernel/state/ops.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
 import { createThreadService } from './service';
 import { build } from '../testing/build';
+import type { Anchor, Op } from '../kernel/state/schema.shared';
 
 const at = '2026-01-01T00:00:00.000Z';
 const general = build.anchor.general();

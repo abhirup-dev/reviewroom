@@ -4,12 +4,12 @@ import { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
 import { Commands } from './kernel/commands';
 import { Emitter, loadLocal, saveLocal } from './kernel/store';
-import { parseRef, refLabel, type Ref } from './kernel/refs/browser';
-import { anchorRef, symbolHits, symbolQuery, PR_DESCRIPTION } from './kernel/refs/refs.shared';
+import { refLabel } from './kernel/refs/browser';
+import { anchorRef, symbolHits, symbolQuery, PR_DESCRIPTION, parseRef, type Ref } from './kernel/refs/refs.shared';
 import { h, uid } from './kernel/dom';
 import { renderMarkdown } from './kernel/markdown';
 import { describeElement, findDocElement } from './kernel/refs/describe';
-import { emptyState, type Anchor, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type Op, type ReviewMeta, type ReviewState, type SearchHit } from './kernel/state/model.shared';
+import { emptyState, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type ReviewMeta, type ReviewState, type SearchHit } from './kernel/state/model.shared';
 import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
@@ -17,6 +17,7 @@ import type { Walkthrough } from './slides/model.shared';
 import { showPanel } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
+import type { Anchor, Op } from './kernel/state/schema.shared';
 
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';

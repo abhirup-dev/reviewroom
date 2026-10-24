@@ -1,7 +1,7 @@
 // Agent and team threads panel.
 import { avatarUrl, h, icon, plural, seg, threadBadge } from '../kernel/dom';
-import { parseRef, refIcon } from '../kernel/refs/browser';
-import { anchorRef } from '../kernel/refs/refs.shared';
+import { refIcon } from '../kernel/refs/browser';
+import { anchorRef, parseRef } from '../kernel/refs/refs.shared';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
 import { plainExcerpt } from '../kernel/markdown';
 import type { Thread } from '../kernel/state/model.shared';

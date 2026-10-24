@@ -1,5 +1,6 @@
 // Test data with valid defaults: override only what the test is about.
-import { emptyState, type Anchor, type Message, type ReviewState, type Thread } from '../kernel/state/model.shared';
+import { emptyState, type Message, type ReviewState, type Thread } from '../kernel/state/model.shared';
+import type { Anchor } from '../kernel/state/schema.shared';
 
 const at = '2026-01-01T00:00:00.000Z';
 type AnchorOf<K extends Anchor['kind']> = Extract<Anchor, { kind: K }>;

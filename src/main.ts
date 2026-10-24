@@ -12,8 +12,7 @@
 import cssText from './bundle.css' with { type: 'text' };
 import { h, icon } from './kernel/dom';
 import { loadRaw } from './kernel/store';
-import { parseRef, formatRef } from './kernel/refs/browser';
-import { anchorOf } from './kernel/refs/refs.shared';
+import { anchorOf, parseRef, formatRef } from './kernel/refs/refs.shared';
 import { renderMarkdown } from './kernel/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './kernel/state/model.shared';
 import { ReviewApp } from './app';

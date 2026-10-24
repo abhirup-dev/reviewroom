@@ -7,7 +7,6 @@ import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
-import type { Anchor, Op } from '../../src/kernel/state/model.shared.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub } from './registry.ts';
@@ -21,7 +20,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { FinishRound, GitHubAction, issueText } from '../../src/kernel/state/schema.shared.ts';
+import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 

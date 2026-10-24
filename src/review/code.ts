@@ -2,7 +2,6 @@
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
 import { copyText, h, icon, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
-import { formatRef } from '../kernel/refs/browser';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
@@ -32,6 +31,7 @@ type Ctx = { item: { id: string } };
 // Pierre tints a changed line's body by mixing that tint into the background again (--mix-*), which washes it out; the mixes keep more of it
 import { PIERRE_CSS } from './previews';
 import { codeThreadsOn, defaultSide } from './files.shared';
+import { formatRef } from '../kernel/refs/refs.shared';
 /** Lines a jump landed on glow a few times while the panel sets --rr-pulse (the reveal machine's glow). */
 const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
 /** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */

@@ -3,7 +3,8 @@
 // in order; what it shows is the last state the server broadcast plus the ops not yet in it.
 import { assign, emit, enqueueActions, fromCallback, fromPromise, raise, setup, type EventObject } from 'xstate';
 import { applyOp, currentRound } from '../state/ops.shared';
-import type { GitHubSnapshot, Op, ReviewState } from '../state/model.shared';
+import type { GitHubSnapshot, ReviewState } from '../state/model.shared';
+import type { Op } from '../state/schema.shared';
 
 /** POST /ops: stored at `rev`, or the op at `rejected` can never apply (its thread is gone, say).
  *  Throws when the server can't take them now: an Error says why, a TypeError (fetch failed) that it's not answering. */

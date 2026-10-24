@@ -4,7 +4,8 @@
 // formatter that writes it back. Everything that reads or writes an rr: link string goes through here; labels, icons,
 // previews and opening dispatch on the parsed Ref (refs/browser.ts, ReviewApp.open), never on the string.
 import { pattern, regex } from 'regex';
-import type { Anchor, SearchHit } from '../state/model.shared';
+import type { SearchHit } from '../state/model.shared';
+import type { Anchor } from '../state/schema.shared';
 
 // Durable links. Every addressable thing in a review has an `rr:` ref that
 // survives reloads and rounds and can be pasted into comments, markdown, HTML

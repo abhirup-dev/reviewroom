@@ -5,11 +5,10 @@ import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirr
 import { avatarUrl, h, icon, relTime, copyText, backdropCloses } from '../kernel/dom';
 import { loadRaw } from '../kernel/store';
 import { renderMarkdown } from '../kernel/markdown';
-import { formatRef, parseRef, refIcon } from '../kernel/refs/browser';
-import { anchorRef } from '../kernel/refs/refs.shared';
+import { refIcon } from '../kernel/refs/browser';
+import { anchorRef, formatRef, parseRef, type Ref } from '../kernel/refs/refs.shared';
 import { keyLabel } from '../kernel/commands';
-import type { Anchor, Thread } from '../kernel/state/model.shared';
-import type { Ref } from '../kernel/refs/browser';
+import type { Thread } from '../kernel/state/model.shared';
 import { dockThread } from './docking';
 import { yoursIn } from './feedback.shared';
 import { closePanel, definePanel } from '../kernel/dock';
@@ -18,6 +17,7 @@ import { renderPreview } from '../review/previews';
 import { popMenu } from '../kernel/menus';
 import { createActor, fromPromise } from 'xstate';
 import { threadMachine, type ThreadTarget } from './thread.machine';
+import type { Anchor } from '../kernel/state/schema.shared';
 
 // shipped next to the bundle by scripts/build.ts; a page without it (the static demo) shows the picker's own error
 const EMOJI_DATA = new URL('./emoji.json', import.meta.url).href;

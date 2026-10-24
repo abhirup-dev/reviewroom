@@ -7,7 +7,7 @@
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { h, icon, plural } from '../kernel/dom';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
-import { REF_ELEMENTS as LINK, parseRef, refIcon, type Ref } from '../kernel/refs/browser';
+import { REF_ELEMENTS as LINK, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
 import { paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from './player.machine';
 import type { ReviewApp } from '../app';
@@ -16,6 +16,7 @@ import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools } from '../review/code';
 import { current, deepLink, target, decodeWalkthrough, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
+import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
 

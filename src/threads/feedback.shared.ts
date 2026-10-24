@@ -1,8 +1,9 @@
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
 // agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
-import type { Anchor, Message, ReviewState, Thread } from '../kernel/state/model.shared';
+import type { Message, ReviewState, Thread } from '../kernel/state/model.shared';
 import { anchorRef, PR_DESCRIPTION } from '../kernel/refs/refs.shared';
 import type { Walkthrough } from '../slides/model.shared';
+import type { Anchor } from '../kernel/state/schema.shared';
 
 
 /** The reviewer wrote `m` in `round`: what that round sends the agent. */

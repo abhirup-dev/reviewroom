@@ -1,4 +1,4 @@
-import type { Anchor } from '../kernel/state/model.shared';
+import type { Anchor } from '../kernel/state/schema.shared';
 
 export type CodeTarget = { path: string; side: 'base' | 'head'; start?: number; end?: number; rev?: string; view?: 'diff' | 'file'; panel?: string };
 export type Selection =

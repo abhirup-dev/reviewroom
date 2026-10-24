@@ -1,8 +1,7 @@
 // Double-click anything that has a place in the layout (a file, a section, a pin) to see it big:
 // a window over the middle of the dock with the full panel in it. Esc puts things back.
 // Floating a panel in place (kernel/dock.ts) is the one mechanism; this maps a link to the panel to float.
-import { formatRef, parseRef, type Ref } from '../kernel/refs/browser';
-import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
+import { PR_DESCRIPTION, formatRef, parseRef, type Ref } from '../kernel/refs/refs.shared';
 import type { ReviewApp } from '../app';
 import { closePanel, findPanel, floatInPlace, onEscape } from '../kernel/dock';
 

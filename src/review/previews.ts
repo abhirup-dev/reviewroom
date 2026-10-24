@@ -1,9 +1,9 @@
 // Review previews depend on review data, never on panels or optional feature implementations.
 import { FileDiff, File as PierreFile, parseDiffFromFile } from '@pierre/diffs';
 import { avatarUrl, h } from '../kernel/dom';
-import { parseRef, type Ref } from '../kernel/refs/browser';
 import { plainExcerpt } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
+import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
 /** Shared Pierre styling for both code panels and inline previews. */
 export const PIERRE_CSS = `:host{--rr-diff-mix-light:40%;--rr-diff-mix-dark:10%;--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;--diffs-light-addition-color:var(--rr-add);--diffs-dark-addition-color:var(--rr-add);--diffs-light-deletion-color:var(--rr-del);--diffs-dark-deletion-color:var(--rr-del);--diffs-bg-addition-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)));--diffs-bg-deletion-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)));}[data-line],[data-no-newline]{--mix-light:var(--rr-diff-mix-light);--mix-dark:var(--rr-diff-mix-dark)}`;

@@ -1,7 +1,8 @@
 // Contracts shared by provider implementations and their callers. No runtime dependencies.
-import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, Op, GitHubSnapshot } from '../state/model.shared';
+import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, GitHubSnapshot } from '../state/model.shared';
 import type { GitHubAction } from '../state/schema.shared';
 import type { LastLayout, Layout, SavedLayouts } from '../layouts/layout.shared';
+import type { Op } from '../state/schema.shared';
 
 export interface CodeProvider {
   readonly name: string;
