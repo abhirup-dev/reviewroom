@@ -151,6 +151,8 @@ export interface PanelSurface {
   find(match: (id: string, params: Record<string, unknown> | undefined) => boolean): string | undefined;
 }
 let surface: PanelSurface | null = null;
+/** The dock: what follows runs only under it (the phone shell answers first). */
+const dockOf = (app: ReviewApp) => app.dock!;
 /** The phone shell in place of the dock (null: the dock again). */
 export const useSurface = (s: PanelSurface | null) => void (surface = s);
 
@@ -168,7 +170,7 @@ export function showPanel(app: ReviewApp, id: string) {
   if (!p) return false;
   // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
   // a panel behind another group's maximize still needs setActive, which brings it out
-  const covered = app.dock.hasMaximizedGroup() && !p.group.api.isMaximized();
+  const covered = dockOf(app).hasMaximizedGroup() && !p.group.api.isMaximized();
   if (p.api.isVisible && !covered) p.group.api.setActive();
   else p.api.setActive();
   return true;
@@ -181,7 +183,7 @@ export function addPanelAt(app: ReviewApp, panel: { id: string; component: strin
     surface.show(panel.id, panel.params);
     return surface.setTitle(panel.id, panel.title);
   }
-  const api = app.dock;
+  const api = dockOf(app);
   const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
   if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
   else api.addPanel({ ...panel, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined });
@@ -190,8 +192,8 @@ export function addPanelAt(app: ReviewApp, panel: { id: string; component: strin
 // ------------------------------------------------------------------ floating / docking helpers
 /** Where a floating window opens: right half of the dock, inside the viewport. */
 export function floatBox(app: ReviewApp, w = 0.5, hgt = 0.62) {
-  const W = app.dock.width || window.innerWidth;
-  const H = app.dock.height || window.innerHeight;
+  const W = dockOf(app).width || window.innerWidth;
+  const H = dockOf(app).height || window.innerHeight;
   const width = Math.round(Math.min(980, Math.max(420, W * w)));
   const height = Math.round(Math.min(H - 60, Math.max(320, H * hgt)));
   return { position: { top: Math.max(24, Math.round((H - height) / 3)), left: Math.max(24, W - width - 40) }, width, height };
@@ -199,14 +201,14 @@ export function floatBox(app: ReviewApp, w = 0.5, hgt = 0.62) {
 
 /** A large window centred on the dock. */
 export function centerBox(app: ReviewApp) {
-  const W = app.dock.width || window.innerWidth;
-  const H = app.dock.height || window.innerHeight;
+  const W = dockOf(app).width || window.innerWidth;
+  const H = dockOf(app).height || window.innerHeight;
   const width = Math.round(W * 0.8);
   const height = Math.round(H * 0.86);
   return { position: { top: Math.round((H - height) / 2), left: Math.round((W - width) / 2) }, width, height };
 }
 
-const hasSlot = (app: ReviewApp, group: DockviewGroupPanel) => !!group.activePanel && !!slotOf(app.dock, group.activePanel.id);
+const hasSlot = (app: ReviewApp, group: DockviewGroupPanel) => !!group.activePanel && !!slotOf(dockOf(app), group.activePanel.id);
 
 function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
   e.preventDefault();
@@ -217,7 +219,7 @@ function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
     p.id.startsWith('slot:')
       ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
       : floating
-      ? slotOf(app.dock, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
+      ? slotOf(dockOf(app), p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
       : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
     floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
     menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
@@ -226,7 +228,7 @@ function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
 }
 
 function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement) {
-  const targets = app.dock.groups.filter((g) => g.api.location.type === 'grid' && g !== group);
+  const targets = dockOf(app).groups.filter((g) => g.api.location.type === 'grid' && g !== group);
   const named = (g: DockviewGroupPanel) => g.panels.map((p) => p.title).join(' · ');
   const go = (target: DockviewGroupPanel | undefined, position: 'left' | 'right' | 'top' | 'bottom' | 'center') => {
     if (!target) return;
@@ -250,7 +252,7 @@ export function onEscape(app: ReviewApp, id: string, back: () => void) {
   if (surface) return; // nothing floats on a phone
   const f = () => {
     app.escapers.splice(app.escapers.indexOf(f), 1);
-    const p = app.dock.getPanel(id);
+    const p = dockOf(app).getPanel(id);
     if (!p || !isFloating(p.group)) return false;
     back();
     return true;
@@ -265,25 +267,25 @@ export function onEscape(app: ReviewApp, id: string, back: () => void) {
 export function floatInPlace(app: ReviewApp, id: string) {
   if (surface) return void surface.show(id);
   if (id.startsWith('slot:')) return putBack(app, id.slice(5)); // the stand-in itself: bring the panel home
-  const p = app.dock.getPanel(id);
+  const p = dockOf(app).getPanel(id);
   if (!p) return;
   if (isFloating(p.group)) return p.api.setActive();
   const group = p.group;
-  app.dock.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p });
-  app.dock.addFloatingGroup(p, centerBox(app));
+  dockOf(app).addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p });
+  dockOf(app).addFloatingGroup(p, centerBox(app));
   onEscape(app, id, () => putBack(app, id));
 }
 
 export function putBack(app: ReviewApp, id: string) {
   if (surface) return surface.close(id); // nothing floats on a phone: back to the tab underneath
-  const slot = slotOf(app.dock, id);
+  const slot = slotOf(dockOf(app), id);
   if (!slot) return;
   const group = slot.group;
   const index = group.panels.indexOf(slot);
   const keep = group.activePanel !== slot ? group.activePanel : undefined;
-  const p = app.dock.getPanel(id);
+  const p = dockOf(app).getPanel(id);
   if (p) p.api.moveTo({ group, position: 'center', index });
-  else app.dock.addPanel({ id, component: slot.params!.component, params: slot.params!.params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
+  else dockOf(app).addPanel({ id, component: slot.params!.component, params: slot.params!.params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
   slot.api.close();
   keep?.api.setActive();
 }
@@ -294,17 +296,17 @@ definePanel({
   onDemand: true,
   create: (app, params, panelId) => {
     const id = params.for as string;
-    const name = app.dock.getPanel(panelId)?.title ?? 'This panel';
+    const name = dockOf(app).getPanel(panelId)?.title ?? 'This panel';
     const el = h(
       'div',
       { class: 'rr-slot' },
       h('p', null, `${name} is open in a window.`),
       h('button', { class: 'rr-btn', title: 'Back into this spot', 'data-keys': 'Escape', onclick: () => putBack(app, id) }, 'Put it back'),
     );
-    const sub = app.dock.onDidLayoutChange(() =>
+    const sub = dockOf(app).onDidLayoutChange(() =>
       queueMicrotask(() => {
-        const slot = app.dock.getPanel(panelId);
-        const p = app.dock.getPanel(id);
+        const slot = dockOf(app).getPanel(panelId);
+        const p = dockOf(app).getPanel(id);
         if (!slot) return;
         if (!p) putBack(app, id);
         // docked somewhere else by hand: this spot has no job left

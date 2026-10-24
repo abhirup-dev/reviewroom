@@ -2,7 +2,6 @@
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
 import { copyText, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
-import { isPhone } from '../kernel/phone';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
@@ -155,7 +154,7 @@ class CodePanel implements PanelInstance {
     ).start();
     // read the position once CodeView's frame has settled it (mid-jump it rebases its paged scroll)
     this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => (this.trackActive(), this.paintRail())), { passive: true });
-    if (isPhone() && this.isPrimary) this.mountRail();
+    if (this.app.presentation.kind === 'phone' && this.isPrimary) this.mountRail();
 
     this.offs.push(
       app.bus.on('files', () => this.rebuild()),
@@ -316,7 +315,7 @@ class CodePanel implements PanelInstance {
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
     // a phone's Code area: the header names where it is ("2 / 5") and its path opens the list of files
-    const list = isPhone() && this.isPrimary;
+    const list = this.app.presentation.kind === 'phone' && this.isPrimary;
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => {
       this.toggleCollapse(f.path, cb.checked);
@@ -381,7 +380,7 @@ class CodePanel implements PanelInstance {
       disableFileHeader: this.mode === 'file',
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
       // the guided review on a phone: room to scroll the last lines above the slide card and toolbar over the code
-      layout: isPhone() && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * 0.6), gap: 8 } : undefined,
+      layout: this.app.presentation.kind === 'phone' && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * 0.6), gap: 8 } : undefined,
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,

@@ -7,7 +7,6 @@
 import { h, icon, onDrag } from './dom';
 import type { AppEvents, ReviewApp } from '../app';
 import { panelDefs, type PanelInstance, type PanelSurface } from './dock';
-import { wantsPhone } from './device';
 import { createActor, type ActorRefFrom } from 'xstate';
 import { areaOf, front, peeking, shellMachine, type AreaId } from './shell.machine';
 import { rising, type codeSheetMachine } from './codesheet.machine';
@@ -21,10 +20,6 @@ export interface PhoneOptions {
   /** Open threads the Threads list shows by default: the Threads area's badge. */
   openThreads(): number;
 }
-
-/** A phone (see device.ts). Picked once at boot: the shell (and the prefs) never swap under the reviewer. */
-let picked: boolean | undefined;
-export const isPhone = () => (picked ??= wantsPhone());
 
 type Open = { id: string; title: string; params?: Record<string, unknown>; host: HTMLElement; inst: PanelInstance };
 type Page = { id: string; title: string; params?: Record<string, unknown> };

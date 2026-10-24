@@ -15,7 +15,6 @@ import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
 import { showPanel } from './kernel/dock';
-import { isPhone } from './kernel/phone';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
 import type { Anchor, Op } from './kernel/state/schema.shared';
@@ -51,6 +50,13 @@ export const defaultPrefs: Prefs = {
   reviewMode: 'agent',
 };
 
+
+/** How the workbench is presented, picked once at boot (main.ts): the dock, or the phone shell. */
+export interface Presentation {
+  kind: 'dock' | 'phone';
+  /** Layouts, windows and docking: the dock's. A phone shows one panel at a time. */
+  canArrange: boolean;
+}
 
 export interface AppEvents extends Record<string, unknown> {
   state: ReviewState;
@@ -96,7 +102,9 @@ export class ReviewApp {
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;
   range!: DiffRange;
-  dock!: DockviewApi;
+  /** The dock, once mounted; none on a phone. */
+  dock?: DockviewApi;
+  readonly presentation: Presentation;
   /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
   /** The PR's description from GitHub: read-only, but commentable like the walkthrough (anchors target PR_DESCRIPTION). */
@@ -114,8 +122,7 @@ export class ReviewApp {
   readonly services: ReviewServices;
   private cleanups: (() => void)[] = [];
   private disposed = false;
-  // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
-  private prefsKey = isPhone() ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
+  private prefsKey: string;
 
   onDispose(cleanup: () => void) {
     if (this.disposed) cleanup();
@@ -137,8 +144,12 @@ export class ReviewApp {
   }
 
   // Keep new ReviewApp(root) compatible; boot supplies its composition explicitly.
-  constructor(public root: HTMLElement, createServices = createReviewServices) {
-    this.prefs = loadLocal(this.prefsKey, isPhone() ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
+  constructor(public root: HTMLElement, createServices = createReviewServices, kind: Presentation['kind'] = 'dock') {
+    this.presentation = { kind, canArrange: kind === 'dock' };
+    const phone = kind === 'phone';
+    // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
+    this.prefsKey = phone ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
+    this.prefs = loadLocal(this.prefsKey, phone ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
     this.services = createServices({
       github: {
         backend: () => this.backend,

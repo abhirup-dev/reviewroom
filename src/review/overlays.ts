@@ -2,7 +2,6 @@
 import { single } from 'fuzzysort';
 import { h, icon, debounce, placeNear, backdropCloses, onLongPress } from '../kernel/dom';
 import { loadRaw, saveLocal } from '../kernel/store';
-import { isPhone } from '../kernel/phone';
 import { trackKeyboard } from '../kernel/keyboard';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { keyLabel } from '../kernel/commands';
@@ -46,7 +45,7 @@ export function mountPalette(app: ReviewApp) {
   const list = h('div', { class: 'rr-palette__list', role: 'listbox' });
   const hint = h('div', { class: 'rr-palette__hint' });
   // a phone's search: chips to narrow it, Recent and Actions before typing, results grouped by kind
-  const phone = isPhone();
+  const phone = app.presentation.kind === 'phone';
   const chips = h('div', { class: 'rr-palette__chips', role: 'group', 'aria-label': 'Show', hidden: true });
   let chip: Chip = 'all';
   const recentKey = () => `reviewroom:recent:${app.meta.id}`;

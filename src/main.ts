@@ -21,8 +21,7 @@ import { createReviewServices } from './services';
 import { definePanel, type PanelDef } from './kernel/dock';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { buildHeader, buildPhoneBar, hubHref, saveLayoutDialog, type PhoneBarContributions } from './kernel/header';
-import { isPhone } from './kernel/phone';
-import { restoreShell, turnedPhone, watchShell } from './kernel/device';
+import { restoreShell, turnedPhone, wantsPhone, watchShell } from './kernel/device';
 import { startUpdates } from './kernel/pwa';
 import { recapThreads } from './kernel/state/ops.shared';
 import { githubPanelAvailability } from './threads/docking';
@@ -116,7 +115,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   if (!root) throw new Error('reviewroom: no <rr-app> element');
   injectCSS();
   defineElements();
-  const app = new ReviewApp(root, createReviewServices);
+  const app = new ReviewApp(root, createReviewServices, wantsPhone() ? 'phone' : 'dock');
+  const phone = app.presentation.kind === 'phone';
   startUpdates(app); // before loading: an old shell that can't load the review still updates
   app.applyTheme();
   const themeQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -170,7 +170,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   provideFocusCode(app, { openFile: (path, view, at) => openInNewPanel(app, path, view, 'center', undefined, at) });
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
-  root.replaceChildren(isPhone() ? buildPhoneBar(app, phoneBar(app)) : buildHeader(app, {
+  root.replaceChildren(phone ? buildPhoneBar(app, phoneBar(app)) : buildHeader(app, {
     status: roundStatusControls,
     beforeLayout: () => [
       ...githubControls(app),
@@ -190,7 +190,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountHoverCards(app);
   mountThreadPopup(app);
   const tour = mountWalkthrough(app);
-  if (isPhone())
+  if (phone)
     app.layout.mountPhone(dockHost, {
       panelAvailability: githubPanelAvailability(app),
       // Last round while a round has threads from the last one; the PR conversation for a GitHub PR that has one
@@ -199,7 +199,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       openThreads: () => openThreadCount(app),
     });
   else app.layout.mount(dockHost, turnedPhone() ? null : lastLayout, { panelAvailability: githubPanelAvailability(app), save: !turnedPhone() });
-  watchShell(app, isPhone());
+  watchShell(app, phone);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.onDispose(app.commands.attach(document));
@@ -225,7 +225,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     sessionStorage.removeItem('reviewroom:scroll');
     requestAnimationFrame(() => document.querySelector('.rr-narrative-scroll')?.scrollTo({ top: +y }));
   }
-  restoreShell(app, isPhone());
+  restoreShell(app, phone);
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
   recapOnNewRound(app);

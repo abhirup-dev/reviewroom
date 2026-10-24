@@ -15,7 +15,6 @@ import { closePanel, definePanel } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 import { renderPreview } from '../review/previews';
 import { popMenu } from '../kernel/menus';
-import { isPhone } from '../kernel/phone';
 import { trackKeyboard } from '../kernel/keyboard';
 import { createActor, fromPromise } from 'xstate';
 import { threadMachine, type ThreadTarget } from './thread.machine';
@@ -518,7 +517,7 @@ export function mountThreadPopup(app: ReviewApp) {
   );
   // closing (Esc, the backdrop, a button) returns focus to where it was: the dialog does that
   // on a phone: a bottom sheet (phone.css) that keeps clear of the on-screen keyboard while it's open
-  const sheet = isPhone();
+  const sheet = app.presentation.kind === 'phone';
   const box = h('dialog', { class: 'rr-modal' + (sheet ? ' rr-sheet' : ''), 'aria-label': 'Comment thread', onmousedown: backdropCloses, onclose: () => flow.send({ type: 'close' }) });
   document.body.append(box);
   const close = () => flow.send({ type: 'close' });

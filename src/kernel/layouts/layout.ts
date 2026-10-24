@@ -42,6 +42,8 @@ export class Layouts {
   private last?: Snapshot;
   /** The phone shell, when it stands in for the dock: one panel at a time, nothing to arrange. */
   private phone?: PhoneShell;
+  /** The dock, once mounted. */
+  private api!: DockviewApi;
 
   constructor(private app: ReviewApp) {}
 
@@ -78,7 +80,7 @@ export class Layouts {
     const l = this.all()[id];
     if (!l) return false;
     if (this.phone) return true; // nothing to arrange
-    const api = this.app.dock;
+    const api = this.api;
     const availability = this.availability;
     const json = toDockview(l.root, api.width || window.innerWidth, api.height || window.innerHeight, (pid) => {
       const def = panelDef(pid);
@@ -105,7 +107,7 @@ export class Layouts {
     const id = layoutId(title);
     if (!id) return this.fail('Name it with some letters or digits');
     if (this.all()[id]) return this.fail(`“${title}” is taken: pick another name`);
-    const now = this.isPassing() && this.last ? JSON.parse(this.last.raw) : app.dock.toJSON();
+    const now = this.isPassing() && this.last ? JSON.parse(this.last.raw) : this.api.toJSON();
     const root = fromDockview(now as DockJSON, (pid) => !pid.includes(':')); // no on-demand panels, no windows
     if (!root) return this.fail('Nothing to save: no panels are open');
     const layout = { title, root };
@@ -144,14 +146,14 @@ export class Layouts {
   }
 
   private isPassing() {
-    return this.app.dock.panels.some((p) => p.id.startsWith('slot:') || (this.passing.has(p.id) && isFloating(p.group)));
+    return this.api.panels.some((p) => p.id.startsWith('slot:') || (this.passing.has(p.id) && isFloating(p.group)));
   }
 
   // ---------------------------------------------------------------- undo
   // Settled layouts (save.machine.ts reads the dock once it settles), newest last. Switching tabs isn't a layout
   // change, and neither is the window resizing: that only moves the baseline.
   private snapshot(): Snapshot {
-    const j = this.app.dock.toJSON();
+    const j = this.api.toJSON();
     return { raw: JSON.stringify(j), key: JSON.stringify(j, (k, v) => (k === 'activeGroup' || k === 'activeView' ? undefined : v)), w: j.grid.width, h: j.grid.height, layout: this.currentId };
   }
   private track() {
@@ -170,7 +172,7 @@ export class Layouts {
   undo() {
     const prev = this.undoStack.pop();
     if (!prev) return;
-    this.app.dock.fromJSON(JSON.parse(prev.raw));
+    this.api.fromJSON(JSON.parse(prev.raw));
     if (prev.layout && this.all()[prev.layout]) this.setCurrent(prev.layout);
     this.last = this.snapshot(); // the change this fires is the undo itself, not a new step
   }
@@ -180,7 +182,7 @@ export class Layouts {
   mount(host: HTMLElement, saved: LastLayout | null, options: MountDockOptions = {}): DockviewApi {
     const app = this.app;
     this.availability = options.panelAvailability;
-    const api = createDock(app, host);
+    const api = (this.api = createDock(app, host));
     let restored = false;
     if (saved) {
       try {
@@ -233,7 +235,7 @@ export class Layouts {
 
   /** Add panel `id` where the current layout puts it; undefined if the layout has no place for it. */
   private place(id: string, params?: Record<string, unknown>) {
-    const api = this.app.dock;
+    const api = this.api;
     const def = panelDef(id);
     const at = def && this.current && placement(this.current.root, id, (x) => !!api.getPanel(x));
     if (!at) return undefined;
@@ -254,7 +256,7 @@ export class Layouts {
     const availability = this.availability;
     if (!availability) return;
     for (const id of availability.ids) {
-      if (!availability.isAvailable(id) || this.app.dock.getPanel(id) || this.offered.has(id)) continue;
+      if (!availability.isAvailable(id) || this.api.getPanel(id) || this.offered.has(id)) continue;
       this.offered.add(id);
       this.place(id);
       this.last = this.snapshot(); // provider panels arriving belong to the starting layout, not an undo step
@@ -263,13 +265,13 @@ export class Layouts {
 
   /** The panel in front: the phone's page or sheet, the dock's active panel. */
   front() {
-    return this.phone ? this.phone.front() : this.app.dock.activePanel?.id;
+    return this.phone ? this.phone.front() : this.api.activePanel?.id;
   }
 
   /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */
   ensurePanel(id: string, params?: Record<string, unknown>) {
     if (this.phone) return void this.phone.show(id, params);
-    const api = this.app.dock;
+    const api = this.api;
     // back where the layout puts it; one the layout has no place for joins the walkthrough's tabs (as in apply)
     let p = api.getPanel(id) ?? this.place(id, params);
     if (!p) {

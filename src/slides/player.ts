@@ -6,7 +6,6 @@
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor, type SnapshotFrom } from 'xstate';
 import { backdropCloses, h, icon, onDrag, plural } from '../kernel/dom';
-import { isPhone } from '../kernel/phone';
 import { onBack, watchBack } from '../kernel/history';
 import { phonePlayer as phoneSized } from '../kernel/device';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
@@ -227,7 +226,7 @@ export function mountWalkthrough(app: ReviewApp) {
    *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient, phone.css) the slide is a column
    *  beside the code, not a sheet over it. */
   function phonePlayer() {
-    if (!isPhone()) watchBack(app); // a turned phone has the dock: no phone shell to hear Back
+    if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
     // the floating toolbar: Back, Contents, Comment and Next, plain icon buttons on one pill
     prev.replaceChildren(icon('chevron', 20));
     prev.className = 'rr-icon-btn rr-tour__back';
