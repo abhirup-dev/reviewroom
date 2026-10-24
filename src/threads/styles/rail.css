@@ -39,13 +39,6 @@
 .rr-rail-chip.is-resolved {
   opacity: 0.55;
 }
-.rr-rail-chip__text {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .rr-dot {
   width: 6px;
   height: 6px;

@@ -26,13 +26,6 @@
 .rr-inline-thread.is-resolved {
   opacity: 0.6;
 }
-.rr-inline-thread__text {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .rr-inline-thread__last {
   color: var(--rr-muted);
   white-space: nowrap;

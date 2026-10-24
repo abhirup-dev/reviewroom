@@ -27,8 +27,11 @@
   color: var(--rr-muted);
   min-width: 0;
 }
-/* 1: thread marker, 2: what it is on, 3: where */
-.rr-thread-item__anchor > span:nth-child(3) {
+/* one line, cut with an ellipsis: a list item's place (1: thread marker, 2: what it is on, 3: where), a rail chip's
+   text, an inline thread's text */
+.rr-thread-item__anchor > span:nth-child(3),
+.rr-rail-chip__text,
+.rr-inline-thread__text {
   flex: 1;
   min-width: 0;
   white-space: nowrap;
