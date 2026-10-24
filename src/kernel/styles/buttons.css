@@ -1,0 +1,31 @@
+/* ---------------------------------------------------------------- controls */
+.rr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--rr-radius);
+  border: 1px solid var(--rr-line-strong);
+  background: var(--rr-panel);
+  color: var(--rr-ink);
+  font: 500 var(--rr-text) / 1 var(--rr-font);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rr-btn:hover {
+  background: var(--rr-hover);
+}
+.rr-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.rr-btn--primary {
+  background: var(--rr-ink);
+  border-color: var(--rr-ink);
+  color: var(--rr-bg);
+}
+.rr-btn--primary:hover {
+  background: var(--rr-ink-2);
+}

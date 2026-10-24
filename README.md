@@ -1,6 +1,6 @@
 # reviewroom
 
-An agent-driven code review workbench. The agent writes a **freeform HTML narrative** of a change;
+An agent-driven code review workbench. The agent writes a **freeform HTML walkthrough** of a diff;
 reviewroom puts it next to a **live diff of your local clone** and gives you everything around it:
 docking panels, contents, a file tree, symbol search, anchored comment threads, and Crit-style
 **review rounds** with the agent.
@@ -66,18 +66,18 @@ them (`rr:thread/gh_<n>`).
 Thread markers tell the two apart: GitHub's mark for threads on the PR, Clawd for threads with the
 agent, each with its message count; they turn grey once resolved.
 The PR's own **Description** sits above the agent's review: read-only (edit it on GitHub), but you can
-comment on it like the narrative, and those threads go to the agent.
+comment on it like the walkthrough, and those threads go to the agent.
 The **CI** tab (next to Threads) shows the latest commit's checks, from GitHub Actions or any CI that
 reports a commit status (Jenkins, TeamCity, …). When it failed or is still running, it also shows the
 last commit on the PR that passed; while checks run it refreshes every 30 seconds.
 
 ## Commenting
 
-- **Select text** in the narrative → Comment / Copy link / Pin.
+- **Select text** in the walkthrough → Comment / Copy link / Pin.
 - **Hover any block** (paragraph, list item, table, diagram, widget) → gutter handle → comment on the whole block.
 - **Hold Alt** (or press `x`, or the target button) to pick **any element**, devtools-style.
 - **Code:** click/drag line numbers to select a range, or the `+` in the gutter.
-- Threads render as passive highlights + chips in the margin (narrative) or compact rows (code),
+- Threads render as passive highlights + chips in the margin (walkthrough) or compact rows (code),
   open as a centred markdown popup, and can be **docked** as a panel.
 - In the composer, `[[` links anything (sections, files, lines, symbols, threads); a pasted `rr:` link becomes a chip;
   `![](rr:…)` embeds a live preview.
@@ -87,13 +87,13 @@ last commit on the PR that passed; while checks run it refreshes every 30 second
 | | |
 |---|---|
 | `⌘K` / `Ctrl K` | Go to anything (files, sections, threads, commands; `#` symbols, `/` search code) |
-| `g n` `g c` `g f` `g t` `g o` | Focus narrative / code / files / threads / contents |
-| `n` `p` or `]` `[` | Next / previous section (narrative) |
+| `g n` `g c` `g f` `g t` `g o` | Focus walkthrough / code / files / threads / contents |
+| `n` `p` or `]` `[` | Next / previous section (walkthrough) |
 | `j` `k`, `J` `K` / `] f` `[ f` | Next / previous change, file (code) |
 | `s` `w` `i` `+` `-` `v` | Split/unified, wrap, ignore whitespace, focus new/old, mark viewed (code) |
 | `c` | Comment on current selection |
 | `x` / hold `Alt` | Pick an element to comment on |
-| `Alt 1–4` | Layouts: reading, wide code, code focus, narrative focus |
+| `Alt 1–4` | Layouts: reading, wide code, code focus, walkthrough focus (`narrative-focus`) |
 | `⌘⇧↵` | Finish round & send feedback |
 | hover anything | Tooltip explaining it, with its shortcut |
 | double-click a file, diff header, section or pin | Open it big in a centred window (`Esc` puts it back) |
@@ -106,23 +106,27 @@ last commit on the PR that passed; while checks run it refreshes every 30 second
    review; file contents come from raw.githubusercontent.com. Token: `localStorage['reviewroom:github-token']`.
 3. **Static fixture** (`<script type="application/json" id="rr-fixture">`): self-contained demos.
 
-Write your own by implementing `CodeProvider` (`src/providers/index.ts`).
+Write your own by implementing `CodeProvider` (`src/kernel/providers/contracts.ts`).
 
 ## Package layout
 
 ```
 src/
-  index.ts            boot(), window.rr API, commands
-  core/               types, rr: refs, commands/keys, markdown, emitter, dom helpers
-  providers/          LocalProvider + ServerState (CLI), GitHubProvider, StaticProvider, BrowserState
-  shell/              ReviewApp (shared context), dockview layout (layouts in src/layouts/), header
-  panels/             narrative, code (@pierre/diffs), files/contents/threads
-  overlays/           thread popup/panel + composer, palette, hover previews, toasts
-  elements/           <rr-ref> <rr-embed> <rr-code> <rr-flow>/<rr-node> <rr-callout> <rr-checklist> <rr-markdown>
-  styles/             tokens.css (all colours/fonts as --rr-* variables) + component styles
+  main.ts             boot, public exports, window.rr, feature composition
+  app.ts              ReviewApp compatibility facade and lifecycle
+  services.ts         composition of narrow code, thread and GitHub services
+  kernel/             state/refs, DOM helpers, dock, layouts, providers, header
+  review/             code/walkthrough/files/contents, elements, previews, navigation
+  threads/            local/GitHub threads, composer, controls, CI and docking
+  slides/             guided walkthrough model, player machines, view and audit
+  hub/                standalone hub UI and model
+  testing/            DOM fixtures and integration tests
+  */styles/           CSS owned by each feature; build.ts preserves cascade order
+  *.shared.ts         DOM-free contracts shared with the CLI (also within folders)
+  *.machine.ts        DOM-free XState machines, beside their owning views
 cli/                  CLI (TypeScript, bundled for Bun): server + round commands
 templates/            review.html scaffold
-schema/               JSON schema for state.json (generated from src/shared/schema.ts)
+schema/               JSON schema for state.json (generated from src/kernel/state/schema.shared.ts)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)
 ```
 

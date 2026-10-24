@@ -1,4 +1,4 @@
-import { ReviewroomError } from '../../src/shared/ops.ts';
+import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 /** Flags every command takes; each command declares the rest (as cac parses them: camelCase, `--no-open` -> open: false). */
 export interface Global {
   repo?: string;

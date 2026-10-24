@@ -1,0 +1,15 @@
+.rr-root.is-waiting .rr-send-btn,
+.rr-root.is-approved .rr-send-btn {
+  opacity: 0.6;
+}
+/* beats .rr-pill's display; the root class for the status shows one */
+.rr-header .rr-round-status {
+  display: none;
+  font-size: var(--rr-text-sm);
+  color: var(--rr-muted);
+}
+.is-waiting .rr-round-status--waiting,
+.is-approved .rr-round-status--approved,
+.is-offline .rr-round-status--offline {
+  display: inline-flex;
+}

@@ -4,7 +4,7 @@ import { type Global, fail } from '../lib/args.ts';
 import { resolveDir, loadConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { takeLock, releaseLock } from '../lib/lock.ts';
-import { undelivered } from '../../src/shared/ops.ts';
+import { undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
 import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
@@ -78,6 +78,6 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
     }
     console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} -> ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
     void server.stop(true);
-    process.exit(0); // the review is over: also ends the narrative watcher and SSE pings
+    process.exit(0); // the review is over: also ends the walkthrough watcher and SSE pings
   }, 150);
 }

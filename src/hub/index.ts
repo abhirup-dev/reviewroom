@@ -1,9 +1,9 @@
 // The hub's page (`reviewroom hub`): every review running on this machine, refreshed every 2 s from the hub's
 // own server (a review server refuses requests from other ports). Filter, sort, open, close.
-import { backdropCloses, h, icon, relTime } from '../core/dom';
-import { mountTooltips } from '../overlays/tooltip';
+import { backdropCloses, h, icon, relTime } from '../kernel/dom';
+import { mountTooltips } from '../kernel/tooltip';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
-import type { HubSnapshot, SessionInfo } from '../shared/hub';
+import type { HubSnapshot, SessionInfo } from './model.shared';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg' with { type: 'text' };
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg' with { type: 'text' };
@@ -157,12 +157,7 @@ function visible(): SessionInfo[] {
   const rows = (data?.sessions ?? []).filter(
     (s) =>
       (!q || text(s).includes(q)) &&
-      (!f.tool.value || s.tool === f.tool.value) &&
-      (!f.kind.value || s.kind === f.kind.value) &&
-      (!f.repo.value || s.repository === f.repo.value) &&
-      (!f.branch.value || s.branch === f.branch.value) &&
-      (!f.cwd.value || s.cwd === f.cwd.value) &&
-      (!f.author.value || (s.author ?? NO_AUTHOR) === f.author.value) &&
+      selectOptions.every(([el, , valueOf]) => !el.value || valueOf(s) === el.value) &&
       (!f.comments.value || (s.commentCount ?? -1) >= +f.comments.value) &&
       (!f.round.value || (s.reviewRound ?? -1) >= +f.round.value),
   );

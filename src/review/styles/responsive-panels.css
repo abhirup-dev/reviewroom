@@ -1,0 +1,69 @@
+/* ---------------------------------------------------------------- responsive panels (container queries) */
+.rr-narrative,
+.rr-code-panel,
+.rr-side {
+  container-type: inline-size;
+}
+.rr-toolbar {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rr-toolbar::-webkit-scrollbar {
+  display: none;
+}
+@container (max-width: 860px) {
+  .rr-doc-wrap,
+  .rr-doc-wrap.has-threads {
+    grid-template-columns: 44px minmax(0, 1fr) 56px;
+    padding-top: 20px;
+  }
+  .rr-rail {
+    width: 56px;
+  }
+  .rr-rail-chip {
+    left: 10px;
+    right: auto;
+    width: 38px;
+    padding: 0 4px;
+    justify-content: center;
+    border-radius: var(--rr-radius-sm);
+  }
+  .rr-rail-chip::before {
+    left: -10px;
+    width: 9px;
+  }
+  .rr-rail-chip__text,
+  .rr-rail-chip .rr-dot {
+    display: none;
+  }
+  .rr-prose :where(h1) {
+    font-size: 25px;
+  }
+}
+@container (max-width: 520px) {
+  .rr-doc-wrap,
+  .rr-doc-wrap.has-threads {
+    grid-template-columns: 30px minmax(0, 1fr) 48px;
+  }
+  .rr-doc-wrap .rr-prose {
+    font-size: 14px;
+  }
+  .rr-rail {
+    width: 48px;
+  }
+  .rr-rail-chip {
+    left: 6px;
+  }
+}
+@container (max-width: 640px) {
+  .rr-file__head .rr-icon-btn:not(.rr-file__chev),
+  .rr-file__head .rr-delta {
+    display: none;
+  }
+  .rr-viewed {
+    font-size: 0;
+    gap: 0;
+    padding: 0 6px;
+  }
+}
+

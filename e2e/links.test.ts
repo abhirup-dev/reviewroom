@@ -2,10 +2,11 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { read, setup, until } from './fixture.ts';
+import { read, setup } from './fixture.ts';
+import { until } from '../src/testing/wait.ts';
 
 describe('links', () => {
-  const { repo, dir, d, cli, git, state, spawn } = setup();
+  const { repo, dir, d, cli, git, state, spawn, url } = setup();
   const reviewFile = path.join(dir, 'review.html');
   const prepend = (lines: string) => fs.writeFileSync(path.join(repo, file), lines + read(repo, file));
   let file = '';
@@ -18,7 +19,7 @@ describe('links', () => {
   });
   test('a running server fingerprints new links at the current head, not the one it started on', async () => {
     spawn(['review', '--forever', '--no-open', '--port', '0', ...d]);
-    await until(() => fs.existsSync(path.join(dir, 'server.json')));
+    await url();
     prepend('added 3\n');
     await git('commit', '-qam', 'shift again');
     fs.writeFileSync(reviewFile, `<rr-review><a href="rr:code/${file}#L6-7">x</a></rr-review>`);

@@ -1,0 +1,11 @@
+/* thread filter menu: a starter's avatar beside their name */
+.rr-filter-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rr-filter-author img {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}

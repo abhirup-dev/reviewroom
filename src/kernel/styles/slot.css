@@ -1,0 +1,10 @@
+/* stand-in for a panel floated over the layout (double-click a section or pin) */
+.rr-slot {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: var(--rr-muted);
+  background: var(--rr-panel-2);
+}

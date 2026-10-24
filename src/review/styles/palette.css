@@ -1,0 +1,86 @@
+/* palette */
+.rr-palette {
+  margin-top: 12vh;
+  width: min(680px, 100%);
+  max-height: 64vh;
+  font: var(--rr-text) / 1.4 var(--rr-font);
+  animation: rr-pop 0.12s ease-out;
+}
+.rr-palette__input {
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--rr-line);
+  background: transparent;
+  color: var(--rr-ink);
+  font: 15px var(--rr-font);
+  outline: none;
+}
+.rr-palette__list {
+  overflow: auto;
+  padding: 6px;
+}
+.rr-palette__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--rr-radius);
+  cursor: pointer;
+}
+.rr-palette__item.is-sel {
+  background: var(--rr-active);
+}
+.rr-palette__kind {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--rr-radius-sm);
+  display: grid;
+  place-items: center;
+  background: var(--rr-hover);
+  color: var(--rr-muted);
+  font: 600 11px/1 var(--rr-mono);
+  flex: none;
+}
+.rr-palette__kind--section {
+  color: var(--rr-accent);
+}
+.rr-palette__kind--thread {
+  color: var(--rr-comment);
+}
+.rr-palette__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rr-palette__kind--text + .rr-palette__label,
+.rr-palette__item:has(:is(.rr-palette__kind--file, .rr-palette__kind--text, .rr-palette__kind--symbol)) .rr-palette__detail {
+  font-family: var(--rr-mono); /* paths */
+  font-size: 11px;
+}
+.rr-palette__kind--symbol + .rr-palette__label {
+  font: 12px var(--rr-mono);
+}
+.rr-palette__detail {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--rr-faint);
+  font: 11.5px var(--rr-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+  flex-shrink: 1;
+}
+.rr-palette__hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--rr-line);
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+}
+

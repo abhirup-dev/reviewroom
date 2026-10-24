@@ -4,8 +4,9 @@
 // Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
 import type { Provider } from './git.ts';
-import { parseRef, symbolHits, symbolQuery } from '../../src/shared/refs.ts';
-import type { Walkthrough } from '../../src/shared/walkthrough.ts';
+import { regex } from 'regex';
+import { LINK_IN_TEXT, lineSpanOf, parseRef, symbolHits, symbolQuery, trimLink, withLineSpan } from '../../src/kernel/refs/refs.shared.ts';
+import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
 export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
 export interface LinkResult {
@@ -21,19 +22,16 @@ export interface LinkResult {
 export type Links = Record<string, string>;
 
 const DRIFT = 5; // a block that moved further than this is reported for the agent to fix, not healed
-const LINK = /rr:(?:code|file|sym|doc|tour)\/[^\s"'<>`)]+/g;
-const LINES = /#L(\d+)(?:-L?(\d+))?$/;
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hash = (lines: string[], s: number, e: number) => crypto.createHash('sha1').update(lines.slice(s - 1, e).join('\n')).digest('hex').slice(0, 16);
 
-/** Every distinct rr: link in the narrative, outside HTML comments (trailing sentence punctuation dropped). */
-export const extractLinks = (html: string) => [...new Set((html.match(LINK) ?? []).map((l) => l.replace(/[.,;:]+$/, '')))];
+/** Every distinct rr: link in the walkthrough, outside HTML comments (trailing sentence punctuation dropped). */
+export const extractLinks = (html: string) => [...new Set((html.match(LINK_IN_TEXT) ?? []).map(trimLink))];
 export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 
 /**
  * Check every link in `html`, and in `extra` (walkthrough.json's prose and refs: tourText), against the code. `known` is the ref -> hash map from the last check
- * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the narrative drop out).
+ * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the walkthrough drop out).
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
@@ -65,7 +63,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
       continue;
     }
     if (r.type === 'doc') {
-      if (new RegExp(`\\bid=["']?${esc(r.id)}["'\\s>]`).test(html)) out(ref, 'ok');
+      if (regex`\b id= ["']? ${r.id} ["'\s>]`.test(html)) out(ref, 'ok');
       else out(ref, 'broken', 'no element with this id in the walkthrough');
       continue;
     }
@@ -106,7 +104,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     const n = end - r.start;
     let to: number | undefined;
     for (let d = 1; d <= DRIFT && !to; d++) to = [r.start + d, r.start - d].find((s) => s >= 1 && s + n <= lines.length && hash(lines, s, s + n) === prev);
-    if (to) out(ref, 'moved', null, ref.replace(LINES, n ? `#L${to}-${to + n}` : `#L${to}`));
+    if (to) out(ref, 'moved', null, withLineSpan(ref, to, to + n));
     else out(ref, 'changed', now ? 'the code at these lines changed' : `past the end of the file (${lines.length} lines)`);
   }
   return { results, links };
@@ -116,7 +114,7 @@ export const problems = (results: LinkResult[]) => results.filter((x) => x.statu
 
 /** One line per problem, for the agent. */
 export const report = (bad: LinkResult[]) =>
-  bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + x.to.match(LINES)![0] : ''}${x.why ? `  (${x.why})` : ''}${x.where ? `  [guided walkthrough ${x.where.join(', ')}]` : ''}`).join('\n');
+  bad.map((x) => `  ${x.status.padEnd(7)} ${x.ref}${x.to ? ' -> ' + lineSpanOf(x.to) : ''}${x.why ? `  (${x.why})` : ''}${x.where ? `  [guided walkthrough ${x.where.join(', ')}]` : ''}`).join('\n');
 
 /** Rewrite moved links in one pass (so #L4->#L7 and #L7->#L10 can't chain) and move their fingerprints along. */
 export function applyFixes(html: string, results: LinkResult[], links: Links) {
@@ -125,8 +123,8 @@ export function applyFixes(html: string, results: LinkResult[], links: Links) {
   links = { ...links };
   for (const from of to.keys()) delete links[from];
   for (const [dest, h] of moved) links[dest] = h;
-  html = html.replace(LINK, (m) => {
-    const ref = m.replace(/[.,;:]+$/, '');
+  html = html.replace(LINK_IN_TEXT, (m) => {
+    const ref = trimLink(m);
     return to.has(ref) ? to.get(ref)! + m.slice(ref.length) : m;
   });
   return { html, links };

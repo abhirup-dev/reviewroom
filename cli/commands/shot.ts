@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit } from '../lib/config.ts';
-import { openPage, withServer } from '../lib/render.ts';
+import { withPage, withServer } from '../lib/render.ts';
 import { shotSlide } from './slides.ts';
 
 type ShotOpts = Global & { theme?: string; out?: string; mobile?: boolean; viewport?: string };
@@ -64,16 +64,14 @@ const PLAN = (only: string | undefined, max: number, phone?: number) => `(async 
 export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]) {
   if (o.theme && o.theme !== 'light' && o.theme !== 'dark') fail('--theme: light or dark', 2);
   if (only?.includes('/')) return shotSlide(repo, o, only); // section ids have no '/'
-  const dir = dirForEdit(repo, o.dir);
-  if (!fs.existsSync(path.join(dir, 'review.html'))) fail(`no review.html in ${dir}`);
+  const dir = dirForEdit(repo, o.dir, 'review.html');
   const theme = o.theme ?? 'light';
   const tmp = path.join(os.tmpdir(), 'reviewroom-shots', `${path.basename(dir)}-${theme}${o.mobile ? '-mobile' : ''}`);
   const out = path.resolve(o.out ?? tmp);
   if (!o.out) fs.rmSync(tmp, { recursive: true, force: true }); // last run's pictures would read as this one's
   fs.mkdirSync(out, { recursive: true });
-  await withServer(repo, dir, async (url) => {
-    const page = await openPage(url, LAPTOP);
-    try {
+  await withServer(repo, dir, (url) =>
+    withPage(url, LAPTOP, async (page) => {
       await page.evaluate(`(rr.app.prefs = { ...rr.app.prefs, theme: '${theme}' }, rr.app.applyTheme())`); // this page only: not saved
       const plan = await page.evaluate<Plan>(PLAN(only, MAX, o.mobile ? PHONE : undefined));
       if (plan.error) fail(plan.error);
@@ -87,8 +85,6 @@ export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]
       if (plan.wide!.length) console.log(`\nwider than the panel (cut off, or the page scrolls sideways):\n  ${plan.wide!.join('\n  ')}`);
       const errors = page.errors();
       if (errors.length) console.log(`\npage errors (the reviewer sees the same):\n  ${errors.join('\n  ')}`);
-    } finally {
-      await page.close();
-    }
-  });
+    }),
+  );
 }

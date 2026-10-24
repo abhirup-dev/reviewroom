@@ -1,0 +1,75 @@
+/* ---------------------------------------------------------------- CI */
+.rr-ci {
+  padding: 8px;
+}
+.rr-ci-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rr-line);
+  font-size: var(--rr-text-sm);
+}
+.rr-ci-commit__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rr-ci-commit__label {
+  font-weight: 600;
+}
+.rr-ci-commit__sha {
+  margin-left: auto;
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-xs);
+  color: var(--rr-muted);
+}
+.rr-ci-commit__title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rr-ci-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 14px;
+  color: var(--rr-ink);
+  font-size: var(--rr-text-xs);
+  text-decoration: none;
+}
+a.rr-ci-check:hover span {
+  text-decoration: underline;
+}
+.rr-ci-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rr-faint);
+}
+.rr-ci-dot.is-success {
+  background: var(--rr-ok);
+}
+.rr-ci-dot.is-failure {
+  background: var(--rr-del);
+}
+.rr-ci-dot.is-pending {
+  background: none;
+  border: 1.5px solid var(--rr-warn);
+  border-right-color: transparent;
+  animation: rr-spin 0.9s linear infinite;
+}
+@keyframes rr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-ci-dot.is-pending {
+    animation: none;
+    border-right-color: var(--rr-warn);
+  }
+}
+

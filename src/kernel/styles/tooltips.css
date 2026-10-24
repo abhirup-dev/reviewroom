@@ -1,0 +1,39 @@
+/* tooltips */
+.rr-tooltip {
+  width: max-content; /* measured where it was last shown; don't let that spot's wrapping change its width */
+  max-width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 9px;
+  border-radius: var(--rr-radius-sm);
+  background: var(--rr-ink);
+  color: var(--rr-bg);
+  font: 500 12px/1.4 var(--rr-font);
+  box-shadow: var(--rr-shadow);
+  pointer-events: none;
+  animation: rr-fade 0.1s ease-out;
+}
+.rr-tooltip:not(:popover-open) {
+  display: none;
+}
+.rr-tooltip kbd {
+  border-color: color-mix(in srgb, var(--rr-bg) 30%, transparent);
+  background: color-mix(in srgb, var(--rr-bg) 14%, transparent);
+  color: var(--rr-bg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-tooltip,
+  .rr-modal,
+  .rr-modal::backdrop,
+  .rr-palette,
+  .rr-palette::backdrop {
+    animation: none;
+  }
+  .rr-modal.is-leaving,
+  .rr-modal.is-leaving::backdrop {
+    transition: none;
+  }
+}
+

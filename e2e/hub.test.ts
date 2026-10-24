@@ -2,7 +2,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, until } from './fixture.ts';
+import { setup } from './fixture.ts';
+import { until } from '../src/testing/wait.ts';
 
 describe('hub', () => {
   const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup();

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { makeProvider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import { PKG } from './paths.ts';
+import { formatRef } from '../../src/kernel/refs/refs.shared.ts';
 
 export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = false) {
   const target = path.join(dir, 'review.html');
@@ -12,7 +13,7 @@ export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = f
   const files = prov.files(prov.base, prov.head);
   let html = fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
   const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-  const list = files.map((f) => `          <li><rr-ref ref="rr:code/${esc(f.path)}"></rr-ref> - ${f.status}, +${f.additions} -${f.deletions}</li>`).join('\n');
+  const list = files.map((f) => `          <li><rr-ref ref="${esc(formatRef({ type: 'code', path: f.path, rev: 'head' }))}"></rr-ref> - ${f.status}, +${f.additions} -${f.deletions}</li>`).join('\n');
   // function replacers: `$&`, `$'` in titles/paths must stay literal
   html = html.replaceAll('{{TITLE}}', () => esc(meta.title)).replace('{{FILES}}', () => list);
   fs.writeFileSync(target, html);

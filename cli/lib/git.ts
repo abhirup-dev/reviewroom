@@ -2,8 +2,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/core/types.ts';
-import { ReviewroomError } from '../../src/shared/ops.ts';
+import type { ChangedFile, Commit, ReviewMeta, SearchHit } from '../../src/kernel/state/model.shared.ts';
+import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import type { ReviewConfig } from './config.ts';
 
 type GitOpts = { soft?: boolean; encoding?: BufferEncoding };

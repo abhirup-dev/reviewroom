@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { SearchHit } from '../src/core/types.ts';
+import type { SearchHit } from '../src/kernel/state/model.shared.ts';
 import { setup } from './fixture.ts';
 
 describe('api', () => {
