@@ -11,13 +11,14 @@ const { ReviewApp } = await import('../../app');
 const dock = await import('../dock');
 
 const OWN = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'];
-const real = [...OWN, 'agent-chart', 'pin'].map((id) => dock.panelDef(id));
 const stub = (id: string, extra = {}) => dock.definePanel({ id, title: id, create: () => ({ element: document.createElement('div') }), ...extra });
-for (const id of OWN) stub(id);
-stub('agent-chart'); // an agent's own panel: no layout names it
-stub('pin', { onDemand: true });
+const undo = [
+  ...OWN.map((id) => stub(id)),
+  stub('agent-chart'), // an agent's own panel: no layout names it
+  stub('pin', { onDemand: true }),
+];
 afterAll(() => {
-  for (const d of real) if (d) dock.definePanel(d);
+  for (const restore of undo.reverse()) restore();
   dom.restore();
 });
 

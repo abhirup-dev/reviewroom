@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { applyOp, awaitingAgent, currentRound, OpError, undelivered } from './ops.shared';
 import type { Op, ReviewState } from './model.shared';
+import { build } from '../../testing/build';
 
-const empty = (): ReviewState => ({ version: 1, round: 1, rounds: [{ n: 1, status: 'open', startedAt: '2026-01-01T00:00:00Z' }], threads: [], viewed: {}, pins: [] });
 const run = (s: ReviewState, ...ops: Op[]) => ops.reduce(applyOp, s);
 const create: Op = { op: 'createThread', id: 't_1', anchor: { kind: 'general' }, msgId: 'm_1', body: 'hi', author: 'you' };
 const code = (fn: () => unknown) => {
@@ -15,7 +15,7 @@ const code = (fn: () => unknown) => {
 };
 
 test('ops apply, bump rev, and leave the input alone', () => {
-  const s0 = empty();
+  const s0 = build.state();
   const s = run(s0, create, { op: 'addMessage', threadId: 't_1', id: 'm_2', body: 'reply', author: 'agent' }, { op: 'setViewed', path: 'a.go', viewed: true }, { op: 'setPin', ref: 'rr:doc/x', pinned: true }, { op: 'setCheck', id: 'c1', value: 'pass' }, { op: 'setThreadStatus', threadId: 't_1', status: 'resolved' });
   expect(s0.threads).toEqual([]);
   expect(s0.rev).toBeUndefined();
@@ -29,14 +29,14 @@ test('ops apply, bump rev, and leave the input alone', () => {
 
 test('re-applying ops is a no-op (safe to resend)', () => {
   const ops: Op[] = [create, { op: 'addMessage', threadId: 't_1', id: 'm_2', body: 'r', author: 'you' }, { op: 'setPin', ref: 'p', pinned: true }, { op: 'deleteMessage', threadId: 't_1', msgId: 'm_2' }];
-  const once = run(empty(), ...ops);
+  const once = run(build.state(), ...ops);
   const twice = run(once, ...ops);
   expect(twice.threads).toEqual(once.threads);
   expect(twice.pins).toEqual(['p']);
 });
 
 test('edit, delete, and deleting the last message removes the thread', () => {
-  let s = run(empty(), create, { op: 'addMessage', threadId: 't_1', id: 'm_2', body: 'x', author: 'you' }, { op: 'editMessage', threadId: 't_1', msgId: 'm_2', body: 'y' });
+  let s = run(build.state(), create, { op: 'addMessage', threadId: 't_1', id: 'm_2', body: 'x', author: 'you' }, { op: 'editMessage', threadId: 't_1', msgId: 'm_2', body: 'y' });
   expect(s.threads[0].messages[1].body).toBe('y');
   s = run(s, { op: 'deleteMessage', threadId: 't_1', msgId: 'm_2' });
   expect(s.threads[0].messages.length).toBe(1);
@@ -46,13 +46,13 @@ test('edit, delete, and deleting the last message removes the thread', () => {
 });
 
 test('typed errors for unknown targets and bad input', () => {
-  const s = run(empty(), create);
+  const s = run(build.state(), create);
   expect(code(() => applyOp(s, { op: 'editMessage', threadId: 't_1', msgId: 'nope', body: 'b' }))).toBe('not_found');
   expect(code(() => applyOp(s, { op: 'addMessage', threadId: 't_1', id: 'm', body: '', author: 'you' }))).toBe('bad_op');
 });
 
 test('finishRound advances once; a second finish of the same round conflicts', () => {
-  const s = run(empty(), create, { op: 'finishRound', kind: 'feedback', round: 1, note: 'n' });
+  const s = run(build.state(), create, { op: 'finishRound', kind: 'feedback', round: 1, note: 'n' });
   expect(s.round).toBe(2);
   expect(s.rounds[0]).toMatchObject({ status: 'sent', note: 'n', deliveredAt: null });
   expect(s.rounds[1].status).toBe('open');
@@ -65,7 +65,7 @@ test('finishRound advances once; a second finish of the same round conflicts', (
 });
 
 test('delivery tracking: null until printed; legacy rounds count as delivered', () => {
-  const legacy: ReviewState = { ...empty(), round: 2, rounds: [{ n: 1, status: 'sent', startedAt: 'x' }, { n: 2, status: 'open', startedAt: 'x' }] };
+  const legacy: ReviewState = { ...build.state(), round: 2, rounds: [{ n: 1, status: 'sent', startedAt: 'x' }, { n: 2, status: 'open', startedAt: 'x' }] };
   expect(undelivered(legacy)).toEqual([]);
   const s = applyOp(legacy, { op: 'finishRound', kind: 'feedback' });
   expect(undelivered(s).map((r) => r.n)).toEqual([2]);

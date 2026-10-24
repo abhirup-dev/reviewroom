@@ -1,18 +1,19 @@
 import { expect, test } from 'bun:test';
-import { emptyState, type Anchor, type GitHubSnapshot, type Op, type Thread } from '../kernel/state/model.shared';
+import { type Anchor, type GitHubSnapshot, type Op, type Thread } from '../kernel/state/model.shared';
 import { applyOp } from '../kernel/state/ops.shared';
 import type { GitHubAction } from '../kernel/state/schema.shared';
 import { createThreadService } from './service';
+import { build } from '../testing/build';
 
 const at = '2026-01-01T00:00:00.000Z';
-const general: Anchor = { kind: 'general' };
-const code: Anchor = { kind: 'code', path: 'a.ts', rev: 'head', start: 1, end: 2 };
-const doc: Anchor = { kind: 'doc', target: 'intro' };
-const local = (id: string): Thread => ({ id, anchor: general, status: 'open', createdRound: 1, messages: [{ id: 'm_' + id, author: 'you', body: id, round: 1, at }] });
+const general = build.anchor.general();
+const code = build.anchor.code('a.ts', 1, 2);
+const doc = build.anchor.doc();
+const local = (id: string): Thread => build.thread(id, { messages: [build.message({ id: 'm_' + id, body: id })] });
 const remote = (id: string, conversation = false): Thread => ({ ...local(id), gh: { node: id, url: 'https://github.com/o/r/pull/1', canReply: true, conversation } });
 
 function setup() {
-  const live = { state: emptyState(), github: null as GitHubSnapshot | null, mode: 'agent' as 'agent' | 'team' | 'all', accepted: true, githubResult: true };
+  const live = { state: build.state(), github: null as GitHubSnapshot | null, mode: 'agent' as 'agent' | 'team' | 'all', accepted: true, githubResult: true };
   const ops: Op[] = [];
   const actions: GitHubAction[] = [];
   let serial = 0;
