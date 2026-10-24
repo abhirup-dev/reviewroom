@@ -1,9 +1,10 @@
 // The guided walkthrough player on a phone (either way up, under either shell): it restyles the shared skeleton
 // (player.ts) into a full-screen player and wires the card, the gestures, the chrome and full screen.
 import { createActor, type Actor, type SnapshotFrom } from 'xstate';
-import { backdropCloses, h, icon, plural } from '../kernel/dom';
+import { h, icon, plural } from '../kernel/dom';
 import { onBack, watchBack } from '../kernel/history';
 import { sanitizeProse } from '../kernel/markdown';
+import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
 import type { ReviewApp } from '../app';
 import type { walkthroughMachine } from './player.machine';
@@ -51,9 +52,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
   // Contents: a bottom sheet of the chapters, the current one open on its slides. A <dialog>, so the chrome holds
-  // while it's open and Back closes it (PhoneShell's watchDialogs); kept, so it can slide away (phone.css)
-  const sheet = h('dialog', { class: 'rr-modal rr-sheet rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1', onmousedown: backdropCloses });
-  document.body.append(sheet);
+  // while it's open and Back closes it (kernel/sheet.ts); kept, so it can slide away (slides.phone.css)
+  const sheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1' });
   const jump = (chapter: number, step: number) => (sheet.close(), actor.send({ type: 'goto', chapter, step }));
   const gist = (html: string) => Object.assign(h('div'), { innerHTML: sanitizeProse(html) }).textContent.trim();
   const contentsSheet = () => {
@@ -68,8 +68,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
           : null,
       ),
     );
-    sheet.replaceChildren(h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
-    sheet.showModal();
+    openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
     sheet.focus(); // the sheet, not its first chapter: no ring on open
     sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest' });
   };

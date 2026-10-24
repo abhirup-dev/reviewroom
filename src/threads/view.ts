@@ -2,7 +2,7 @@
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
 import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
-import { avatarUrl, h, icon, relTime, copyText, backdropCloses } from '../kernel/dom';
+import { avatarUrl, h, icon, relTime, copyText } from '../kernel/dom';
 import { loadRaw } from '../kernel/store';
 import { renderMarkdown } from '../kernel/markdown';
 import { refIcon } from '../kernel/refs/browser';
@@ -16,6 +16,7 @@ import type { ReviewApp } from '../app';
 import { renderPreview } from '../review/previews';
 import { popMenu } from '../kernel/menus';
 import { trackKeyboard } from '../kernel/keyboard';
+import { openSheet, sheetDialog } from '../kernel/sheet';
 import { createActor, fromPromise } from 'xstate';
 import { threadMachine, type ThreadTarget } from './thread.machine';
 import type { Anchor } from '../kernel/state/schema.shared';
@@ -516,10 +517,9 @@ export function mountThreadPopup(app: ReviewApp) {
     }),
   );
   // closing (Esc, the backdrop, a button) returns focus to where it was: the dialog does that
-  // on a phone: a bottom sheet (phone.css) that keeps clear of the on-screen keyboard while it's open
+  // on a phone: a bottom sheet (kernel/sheet.ts, threads.phone.css) that keeps clear of the on-screen keyboard while it's open
   const sheet = app.presentation.kind === 'phone';
-  const box = h('dialog', { class: 'rr-modal' + (sheet ? ' rr-sheet' : ''), 'aria-label': 'Comment thread', onmousedown: backdropCloses, onclose: () => flow.send({ type: 'close' }) });
-  document.body.append(box);
+  const box = sheetDialog({ 'aria-label': 'Comment thread', onclose: () => flow.send({ type: 'close' }) }, sheet);
   const close = () => flow.send({ type: 'close' });
   let current: { el: HTMLElement; dispose: () => void } | null = null;
   let shown: ThreadTarget | null = null;
@@ -555,8 +555,7 @@ export function mountThreadPopup(app: ReviewApp) {
       return box.close();
     }
     current = threadView(app, { ...shown, onClose: close, onDock: dock, onCreate: send, onResolve: () => flow.send({ type: 'resolve' }) });
-    box.replaceChildren(current.el);
-    if (!box.open) box.showModal();
+    openSheet(box, current.el);
     if (sheet) stopKb ??= trackKeyboard(keepCaret);
   });
   // drag by the header to park it somewhere; it opens centred, then stays where it was put until reload

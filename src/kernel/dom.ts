@@ -4,7 +4,7 @@ import { computePosition, flip, offset, shift, type Placement } from '@floating-
 import { CLAWD, CLAWD_RESOLVED } from './clawd';
 
 type Child = Node | string | number | null | undefined | false | Child[];
-type Attrs = Record<string, unknown> & { class?: string; style?: string | Partial<CSSStyleDeclaration> };
+export type Attrs = Record<string, unknown> & { class?: string; style?: string | Partial<CSSStyleDeclaration> };
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Attrs | null, ...children: Child[]): HTMLElementTagNameMap[K];
 export function h(tag: string, attrs?: Attrs | null, ...children: Child[]): HTMLElement;
