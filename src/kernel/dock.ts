@@ -54,7 +54,15 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
           }
           inst = def.create(app, (params.params ?? {}), opts.id);
           el.append(inst.element);
-          params.api.onDidVisibilityChange((e) => e.isVisible && inst?.onShow?.());
+          // dockview takes a hidden tab out of the page, which loses its scroll: put it back when the tab shows again
+          const scrolled = new Map<Element, [number, number]>();
+          el.addEventListener('scroll', (e) => scrolled.set(e.target as Element, [(e.target as Element).scrollTop, (e.target as Element).scrollLeft]), { capture: true, passive: true });
+          params.api.onDidVisibilityChange((e) => {
+            if (!e.isVisible) return;
+            for (const [s, [top, left]] of scrolled) if (s.isConnected) s.scrollTo({ top, left, behavior: 'instant' });
+            else scrolled.delete(s);
+            inst?.onShow?.();
+          });
         },
         dispose() {
           inst?.dispose?.();

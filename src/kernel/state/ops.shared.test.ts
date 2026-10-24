@@ -80,13 +80,13 @@ test('awaitingAgent: open threads whose last message is the reviewer’s; curren
   expect(currentRound({ round: 2, rounds: [{ n: 1 }, { n: 2 }] } as unknown as ReviewState)).toEqual({ n: 2 } as never);
 });
 
-test('recap: active (written in last round) beats stale (open over two rounds); resolved ones are left out', () => {
-  const msg = (author: 'you' | 'agent', round: number) => build.message({ id: `${author}${round}`, author, round });
+test('recap: active (written in last round), the rest, stale (open over two rounds), latest first; resolved left out', () => {
+  const msg = (author: 'you' | 'agent', round: number, at = '') => build.message({ id: `${author}${round}`, author, round, at });
   const t = (id: string, createdRound: number, status: 'open' | 'resolved', ...messages: ReturnType<typeof msg>[]) => build.thread(id, { createdRound, status, messages });
   const s = build.state({
     round: 3,
-    threads: [t('stale', 1, 'open', msg('you', 1), msg('agent', 2)), t('active', 1, 'open', msg('you', 2), msg('agent', 3)), t('rest', 2, 'open', msg('agent', 2)), t('done', 1, 'resolved', msg('you', 1))],
+    threads: [t('stale', 1, 'open', msg('you', 1), msg('agent', 2)), t('active', 1, 'open', msg('you', 2), msg('agent', 3)), t('rest', 2, 'open', msg('agent', 2, '2026-01-01')), t('later', 2, 'open', msg('agent', 2, '2026-01-02')), t('done', 1, 'resolved', msg('you', 1))],
   });
   const ids = Object.values(recapThreads(s)).map((ts) => ts.map((x) => x.id));
-  expect(ids).toEqual([['active'], ['stale'], ['rest']]);
+  expect(ids).toEqual([['active'], ['later', 'rest'], ['stale']]);
 });
