@@ -90,15 +90,20 @@
     <section id="failure-mode">
       <h2>Failure mode</h2>
       <p>On any fetch error the builder logs at warn level and sends an empty list. Because <code>habit_events</code> is <code>repeated</code>, nil serialises as empty and the ranker reads it as "no signal" rather than an error.</p>
-      <rr-mermaid id="degrade-flow">flowchart TD
-  A[habit.RecentEvents] --> B{TFS error or 30 ms deadline?}
+      <rr-mermaid id="degrade-flow" class="rr-diagram-delta">flowchart TD
+  A[habit.RecentEvents, new]:::added --> B{TFS error or 30 ms deadline?}
   B -- no --> C[up to 50 events]
-  B -- yes --> D[log.Warn]
-  D --> E[events = nil]
-  C --> F[RankerRequest field 12]
+  B -- yes --> D[log.Warn]:::added
+  D --> E[events = nil]:::added
+  C --> F[RankerRequest field 12, changed]:::changed
   E --> F
   F --> G[ranker: empty list = no signal]
-  D -. not counted .-> M[(habit_degraded_total)]</rr-mermaid>
+  D -. not counted .-> M[(habit_degraded_total)]
+  click A "rr:code/pkg/features/habit/fetcher.go#L20-28" "the fetcher"
+  click B "rr:code/pkg/features/habit/fetcher.go#L21-26" "the deadline and the error"
+  click D "rr:code/pkg/ranker/request_builder.go#L51-54" "the degrade branch"
+  click F "rr:code/pkg/ranker/request_builder.go#L55-59" "the request"
+  click M "rr:code/pkg/ranker/request_builder.go#L28-34" "the metrics, already injected"</rr-mermaid>
       <rr-callout kind="risk" title="Silent degradation">
         <p>Nothing counts the degraded requests. If TFS v2 started failing for every user, dashboards would stay green while ranking quality dropped. <b>b.metrics</b> is already injected (<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L32"></rr-ref>), so a counter is one line.</p>
       </rr-callout>

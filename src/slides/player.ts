@@ -309,7 +309,9 @@ export function mountWalkthrough(app: ReviewApp) {
     const pt = (e: TouchEvent) => ({ x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY });
     const claims = (e: TouchEvent, up: boolean) => !land.matches && card.getSnapshot().can({ type: 'grab', up, grip: e.target === grip, scrollTop: left.scrollTop, height: 0, heights: [0, 0, 0] });
     const cancel = () => (touch.send({ type: 'cancel' }), card.send({ type: 'cancel' }));
-    left.addEventListener('touchstart', (e) => (e.touches.length === 1 ? touch.send({ type: 'start', ...pt(e), up: claims(e, true), down: claims(e, false) }) : cancel()), { passive: true });
+    // a zoomed-in diagram (Pele sets touch-action: none on it) pans under the finger: not a swipe or a card drag
+    const pans = (e: TouchEvent) => (e.target as Element).closest<SVGElement>('svg.pele')?.style.touchAction === 'none';
+    left.addEventListener('touchstart', (e) => (e.touches.length === 1 && !pans(e) ? touch.send({ type: 'start', ...pt(e), up: claims(e, true), down: claims(e, false) }) : cancel()), { passive: true });
     left.addEventListener('touchmove', (e) => {
       const was = touch.getSnapshot();
       touch.send({ type: 'move', ...pt(e) });
