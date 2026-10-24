@@ -37,8 +37,7 @@
     "app": "cd app && tauri dev",
     "app-build": "cd app && tauri build",
     "prepack": "bun scripts/build.ts",
-    "app-install": "bun scripts/app-install.ts",
-    "test:refactor": "bun test refactor/"
+    "app-install": "bun scripts/app-install.ts"
   },
   "engines": {
     "bun": ">=1.3.12"

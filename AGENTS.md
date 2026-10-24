@@ -59,11 +59,6 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Shared contracts import only shared contracts and DOM-free dependencies. Machines import no views or app.
 - Keep functional, public-contract and bug-regression tests beside their code; integration fixtures live in
   `src/testing/`, built CLI/browser checks in `e2e/`.
-- Put extraction-wiring and legacy-characterization tests in the owning directory's `refactor/` folder, with the
-  module's matching test name (`src/refactor/` for root composition). Each file explains what it preserves and
-  when to reconsider it. These tests still run in the default suite and typecheck; the folder is not permission
-  to delete coverage without reviewing its replacement or changing the preserved behavior deliberately.
-  `bun run test:refactor` discovers this group across the source tree.
 - Register global listeners and actor/backend cleanup through `app.onDispose()`; use `app.listen()` for page events.
 
 ## Working on it
