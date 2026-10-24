@@ -22,7 +22,7 @@ import { definePanel, type PanelDef } from './kernel/dock';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { buildHeader, buildPhoneBar, hubHref, saveLayoutDialog, type PhoneBarContributions } from './kernel/header';
 import { isPhone } from './kernel/phone';
-import { watchShell } from './kernel/device';
+import { restoreShell, turnedPhone, watchShell } from './kernel/device';
 import { startUpdates } from './kernel/pwa';
 import { recapThreads } from './kernel/state/ops.shared';
 import { githubPanelAvailability } from './threads/docking';
@@ -198,7 +198,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
         id === 'recap' ? app.state.round >= 2 && Object.values(recapThreads(app.state)).some((ts) => ts.length) : id === 'thread:gh_conversation' ? app.services.threads.threads().some((t) => t.gh?.conversation) : true,
       openThreads: () => openThreadCount(app),
     });
-  else app.layout.mount(dockHost, lastLayout, { panelAvailability: githubPanelAvailability(app) });
+  else app.layout.mount(dockHost, turnedPhone() ? null : lastLayout, { panelAvailability: githubPanelAvailability(app), save: !turnedPhone() });
   watchShell(app, isPhone());
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
@@ -225,6 +225,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     sessionStorage.removeItem('reviewroom:scroll');
     requestAnimationFrame(() => document.querySelector('.rr-narrative-scroll')?.scrollTo({ top: +y }));
   }
+  restoreShell(app, isPhone());
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
   recapOnNewRound(app);

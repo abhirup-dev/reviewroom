@@ -65,8 +65,15 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   DESIGN.md uppercase label style. Opens with a container transform from the search icon (standard spatial spring).
 - **Drawer** (modal navigation drawer): 300px max, large trailing corners, header with title and facts, 56px items,
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
-- **Guided review**: content full-screen; the slide is a large-radius card; controls are an M3E floating toolbar
-  (full pill, 64px, surface-container-high) with Back · Comment · Next; Next is a filled ink pill.
+- **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
+  toolbar (full pill, 64px, surface-container-high) with Back · Comment · Next; Next is a filled ink pill. Immersive:
+  2 s untouched (not while a menu, the composer or a selection is open), the top bar and the toolbar fade and the code
+  takes their room; a tap on the content or any slide change brings them back. The card has two states, kept across
+  slides: expanded (the chapter intro on its first slide, the slide text, links, progress) and collapsed (grip and the
+  text's first line); swipe down or up, or tap the grip or the collapsed card. Sideways swipes change the slide.
+- **Rotation**: a phone on its side gets the dock (from the Tablet layout, never saved over the reviewer's last
+  layout); upright, the phone shell. It reloads into the other shell on rotation, keeping the panel in front, the open
+  file and the slide (`src/kernel/device.ts`).
 - **Composer**: extra-large top corners, sits on `--rr-kb`; text field medium radius with accent focus outline.
 - **Toast** (snackbar): medium radius, inverse surface (`--rr-ink` fill, `--rr-bg` text), action in
   `--rr-accent-soft`; sits above the navigation bar.

@@ -850,23 +850,43 @@
 }
 
 /* ---------------------------------------------------------------- guided review */
-/* slides/player.ts: the code full screen under a status bar of close and the chapter; the slide a large-radius
-   card floating over it; Back / Comment / Next an M3E floating toolbar (full pill, 64px), Next its one filled pill */
+/* slides/player.ts: the code under the whole screen, below a status bar of close and the chapter; the slide a
+   large-radius card floating over it; Back / Comment / Next an M3E floating toolbar (full pill, 64px), Next its one
+   filled pill. Immersive (.is-immersive, 2 s untouched): the bar and the toolbar fade, the code rises into the bar's
+   place and the card drops into the toolbar's. */
 .is-phone .rr-tour__player {
   inset: 0;
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas: 'top' 'code';
+  grid-template-rows: var(--rr-phone-bar) minmax(0, 1fr);
   padding-top: env(safe-area-inset-top);
   background: var(--rr-surface-well);
+}
+.is-phone .rr-tour__top,
+.is-phone .rr-tour__bottom,
+.is-phone .rr-tour__right,
+.is-phone .rr-tour__left {
+  transition:
+    opacity 150ms ease-out,
+    translate var(--rr-m-default-ms) var(--rr-m-default);
+}
+.is-phone .is-immersive :is(.rr-tour__top, .rr-tour__bottom) {
+  opacity: 0;
+  pointer-events: none;
+}
+.is-phone .is-immersive .rr-tour__top {
+  translate: 0 -16px;
+}
+.is-phone .is-immersive .rr-tour__bottom {
+  translate: 0 16px;
 }
 .is-phone .rr-tour__body {
   display: contents;
 }
 .is-phone .rr-tour__top {
-  grid-area: top;
+  grid-area: 1 / 1;
+  z-index: 2;
   height: var(--rr-phone-bar);
   padding: 0 8px 0 4px;
   background: var(--rr-bg);
@@ -912,10 +932,14 @@
   font: 600 16px var(--rr-font);
 }
 .is-phone .rr-tour__right {
-  grid-area: code;
-  /* room under the code for the card and the toolbar to float over */
-  padding-bottom: 96px;
+  /* the whole screen, held under the bar until immersive (the bottom then runs under the toolbar, off screen) */
+  grid-area: 1 / 1 / 3 / 2;
+  translate: 0 var(--rr-phone-bar);
 }
+.is-phone .is-immersive .rr-tour__right {
+  translate: none;
+}
+/* room to scroll the last lines above the card: the code panel's own bottom padding (review/code.ts) */
 .is-phone .rr-tour__tools {
   display: none;
 }
@@ -932,6 +956,7 @@
   background: var(--rr-surface-overlay);
   box-shadow: var(--rr-shadow-lg);
   touch-action: pan-y;
+  overscroll-behavior: contain;
   z-index: 1;
   animation: rr-card-in var(--rr-m-expressive-ms) var(--rr-m-expressive);
 }
@@ -944,14 +969,23 @@
 .is-phone .rr-tour__left .rr-prose {
   font-size: 15px;
 }
-/* drag the grip up for the whole chapter intro, down to fold it */
+.is-phone .is-immersive .rr-tour__left {
+  translate: 0 80px; /* into the toolbar's place */
+}
+/* the grip collapses the card to one line, or expands it (so do swipes down and up, player.ts) */
 .rr-tour__grip {
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 24px;
-  margin: 0 -16px 4px;
+  display: block;
+  flex: none;
+  width: calc(100% + 32px);
+  height: 32px;
+  margin: 0 -16px;
+  padding: 0;
+  border: 0;
   background: var(--rr-surface-overlay);
+  cursor: pointer;
   touch-action: none;
 }
 .rr-tour__grip::before {
@@ -964,19 +998,18 @@
   border-radius: 2px;
   background: var(--rr-line-strong);
 }
-/* a folded chapter intro: its first line, faded, and More */
-.rr-tour__lead.is-folded {
+/* collapsed: the slide text's first line, faded; tap or swipe up for the rest */
+.rr-tour__left.is-collapsed > :not(.rr-tour__grip, .rr-tour__step),
+.rr-tour__left.is-collapsed .rr-tour__refs {
+  display: none;
+}
+.rr-tour__left.is-collapsed .rr-tour__text {
   max-height: 1.6em;
   overflow: hidden;
   mask-image: linear-gradient(90deg, #000 70%, transparent);
 }
-.rr-tour__lead.is-folded > * {
+.rr-tour__left.is-collapsed .rr-tour__text > * {
   margin: 0;
-}
-.rr-tour__more {
-  align-self: flex-start;
-  min-height: 32px;
-  font-weight: 600;
 }
 .is-phone .rr-tour__actions {
   display: none;
@@ -1044,6 +1077,9 @@
   :root:has(.is-phone) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet, .is-phone .rr-tour__left) {
     animation: rr-fade 150ms ease-out !important; /* overlays.css */
     transition: none !important;
+  }
+  .is-phone :is(.rr-tour__top, .rr-tour__bottom, .rr-tour__right, .rr-tour__left) {
+    transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves */
   }
   .rr-phone-tab.is-new .rr-phone-tab__pill,
   .rr-code-rail__seg {

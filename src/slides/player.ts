@@ -5,7 +5,7 @@
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
-import { h, icon, onDrag, plural } from '../kernel/dom';
+import { h, icon, plural } from '../kernel/dom';
 import { isPhone, onBack } from '../kernel/phone';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
@@ -115,16 +115,12 @@ export function mountWalkthrough(app: ReviewApp) {
   // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back
   let leadOpen = true;
   const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
-  // a phone folds it to its first line instead of hiding it: the code above stays in view (phonePlayer)
+  // a phone has no such toggle: its slide card collapses instead, and shows the intro on the chapter's first slide only
   const phone = isPhone();
-  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, onclick: () => ((leadOpen = true), paintLead()) }, 'More');
   const paintLead = () => {
     const has = !!current(ctx()).chapter.lead;
-    const fold = phone && !leadOpen;
-    lead.hidden = !has || (!leadOpen && !fold);
-    lead.classList.toggle('is-folded', fold);
-    more.hidden = !has || !fold;
-    leadToggle.hidden = !has;
+    lead.hidden = !has || !leadOpen || (phone && ctx().step > 0);
+    leadToggle.hidden = !has || phone;
     leadToggle.classList.toggle('is-closed', !leadOpen);
     leadToggle.title = leadOpen ? 'Hide the chapter intro' : 'Show the chapter intro';
     leadToggle.setAttribute('aria-label', leadToggle.title);
@@ -170,7 +166,7 @@ export function mountWalkthrough(app: ReviewApp) {
     badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
     progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
-  const left = h('div', { class: 'rr-tour__left' }, lead, more, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
+  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
   const openHere = btn('popout', 'Pause and open this in the workbench', () => {
     const [ref] = shownRefs();
     actor.send({ type: 'pause' });
@@ -194,8 +190,10 @@ export function mountWalkthrough(app: ReviewApp) {
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
   app.root.append(root);
   if (phone) phonePlayer();
-  /** A phone plays full screen (phone.css): code above a slide card under a floating toolbar of Back, Comment and
-   *  Next; the card swipes to the next or previous slide, and Back (the phone's) closes the player. */
+  /** A phone plays full screen (phone.css): the code under the whole screen, a slide card and a floating toolbar of
+   *  Back, Comment and Next over it. The chrome (top bar, toolbar) fades after 2 s untouched; the card collapses to
+   *  one line (swipe down) and back (swipe up, or tap it); it swipes sideways to the next or previous slide. Back
+   *  (the phone's) closes the player. */
   function phonePlayer() {
     // the floating toolbar: Back and Comment as icon buttons, Next the one filled pill
     prev.replaceChildren(icon('chevron', 24));
@@ -204,33 +202,68 @@ export function mountWalkthrough(app: ReviewApp) {
     comment.className = 'rr-icon-btn rr-tour__comment';
     comment.setAttribute('aria-label', 'Comment on this slide');
     next.before(comment);
-    // the card: a grip to fold the chapter intro (drag down) or unfold it (drag up, or tap the folded intro), its progress at the foot
-    const grip = h('div', { class: 'rr-tour__grip', title: 'Drag up for the whole chapter intro, down to fold it', 'aria-hidden': 'true' });
-    const fold = (open: boolean) => ((leadOpen = open), paintLead(), left.scrollTo({ top: 0 }));
-    onDrag(grip, { move: () => {}, end: (_, dy) => Math.abs(dy) > 24 && fold(dy < 0) });
-    lead.addEventListener('click', () => lead.classList.contains('is-folded') && fold(true));
+    // the card: a grip to collapse or expand it, its progress at the foot; collapsed stays so across slides
+    let collapsed = false;
+    const grip = h('button', { class: 'rr-tour__grip', onclick: () => collapse(!collapsed) });
+    const collapse = (on: boolean) => {
+      collapsed = on;
+      left.classList.toggle('is-collapsed', on);
+      grip.title = on ? 'Show the whole slide (swipe up)' : 'Collapse the slide to one line (swipe down)';
+      grip.setAttribute('aria-label', grip.title);
+      grip.setAttribute('aria-expanded', String(!on));
+      left.scrollTo({ top: 0 });
+    };
+    collapse(false);
+    left.addEventListener('click', (e) => collapsed && !(e.target as Element).closest('button, a') && collapse(false));
     left.prepend(grip);
     left.append(progress);
-    let from: { x: number; y: number } | null = null;
-    left.addEventListener('pointerdown', (e) => (from = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY } : null));
-    left.addEventListener('pointercancel', () => (from = null)); // the card scrolled instead
-    left.addEventListener('pointerup', (e) => {
-      if (!from || getSelection()?.toString()) return;
-      const dx = e.clientX - from.x;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(e.clientY - from.y)) {
-        if (dx < 0) next.click();
-        else prev.click();
-      }
+    // swipes on the card: the axis is the one mostly travelled once past 10px (docs/design/phone.md)
+    let from: { x: number; y: number; top: number; axis?: 'x' | 'y' } | null = null;
+    const at = (e: TouchEvent) => e.changedTouches[0];
+    left.addEventListener('touchstart', (e) => (from = e.touches.length === 1 ? { x: at(e).clientX, y: at(e).clientY, top: left.scrollTop } : null), { passive: true });
+    left.addEventListener('touchmove', (e) => {
+      if (!from || from.axis) return;
+      const dx = at(e).clientX - from.x, dy = at(e).clientY - from.y;
+      if (Math.hypot(dx, dy) > 10) from.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }, { passive: true });
+    left.addEventListener('touchend', (e) => {
+      const f = from;
       from = null;
+      if (!f?.axis || getSelection()?.toString()) return;
+      const dx = at(e).clientX - f.x, dy = at(e).clientY - f.y;
+      if (f.axis === 'x' && Math.abs(dx) > 60) (dx < 0 ? next : prev).click();
+      // down from the top of the card (not scrolling its text back up) collapses it; up expands it
+      else if (f.axis === 'y' && dy > 40 && f.top <= 0) collapse(true);
+      else if (f.axis === 'y' && dy < -40) collapse(false);
     });
+    // immersive: the chrome fades 2 s after the last touch or slide change, never while a menu, the composer or a selection is open
+    let idle = 0;
+    const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
+    const sleep = () => (held() ? (idle = window.setTimeout(sleep, 2000)) : player.classList.add('is-immersive'));
+    const wake = () => {
+      player.classList.remove('is-immersive');
+      clearTimeout(idle);
+      if (actor.getSnapshot().matches({ open: 'playing' })) idle = window.setTimeout(sleep, 2000);
+    };
+    // a tap on the content brings it back (one on a link, a chip or a selection does what it does, and navigating wakes it anyway)
+    player.addEventListener('click', (e) => {
+      if (player.classList.contains('is-immersive') && ((e.target as Element).closest(`button, a, ${REF_ELEMENTS}`) || getSelection()?.toString())) return;
+      wake();
+    }, true);
     let drop: (() => void) | undefined;
+    let was = '';
     actor.subscribe((s) => {
+      // a new slide: the card from its top, so a swipe down collapses it rather than scrolling
+      const now = `${s.context.chapter}/${s.context.step}`;
+      if (now !== was) left.scrollTo({ top: 0 });
+      was = now;
       const playing = s.matches({ open: 'playing' });
       if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
       else if (!playing && drop) {
         drop();
         drop = undefined;
       }
+      wake();
     });
   }
 
@@ -299,10 +332,9 @@ export function mountWalkthrough(app: ReviewApp) {
     if (chapter !== last.chapter || d !== last.doc) {
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
       prose(lead, ch.lead ?? '');
-      if (phone) leadOpen = false; // each chapter's intro starts folded on a phone
-      paintLead();
       enter(lead);
     }
+    paintLead();
     position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);
     chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);

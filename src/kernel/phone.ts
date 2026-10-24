@@ -412,7 +412,8 @@ export class PhoneShell implements PanelSurface {
     this.paint();
   }
 
-  private front = () => (this.peeking ? 'code' : (this.sheets.at(-1) ?? this.areas.get(this.area)!.page));
+  /** The panel in front: the peeked code, the newest sheet, else the area's page. */
+  front = () => (this.peeking ? 'code' : (this.sheets.at(-1) ?? this.areas.get(this.area)!.page));
 
   private paint() {
     const front = this.front();

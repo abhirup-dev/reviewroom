@@ -380,6 +380,8 @@ class CodePanel implements PanelInstance {
       stickyHeaders: true,
       disableFileHeader: this.mode === 'file',
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
+      // the guided review on a phone: room to scroll the last lines above the slide card and toolbar over the code
+      layout: isPhone() && this.embedded ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * 0.6), gap: 8 } : undefined,
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,

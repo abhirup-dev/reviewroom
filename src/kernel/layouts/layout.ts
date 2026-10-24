@@ -16,6 +16,8 @@ export interface PanelAvailability {
 }
 export interface MountDockOptions {
   panelAvailability?: PanelAvailability;
+  /** false: never save over the reviewer's last layout (a phone turned on its side, device.ts) */
+  save?: boolean;
 }
 // A settled dock. `key` ignores which tab is in front (switching tabs isn't a layout change); `layout`: the layout file
 // the dock was built from, which undo brings back with it.
@@ -200,7 +202,7 @@ export class Layouts {
         read: () => {
           if (this.isPassing()) return null;
           this.track();
-          return { dock: api.toJSON(), offered: [...this.offered], layout: this.currentId };
+          return options.save === false ? null : { dock: api.toJSON(), offered: [...this.offered], layout: this.currentId };
         },
       },
     }).start();
@@ -257,6 +259,11 @@ export class Layouts {
       this.place(id);
       this.last = this.snapshot(); // provider panels arriving belong to the starting layout, not an undo step
     }
+  }
+
+  /** The panel in front: the phone's page or sheet, the dock's active panel. */
+  front() {
+    return this.phone ? this.phone.front() : this.app.dock.activePanel?.id;
   }
 
   /** Ensure a panel exists (re-adding it next to a sensible neighbour if the user closed it) and focus it. */

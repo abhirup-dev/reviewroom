@@ -36,7 +36,7 @@ export function chunkReloadDue(now: number, store: Pick<Storage, 'getItem' | 'se
 
 const CHUNK_ERROR = /dynamically imported module|Importing a module script failed|error loading dynamically imported/i;
 
-function busy(app?: UpdatesHost): Busy {
+export function busy(app?: UpdatesHost): Busy {
   const text = (el: Element) => (el instanceof HTMLTextAreaElement ? el.value : el.querySelector('.cm-placeholder') ? '' : (el.textContent ?? ''));
   return {
     unsent: app?.backend?.pending?.().unsent ?? false,
