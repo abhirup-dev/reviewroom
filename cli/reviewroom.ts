@@ -136,14 +136,15 @@ cli
 // What an agent needs beyond the flags, shown under the command's --help.
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
-  walkthrough: [
-    '  lint runs `check` (schema, links, what the guided walkthrough leaves out, its pacing), then plays every slide in a headless',
+  'slide-lint': [
+    '  Runs `check` (schema, links, what the guided walkthrough leaves out, its pacing), then plays every slide in a headless',
     '  browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) on the review as built now, and reports',
     '  what the reviewer would hit: narration that needs scrolling, highlighted lines off screen, stacked chunks too',
     '  short to read, content wider than its box, prose the sanitizer strips, page errors. Each finding names the',
     '  slide (chapter/step) and how to fix it; exit 1 while any warning is left. Nothing is written.',
-    '  shot renders one slide (after it settles) and prints the PNG\'s path, then that slide\'s findings.',
-    '  publish runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
+  ].join('\n'),
+  'publish-slides': [
+    '  Runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
     '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
     '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
   ].join('\n'),
@@ -157,6 +158,8 @@ const notes: Record<string, string> = {
     '  panel\'s edge (by section and element; a box that scrolls or clips its content counts as fitting), then the',
     '  page\'s script errors. Optional: for checking your own HTML, or a layout problem the reviewer reports.',
     '  Nothing in the review is written.',
+    '  shot <chapter>/<step> renders one guided-walkthrough slide instead (after it settles) and prints the PNG\'s',
+    '  path, then that slide\'s slide-lint findings.',
   ].join('\n'),
   pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `publish-slides`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
