@@ -1160,9 +1160,11 @@
   width: 40px;
   height: 40px;
   margin: -32px -8px -6px 0;
+  border: 1px solid var(--rr-line-strong); /* floats over code and prose alike: an edge and a shadow to find it by */
   border-radius: var(--rr-shape-full);
-  background: var(--rr-surface-nav-2);
-  color: var(--rr-ink-2);
+  background: var(--rr-surface-overlay);
+  box-shadow: var(--rr-shadow);
+  color: var(--rr-ink);
 }
 /* a one-line card is shorter than the icon: centred on its right edge instead */
 [data-form='phone'] .is-immersive .rr-tour__left[data-detent='collapsed'] .rr-tour__restore {

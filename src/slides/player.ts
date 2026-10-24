@@ -355,6 +355,17 @@ export function mountWalkthrough(app: ReviewApp) {
       if (immersive() && ((e.target as Element).closest(`button, a, ${REF_ELEMENTS}`) || getSelection()?.toString())) return;
       wake();
     }, true);
+    // full screen while it plays (Fullscreen API): no status or navigation bar, and the code under a cutout too. It
+    // needs a tap, so the opening tap and every later one ask; once the reviewer leaves it (Back), only a reopen asks
+    let declined = false;
+    const fullscreen = () => {
+      if (declined || !document.fullscreenEnabled || document.fullscreenElement || !actor.getSnapshot().matches({ open: 'playing' })) return;
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); // no tap to go on: the next one asks
+    };
+    player.addEventListener('pointerup', fullscreen, true);
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && actor.getSnapshot().matches({ open: 'playing' })) declined = true;
+    });
     let drop: (() => void) | undefined;
     let was = '', wasPlaying = false;
     actor.subscribe((s) => {
@@ -369,6 +380,9 @@ export function mountWalkthrough(app: ReviewApp) {
         drop();
         drop = undefined;
       }
+      if (playing) fullscreen();
+      else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      if (!playing) declined = false;
       chrome.send({ type: playing ? 'wake' : 'stop' });
     });
     app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), sheet.remove()));

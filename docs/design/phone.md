@@ -77,7 +77,9 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
   4 s untouched (not while a menu, the composer, the Contents sheet or a selection is open), the top bar and the
   toolbar fade, the code fills the screen edge to edge and the card drops to just above the progress row with a small
-  Show controls icon in its corner, which brings them back; so does a tap on the content or any slide change. Reduced
+  Show controls icon in its corner, which brings them back; so does a tap on the content or any slide change. While it plays it is full screen (the Fullscreen API: no status or
+  navigation bar, the code under a cutout too), asked on the opening tap and any later one; after Back leaves full
+  screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Reduced
   motion: they fade, nothing moves. The card is a bottom sheet with three detents, kept across slides: collapsed (grip
   and the text's first two lines), default (its content, up to 40% of the screen) and tall (up to all but the bar and a
   strip of code). Dragging the grip or the card follows the finger and settles on the nearest detent, a flick at least
