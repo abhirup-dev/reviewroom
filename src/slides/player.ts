@@ -34,6 +34,8 @@ type PlayerForm = {
   foldLead?(): void;
   /** the slide card sits over the code's lower part: the code pane leaves it room */
   cardBelow?(): boolean;
+  /** with cardBelow: the card's top edge on screen now (its file tab's, when it has one) */
+  cardTop?(): number;
   /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
   focus?(ref: string): void;
 };
@@ -93,7 +95,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : slot.code ? h('span', { class: 'rr-tour__chunk-head' }) : null;
     if (head) nameHead(head, slot.ref);
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, cardBelow: form.cardBelow?.() }, id) : null;
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, cardBelow: form.cardBelow?.(), cardTop: () => form.cardTop?.() ?? Infinity }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     views.push({ panel, id, head });

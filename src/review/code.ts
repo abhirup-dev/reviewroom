@@ -121,6 +121,10 @@ class CodePanel implements PanelInstance {
   private embedded: boolean;
   /** Embedded: the phone player's slide card sits over the code's lower part (player.phone.ts, upright). */
   private cardBelow: boolean;
+  /** With cardBelow: where the card's top edge is on screen now, so landed lines centre in the code above it. */
+  private cardTop?: () => number;
+  /** Counts landings: a newer one ends the last one's wait for the card to settle. */
+  private landing = 0;
   /** Embedded: the walkthrough's name for this chunk, first in the toolbar (its own path label is left out). */
   private head?: HTMLElement;
   /** Reveals (src/review/reveal.machine.ts): a new one cancels the last one's wait, unfold and glow. */
@@ -133,6 +137,7 @@ class CodePanel implements PanelInstance {
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
     this.cardBelow = !!params.cardBelow;
+    this.cardTop = params.cardTop as (() => number) | undefined;
     this.head = params.head as HTMLElement | undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
@@ -537,15 +542,44 @@ class CodePanel implements PanelInstance {
     return !signal.aborted;
   }
 
-  /** Highlight the target's lines and scroll them to 30% from the top (the slide card below: the top). */
+  /** Highlight the target's lines and scroll them to 30% from the top (the slide card below: centred above it). */
   private land(t: CodeTarget) {
     const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
-    // the slide card below: to the top, clear of it over the code's lower part
-    const offset = this.cardBelow ? 8 : this.scroller.clientHeight * 0.3;
+    // the slide card below: centred in the code left showing above it, or 8px from the top when they don't fit there
+    const offset = this.cardBelow ? this.centredAbove(t.path, lines, side) : this.scroller.clientHeight * 0.3;
     this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset });
+    if (!this.cardBelow) return;
+    // the card is often still sizing to the new slide: once its top edge holds still (or ~1 s), centre again against
+    // where it ended up, unless the reader has scrolled meanwhile
+    const at = this.cardTop?.() ?? 0, mine = ++this.landing;
+    let last = at, still = 0, left = 60, top = -1;
+    const tick = () => {
+      if (mine !== this.landing || !this.element.isConnected) return;
+      const scroll = this.cv.getScrollTop();
+      if (top >= 0 && Math.abs(scroll - top) > 2) return; // the reader scrolled
+      top = scroll;
+      const now = this.cardTop?.() ?? 0;
+      still = Math.abs(now - last) < 1 ? still + 1 : 0;
+      last = now;
+      if (still < 4 && --left > 0) return void requestAnimationFrame(tick);
+      if (Math.abs(now - at) > 4) this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset: this.centredAbove(t.path, lines, side), behavior: 'smooth' });
+    };
+    requestAnimationFrame(tick);
+  }
+
+  /** The offset from the top that centres these lines between the pane's top and the slide card's top edge. */
+  private centredAbove(path: string, lines: { start: number; end: number }, side: Side) {
+    type Lines = { getLinePosition(n: number, side?: Side): { top: number; height: number } | undefined };
+    const it = this.cv.getRenderedItems().find((x) => x.id === path)?.instance as Lines | undefined;
+    const [a, b] = [it?.getLinePosition(lines.start, side), it?.getLinePosition(lines.end, side)];
+    const open = (this.cardTop?.() ?? Infinity) - this.scroller.getBoundingClientRect().top;
+    if (!Number.isFinite(open)) return 8;
+    // lines not rendered yet (off screen): Pierre's own estimate, 20px a line (wrapped lines run taller)
+    const tall = a && b ? b.top + b.height - a.top : (lines.end - lines.start + 1) * 20;
+    return Math.max(8, (open - tall) / 2);
   }
 
   /** The first line of every run of changed lines in the files on screen, top to bottom. */

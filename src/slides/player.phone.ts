@@ -315,10 +315,11 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
       light(left, getComputedStyle(left).borderRadius);
       const [cx, cy, pad] = [r.left + r.width / 2, r.top + r.height / 2, 28];
       cue.style.cssText = `left:${cx}px;top:${land.matches ? cy - 64 : r.top - 34}px`;
-      // edge to edge across the card: drag left for the next slide, right for the one before (gestureMachine);
+      // from the card's edge most of the way across: drag left for the next slide, right for the one before (gestureMachine);
       // upright, up for more and down for less
       const [top, bottom, lft, rgt] = [r.top + pad, r.bottom - pad, r.left + pad, r.right - pad];
-      return ({ '↑ More': [cx, bottom, cx, top], '↓ Less': [cx, top, cx, bottom], '← Next': [rgt, cy, lft, cy], '→ Back': [lft, cy, rgt, cy] } as Record<string, number[]>)[labels[i]];
+      const part = (from: number, to: number) => from + (to - from) * 0.7; // 70% of the way: a swipe, not a drag across
+      return ({ '↑ More': [cx, bottom, cx, part(bottom, top)], '↓ Less': [cx, top, cx, part(top, bottom)], '← Next': [rgt, cy, part(rgt, lft), cy], '→ Back': [lft, cy, part(lft, rgt), cy] } as Record<string, number[]>)[labels[i]];
     };
     at(600, async () => {
       measure(0);
@@ -430,6 +431,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
     // upright, the card is over the code's lower part
     cardBelow: () => !land.matches,
+    cardTop: () => (files.hidden ? left : files).getBoundingClientRect().top,
     focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough
     paintNav: ({ isFirst, isLast }: ReturnType<typeof current>) => {
