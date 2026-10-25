@@ -56,8 +56,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   comment.className = 'rr-tour__comment';
   comment.setAttribute('aria-label', 'Comment on this slide');
   const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet() }, icon('toc', 20));
-  // Full screen: immersive now, not after IDLE_MS, and the swipes shown again (coach, below)
-  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => ((declined = false), fullscreen(), chrome.send({ type: 'hide' }), coach()) }, icon('maximize', 20));
+  // Full screen: immersive now, not after IDLE_MS, and the swipes shown again unless skipped (coach, below)
+  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => ((declined = false), fullscreen(), chrome.send({ type: 'hide' }), skipped() || coach()) }, icon('maximize', 20));
   next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents, comment and full screen' }, contents, comment, full));
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
@@ -244,9 +244,12 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const immersive = () => chrome.getSnapshot().matches('immersive');
   const wake = () => chrome.send({ type: 'wake' });
   const restore = h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20)); // immersive only (slides.phone.css)
-  // the coach, on the first immersive ever and every Full screen tap: a note and a touch dot tracing the card's swipes,
-  // then a note pointing at Show controls, which glows; leaving immersive ends it
-  const COACHED = 'rr-tour-coached';
+  // the coach, on going immersive (once a page load per orientation) and every Full screen tap: a note and a touch dot
+  // tracing the card's swipes, then a note pointing at Show controls, which glows, then Skip next time or Repeat. Skip
+  // holds per orientation (local storage); leaving immersive ends it
+  const skipKey = () => `rr-tour-coach-skip-${land.matches ? 'landscape' : 'portrait'}`;
+  const skipped = () => !!localStorage.getItem(skipKey());
+  const seen = new Set<string>();
   const note = h('div', { class: 'rr-tour__note', role: 'status' });
   const dot = h('div', { class: 'rr-tour__trace', 'aria-hidden': 'true' });
   const cue = h('div', { class: 'rr-tour__cue', 'aria-hidden': 'true' });
@@ -255,13 +258,13 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const uncoach = () => {
     timers.forEach(clearTimeout);
     timers = [];
-    note.classList.remove('is-on');
+    note.classList.remove('is-on', 'is-ask');
     restore.classList.remove('is-hinting');
     [dot, cue].forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
   };
   const coach = () => {
     uncoach();
-    localStorage.setItem(COACHED, '1');
+    seen.add(skipKey());
     const at = (ms: number, f: () => void) => timers.push(window.setTimeout(f, ms));
     const say = (...text: (string | Node)[]) => (note.replaceChildren(...text), note.classList.add('is-on'));
     say(`Full screen · swipe the slide ${land.matches ? 'on the left' : 'below'} to move`);
@@ -291,13 +294,23 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     const step2 = LEAD + n * STROKE + 600;
     at(step2 - 300, () => note.classList.remove('is-on'));
     at(step2, () => (say('Tap ', icon('dots', 14), ' to show the controls'), restore.classList.add('is-hinting')));
-    at(step2 + 3800, uncoach);
+    const ask = step2 + 3800;
+    at(ask - 300, () => (note.classList.remove('is-on'), restore.classList.remove('is-hinting')));
+    at(ask, () => {
+      say(
+        h('span', null, 'Show this again next time?'),
+        h('button', { class: 'rr-link-btn', onclick: () => (localStorage.setItem(skipKey(), '1'), uncoach()) }, 'Skip next time'),
+        h('button', { class: 'rr-link-btn', onclick: coach }, 'Repeat'),
+      );
+      note.classList.add('is-ask');
+    });
+    at(ask + 6000, uncoach); // unanswered: it plays again next time
   };
   let wasImmersive = false;
   chrome.subscribe(() => {
     const now = immersive();
     player.classList.toggle('is-immersive', now);
-    if (now && !wasImmersive && !localStorage.getItem(COACHED)) coach();
+    if (now && !wasImmersive && !skipped() && !seen.has(skipKey())) coach();
     if (!now && wasImmersive) uncoach();
     wasImmersive = now;
   });

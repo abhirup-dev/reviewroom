@@ -407,6 +407,15 @@
   opacity: 1;
   translate: -50% 0;
 }
+/* the last step asks: its two buttons take taps */
+[data-form='phone'] .rr-tour__note.is-ask {
+  gap: 12px;
+  pointer-events: auto;
+}
+[data-form='phone'] .rr-tour__note .rr-link-btn {
+  min-height: 32px;
+  font-weight: 600;
+}
 [data-form='phone'] .rr-tour__note .rr-icon {
   width: 14px;
   height: 14px;

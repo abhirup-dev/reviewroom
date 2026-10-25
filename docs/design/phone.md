@@ -83,11 +83,13 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   scrolling and taps keep it immersive. The installed app is full screen (manifest `display: fullscreen`: no
   status or navigation bar, content under a cutout too, no exit notice). In a browser tab the guided review asks for it
   (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
-  immersive at once. The coach, the first time immersive ever (local storage) and on every Full screen tap: a one-line
+  immersive at once. The coach, on going immersive (once a page load for each orientation) and on every Full screen tap: a one-line
   note at the top ("Full screen · swipe the slide below to move", "on the left" on its side) while a soft touch dot
   traces the card's swipes with a one-word cue (up More, down Less, left Next, right Back; on its side only the
   sideways two), then a second note, "Tap ⋯ to show the controls", while Show controls rings and glows in accent. About
-  8 s in all; leaving immersive ends it. Reduced motion: the notes and a still ring, no dot. Reduced
+  8 s in all, then "Show this again next time?" with Skip next time and Repeat (replays now). Skip is kept per
+  orientation (local storage), so a turned phone still gets its own once; unanswered, it plays again next time. Leaving
+  immersive ends it. Reduced motion: the notes and a still ring, no dot. Reduced
   motion: they fade, nothing moves. The card is a bottom sheet with three detents, kept across slides: collapsed (grip
   and the text's first two lines), default (its content, up to 40% of the screen) and tall (up to all but the bar and a
   strip of code). Dragging the grip or the card follows the finger and settles on the nearest detent, a flick at least
