@@ -76,7 +76,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   `--rr-ink`; Contents and Full screen `--rr-ink-2`; Comment is marked only by its `chat` icon's `--rr-comment` stroke. On the first
   slide Back is disabled (muted), on the last Next is ("Last slide"): the close in the top bar ends the walkthrough. No
   blue, no pulse. Contents (and the chapter title in the top bar) opens a bottom sheet of the chapters with their
-  slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
+  slide counts, the current one expanded to its slides; a swipe up on it opens every chapter on its slides, the sheet up to 92% of the screen (each opening starts compact); Back or the scrim closes it. A tap on the rail opens it too. Immersive:
   4 s untouched (not while a menu, the composer, the Contents sheet or a selection is open), the top bar and the
   toolbar fade, the code fills the screen edge to edge and the card drops to just above the progress row with a small
   Show controls icon in its corner, the only thing that brings them back. The progress row (the rail) is a tick per

@@ -656,6 +656,10 @@
 .rr-tour-toc:not([open]) {
   translate: 0 100%;
 }
+/* swiped up: every chapter on its slides, nearly the screen's height */
+.rr-modal.rr-sheet.rr-tour-toc.is-all {
+  max-height: 92dvh;
+}
 .rr-tour-toc::backdrop {
   animation: none;
   transition:

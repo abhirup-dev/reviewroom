@@ -78,15 +78,17 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const sheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1' });
   const jump = (chapter: number, step: number) => (sheet.close(), actor.send({ type: 'goto', chapter, step }));
   const gist = (html: string) => Object.assign(h('div'), { innerHTML: sanitizeProse(html) }).textContent.trim();
-  const contentsSheet = () => {
+  // a swipe up on it opens every chapter on its slides, the sheet nearly the screen's height; each opening starts compact
+  const contentsSheet = (all = false) => {
     const { doc, chapter: at, step: on } = ctx();
+    sheet.classList.toggle('is-all', all);
     const chapters = doc!.chapters.map((c, ci) =>
       h(
         'section',
         { class: 'rr-tour-toc__chapter' + (ci === at ? ' is-on' : '') },
         h('button', { class: 'rr-tour-toc__head', title: `Go to ${c.title}`, 'aria-current': ci === at ? 'true' : undefined, onclick: () => jump(ci, 0) }, h('span', { class: 'rr-tour-toc__num' }, String(ci + 1)), h('span', null, c.title), h('small', null, plural(c.steps.length, 'slide'))),
-        ci === at
-          ? h('ol', { class: 'rr-tour-toc__slides' }, ...c.steps.map((s, si) => h('li', null, h('button', { class: 'rr-tour-toc__slide', title: `Go to slide ${si + 1}`, 'aria-current': si === on ? 'step' : undefined, onclick: () => jump(ci, si) }, h('span', { class: 'rr-tour-toc__num' }, String(si + 1)), h('span', null, gist(s.text))))))
+        ci === at || all
+          ? h('ol', { class: 'rr-tour-toc__slides' }, ...c.steps.map((s, si) => h('li', null, h('button', { class: 'rr-tour-toc__slide', title: `Go to slide ${si + 1}`, 'aria-current': ci === at && si === on ? 'step' : undefined, onclick: () => jump(ci, si) }, h('span', { class: 'rr-tour-toc__num' }, String(si + 1)), h('span', null, gist(s.text))))))
           : null,
       ),
     );
@@ -94,8 +96,18 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (!sheet.open && app.presentation.kind !== 'phone') sheet.addEventListener('close', onBack(() => sheet.close()), { once: true });
     openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
     sheet.focus(); // the sheet, not its first chapter: no ring on open
-    sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest' });
+    sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: all ? 'center' : 'nearest' });
   };
+  // up past 40px, unless the list still had further to scroll that way
+  let swipeFrom: number | null = null;
+  sheet.addEventListener('touchstart', (e) => {
+    const list = sheet.querySelector('.rr-tour-toc__list');
+    swipeFrom = sheet.classList.contains('is-all') || (list && list.scrollTop + list.clientHeight < list.scrollHeight - 2) ? null : e.touches[0].clientY;
+  }, { passive: true });
+  sheet.addEventListener('touchend', (e) => {
+    if (swipeFrom !== null && e.changedTouches[0].clientY - swipeFrom < -40) contentsSheet(true);
+    swipeFrom = null;
+  }, { passive: true });
   // the rail: always on screen, over the code, even immersive; a tap anywhere on it opens Contents (its ticks don't
   // take taps on a phone: too small). Immersive, a new chapter lifts it into a band naming the chapter (announce)
   const band = h('div', { class: 'rr-tour__band', role: 'status' });
@@ -426,7 +438,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   });
   app.onDispose(() => (uncoach(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
   return {
-    contents: contentsSheet,
+    contents: () => contentsSheet(),
     // each slide folds the intro again (but the chapter's first), unless the card is tall
     foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
     // upright, the card is over the code's lower part
