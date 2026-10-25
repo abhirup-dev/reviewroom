@@ -66,9 +66,6 @@
 .rr-code-rail__seg.is-viewed {
   opacity: 0.5;
 }
-.rr-code-rail__seg.has-threads {
-  background: var(--rr-comment);
-}
 .rr-code-rail__seg.is-current {
   opacity: 1;
   background: var(--rr-accent);

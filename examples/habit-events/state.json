@@ -120,9 +120,7 @@
       ]
     }
   ],
-  "viewed": {
-    "migrations/004_habit_events.sql": 1
-  },
+  "viewed": {},
   "pins": [
     "rr:doc/request-path"
   ],

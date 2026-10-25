@@ -363,13 +363,13 @@ class CodePanel implements PanelInstance {
       h(
         'button',
         list
-          ? { class: 'rr-file__path', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement) }
+          ? { class: 'rr-file__path', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }
           : { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, defaultSide(f)) },
         f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' → ') : null,
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),
       ),
-      list ? h('button', { class: 'rr-file__pos', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement) }, `${[...this.files.keys()].indexOf(f.path) + 1} / ${this.files.size}`, icon('chevronDown', 12)) : null,
+      list ? h('button', { class: 'rr-file__pos', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }, `${[...this.files.keys()].indexOf(f.path) + 1} / ${this.files.size}`, icon('chevronDown', 12)) : null,
       h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
@@ -678,7 +678,7 @@ class CodePanel implements PanelInstance {
     onDrag(el, { start: (e) => (el.classList.add('is-dragging'), scrub(e)), move: (_, __, e) => scrub(e), end: () => el.classList.remove('is-dragging') });
   }
 
-  /** Each file's share of the scroll, viewed and open-thread marks; the thumb where the view is. */
+  /** Each file's share of the scroll and its viewed mark; the thumb where the view is. */
   private paintRail() {
     const rail = this.rail;
     if (!rail || this.mode !== 'diff') return void (rail && (rail.el.hidden = true));
@@ -688,15 +688,13 @@ class CodePanel implements PanelInstance {
     if (rail.el.hidden) return;
     const tops = ids.map((id) => this.cv.getTopForItem(id) ?? 0);
     const cur = this.fileAt(40);
-    const threads = this.app.services.threads.threads();
-    const open = (path: string) => codeThreadsOn(threads, path).some((t) => t.status === 'open');
-    const sig = JSON.stringify([total, tops, cur, ids.map((id) => [this.app.state.viewed[id] !== undefined, open(id)])]);
+    const sig = JSON.stringify([total, tops, cur, ids.map((id) => this.app.state.viewed[id] !== undefined)]);
     if (sig !== rail.sig) {
       rail.sig = sig;
       rail.el.replaceChildren(
         ...ids.map((id, i) =>
           h('div', {
-            class: 'rr-code-rail__seg' + (i === cur ? ' is-current' : '') + (this.app.state.viewed[id] !== undefined ? ' is-viewed' : '') + (open(id) ? ' has-threads' : ''),
+            class: 'rr-code-rail__seg' + (i === cur ? ' is-current' : '') + (this.app.state.viewed[id] !== undefined ? ' is-viewed' : ''),
             style: { flexGrow: String(Math.max(1, (tops[i + 1] ?? total) - tops[i])) },
           }),
         ),
@@ -708,16 +706,16 @@ class CodePanel implements PanelInstance {
     rail.thumb.style.height = `${(this.cv.getHeight() / total) * 100}%`;
   }
 
-  /** The file list, from a file's header: jump to any, its viewed and open-thread marks beside it. */
-  private fileList(anchor: HTMLElement) {
+  /** The file list, from a file's header: that file ticked; jump to any, its open threads or viewed mark beside it. */
+  private fileList(anchor: HTMLElement, at: string) {
     const threads = this.app.services.threads.threads();
     popMenu(anchor, (close) => [
       menuLabel(`${this.files.size} files`),
       ...[...this.files.values()].map(({ file: f }) => {
         const open = codeThreadsOn(threads, f.path).filter((t) => t.status === 'open').length;
         return menuItem(f.path.split('/').pop()!, () => (close(), this.reveal({ path: f.path, side: defaultSide(f) })), {
-          checked: this.app.state.viewed[f.path] !== undefined,
-          hint: open ? `${open} open` : STATUS[f.status],
+          checked: f.path === at,
+          hint: open ? `${open} open` : this.app.state.viewed[f.path] !== undefined ? 'viewed' : STATUS[f.status],
         });
       }),
     ]);
