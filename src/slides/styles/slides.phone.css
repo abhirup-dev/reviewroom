@@ -434,12 +434,13 @@
   height: 20px;
 }
 /* the coach (player.phone.ts), on going immersive: a note at the top, the rest of the screen dimmed around a spotlight
-   on the card while a touch dot traces its swipes edge to edge with a cue over it, then the spotlight on Show controls,
+   on the card while a touch dot traces its swipes from the card's edge 70% across with a cue over it, then the
+   spotlight on Show controls,
    ringed and glowing in accent, while the note points at it */
 [data-form='phone'] .rr-tour__spot {
   position: fixed;
   z-index: 3;
-  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.62);
+  box-shadow: 0 0 0 200vmax var(--rr-spotlight);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--rr-m-default-ms);
@@ -492,7 +493,7 @@
   margin: -20px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--rr-accent) 60%, transparent); /* reads on light and dark alike */
-  box-shadow: 0 0 0 2px #fff, 0 0 0 10px color-mix(in srgb, var(--rr-accent) 20%, transparent), 0 4px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 2px var(--rr-touch-ring), 0 0 0 10px color-mix(in srgb, var(--rr-accent) 20%, transparent), var(--rr-shadow);
 }
 [data-form='phone'] .rr-tour__cue {
   translate: -50% 0;

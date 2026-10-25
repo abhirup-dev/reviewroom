@@ -10,17 +10,18 @@ function revealer(scope: Fixture) {
   const log: string[] = [];
   const preps: ((v: Prepared) => void)[] = [];
   const unfolds: ((v: boolean) => void)[] = [];
+  const settles: ((v: boolean) => void)[] = [];
   const at = (t: CodeTarget | null) => `${t?.path}:${t?.start}`;
   const a = createActor(
     revealMachine.provide({
-      actors: { prepare: fromPromise(() => new Promise<Prepared>((r) => preps.push(r))), unfold: fromPromise(() => new Promise<boolean>((r) => unfolds.push(r))) },
-      actions: { land: ({ context }) => log.push('land ' + at(context.target)), glow: () => log.push('glow'), unglow: () => log.push('unglow'), clear: () => log.push('clear'), landed: () => log.push('landed') },
+      actors: { prepare: fromPromise(() => new Promise<Prepared>((r) => preps.push(r))), unfold: fromPromise(() => new Promise<boolean>((r) => unfolds.push(r))), settle: fromPromise(() => new Promise<boolean>((r) => settles.push(r))) },
+      actions: { land: ({ context }) => log.push('land ' + at(context.target)), glow: () => log.push('glow'), unglow: () => log.push('unglow'), clear: () => log.push('clear'), landed: () => log.push('landed'), recentre: () => log.push('recentre') },
       delays: { glow: 30 },
     }),
   ).start();
   scope.defer(() => a.stop());
   const reveal = (path: string, start?: number) => a.send({ type: 'reveal', target: { path, side: 'head', start } });
-  return { a, log, preps, unfolds, reveal };
+  return { a, log, preps, unfolds, settles, reveal };
 }
 
 test('reveal: prepare, land, unfold and land again, glow and say landed, then let the highlight go', async () => {
@@ -81,4 +82,26 @@ test('reveal: selecting while it unfolds ends it, nothing clears the selection l
   r.preps[2]('nothing');
   await tick();
   expect(r.log.slice(-3)).toEqual(['land b.go:2', 'clear', 'landed']);
+});
+
+test('reveal: once the cover below holds still elsewhere it lands again; the user selecting first drops that', async () => {
+  using scope = fixture();
+  const r = revealer(scope);
+  r.reveal('a.go', 5);
+  r.preps[0]('lines');
+  await waitFor(r.a, (s) => s.matches('unfolding'));
+  r.unfolds[0](false);
+  await waitFor(r.a, (s) => s.matches('glowing'));
+  r.settles[0](true);
+  await tick();
+  expect(r.log.at(-1)).toBe('recentre');
+  r.reveal('a.go', 9);
+  r.preps[1]('lines');
+  await waitFor(r.a, (s) => s.matches('unfolding'));
+  r.unfolds[1](false);
+  await waitFor(r.a, (s) => s.matches('glowing'));
+  r.a.send({ type: 'select' });
+  r.settles[1](true); // stale: glowing is gone
+  await tick();
+  expect(r.log.filter((x) => x === 'recentre')).toHaveLength(1);
 });

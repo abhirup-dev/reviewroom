@@ -123,8 +123,8 @@ class CodePanel implements PanelInstance {
   private cardBelow: boolean;
   /** With cardBelow: where the card's top edge is on screen now, so landed lines centre in the code above it. */
   private cardTop?: () => number;
-  /** Counts landings: a newer one ends the last one's wait for the card to settle. */
-  private landing = 0;
+  /** With cardBelow: the card's top edge when lines last landed (revealMachine's settle compares). */
+  private landedAt = 0;
   /** Embedded: the walkthrough's name for this chunk, first in the toolbar (its own path label is left out). */
   private head?: HTMLElement;
   /** Reveals (src/review/reveal.machine.ts): a new one cancels the last one's wait, unfold and glow. */
@@ -149,9 +149,10 @@ class CodePanel implements PanelInstance {
     const frame = () => new Promise((r) => requestAnimationFrame(r));
     this.revealer = createActor(
       revealMachine.provide({
-        actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, frame)) },
+        actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, frame)), settle: fromPromise(({ signal }) => this.settle(signal)) },
         actions: {
           land: ({ context }) => this.land(context.target!),
+          recentre: ({ context }) => this.land(context.target!, matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'),
           // restart the pulse: it runs while --rr-pulse names it. The walkthrough's pane doesn't pulse: it snaps to the
           // lines and keeps them highlighted
           glow: () => {
@@ -543,31 +544,37 @@ class CodePanel implements PanelInstance {
   }
 
   /** Highlight the target's lines and scroll them to 30% from the top (the slide card below: centred above it). */
-  private land(t: CodeTarget) {
+  private land(t: CodeTarget, behavior: 'instant' | 'smooth' = 'instant') {
     const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
     // the slide card below: centred in the code left showing above it, or 8px from the top when they don't fit there
     const offset = this.cardBelow ? this.centredAbove(t.path, lines, side) : this.scroller.clientHeight * 0.3;
-    this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset });
-    if (!this.cardBelow) return;
-    // the card is often still sizing to the new slide: once its top edge holds still (or ~1 s), centre again against
-    // where it ended up, unless the reader has scrolled meanwhile
-    const at = this.cardTop?.() ?? 0, mine = ++this.landing;
-    let last = at, still = 0, left = 60, top = -1;
-    const tick = () => {
-      if (mine !== this.landing || !this.element.isConnected) return;
-      const scroll = this.cv.getScrollTop();
-      if (top >= 0 && Math.abs(scroll - top) > 2) return; // the reader scrolled
-      top = scroll;
-      const now = this.cardTop?.() ?? 0;
-      still = Math.abs(now - last) < 1 ? still + 1 : 0;
-      last = now;
-      if (still < 4 && --left > 0) return void requestAnimationFrame(tick);
-      if (Math.abs(now - at) > 4) this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset: this.centredAbove(t.path, lines, side), behavior: 'smooth' });
-    };
-    requestAnimationFrame(tick);
+    this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset, behavior });
+    this.landedAt = this.cardTop?.() ?? 0;
+  }
+
+  /** The slide card is often still sizing to the new slide when lines land: true once its top edge has held still
+   *  (or ~1 s) somewhere else than where they landed against, false if the reader scrolled meanwhile. */
+  private settle(signal: AbortSignal) {
+    if (!this.cardBelow) return Promise.resolve(false);
+    const at = this.landedAt;
+    return new Promise<boolean>((done) => {
+      let last = at, still = 0, left = 60, top = -1;
+      const tick = () => {
+        if (signal.aborted || !this.element.isConnected) return done(false);
+        const scroll = this.cv.getScrollTop();
+        if (top >= 0 && Math.abs(scroll - top) > 2) return done(false); // the reader scrolled
+        top = scroll;
+        const now = this.cardTop?.() ?? 0;
+        still = Math.abs(now - last) < 1 ? still + 1 : 0;
+        last = now;
+        if (still < 4 && --left > 0) return void requestAnimationFrame(tick);
+        done(Math.abs(now - at) > 4);
+      };
+      requestAnimationFrame(tick);
+    });
   }
 
   /** The offset from the top that centres these lines between the pane's top and the slide card's top edge. */

@@ -6,13 +6,20 @@
 //                   toolbar fade, Show controls in the card's corner; a `touch` (a tap, a swipe, a drag, a slide change) does nothing
 //                   there; only Show controls sends `wake`. `hide` (the toolbar's Full screen) goes immersive at once
 //
+//   coachMachine    off ─start─▶ swipes ─(done)─▶ between ─▶ pointing ─(POINT_MS)─▶ leaving ─▶ asking ─(ASK_MS)─▶ off
+//                   start: going immersive, or the toolbar's Full screen (`forced`): only if the orientation isn't
+//                   skipped, and unforced only once a page load per orientation. swipes: the note, the spotlight on
+//                   the card and the touch dot's strokes (the view's `swipes` actor). pointing: the spotlight on Show
+//                   controls, glowing. asking: Skip next time (remembered for the orientation it started in) or Repeat.
+//                   `end` (leaving immersive, turning, dispose) from anywhere: off
+//
 //   cardMachine     the slide card, a bottom sheet with detents collapsed (0), default (1), tall (2)
 //                   rest ─grab─▶ dragging ─release / cancel─▶ settling ─(SETTLE_MS)─▶ rest
 //                   rest | settling ─size─▶ settling        (the grip tapped, a tap on a collapsed card)
 //                   grab only `draggable`: from the grip always; else up while short of tall, down from the text's top
 //                   (otherwise the text scrolls). The view measures: every grab and size carries the card's height
 //                   now and its height at each detent.
-import { assign, setup } from 'xstate';
+import { assign, fromPromise, setup } from 'xstate';
 
 export const IDLE_MS = 4000;
 /** The card's glide to a detent (slides.phone.css); not transitionend: reduced motion has no transition. */
@@ -87,6 +94,76 @@ export const cardMachine = setup({
     settling: {
       after: { settle: 'rest' },
       on: { size: sizeTo, grab: grabIt },
+    },
+  },
+});
+
+export type Orient = 'portrait' | 'landscape';
+/** start: `skipped`, Skip next time was chosen for that orientation (the view keeps it, in local storage) */
+type CoachEvent = { type: 'start'; orient: Orient; forced?: boolean; skipped?: boolean } | { type: 'end' } | { type: 'skip' } | { type: 'repeat' };
+/** How long the coach points at Show controls, and waits for Skip or Repeat. */
+export const POINT_MS = 5700, ASK_MS = 6000;
+/** A note fading out before the next one fades in. */
+const FADE_MS = 300;
+
+export const coachMachine = setup({
+  types: {
+    context: {} as { orient: Orient; seen: Orient[] },
+    events: {} as CoachEvent,
+  },
+  actors: {
+    /** the touch dot's strokes over the card (the view animates; done when they are) */
+    swipes: fromPromise<void, Orient>(async () => {}),
+  },
+  guards: {
+    /** not skipped, and unforced only once a page load per orientation */
+    due: ({ context, event }) => event.type === 'start' && !event.skipped && (!!event.forced || !context.seen.includes(event.orient)),
+  },
+  actions: {
+    /** the first note, the spotlight on the card */
+    showSwipes: () => {},
+    /** the note and the spotlight fade out */
+    fade: () => {},
+    /** "Tap ⋯ to show the controls", the spotlight on Show controls, which glows */
+    point: () => {},
+    /** "Show this again next time?" with Skip next time and Repeat */
+    ask: () => {},
+    /** remember Skip next time for the orientation it started in (context.orient) */
+    remember: () => {},
+    started: assign(({ context, event }) => (event.type === 'start' ? { orient: event.orient, seen: [...new Set([...context.seen, event.orient])] } : {})),
+    /** everything the coach shows goes */
+    hide: () => {},
+  },
+  delays: { fade: FADE_MS, point: POINT_MS, ask: ASK_MS },
+}).createMachine({
+  id: 'coach',
+  context: { orient: 'portrait', seen: [] },
+  initial: 'off',
+  on: {
+    start: {
+      guard: 'due',
+      target: '.swipes',
+      reenter: true,
+      actions: 'started',
+    },
+    end: '.off',
+  },
+  states: {
+    off: { entry: 'hide' },
+    swipes: {
+      entry: ['hide', 'showSwipes'],
+      invoke: { src: 'swipes', input: ({ context }) => context.orient, onDone: 'between' },
+    },
+    between: { entry: 'fade', after: { fade: 'pointing' } },
+    pointing: { entry: 'point', after: { point: 'leaving' } },
+    leaving: { entry: 'fade', after: { fade: 'asking' } },
+    asking: {
+      entry: 'ask',
+      after: { ask: 'off' }, // unanswered: it plays again next time
+      on: {
+        skip: { target: 'off', actions: 'remember' },
+        repeat: { target: 'swipes', reenter: true },
+      },
     },
   },
 });

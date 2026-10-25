@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { createActor, SimulatedClock } from 'xstate';
-import { cardMachine, chromeMachine, IDLE_MS, SETTLE_MS } from './phone.machine';
+import { createActor, fromPromise, SimulatedClock } from 'xstate';
+import { ASK_MS, cardMachine, chromeMachine, coachMachine, IDLE_MS, POINT_MS, SETTLE_MS, type Orient } from './phone.machine';
 
 const chrome = (held = () => false) => {
   const clock = new SimulatedClock();
@@ -126,4 +126,64 @@ test('card: up past tall scrolls the text; the grip still drags; cancel settles 
   c.a.send({ type: 'cancel' });
   expect(c.at()).toEqual(['settling', 2]);
   expect(c.a.getSnapshot().context.from).toBe(500);
+});
+
+// ------------------------------------------------------------------ the coach
+
+const coach = (skipped: Orient[] = []) => {
+  const clock = new SimulatedClock();
+  const log: string[] = [];
+  let done = () => {};
+  const a = createActor(
+    coachMachine.provide({
+      actors: { swipes: fromPromise(() => new Promise<void>((r) => (done = r))) },
+      actions: { showSwipes: () => log.push('swipes'), point: () => log.push('point'), ask: () => log.push('ask'), remember: ({ context }) => log.push('skip ' + context.orient) },
+    }),
+    { clock },
+  ).start();
+  const start = (orient: Orient, forced = false) => a.send({ type: 'start', orient, forced, skipped: skipped.includes(orient) });
+  return { a, log, start, later: (ms: number) => clock.increment(ms), swiped: () => (done(), new Promise((r) => setTimeout(r))), is: () => a.getSnapshot().value };
+};
+
+test('coach: swipes, then points at Show controls, then asks; unanswered it ends', async () => {
+  const c = coach();
+  c.start('portrait');
+  expect(c.is()).toBe('swipes');
+  await c.swiped();
+  c.later(300);
+  expect(c.is()).toBe('pointing');
+  c.later(POINT_MS);
+  c.later(300);
+  expect(c.is()).toBe('asking');
+  c.later(ASK_MS);
+  expect([c.is(), c.log]).toEqual(['off', ['swipes', 'point', 'ask']]);
+});
+
+test('coach: once a page load per orientation unless forced; a skipped orientation never', () => {
+  const c = coach(['landscape']);
+  c.start('portrait');
+  c.a.send({ type: 'end' });
+  c.start('portrait');
+  expect(c.is()).toBe('off');
+  c.start('portrait', true);
+  expect(c.is()).toBe('swipes');
+  c.a.send({ type: 'end' });
+  c.start('landscape', true);
+  expect(c.is()).toBe('off');
+});
+
+test('coach: Skip is remembered for the orientation it started in; Repeat plays it again; end stops it anywhere', async () => {
+  const c = coach();
+  c.start('landscape');
+  await c.swiped();
+  [300, POINT_MS, 300].forEach(c.later);
+  c.a.send({ type: 'repeat' });
+  expect(c.is()).toBe('swipes');
+  await c.swiped();
+  [300, POINT_MS, 300].forEach(c.later);
+  c.a.send({ type: 'skip' });
+  expect([c.is(), c.log.at(-1)]).toEqual(['off', 'skip landscape']);
+  c.start('portrait');
+  c.a.send({ type: 'end' });
+  expect(c.is()).toBe('off');
 });

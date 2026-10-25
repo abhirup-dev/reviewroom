@@ -86,14 +86,14 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   scrolling and taps keep it immersive. The installed app is full screen (manifest `display: fullscreen`: no
   status or navigation bar, content under a cutout too, no exit notice). In a browser tab the guided review asks for it
   (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
-  immersive at once. The coach, on going immersive (once a page load for each orientation) and on every Full screen tap: a one-line
+  immersive at once. The coach (coachMachine), on going immersive (once a page load for each orientation) and on every Full screen tap: a one-line
   note at the top (15px; "Full screen · swipe the slide below to move", "on the left" on its side) while the rest of
   the screen dims around a spotlight on the card and an accent touch dot, ringed in white, traces its swipes from the
   card's edge 70% of the way across with an inverse one-word cue (up More, down Less, left Next, right Back; on its side only the sideways two),
   each stroke on the animation clock; then the spotlight moves to Show controls, which rings and glows in accent, under
   "Tap ⋯ to show the controls" for 6 s, then "Show this again next time?" with Skip next time and Repeat (replays now). Skip is kept per
   orientation (local storage), so a turned phone still gets its own once; unanswered, it plays again next time. Leaving
-  immersive ends it. Reduced motion: the notes and a still ring, no dot. Reduced
+  immersive or turning the phone ends it. Reduced motion: the notes and a still ring, no dot. Reduced
   motion: they fade, nothing moves. The card is a bottom sheet with three detents, kept across slides: collapsed (grip
   and the text's first two lines), default (its content, up to 40% of the screen) and tall (up to all but the bar and a
   strip of code). Dragging the grip or the card follows the finger and settles on the nearest detent, a flick at least
@@ -111,7 +111,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   narration link, a symbol, a chunk's name) goes through `navMachine` (`src/slides/nav.machine.ts`): it waits while the
   pane changes, then selects the chunk showing that file and reveals the lines in it, or (another file) has the pane
   show the link, with an undo icon on the tab back to the slide's own code. A new jump cancels the last; a slide change
-  cancels a pending one. Lines land centred in the code left showing above the card (its file tab's top edge), re-centred once the card has finished sizing to the new slide unless the reader scrolled; too tall to fit, they land at the top. The desktop keeps its stacked chunks
+  cancels a pending one. Lines land centred in the code left showing above the card (its file tab's top edge), re-centred once the card has finished sizing to the new slide (revealMachine's settle; instantly under reduced motion) unless the reader scrolled or selected lines meanwhile; too tall to fit, they land at the top. The desktop keeps its stacked chunks
   and chips.
 - **Guided review on its side**: the phone player goes by the device (`usesPhonePlayer()` in `src/kernel/device.ts`: a
   phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get

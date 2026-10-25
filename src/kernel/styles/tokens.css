@@ -77,6 +77,9 @@
   --rr-rim: rgba(27, 26, 23, 0.1);
   --rr-rim-top: rgba(255, 255, 255, 0.9);
   --rr-scrim: rgba(24, 22, 18, 0.32);
+  /* the phone coach: the screen dimmed around its spotlight, and the ring on its touch dot */
+  --rr-spotlight: rgba(0, 0, 0, 0.62);
+  --rr-touch-ring: #ffffff;
   color-scheme: light;
 }
 
@@ -126,5 +129,7 @@
   --rr-rim: rgba(255, 255, 255, 0.08);
   --rr-rim-top: rgba(255, 255, 255, 0.14);
   --rr-scrim: rgba(0, 0, 0, 0.5);
+  --rr-spotlight: rgba(0, 0, 0, 0.62);
+  --rr-touch-ring: #ffffff;
   color-scheme: dark;
 }

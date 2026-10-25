@@ -8,7 +8,7 @@ import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
 import type { ReviewApp } from '../app';
 import type { CodeAt, paneMachine, Slot, walkthroughMachine } from './player.machine';
-import { cardMachine, chromeMachine, type Detent } from './phone.machine';
+import { cardMachine, chromeMachine, coachMachine, type Detent, type Orient } from './phone.machine';
 import { navMachine } from './nav.machine';
 import { current, target } from './model.shared';
 
@@ -57,7 +57,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   comment.setAttribute('aria-label', 'Comment on this slide');
   const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet() }, icon('toc', 20));
   // Full screen: immersive now, not after IDLE_MS, and the swipes shown again unless skipped (coach, below)
-  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => ((declined = false), fullscreen(), chrome.send({ type: 'hide' }), skipped() || coach()) }, icon('maximize', 20));
+  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => ((declined = false), fullscreen(), chrome.send({ type: 'hide' }), startCoach(true)) }, icon('maximize', 20));
   next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents, comment and full screen' }, contents, comment, full));
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
@@ -113,7 +113,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const band = h('div', { class: 'rr-tour__band', role: 'status' });
   player.append(band, progress);
   progress.title = 'Chapters and slides';
-  progress.addEventListener('click', () => contentsSheet());
+  // captured, so a tick reached by the keyboard opens Contents as a tap does, rather than jumping as well
+  progress.addEventListener('click', (e) => (e.stopPropagation(), contentsSheet()), true);
   let bandTimer = 0;
   const announce = () => {
     const { doc, chapter } = ctx();
@@ -269,12 +270,10 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const immersive = () => chrome.getSnapshot().matches('immersive');
   const wake = () => chrome.send({ type: 'wake' });
   const restore = h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20)); // immersive only (slides.phone.css)
-  // the coach, on going immersive (once a page load per orientation) and every Full screen tap: a note and a touch dot
-  // tracing the card's swipes, then a note pointing at Show controls, which glows, then Skip next time or Repeat. Skip
-  // holds per orientation (local storage); leaving immersive ends it
-  const skipKey = () => `rr-tour-coach-skip-${land.matches ? 'landscape' : 'portrait'}`;
-  const skipped = () => !!localStorage.getItem(skipKey());
-  const seen = new Set<string>();
+  // the coach (coachMachine), on going immersive and on Full screen: a note and a touch dot tracing the card's swipes
+  // under a spotlight, then the spotlight on Show controls, which glows, then Skip next time or Repeat. This renders it
+  const orientNow = (): Orient => (land.matches ? 'landscape' : 'portrait');
+  const skipKey = (o: Orient) => `rr-tour-coach-skip-${o}`;
   const note = h('div', { class: 'rr-tour__note', role: 'status' });
   const dot = h('div', { class: 'rr-tour__trace', 'aria-hidden': 'true' });
   const cue = h('div', { class: 'rr-tour__cue', 'aria-hidden': 'true' });
@@ -286,81 +285,83 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     spot.style.cssText = `left:${r.left - grow}px;top:${r.top - grow}px;width:${r.width + 2 * grow}px;height:${r.height + 2 * grow}px;border-radius:${round}`;
     spot.classList.add('is-on');
   };
-  let timers: number[] = [];
-  let coaching = 0;
-  const uncoach = () => {
-    coaching++;
-    timers.forEach(clearTimeout);
-    timers = [];
-    note.classList.remove('is-on', 'is-ask');
-    spot.classList.remove('is-on');
-    restore.classList.remove('is-hinting');
-    [dot, cue].forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
-  };
-  const coach = () => {
-    uncoach();
-    seen.add(skipKey());
-    const at = (ms: number, f: () => void) => timers.push(window.setTimeout(f, ms));
-    const say = (...text: (string | Node)[]) => (note.replaceChildren(...text), note.classList.add('is-on'));
-    say(`Full screen · swipe the slide ${land.matches ? 'on the left' : 'below'} to move`);
-    const run = ++coaching;
-    // step 2, once the swipes are shown: the spotlight moves to Show controls (out, then in), which glows; then the ask
-    const step2 = () => {
-      note.classList.remove('is-on');
-      spot.classList.remove('is-on');
-      at(300, () => (say('Tap ', icon('dots', 18), ' to show the controls'), light(restore, '50%', 14), restore.classList.add('is-hinting')));
-      at(6000, () => (note.classList.remove('is-on'), spot.classList.remove('is-on'), restore.classList.remove('is-hinting')));
-      at(6300, () => {
-        say(
-          h('span', null, 'Show this again next time?'),
-          h('button', { class: 'rr-link-btn', onclick: () => (localStorage.setItem(skipKey(), '1'), uncoach()) }, 'Skip next time'),
-          h('button', { class: 'rr-link-btn', onclick: coach }, 'Repeat'),
-        );
-        note.classList.add('is-ask');
-      });
-      at(12300, uncoach); // unanswered: it plays again next time
-    };
-    // measured at each stroke: going immersive moves the card, and full screen resizes the page
-    const STROKE = 1100, labels = land.matches ? ['← Next', '→ Back'] : ['↑ More', '↓ Less', '← Next', '→ Back'];
-    const measure = (i: number) => {
+  const say = (...text: (string | Node)[]) => (note.replaceChildren(...text), note.classList.add('is-on'));
+  const wait = (ms: number, signal: AbortSignal) => new Promise<void>((done) => {
+    const t = setTimeout(done, ms);
+    signal.addEventListener('abort', () => clearTimeout(t), { once: true });
+  });
+  // the strokes, measured at each one (going immersive moves the card, full screen resizes the page); the orientation
+  // the coach started in picks them, not the screen's now
+  const swipes = fromPromise<void, Orient>(async ({ input: o, signal }) => {
+    const STROKE = 1100, labels = o === 'landscape' ? ['← Next', '→ Back'] : ['↑ More', '↓ Less', '← Next', '→ Back'];
+    const measure = (label: string) => {
       const r = left.getBoundingClientRect();
       light(left, getComputedStyle(left).borderRadius);
       const [cx, cy, pad] = [r.left + r.width / 2, r.top + r.height / 2, 28];
-      cue.style.cssText = `left:${cx}px;top:${land.matches ? cy - 64 : r.top - 34}px`;
-      // from the card's edge most of the way across: drag left for the next slide, right for the one before (gestureMachine);
-      // upright, up for more and down for less
+      cue.style.cssText = `left:${cx}px;top:${o === 'landscape' ? cy - 64 : r.top - 34}px`;
+      // from the card's edge most of the way across: drag left for the next slide, right for the one before
+      // (gestureMachine); upright, up for more and down for less
       const [top, bottom, lft, rgt] = [r.top + pad, r.bottom - pad, r.left + pad, r.right - pad];
       const part = (from: number, to: number) => from + (to - from) * 0.7; // 70% of the way: a swipe, not a drag across
-      return ({ '↑ More': [cx, bottom, cx, part(bottom, top)], '↓ Less': [cx, top, cx, part(top, bottom)], '← Next': [rgt, cy, part(rgt, lft), cy], '→ Back': [lft, cy, part(lft, rgt), cy] } as Record<string, number[]>)[labels[i]];
+      return ({ '↑ More': [cx, bottom, cx, part(bottom, top)], '↓ Less': [cx, top, cx, part(top, bottom)], '← Next': [rgt, cy, part(rgt, lft), cy], '→ Back': [lft, cy, part(lft, rgt), cy] } as Record<string, number[]>)[label];
     };
-    at(600, async () => {
-      measure(0);
-      if (!matchMedia('(prefers-reduced-motion: no-preference)').matches) return at(3500, step2);
-      const frames = (from: Keyframe, to: Keyframe): Keyframe[] => [
-        { ...from, opacity: 0, scale: 1.3 },
-        { ...from, offset: 0.15, opacity: 1, scale: 1, easing: 'ease-in-out' },
-        { ...to, offset: 0.8, opacity: 1, scale: 1 },
-        { ...to, offset: 0.95, opacity: 0, scale: 1 },
-        { ...to, opacity: 0, scale: 1 },
-      ];
-      // one stroke after another, each its caption's: the animation clock, not timers, keeps them together
-      for (const [i, label] of labels.entries()) {
-        const [x1, y1, x2, y2] = measure(i);
-        cue.textContent = label;
-        cue.animate(frames({}, {}), STROKE);
-        await dot.animate(frames({ translate: `${x1}px ${y1}px` }, { translate: `${x2}px ${y2}px` }), STROKE).finished.catch(() => {});
-        if (run !== coaching) return; // ended or restarted meanwhile
-      }
-      step2();
-    });
+    signal.addEventListener('abort', () => [dot, cue].forEach((el) => el.getAnimations().forEach((a) => a.cancel())), { once: true });
+    await wait(600, signal);
+    if (signal.aborted) return;
+    measure(labels[0]);
+    if (!matchMedia('(prefers-reduced-motion: no-preference)').matches) return wait(3500, signal);
+    const frames = (from: Keyframe, to: Keyframe): Keyframe[] => [
+      { ...from, opacity: 0, scale: 1.3 },
+      { ...from, offset: 0.15, opacity: 1, scale: 1, easing: 'ease-in-out' },
+      { ...to, offset: 0.8, opacity: 1, scale: 1 },
+      { ...to, offset: 0.95, opacity: 0, scale: 1 },
+      { ...to, opacity: 0, scale: 1 },
+    ];
+    // one stroke after another, each its caption's: the animation clock, not timers, keeps them together
+    for (const label of labels) {
+      if (signal.aborted) return;
+      const [x1, y1, x2, y2] = measure(label);
+      cue.textContent = label;
+      cue.animate(frames({}, {}), STROKE);
+      await dot.animate(frames({ translate: `${x1}px ${y1}px` }, { translate: `${x2}px ${y2}px` }), STROKE).finished.catch(() => {});
+    }
+  });
+  const coach = createActor(
+    coachMachine.provide({
+      actors: { swipes },
+      actions: {
+        showSwipes: ({ context: { orient: o } }) => say(`Full screen · swipe the slide ${o === 'landscape' ? 'on the left' : 'below'} to move`),
+        fade: () => (note.classList.remove('is-on', 'is-ask'), spot.classList.remove('is-on'), restore.classList.remove('is-hinting')),
+        point: () => (say('Tap ', icon('dots', 18), ' to show the controls'), light(restore, '50%', 14), restore.classList.add('is-hinting')),
+        ask: () => {
+          say(
+            h('span', null, 'Show this again next time?'),
+            h('button', { class: 'rr-link-btn', onclick: () => coach.send({ type: 'skip' }) }, 'Skip next time'),
+            h('button', { class: 'rr-link-btn', onclick: () => coach.send({ type: 'repeat' }) }, 'Repeat'),
+          );
+          note.classList.add('is-ask');
+        },
+        remember: ({ context }) => localStorage.setItem(skipKey(context.orient), '1'),
+        hide: () => {
+          note.classList.remove('is-on', 'is-ask');
+          spot.classList.remove('is-on');
+          restore.classList.remove('is-hinting');
+          [dot, cue].forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
+        },
+      },
+    }),
+  ).start();
+  const startCoach = (forced: boolean) => {
+    const orient = orientNow();
+    coach.send({ type: 'start', orient, forced, skipped: !!localStorage.getItem(skipKey(orient)) });
   };
   let wasImmersive = false;
   chrome.subscribe(() => {
     const now = immersive();
     player.classList.toggle('is-immersive', now);
-    if (now && !wasImmersive && !skipped() && !seen.has(skipKey())) coach();
+    if (now && !wasImmersive) startCoach(false);
     if (!now && wasImmersive) {
-      uncoach();
+      coach.send({ type: 'end' });
       player.classList.remove('is-announcing');
     }
     wasImmersive = now;
@@ -368,7 +369,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   // upright: Show controls in the card's corner, the toolbar at the screen's foot; on its side: Show controls top
   // right, the toolbar at the foot of the code
   const orient = () => {
-    root.dataset.orient = land.matches ? 'landscape' : 'portrait';
+    root.dataset.orient = orientNow();
+    coach.send({ type: 'end' }); // its strokes and spotlight were for the other shape
     (land.matches ? player : left).append(restore);
     (land.matches ? split : player).append(bottom);
     if (land.matches) left.prepend(files);
@@ -396,7 +398,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const glide = (from: number) =>
     queueMicrotask(() => {
       const to = left.offsetHeight;
-      if (land.matches || Math.abs(to - from) < 2 || !card.getSnapshot().matches('rest')) return;
+      // reduced motion has no height transition, so no transitionend to let go of the pinned height: no glide
+      if (land.matches || Math.abs(to - from) < 2 || !card.getSnapshot().matches('rest') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       left.style.cssText = `height:${from}px;max-height:none`;
       void left.offsetHeight;
       left.classList.add('is-settling');
@@ -436,7 +439,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (!playing) declined = false;
     chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
   });
-  app.onDispose(() => (uncoach(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
+  app.onDispose(() => (coach.stop(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
   return {
     contents: () => contentsSheet(),
     // each slide folds the intro again (but the chapter's first), unless the card is tall

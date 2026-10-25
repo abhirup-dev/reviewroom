@@ -312,9 +312,11 @@ export function mountWalkthrough(app: ReviewApp) {
     if (old === el) return;
     if (old) {
       old.classList.add('is-leaving');
-      const done = (e: Event) => e.target === old && (old.removeEventListener('animationend', done), old.parentElement === box && leave(old));
+      // only while it is still fading out here: going back to it within the second puts it on screen again
+      const gone = () => old.parentElement === box && old.classList.contains('is-leaving') && leave(old);
+      const done = (e: Event) => e.target === old && (e as AnimationEvent).animationName === 'rr-tour-out' && (old.removeEventListener('animationend', done), gone());
       old.addEventListener('animationend', done);
-      setTimeout(() => old.parentElement === box && leave(old), 1000); // no animation ran (reduced motion, hidden)
+      setTimeout(() => (old.removeEventListener('animationend', done), gone()), 1000); // no animation ran (reduced motion, hidden)
     }
     box.prepend(el);
     enter(el);
