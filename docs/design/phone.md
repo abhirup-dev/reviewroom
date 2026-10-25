@@ -90,6 +90,15 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   chapter intro opens its first slide; on the others it folds to its first line with More, and a swipe up (or a tall
   card) opens it. The code is one sheet on the code surface to the bottom edge. The walkthrough's progress (chapters ×
   slides) is a thin row at the screen's foot, always shown.
+- **Guided review's files**: the code shows one of the slide's chunks at a time (the others stay mounted, hidden). A
+  file tab rides the card's top edge (secondary-container, mono 12): one or two file names, the shown one on the card's
+  own surface; three or more, the shown one with `▾ +N`, opening a bottom sheet of them. It replaces the card's ref
+  chips, moves with the card (immersive too) and heads the slide column on its side. Every jump to code (a tab, a
+  narration link, a symbol, a chunk's name) goes through `navMachine` (`src/slides/nav.machine.ts`): it waits while the
+  pane changes, then selects the chunk showing that file and reveals the lines in it, or (another file) has the pane
+  show the link, with an undo icon on the tab back to the slide's own code. A new jump cancels the last; a slide change
+  cancels a pending one. Lines land at the top of the code, clear of the card. The desktop keeps its stacked chunks
+  and chips.
 - **Guided review on its side**: the phone player goes by the device (`usesPhonePlayer()` in `src/kernel/device.ts`: a
   phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get
   the desktop player. It marks itself `data-form="phone"` and `data-orient` (the viewport's, live), and its styles key

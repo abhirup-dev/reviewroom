@@ -1,15 +1,16 @@
 // The guided walkthrough player on a phone (either way up, under either shell): it restyles the shared skeleton
 // (player.ts) into a full-screen player and wires the card, the gestures, the chrome and full screen.
-import { createActor, type Actor, type SnapshotFrom } from 'xstate';
+import { createActor, fromPromise, type Actor, type SnapshotFrom } from 'xstate';
 import { h, icon, plural } from '../kernel/dom';
 import { onBack, watchBack } from '../kernel/history';
 import { sanitizeProse } from '../kernel/markdown';
 import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
 import type { ReviewApp } from '../app';
-import type { walkthroughMachine } from './player.machine';
+import type { CodeAt, paneMachine, Slot, walkthroughMachine } from './player.machine';
 import { cardMachine, chromeMachine, type Detent } from './phone.machine';
-import { current } from './model.shared';
+import { navMachine } from './nav.machine';
+import { current, target } from './model.shared';
 
 /** The skeleton's parts the phone player rearranges and listens on. */
 type PhoneParts = {
@@ -20,6 +21,9 @@ type PhoneParts = {
   split: HTMLElement;
   left: HTMLElement;
   right: HTMLElement;
+  pane: HTMLElement;
+  /** where a link lands (player.ts's codeAt) */
+  codeAt: (ref: string) => Promise<CodeAt | null>;
   bottom: HTMLElement;
   progress: HTMLElement;
   lead: HTMLElement;
@@ -39,7 +43,7 @@ const SWIPE_PX = 60;
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
-export function phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts) {
+export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts) {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
   if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
@@ -160,6 +164,75 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
   });
   // scrolling the code brings a tall card back to its default, so the code it covered shows
   right.addEventListener('touchmove', () => !land.matches && detent() === 2 && card.getSnapshot().matches('rest') && size(1), { passive: true });
+  // the code pane shows one chunk at a time (slides.phone.css stacks them, the others hidden but laid out, so their
+  // lines are already in place); the file tab on the card's top edge picks which. Every jump to code (the tab, a link,
+  // a symbol, a chunk's name) goes through navMachine, which waits out a pane mid-change and picks the chunk
+  let slots: Slot[] | null = null, active = 0;
+  const files = h('div', { class: 'rr-tour__files', role: 'group', 'aria-label': 'Files on this slide' });
+  const filesSheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Files on this slide', tabindex: '-1' });
+  const nav = createActor(
+    navMachine.provide({
+      actors: { resolve: fromPromise(({ input }) => codeAt(input)) },
+      actions: {
+        select: ({ context: { landing } }) => {
+          if (!landing || !('index' in landing)) return;
+          const { index, code } = landing;
+          active = index;
+          paintFiles();
+          const panel = pane.children[index]?.getAttribute('data-panel');
+          if (code && panel) app.bus.emit('reveal-code', { ...code, panel });
+        },
+        focus: ({ context: { landing } }) => landing && 'focus' in landing && actor.send({ type: 'focus', refs: [landing.focus] }),
+      },
+    }),
+  ).start();
+  const pick = (index: number) => (filesSheet.close(), nav.send({ type: 'go', jump: { index } }));
+  const name = (s: Slot) => (s.code ? s.code.path.split('/').pop()! : app.label(s.ref));
+  let away = false; // the pane shows a link's code, not the slide's own
+  const paintFiles = () => {
+    const ss = slots ?? [];
+    [...pane.children].forEach((c, i) => c.classList.toggle('is-active', i === active));
+    files.hidden = !ss.length;
+    const tab = (s: Slot, i: number) => h('button', { class: 'rr-tour__file', title: app.label(s.ref), 'aria-pressed': String(i === active), onclick: () => pick(i) }, name(s));
+    files.replaceChildren(
+      ...(ss.length <= 2
+        ? ss.map(tab)
+        : [h('button', { class: 'rr-tour__file', title: 'Files on this slide', 'aria-haspopup': 'dialog', 'aria-pressed': 'true', onclick: openFiles }, name(ss[active]), icon('chevronDown', 12), h('small', null, `+${ss.length - 1}`))]),
+      ...(away ? [h('button', { class: 'rr-tour__file', title: 'Back to this slide\'s code', 'aria-label': 'Back to this slide\'s code', onclick: () => actor.send({ type: 'focus' }) }, icon('undo', 14))] : []),
+    );
+  };
+  const openFiles = () => {
+    if (!filesSheet.open && app.presentation.kind !== 'phone') filesSheet.addEventListener('close', onBack(() => filesSheet.close()), { once: true });
+    const list = (slots ?? []).map((s, i) => h('button', { class: 'rr-tour-toc__slide', 'aria-current': i === active ? 'step' : undefined, onclick: () => pick(i) }, h('span', { class: 'rr-tour-toc__num' }, String(i + 1)), h('span', null, app.label(s.ref))));
+    openSheet(filesSheet, h('h2', { class: 'rr-tour-toc__title' }, 'Files'), h('nav', { class: 'rr-tour-toc__list' }, ...list));
+    filesSheet.focus();
+  };
+  // the pane's chunks, once on screen (landing or showing: mounted); mid-change (resolving, fading) navMachine waits
+  let paneRef: unknown, paneOff: (() => void) | undefined;
+  const watchPane = (p: Actor<typeof paneMachine> | undefined) => {
+    if (p === paneRef) return;
+    paneOff?.();
+    paneRef = p;
+    if (!p) {
+      slots = null; // closed
+      nav.send({ type: 'pane', slots: null });
+    }
+    const sub = p?.subscribe((ps) => {
+      const shown = ps.matches('landing') || ps.matches('showing') ? ps.context.shown : null;
+      const now = shown?.kind === 'refs' ? shown.slots : shown ? [] : null;
+      if (now && now !== slots) {
+        active = 0; // a new slide (or a link's code): its first chunk
+        away = JSON.stringify(ps.context.want) !== JSON.stringify(target(ctx()));
+      }
+      if (now) slots = now;
+      paintFiles();
+      nav.send({ type: 'pane', slots: now });
+    });
+    paneOff = sub && (() => sub.unsubscribe());
+  };
+  // the card's height, for the tab riding on its top edge
+  const cardH = new ResizeObserver(() => player.style.setProperty('--rr-card-h', `${left.offsetHeight}px`));
+  cardH.observe(left);
   // immersive (chromeMachine): IDLE_MS after the last touch or slide change, never while a menu, the composer or a
   // selection is open, the top bar and the toolbar fade; Show controls, in the card's corner, brings them back
   const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
@@ -174,6 +247,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
     root.dataset.orient = land.matches ? 'landscape' : 'portrait';
     (land.matches ? player : left).append(restore);
     (land.matches ? split : player).append(bottom);
+    if (land.matches) left.prepend(files);
+    else left.before(files);
   };
   orient();
   land.addEventListener('change', orient); // ?phone in a window turned; a phone reloads into the other shell anyway
@@ -199,8 +274,12 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
     // a new slide: the card from its top, so a swipe down collapses it rather than scrolling
     const playing = s.matches({ open: 'playing' });
     const slide = `${s.context.chapter}/${s.context.step}`;
+    watchPane(s.children.pane as Actor<typeof paneMachine> | undefined);
     if (slide === was && playing === wasPlaying) return; // not every snapshot is a move: a code panel landing must not wake the chrome
-    if (slide !== was) left.scrollTo({ top: 0 });
+    if (slide !== was) {
+      left.scrollTo({ top: 0 });
+      nav.send({ type: 'cancel' });
+    }
     [was, wasPlaying] = [slide, playing];
     if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
     else if (!playing && drop) {
@@ -212,13 +291,14 @@ export function phonePlayer({ app, actor, root, player, split, left, right, bott
     if (!playing) declined = false;
     chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
   });
-  app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), sheet.remove()));
+  app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
   return {
     contents: contentsSheet,
     // each slide folds the intro again (but the chapter's first), unless the card is tall
     foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
     // upright, the card is over the code's lower part
     cardBelow: () => !land.matches,
+    focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough
     paintNav: ({ isFirst, isLast }: ReturnType<typeof current>) => {
       next.toggleAttribute('disabled', isLast);

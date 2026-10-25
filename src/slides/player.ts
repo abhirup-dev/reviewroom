@@ -34,6 +34,8 @@ type PlayerForm = {
   foldLead?(): void;
   /** the slide card sits over the code's lower part: the code pane leaves it room */
   cardBelow?(): boolean;
+  /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
+  focus?(ref: string): void;
 };
 
 /** Where a slide's link lands in the code pane; null for links that show no code. */
@@ -72,7 +74,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const nameHead = (head: HTMLElement, ref: string) => {
     const r = parseRef(ref);
     head.replaceChildren(...(r ? [refIcon(r)] : []), h('span', null, app.label(ref)));
-    if (head instanceof HTMLButtonElement) head.onclick = () => actor.send({ type: 'focus', refs: [ref] });
+    if (head instanceof HTMLButtonElement) head.onclick = () => focus(ref);
   };
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
     const id = `code:tour-${++panes}`;
@@ -82,7 +84,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     views.push({ panel, id, head });
-    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : '') }, panel ? null : head, body);
+    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
   };
   const mount = (s: PaneShown) => {
     dispose();
@@ -223,11 +225,12 @@ export function mountWalkthrough(app: ReviewApp) {
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
   // The phone player goes by the device, either way up, under either shell
   const form: PlayerForm = usesPhonePlayer()
-    ? phonePlayer({ app, actor, root, player, split, left, right, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
+    ? phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
     : desktopPlayer({ actor, chapterBtn, next });
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
+  const focus = (ref: string) => (form.focus ? form.focus(ref) : actor.send({ type: 'focus', refs: [ref] }));
 
   // links in the narration: code goes to the pane (the step stays); anything else pauses and opens in the workbench
   left.addEventListener(
@@ -239,7 +242,7 @@ export function mountWalkthrough(app: ReviewApp) {
       e.stopPropagation();
       const ref = link.getAttribute('href') ?? link.getAttribute('ref')!;
       const type = parseRef(ref)?.type;
-      if (type === 'code' || type === 'file' || type === 'sym') actor.send({ type: 'focus', refs: [ref] });
+      if (type === 'code' || type === 'file' || type === 'sym') focus(ref);
       else {
         actor.send({ type: 'pause' });
         void app.open(ref);
