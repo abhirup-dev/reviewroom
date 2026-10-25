@@ -300,8 +300,61 @@
   bottom: calc(6px + env(safe-area-inset-bottom));
   z-index: 1;
   display: flex;
-  gap: 4px;
+  gap: 10px; /* between chapters: wider than between slides, so the chapters read */
+  padding-block: 10px; /* a taller tap target than it looks: a tap opens Contents */
+  margin-bottom: -10px;
+  cursor: pointer;
+}
+[data-form='phone'] .rr-tour__tick {
   pointer-events: none;
+}
+/* immersive, a new chapter (player.phone.ts announce): the rail lifts into a band of the card's raised surface naming
+   the chapter, the card stepping up out of its way, for 2.5 s */
+[data-form='phone'] .rr-tour__band {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: env(safe-area-inset-bottom);
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 20px;
+  padding: 14px 16px 0;
+  overflow: hidden;
+  border-radius: var(--rr-shape-l);
+  background: var(--rr-surface-overlay-2);
+  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow-lg);
+  color: var(--rr-ink);
+  font-size: var(--rr-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: height var(--rr-m-default-ms) var(--rr-m-default), opacity var(--rr-m-fast-ms);
+}
+[data-form='phone'] .is-announcing .rr-tour__band {
+  height: 56px;
+  opacity: 1;
+}
+[data-form='phone'] .rr-tour__band small {
+  flex: none;
+  color: var(--rr-accent);
+  font-size: var(--rr-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-form='phone'] .rr-tour__band span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-form='phone'][data-orient='portrait'] .is-immersive.is-announcing .rr-tour__left,
+[data-form='phone'][data-orient='portrait'] .is-immersive.is-announcing .rr-tour__files {
+  translate: 0 calc(84px - 20px - 44px);
+}
+[data-form='phone'] .rr-tour__left {
+  transition: translate var(--rr-m-default-ms) var(--rr-m-default);
 }
 [data-form='phone'] .rr-tour__seg {
   flex: 1 !important;
@@ -310,7 +363,7 @@
   display: none;
 }
 [data-form='phone'] .rr-tour__ticks {
-  gap: 4px;
+  gap: 3px;
 }
 [data-form='phone'] .rr-tour__tick {
   height: 4px;

@@ -96,7 +96,20 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     sheet.focus(); // the sheet, not its first chapter: no ring on open
     sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest' });
   };
-  player.append(progress); // always on screen, over the code, even immersive
+  // the rail: always on screen, over the code, even immersive; a tap anywhere on it opens Contents (its ticks don't
+  // take taps on a phone: too small). Immersive, a new chapter lifts it into a band naming the chapter (announce)
+  const band = h('div', { class: 'rr-tour__band', role: 'status' });
+  player.append(band, progress);
+  progress.title = 'Chapters and slides';
+  progress.addEventListener('click', () => contentsSheet());
+  let bandTimer = 0;
+  const announce = () => {
+    const { doc, chapter } = ctx();
+    band.replaceChildren(h('small', null, `Chapter ${chapter + 1}`), h('span', null, doc!.chapters[chapter].title));
+    player.classList.add('is-announcing');
+    clearTimeout(bandTimer);
+    bandTimer = window.setTimeout(() => player.classList.remove('is-announcing'), 2500);
+  };
   // the viewport, not the screen: `?phone` in a window follows its shape
   const land = matchMedia('(orientation: landscape)');
   // the card: a bottom sheet with three detents, kept across slides (cardMachine); this measures and renders
@@ -333,7 +346,10 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     const now = immersive();
     player.classList.toggle('is-immersive', now);
     if (now && !wasImmersive && !skipped() && !seen.has(skipKey())) coach();
-    if (!now && wasImmersive) uncoach();
+    if (!now && wasImmersive) {
+      uncoach();
+      player.classList.remove('is-announcing');
+    }
     wasImmersive = now;
   });
   // upright: Show controls in the card's corner, the toolbar at the screen's foot; on its side: Show controls top
@@ -383,6 +399,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     });
   let drop: (() => void) | undefined;
   let was = '', wasPlaying = false;
+  const chapterOf = (slide: string) => slide.split('/')[0];
   actor.subscribe((s) => {
     // a new slide: the card from its top, so a swipe down collapses it rather than scrolling
     const playing = s.matches({ open: 'playing' });
@@ -393,6 +410,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
       left.scrollTo({ top: 0 });
       nav.send({ type: 'cancel' });
       if (was && playing) glide(left.offsetHeight);
+      if (was && chapterOf(slide) !== chapterOf(was) && immersive()) announce();
     }
     [was, wasPlaying] = [slide, playing];
     if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
@@ -405,7 +423,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (!playing) declined = false;
     chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
   });
-  app.onDispose(() => (uncoach(), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
+  app.onDispose(() => (uncoach(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
   return {
     contents: contentsSheet,
     // each slide folds the intro again (but the chapter's first), unless the card is tall

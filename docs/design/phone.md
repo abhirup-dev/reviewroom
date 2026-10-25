@@ -79,7 +79,10 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
   4 s untouched (not while a menu, the composer, the Contents sheet or a selection is open), the top bar and the
   toolbar fade, the code fills the screen edge to edge and the card drops to just above the progress row with a small
-  Show controls icon in its corner, the only thing that brings them back: swipes, slide changes, card drags,
+  Show controls icon in its corner, the only thing that brings them back. The progress row (the rail) is a tick per
+  slide, 3px apart within a chapter and 10px between chapters, so the chapters read; a tap anywhere on it (a taller
+  target than it looks) opens Contents. Immersive, a new chapter lifts the rail into a band of the card's raised
+  surface ("CHAPTER 2" in accent, then its title) for 2.5 s, the card stepping up out of its way (upright only): swipes, slide changes, card drags,
   scrolling and taps keep it immersive. The installed app is full screen (manifest `display: fullscreen`: no
   status or navigation bar, content under a cutout too, no exit notice). In a browser tab the guided review asks for it
   (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
