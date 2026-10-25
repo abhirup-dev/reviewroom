@@ -336,7 +336,7 @@ class PhoneShell implements PanelSurface {
     const code = this.areas.get('code')!.el;
     const full = sheet.matches('full');
     if (full && !this.wasFull) {
-      // the peek became the Code area: it keeps rising from where it was (the expressive spring, phone.css), and its
+      // the peek became the Code area: it keeps rising from where it was (the expressive spring, tokens.phone.css), and its
       // lines land again for the taller view once the area is the Code area
       code.style.setProperty('--rr-from', `${code.offsetTop}px`);
       code.classList.remove('is-landing');

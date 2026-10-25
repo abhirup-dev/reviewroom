@@ -5,6 +5,8 @@ The phone shell (`src/kernel/phone.ts`, `src/kernel/styles/phone.css`; each feat
 touch, and motion, and keeps reviewroom's own colour, type, and restraint (`DESIGN.md`). Desktop and the tablet dock
 are unchanged; everything here is scoped to `.is-phone` (the root), `.rr-phone` (the shell) and `:root:has(.is-phone)`
 (dialogs, outside the root), the guided review's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
+Shared shape, motion and phone bar tokens live in `src/kernel/styles/tokens.phone.css`, loaded after the base tokens
+and before component rules.
 
 ## The deal between the two systems
 

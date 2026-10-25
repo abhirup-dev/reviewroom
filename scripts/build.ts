@@ -59,7 +59,8 @@ const overlaysStyles = [
 ];
 
 const styles = [
-  ['src/kernel/styles/tokens.css'],
+  // Shared tokens precede every component and feature that consumes them.
+  ['src/kernel/styles/tokens.css', 'src/kernel/styles/tokens.phone.css'],
   shellStyles,
   panelsStyles,
   overlaysStyles,
