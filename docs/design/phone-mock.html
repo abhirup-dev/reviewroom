@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>reviewroom phone: Material 3 Expressive mock</title>
+<!-- Static mock of the phone shell (docs/design/phone.md). Phone frames are drawn at ~77% of a 390px phone. -->
+<style>
+.wrap{font-family:var(--font-sans,Inter,system-ui,sans-serif);color:var(--foreground,#222)}
+.bar{display:flex;gap:8px;align-items:center;margin:0 0 16px;font-size:13px;color:var(--muted-foreground,#666);flex-wrap:wrap}
+.bar button{font:inherit;padding:4px 12px;border-radius:999px;border:1px solid var(--border,#ccc);background:var(--card,#fff);color:var(--foreground,#222);cursor:pointer}
+.bar button.on{background:var(--primary,#222);color:var(--primary-foreground,#fff);border-color:var(--primary,#222)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:30px 20px;justify-items:center}
+figure{margin:0;width:300px}
+figcaption{font-size:12.5px;line-height:1.5;margin-top:12px;color:var(--muted-foreground,#666)}
+figcaption b{color:var(--foreground,#222);display:block;font-size:13.5px;margin-bottom:2px;font-weight:600}
+figcaption .n{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--secondary,#eee);color:var(--secondary-foreground,#222);font-size:11px;text-align:center;line-height:20px;margin-right:6px}
+
+/* reviewroom tokens (src/kernel/styles/tokens.css) */
+.ph{--bg:#e4e2db;--nav:#f2f1ec;--nav2:#e9e7e1;--doc:#fff;--code:#fdfdfc;--well:#eeede8;--ov:#fff;--ink:#1b1a17;--ink2:#3d3b36;--mut:#67635b;--faint:#8d897f;--line:#e4e1d9;--lines:#d3cfc5;--hover:rgba(27,26,23,.055);--ac:#2557d6;--acs:#e8eefc;--com:#b4570f;--coms:#fdf0e1;--okc:#1a7f37;--oks:#e4f4e8;--risk:#b42318;--risks:#fdecea;--warns:#fff3dc;--hl:rgba(255,214,102,.45);--scrim:rgba(24,22,18,.32);--sh:0 10px 30px rgba(24,22,18,.18),0 2px 6px rgba(24,22,18,.08);--kb:#d1d4da;--key:#fff}
+.dark .ph{--bg:#07080a;--nav:#111317;--nav2:#1a1d23;--doc:#1b1e24;--code:#0e1013;--well:#0a0b0d;--ov:#1a1d23;--ink:#e8e6e1;--ink2:#c9c6bf;--mut:#a09c93;--faint:#7b776f;--line:#262a30;--lines:#343941;--hover:rgba(232,230,225,.06);--ac:#7aa2f7;--acs:#1b2638;--com:#f0a35e;--coms:#33261a;--okc:#5fc77a;--oks:#17291d;--risk:#f58b80;--risks:#351b19;--warns:#2e2414;--hl:rgba(242,180,91,.25);--scrim:rgba(0,0,0,.5);--sh:0 10px 30px rgba(0,0,0,.55);--kb:#202226;--key:#3a3c41}
+.ph{position:relative;width:300px;height:640px;border-radius:40px;background:#0c0c0d;padding:8px;box-sizing:border-box;box-shadow:0 1px 2px rgba(0,0,0,.2),0 8px 24px rgba(0,0,0,.12)}
+.sc{position:relative;width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--doc);color:var(--ink);font:13px/1.45 Inter,ui-sans-serif,system-ui,sans-serif;display:flex;flex-direction:column}
+.os{height:24px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 20px;font-size:11px;font-weight:600;background:var(--bg);color:var(--ink)}
+.os .cam{width:9px;height:9px;border-radius:50%;background:#0c0c0d}
+svg.i{width:19px;height:19px;flex:none;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+svg.i.s{width:15px;height:15px}
+svg.i.f{fill:currentColor;stroke:none}
+.mono{font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace}
+
+/* top app bar */
+.top{flex:none;height:50px;background:var(--bg);display:flex;align-items:center;gap:2px;padding:0 8px 0 4px}
+.ib{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--ink2);flex:none;position:relative}
+.ib.on{background:var(--acs);color:var(--ac)}
+.ttl{flex:1;min-width:0;padding-left:2px}
+.ttl div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:13.5px;letter-spacing:-.005em}
+.ttl small{display:block;color:var(--mut);font-size:10.5px;margin-top:1px;white-space:nowrap}
+.send{flex:none;position:relative;width:38px;height:38px;border-radius:999px;background:var(--ink);color:var(--bg);display:grid;place-items:center;margin-left:2px}
+.badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:999px;background:var(--com);color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center;padding:0 4px;box-sizing:border-box;border:2px solid var(--bg)}
+.dark .badge{color:#1a1208}
+
+/* primary tabs */
+.tabs{flex:none;height:38px;display:flex;background:var(--bg);border-bottom:1px solid var(--line);position:relative;padding:0 6px}
+.tabs span{flex:1;display:grid;place-items:center;color:var(--mut);font-weight:500;font-size:12.5px;white-space:nowrap;position:relative}
+.tabs span.on{color:var(--ink)}
+.tabs span.on::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:var(--w,46px);height:3px;border-radius:3px 3px 0 0;background:var(--ac)}
+.tabs .ind{position:absolute;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--ac)}
+
+.body{flex:1;position:relative;overflow:hidden}
+.page{position:absolute;inset:0;padding:16px 18px;overflow:hidden;background:var(--doc)}
+.prose{font-family:'Source Serif 4','Iowan Old Style',Charter,Georgia,serif;font-size:14.5px;line-height:1.58;color:var(--ink)}
+.prose h1{font-size:20px;line-height:1.25;margin:0 0 10px;letter-spacing:-.01em}
+.prose h2{font:600 13px/1.3 Inter,system-ui,sans-serif;margin:16px 0 5px}
+.prose p{margin:0 0 10px}
+.chip{display:inline-flex;align-items:center;gap:3px;padding:0 5px;border-radius:4px;background:var(--acs);color:var(--ac);font:500 11px/19px 'JetBrains Mono',ui-monospace,Menlo,monospace;vertical-align:1px;white-space:nowrap}
+.chip.hot{outline:2px solid var(--ac);outline-offset:1px}
+
+/* navigation bar (M3E flexible) */
+.nav{flex:none;height:50px;padding-bottom:12px;display:flex;background:var(--bg)}
+.nav div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:500;color:var(--mut);position:relative}
+.nav .pill{width:44px;height:25px;border-radius:999px;display:grid;place-items:center;position:relative}
+.nav .on{color:var(--ink)}.nav .on .pill{background:var(--acs);color:var(--ac)}
+.nav .badge{top:-3px;right:2px;border-color:var(--bg)}
+.handle{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:96px;height:4px;border-radius:2px;background:var(--ink);opacity:.35;z-index:9}
+
+/* code */
+.code{font:10.5px/1.7 'JetBrains Mono',ui-monospace,Menlo,monospace;background:var(--code);color:var(--ink2)}
+.ln{display:flex;white-space:pre;padding-right:8px}
+.ln em{font-style:normal;width:30px;flex:none;text-align:right;padding-right:10px;color:var(--faint)}
+.ln.a{background:var(--oks)}.ln.a em{color:var(--okc)}
+.ln.h{background:linear-gradient(90deg,var(--ac) 0 3px,transparent 3px),var(--oks)}
+.ln.gap{color:var(--mut);background:var(--well);font-size:10px;padding:3px 0 3px 40px;font-family:Inter,system-ui}
+.kw{color:#8250df}.dark .kw{color:#c4a7ff}
+.st{color:#0a7a5a}.dark .st{color:#8fc9a3}
+
+/* sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ov);border-radius:22px 22px 0 0;box-shadow:var(--sh);overflow:hidden;display:flex;flex-direction:column;z-index:5}
+.grab{height:20px;flex:none;display:grid;place-items:center}.grab i{width:28px;height:4px;border-radius:2px;background:var(--lines)}
+.shd{display:flex;align-items:center;gap:8px;padding:0 6px 8px 16px;font-size:12px}
+.shd b{font:600 11.5px 'JetBrains Mono',ui-monospace,Menlo,monospace}
+.shd .tag{white-space:nowrap;font:500 10.5px 'JetBrains Mono',monospace;color:var(--mut);background:var(--nav2);padding:2px 7px;border-radius:8px}
+.shd .sp{flex:1}
+.shd .ib{width:32px;height:32px}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:4}
+
+/* gesture hints */
+.touch{position:absolute;width:40px;height:40px;border-radius:50%;background:rgba(122,162,247,.28);border:2px solid rgba(37,87,214,.65);z-index:8;box-shadow:0 0 0 8px rgba(37,87,214,.08)}
+.trail{position:absolute;height:3px;border-radius:2px;background:linear-gradient(90deg,rgba(37,87,214,0),rgba(37,87,214,.55));z-index:7}
+.trail.v{width:3px;background:linear-gradient(0deg,rgba(37,87,214,0),rgba(37,87,214,.55))}
+
+/* code area */
+.fcard{margin:0 10px 10px;border-radius:12px;overflow:hidden;background:var(--code);border:1px solid var(--line)}
+.fh{display:flex;align-items:center;gap:8px;padding:8px 12px;font:600 11px 'JetBrains Mono',ui-monospace,Menlo,monospace;color:var(--ink);border-bottom:1px solid var(--line)}
+.fh .p{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dif{font:500 10.5px 'JetBrains Mono',monospace;white-space:nowrap}.dif .ad{color:var(--okc)}.dif .de{color:var(--risk)}
+.sticky{position:absolute;top:0;left:0;right:0;z-index:3;background:var(--bg);display:flex;align-items:center;gap:8px;padding:9px 14px;font:600 11.5px 'JetBrains Mono',ui-monospace,Menlo,monospace;border-bottom:1px solid var(--line)}
+.sticky .p{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sticky .c{font:500 11px Inter,system-ui;color:var(--mut)}
+.rail{position:absolute;right:3px;top:46px;bottom:14px;width:4px;z-index:4;display:flex;flex-direction:column;gap:4px}
+.rail i{border-radius:4px;background:var(--lines)}.rail i.on{background:var(--ac)}
+.rail.drag{width:12px;right:2px}
+
+/* lists */
+.row{display:flex;align-items:center;gap:12px;min-height:46px;padding:0 16px;font-size:12.5px}
+.row .t{flex:1;min-width:0}
+.row .t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t small{display:block;color:var(--mut);font-size:10.5px}
+.row.sel{background:var(--acs);border-radius:999px;margin:0 8px;padding:0 8px}
+.row .lead{color:var(--mut);display:grid;place-items:center}
+.lbl{font:600 10px/1 Inter,system-ui;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:14px 16px 6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--com);flex:none}
+.tick{color:var(--okc)}
+
+/* threads */
+.card{background:var(--doc);border-radius:12px;padding:11px 12px;margin-bottom:10px}
+.who{display:flex;align-items:center;gap:7px;font-size:11.5px;margin-bottom:5px}
+.av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:700;background:var(--nav2);color:var(--ink2)}
+.av.ag{background:var(--coms);color:var(--com)}
+.st8{margin-left:auto;font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px}
+.st8.w{background:var(--warns);color:#8a5a00}.dark .st8.w{color:#f2b45b}
+.st8.r{background:var(--oks);color:var(--okc)}
+.st8.d{background:var(--nav2);color:var(--mut)}
+.card .txt{font-size:12.5px;line-height:1.45;color:var(--ink)}
+.card .acts{display:flex;gap:16px;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--ac)}
+
+/* drawer */
+.drawer{position:absolute;top:0;bottom:0;left:0;width:84%;background:var(--ov);border-radius:0 16px 16px 0;z-index:5;padding:34px 0 0;box-shadow:var(--sh)}
+.drawer .hd{padding:6px 24px 14px}
+.drawer .hd b{display:block;font-size:15px;line-height:1.3}
+.drawer .hd small{display:block;color:var(--mut);font-size:11px;margin-top:4px}
+.mi{display:flex;align-items:center;gap:14px;height:44px;padding:0 16px;margin:0 10px;border-radius:999px;font-size:13px;color:var(--ink);font-weight:500}
+.mi svg{color:var(--mut)}
+.mi small{margin-left:auto;font-size:11px;color:var(--mut);font-weight:400}
+.sep{height:1px;background:var(--line);margin:8px 24px}
+.seg{display:flex;margin-left:auto;border:1px solid var(--lines);border-radius:999px;overflow:hidden;height:28px}
+.seg span{width:34px;display:grid;place-items:center;color:var(--mut)}
+.seg span+span{border-left:1px solid var(--lines)}
+.seg .on{background:var(--acs);color:var(--ac)}
+
+/* search */
+.sv{position:absolute;inset:0;background:var(--ov);z-index:6;display:flex;flex-direction:column}
+.sbar{display:flex;align-items:center;gap:6px;margin:8px 10px 8px;height:44px;padding:0 6px;border-radius:999px;background:var(--nav2);font-size:13.5px}
+.sbar .q{flex:1}.sbar .ph2{color:var(--mut)}
+.caret{display:inline-block;width:1.5px;height:16px;background:var(--ac);vertical-align:-3px;margin-left:1px}
+.fchips{display:flex;gap:6px;padding:0 10px 10px;overflow:hidden;flex:none}
+.fc{flex:none;height:28px;display:flex;align-items:center;gap:4px;padding:0 10px;border-radius:8px;border:1px solid var(--lines);font-size:11.5px;font-weight:500;color:var(--ink2)}
+.fc.on{background:var(--acs);border-color:transparent;color:var(--ac)}
+.fc small{color:var(--mut);font-weight:400}
+.res{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 16px;font-size:12.5px}
+.res .k{width:28px;height:28px;border-radius:8px;background:var(--nav2);display:grid;place-items:center;color:var(--ink2);flex:none}
+.res .t{flex:1;min-width:0}
+.res .t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res .t small{display:block;color:var(--mut);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res.sel{background:var(--acs)}.res.sel .k{background:var(--ov);color:var(--ac)}
+mark{background:var(--hl);color:inherit;border-radius:2px;padding:0 1px}
+.kb{position:absolute;left:0;right:0;bottom:0;height:200px;background:var(--kb);z-index:7;padding:8px 4px 0;box-sizing:border-box}
+.kb .r{display:flex;gap:4px;margin-bottom:8px;justify-content:center}
+.kb i{height:34px;flex:0 0 24px;border-radius:6px;background:var(--key);box-shadow:0 1px 0 rgba(0,0,0,.2)}
+.kb i.w{flex:0 0 140px}.kb i.m{flex:0 0 36px}
+
+/* guided review */
+.slide{position:absolute;left:10px;right:10px;bottom:76px;background:var(--ov);border-radius:16px;box-shadow:var(--sh);padding:14px 16px 12px;z-index:5}
+.slide .ch{font-size:10.5px;color:var(--mut);display:flex;justify-content:space-between;margin-bottom:6px;font-weight:500}
+.prog{display:flex;gap:4px;margin-top:10px}.prog i{flex:1;height:4px;border-radius:4px;background:var(--line)}.prog i.on{background:var(--ac)}
+.ftb{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;height:50px;border-radius:999px;background:var(--ov);box-shadow:var(--sh);display:flex;align-items:center;gap:4px;padding:0 6px;z-index:5}
+.ftb .ib{color:var(--ink2)}
+.ftb .go{height:38px;border-radius:999px;background:var(--ink);color:var(--bg);display:flex;align-items:center;gap:4px;padding:0 14px 0 16px;font-weight:600;font-size:12.5px}
+
+/* composer and toast */
+.comp{position:absolute;left:0;right:0;bottom:200px;background:var(--ov);border-radius:22px 22px 0 0;box-shadow:var(--sh);padding:4px 14px 12px;z-index:6}
+.comp .on{font-size:11px;color:var(--mut);margin:0 0 8px}
+.comp .ta{border-radius:12px;border:2px solid var(--ac);padding:9px 11px;min-height:40px;font-size:13px}
+.comp .row2{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:10px;font-size:12.5px;font-weight:600}
+.tb{height:34px;border-radius:999px;display:flex;align-items:center;padding:0 14px;color:var(--ac)}
+.tb.f{background:var(--ink);color:var(--bg)}
+.toast{position:absolute;left:10px;right:10px;bottom:74px;background:var(--ink);color:var(--bg);border-radius:12px;padding:0 6px 0 14px;height:46px;font-size:12px;display:flex;align-items:center;gap:8px;z-index:5;box-shadow:var(--sh)}
+.toast span{flex:1}
+.toast b{height:32px;border-radius:999px;display:grid;place-items:center;padding:0 12px;color:var(--acs);font-weight:600}
+.dark .toast b{color:#2557d6}
+.dim{opacity:.4}
+</style>
+</head>
+<body>
+<div class="wrap" id="w">
+  <div class="bar">Theme
+    <button class="on" data-t="light">Light</button><button data-t="dark">Dark</button>
+    <span style="margin-left:auto">Material 3 Expressive · reviewroom tokens · demo review, round 2</span>
+  </div>
+  <div class="grid" id="g"></div>
+</div>
+<script>
+// Icons: the 16px stroke set from src/kernel/dom.ts, plus the phone additions from docs/design/phone.md.
+const P = {
+  menu: 'M2.5 4.5h11M2.5 8h11M2.5 11.5h11',
+  back: 'M13 8H3M7 4 3 8l4 4',
+  search: 'M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM10.6 10.6 14 14',
+  play: 'M5 3.5v9l7.5-4.5z',
+  send: 'M2.5 8 13.5 3 10 13.5 7.5 9zM7.5 9 13.5 3',
+  book: 'M8 4.5c-1.5-1.3-3.5-1.8-5.5-1.5v9.5c2-.3 4 .2 5.5 1.5 1.5-1.3 3.5-1.8 5.5-1.5V3c-2-.3-4 .2-5.5 1.5zM8 4.5V14',
+  code: 'M6 4 2.5 8 6 12M10 4l3.5 4-3.5 4',
+  thread: 'M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z',
+  files: 'M4 2.5h5l3 3v8H4z M9 2.5v3h3',
+  close: 'M4 4l8 8M12 4l-8 8',
+  chevronDown: 'M4 6l4 4 4-4',
+  chevron: 'M6 4l4 4-4 4',
+  chevronL: 'M10 4 6 8l4 4',
+  maximize: 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10',
+  home: 'M2.5 7.5 8 3l5.5 4.5M4 6.5v7h8v-7',
+  github: 'M8 1.8a6.2 6.2 0 0 0-2 12.1c.3 0 .4-.1.4-.3v-1.1c-1.7.4-2.1-.8-2.1-.8-.3-.7-.7-.9-.7-.9-.6-.4 0-.4 0-.4.6 0 1 .6 1 .6.5.9 1.4.7 1.8.5 0-.4.2-.7.4-.8-1.4-.2-2.8-.7-2.8-3 0-.7.2-1.2.6-1.6 0-.2-.3-.8.1-1.7 0 0 .5-.2 1.7.6a5.8 5.8 0 0 1 3 0c1.2-.8 1.7-.6 1.7-.6.4.9.1 1.5.1 1.7.4.4.6 1 .6 1.6 0 2.4-1.4 2.9-2.8 3 .2.2.4.6.4 1.1v1.7c0 .2.1.4.4.3A6.2 6.2 0 0 0 8 1.8z',
+  refresh: 'M13 8a5 5 0 1 1-1.5-3.5M13 2.5v3h-3',
+  target: 'M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  sun: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1',
+  moon: 'M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z',
+  theme: 'M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 2.5v11',
+  install: 'M8 2.5v7M5 6.5l3 3 3-3M3 11v2.5h10V11',
+  info: 'M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 7.5v3.5M8 5.2v.1',
+  toc: 'M3 4h10M3 8h7M3 12h9',
+  symbol: 'M5.5 2.5C4 2.5 4 4 4 5.5S3.5 8 2.5 8c1 0 1.5 1 1.5 2.5s0 3 1.5 3M10.5 2.5c1.5 0 1.5 1.5 1.5 3s.5 2.5 1.5 2.5c-1 0-1.5 1-1.5 2.5s0 3-1.5 3',
+  section: 'M4 3h8M4 6.5h8M4 10h5',
+  history: 'M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5V5H5M8 5.5V8l2 1.5',
+  comment: 'M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2zM5.5 6.5h5M5.5 8.5h3',
+  check: 'M3 8.5 6.5 12 13 4.5',
+  ci: 'M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM6.8 5.6v4.8L10.4 8z',
+};
+const I = (n, c = '') => n === 'github'
+  ? `<svg class="i f ${c}" viewBox="0 0 16 16"><path d="${P[n]}"/></svg>`
+  : `<svg class="i ${c}" viewBox="0 0 16 16"><path d="${P[n]}"/></svg>`;
+
+const OS = '<div class="os"><span>9:41</span><span class="cam"></span><span style="display:flex;gap:4px;align-items:center">▾ ◖ ▮</span></div>';
+const TOP = (o = {}) => `<div class="top"><div class="ib">${I('menu')}</div><div class="ttl"><div>Attach recent HABIT events</div><small>mfas · Round 2</small></div><div class="ib ${o.search ? 'on' : ''}">${I('search')}</div><div class="ib">${I('play')}</div><div class="send" title="Send round">${I('send')}${o.unsent ? `<span class="badge">${o.unsent}</span>` : ''}</div></div>`;
+const TABS = (l, a, w = []) => `<div class="tabs">${l.map((t, i) => `<span class="${i === a ? 'on' : ''}" style="--w:${w[i] || 46}px">${t}</span>`).join('')}</div>`;
+const NAV = (a, hide) => hide ? '' : `<div class="nav">${[['book', 'Read'], ['code', 'Code'], ['thread', 'Threads', 3], ['files', 'Files']].map(([i, t, c], k) => `<div class="${k === a ? 'on' : ''}"><span class="pill">${I(i)}${c ? `<span class="badge">${c}</span>` : ''}</span>${t}</div>`).join('')}</div>`;
+const HANDLE = '<div class="handle"></div>';
+
+const READ = (hot) => `<div class="prose"><h1>Attach recent HABIT events to the ranker request</h1><h2>Summary</h2><p>Three pieces, landed in two commits: a new <span class="chip">habit.Fetcher</span>, a repeated field on <span class="chip">RankerRequest</span>, and the builder that wires them.</p><h2>Request path &amp; latency</h2><p>On any fetch error the builder logs at warn level and sends an empty list <span class="chip ${hot ? 'hot' : ''}">request_builder.go:50</span>. The call sits on the hot path, so…</p><p>Nothing counts the degraded requests. If TFS v2 failed for every user, dashboards would stay green.</p></div>`;
+const DESC = `<div class="prose"><h1 style="font-size:17px">Description</h1><p>Adds the last 7 days of HABIT events to every <span class="chip">RankerRequest</span> so the v4 ranker can use them.</p><p><b>Testing.</b> Unit tests for the fetcher; shadow traffic on staging for two days.</p></div>`;
+
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const hi = (s) => s.split(/("[^"]*")/).map((part, i) => i % 2 ? `<span class="st">${esc(part)}</span>` : esc(part).replace(/\b(func|return|if|nil|const|var|message|repeated|string)\b/g, '<span class="kw">$1</span>')).join('');
+const L = (rows, h = []) => `<div class="code">${rows.map(([n, t, k]) => k === 'gap' ? `<div class="ln gap">${t}</div>` : `<div class="ln ${k || ''} ${h.includes(n) ? 'h' : ''}"><em>${n}</em>${hi(t)}</div>`).join('')}</div>`;
+const HL = [50, 51, 52, 53, 54];
+const C = [[50, 'habitEvents, err := b.habit.RecentEvents(', 'a'], [51, 'if err != nil {', 'a'], [52, '  log.Warn(ctx, "habit fetch failed")', 'a'], [53, '  habitEvents = nil', 'a'], [54, '}', 'a']];
+const FULL = [[43, '  return nil, ErrMissingUser'], [44, '}'], [45, 'feats, err := b.tardis.Fetch(ctx,'], [46, 'if err != nil {'], [47, '  return nil, err'], [48, '}'], ...C, [55, 'rr := &pb.RankerRequest{', 'a'], [56, '  UserId:   req.GetUserId(),'], [57, '  Features: feats,'], [58, '  HabitEvents: habitEvents,', 'a'], [59, '}'], [60, 'return rr, nil']];
+const FETCH = [[20, 'func (f *Fetcher) RecentEvents(', 'a'], [21, '  ctx context.Context, user string,', 'a'], [22, '  window time.Duration,', 'a'], [23, ') ([]*pb.HabitEvent, error) {', 'a']];
+const PROTO = [[23, 'message RankerRequest {'], [24, '  string user_id = 1;'], [25, '  repeated HabitEvent habit_events = 12;', 'a'], [26, '}']];
+const DIF = (a, d) => `<span class="dif"><span class="ad">+${a}</span>${d ? ` <span class="de">−${d}</span>` : ''}</span>`;
+const FILES = [['migrations/004_habit_events.sql', 8, 0], ['pkg/features/habit/fetcher.go', 48, 0, 1], ['pkg/features/habit/fetcher_test.go', 22, 0, 0, 1], ['pkg/ranker/request_builder.go', 26, 4, 1], ['proto/feed/v2/ranker_request.proto', 8, 0, 1]];
+
+const STACK = (drag) => `<div class="page" style="padding:0;background:var(--well)">
+  <div class="sticky">${I('code', 's')}<span class="p">pkg/ranker/request_builder.go</span><span class="c">4 / 5</span>${I('chevronDown', 's')}</div>
+  <div style="padding-top:46px;margin-top:-62px">
+    <div class="fcard">${L(FETCH)}</div>
+    <div class="fcard"><div class="fh"><span class="p">pkg/ranker/request_builder.go</span>${DIF(26, 4)}</div>${L([[40, '// habitWindow is how far back', 'a'], [41, 'const habitWindow = 7 * 24 * time.Hour', 'a'], ['', '⋯ 1 unchanged line', 'gap'], ...FULL.slice(0, 11)], HL)}</div>
+    <div class="fcard"><div class="fh"><span class="p">proto/feed/v2/ranker_request.proto</span>${DIF(8)}</div>${L(PROTO)}</div>
+  </div>
+  <div class="rail ${drag ? 'drag' : ''}">${[8, 48, 22, 30, 8].map((h, i) => `<i class="${i === 3 ? 'on' : ''}" style="flex:${h}"></i>`).join('')}</div>
+</div>`;
+
+const KB = `<div class="kb"><div class="r">${'<i></i>'.repeat(10)}</div><div class="r">${'<i></i>'.repeat(9)}</div><div class="r"><i class="m"></i>${'<i></i>'.repeat(7)}<i class="m"></i></div><div class="r"><i class="m"></i><i></i><i class="w"></i><i></i><i class="m"></i></div></div>`;
+const R = (k, t, s, sel) => `<div class="res ${sel ? 'sel' : ''}"><span class="k">${I(k, 's')}</span><div class="t"><div>${t}</div>${s ? `<small>${s}</small>` : ''}</div></div>`;
+const PH = (inner) => `<div class="ph"><div class="sc">${inner}${HANDLE}</div></div>`;
+
+const S = [
+  ['Read', 'Top app bar: menu, title over “repo · Round N”, search, play, and Send as the one filled icon button (unsent count rides on it). Primary tabs under it. The flexible navigation bar marks the area with a pill; Threads carries the open-thread count in conversation orange.',
+    OS + TOP() + TABS(['Review', 'Description', 'Last round'], 0, [50]) + `<div class="body"><div class="page">${READ()}</div></div>` + NAV(0)],
+  ['Swipe between tabs', 'Drag sideways in the prose. The next tab follows the finger and the indicator stretches between labels; release past halfway and it settles on the fast spring.',
+    OS + TOP() + `<div class="tabs"><span>Review</span><span class="on" style="--w:0px">Description</span><span>Last round</span><i class="ind" style="left:74px;width:92px"></i></div><div class="body"><div class="page" style="transform:translateX(-56%)">${READ()}</div><div class="page" style="transform:translateX(44%);box-shadow:-10px 0 24px rgba(0,0,0,.1)">${DESC}</div><div class="trail" style="left:110px;top:238px;width:90px"></div><div class="touch" style="left:96px;top:220px"></div></div>` + NAV(0)],
+  ['Tap a code chip: peek', 'The chip gets a focus ring and the code sheet rises to 40% with the linked lines marked. No scrim, so the text above stays readable and scrollable.',
+    OS + TOP() + TABS(['Review', 'Description', 'Last round'], 0, [50]) + `<div class="body"><div class="page" style="transform:translateY(-112px)">${READ(true)}</div><div class="sheet" style="height:47%"><div class="grab"><i></i></div><div class="shd"><b>request_builder.go</b><span class="tag">50–54</span><span class="sp"></span><span class="ib">${I('maximize', 's')}</span><span class="ib">${I('close', 's')}</span></div>${L([[48, '}'], [49, ''], ...C, [55, 'rr := &pb.RankerRequest{', 'a'], [56, '  UserId:   req.GetUserId(),']], HL)}</div></div>` + NAV(0)],
+  ['Drag up: full code', 'Past 70% the sheet keeps rising on the expressive spring and lands as the Code area, scrolled to the same lines. One code view, not two.',
+    OS + TOP() + `<div class="body"><div class="page dim" style="transform:translateY(-112px)">${READ(true)}</div><div class="scrim" style="opacity:.5"></div><div class="sheet" style="height:88%"><div class="grab"><i></i></div><div class="shd"><b>request_builder.go</b><span class="tag">+26 −4</span><span class="sp"></span><span class="ib">${I('maximize', 's')}</span><span class="ib">${I('close', 's')}</span></div>${L(FULL, HL)}</div><div class="trail v" style="left:148px;top:30px;height:110px"></div><div class="touch" style="left:128px;top:14px"></div></div>` + NAV(0)],
+  ['Code: one scroll', 'Every changed file stacks in one vertical scroll, each file a 12px card on the well. The current file sticks to the top with its position; the thin rail on the edge shows all five files.',
+    OS + TOP() + `<div class="body">${STACK()}</div>` + NAV(1)],
+  ['Code: jump to a file', 'Tap the sticky file name for the list: orange dot = open threads, tick = viewed. Or grab the rail: it widens under the thumb and scrubs between files.',
+    OS + TOP() + `<div class="body">${STACK(true)}<div class="scrim"></div><div style="position:absolute;top:6px;left:8px;right:8px;background:var(--ov);z-index:5;border-radius:12px;box-shadow:var(--sh);padding:6px 0">${FILES.map(([f, a, d, t, v], i) => `<div class="row ${i === 3 ? 'sel' : ''}" style="min-height:42px"><div class="t"><div class="mono" style="font-size:11px">${f}</div></div>${t ? '<span class="dot"></span>' : ''}${v ? `<span class="tick">${I('check', 's')}</span>` : ''}${DIF(a, d)}</div>`).join('')}</div></div>` + NAV(1)],
+  ['Search: open', 'The search icon expands into a contained search view: the bar stays a pill at the top, with filter chips under it. Before typing: recent places and the actions you use most.',
+    OS + `<div class="body"><div class="sv"><div class="sbar"><span class="ib" style="width:34px;height:34px">${I('back')}</span><span class="q"><span class="caret"></span><span class="ph2">Search this review</span></span></div><div class="fchips">${['All', 'Files', 'Sections', 'Symbols', 'Threads', 'Actions'].map((c, i) => `<span class="fc ${i ? '' : 'on'}">${i ? '' : I('check', 's')}${c}</span>`).join('')}</div><div class="lbl">Recent</div>${R('history', '<span class="mono">request_builder.go:50</span>', 'from Request path &amp; latency')}${R('history', 'Request path &amp; latency', 'Section')}<div class="lbl">Actions</div>${R('play', 'Play guided review', '4 chapters')}${R('send', 'Send round 2', '2 unsent comments')}</div>${KB}</div>`],
+  ['Search: results', 'Grouped by kind, best match first. Code results open the peek sheet; sections scroll Read; threads open the thread; actions run.',
+    OS + `<div class="body"><div class="sv"><div class="sbar"><span class="ib" style="width:34px;height:34px">${I('back')}</span><span class="q">habit<span class="caret"></span></span><span class="ib" style="width:34px;height:34px">${I('close', 's')}</span></div><div class="fchips">${[['All', 9], ['Symbols', 3], ['Files', 2], ['Sections', 2], ['Threads', 1]].map(([c, n], i) => `<span class="fc ${i ? '' : 'on'}">${i ? '' : I('check', 's')}${c} <small>${n}</small></span>`).join('')}</div><div class="lbl">Symbols</div>${R('symbol', '<span class="mono"><mark>habit</mark>.Fetcher</span>', 'pkg/features/habit/fetcher.go:12', 1)}${R('symbol', '<span class="mono">RecentEvents</span>', 'returns []*<mark>Habit</mark>Event')}<div class="lbl">Files</div>${R('files', '<span class="mono">features/<mark>habit</mark>/fetcher.go</span>', '+48')}${R('files', '<span class="mono">004_<mark>habit</mark>_events.sql</span>', '+8')}<div class="lbl">Sections</div>${R('section', 'Attach recent <mark>HABIT</mark> events', 'Summary')}<div class="lbl">Threads</div>${R('thread', 'Should this count degraded requests?', 'request_builder.go:52 · waiting on agent')}</div></div>`],
+  ['Threads', 'Open, Resolved and PR conversation as swipeable tabs. Threads are 12px cards on the notebook surface; the code reference is a chip that opens the peek.',
+    OS + TOP() + TABS(['Open 3', 'Resolved 5', 'PR'], 0, [54]) + `<div class="body"><div class="page" style="background:var(--nav);padding:12px 12px">
+      <div class="card"><div class="who"><span class="av">AD</span><b>You</b><span class="st8 w">Waiting on agent</span></div><span class="chip">request_builder.go:52</span><div class="txt" style="margin-top:6px">Should this count degraded requests? A silent nil hides a TFS outage.</div></div>
+      <div class="card"><div class="who"><span class="av ag">A</span><b>Agent</b><span class="st8 r">Replied</span></div><span class="chip">fetcher.go:24</span><div class="txt" style="margin-top:6px">Added a 40ms timeout; the p99 budget is 60ms.</div><div class="acts"><span>Reply</span><span>Resolve</span></div></div>
+      <div class="card"><div class="who"><span class="av">AD</span><b>You</b><span class="st8 d">Draft</span></div><span class="chip">ranker_request.proto:25</span><div class="txt" style="margin-top:6px">Field 12: confirm nobody reserved it.</div></div>
+    </div></div>` + NAV(2)],
+  ['Files', 'Files, Contents and CI. A file row jumps the Code scroll to that file; the selected row uses the full pill.',
+    OS + TOP() + TABS(['Files', 'Contents', 'CI'], 0, [40]) + `<div class="body"><div class="page" style="padding:8px 0;background:var(--nav)">${FILES.map(([f, a, d, t, v], i) => `<div class="row ${i === 3 ? 'sel' : ''}"><span class="lead">${I('files', 's')}</span><div class="t"><div class="mono" style="font-size:11px">${f.split('/').pop()}</div><small class="mono">${f.split('/').slice(0, -1).join('/') || '/'}</small></div>${t ? '<span class="dot"></span>' : ''}${v ? `<span class="tick">${I('check', 's')}</span>` : ''}${DIF(a, d)}</div>`).join('')}</div></div>` + NAV(3)],
+  ['Menu', 'A modal drawer with 16px trailing corners. Review facts on top, then places and tools. No layout items on phones; GitHub items only on PR reviews.',
+    OS + TOP() + TABS(['Review', 'Description', 'Last round'], 0, [50]) + `<div class="body"><div class="page">${READ()}</div></div>` + NAV(0) + `<div class="scrim"></div><div class="drawer"><div class="hd"><b>Attach recent HABIT events to the ranker request</b><small>mfas · PR #482 · Round 2 · 3 open threads</small></div>${[['home', 'All reviews'], ['search', 'Search'], ['play', 'Play guided review', '4 chapters'], '-', ['github', 'Open PR on GitHub'], ['refresh', 'Refresh comments'], ['target', 'Comment on an element'], '-', ['theme', 'Theme', 'seg'], ['install', 'Install app'], ['info', 'reviewroom 241c5d6', 'Up to date']].map((m) => m === '-' ? '<div class="sep"></div>' : `<div class="mi">${I(m[0])}${m[1]}${m[2] === 'seg' ? `<span class="seg"><span>${I('sun', 's')}</span><span class="on" style="font-size:10.5px;font-weight:600">Auto</span><span>${I('moon', 's')}</span></span>` : m[2] ? `<small>${m[2]}</small>` : ''}</div>`).join('')}</div>`],
+  ['Guided review', 'Play takes the whole screen. The slide is a 16px card; its controls are an M3E floating toolbar with Next as the one filled button. Swipe the card for next or previous.',
+    OS + `<div class="top"><div class="ib">${I('close')}</div><div class="ttl"><div>Request path &amp; failure mode</div><small>Chapter 2 of 4</small></div></div>` + `<div class="body"><div class="page" style="padding:0;background:var(--well)"><div class="sticky" style="position:relative">${I('code', 's')}<span class="p">pkg/ranker/request_builder.go</span></div>${L(FULL, HL)}</div><div class="slide"><div class="ch"><span>Step 3 of 7</span><span>Request path</span></div><div class="prose" style="font-size:13.5px;line-height:1.5">If the HABIT fetch fails, the builder logs and sends an empty list. Ranking degrades quietly instead of failing the feed.</div><div class="prog">${[1, 1, 1, 0, 0, 0, 0].map((x) => `<i class="${x ? 'on' : ''}"></i>`).join('')}</div></div><div class="ftb"><span class="ib">${I('chevronL')}</span><span class="ib">${I('comment')}</span><span class="go">Next${I('chevron', 's')}</span></div></div>`],
+  ['Comment on code', 'Long-press a line, or select text. The composer rises on the keyboard with 22px top corners; the unsent count waits on Send.',
+    OS + TOP({ unsent: 2 }) + `<div class="body"><div class="page" style="padding:0;background:var(--well)"><div class="sticky" style="position:relative">${I('code', 's')}<span class="p">pkg/ranker/request_builder.go</span><span class="c">4 / 5</span></div>${L(FULL.slice(4, 13), [52])}</div><div class="comp"><div class="grab"><i></i></div><div class="on">Comment on <span class="chip">request_builder.go:52</span></div><div class="ta">Can we count these in metrics?<span class="caret"></span></div><div class="row2"><span class="tb">Cancel</span><span class="tb f">Add comment</span></div></div>${KB}</div>`],
+  ['Update ready', 'A new build arrived while work was unsent, so it waits. The snackbar sits above the navigation bar, never over a composer.',
+    OS + TOP({ unsent: 2 }) + TABS(['Review', 'Description', 'Last round'], 0, [50]) + `<div class="body"><div class="page">${READ()}</div><div class="toast"><span>New version ready. Reloads after you send.</span><b>Reload</b></div></div>` + NAV(0)],
+];
+document.getElementById('g').innerHTML = S.map(([t, d, h], i) => `<figure>${PH(h)}<figcaption><b><span class="n">${i + 1}</span>${t}</b>${d}</figcaption></figure>`).join('');
+document.querySelectorAll('.bar button').forEach((b) => (b.onclick = () => {
+  document.querySelectorAll('.bar button').forEach((x) => x.classList.toggle('on', x === b));
+  document.getElementById('w').classList.toggle('dark', b.dataset.t === 'dark');
+}));
+if (new URLSearchParams(location.search).has('dark')) document.querySelector('[data-t=dark]').click();
+</script>
+</body>
+</html>

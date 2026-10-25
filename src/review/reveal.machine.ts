@@ -5,6 +5,9 @@
 //                  panel, open     the lines,  context: unfold,   emitted (the walkthrough's pane waits
 //                  the file        scroll      land again         for it); after, a workbench panel
 //                                                                  drops the highlight
+//   glowing also waits for whatever covers the panel's lower part (a phone's slide card) to hold still: if it moved,
+//   `recentre` lands the lines again against where it ended up. Leaving glowing (a new reveal, the user's selection)
+//   drops that wait
 //   nothing to highlight (a whole file, a file that is gone) ─▶ idle, `landed` all the same
 //   a new `reveal` in any state starts over: the stale wait, unfold or glow timer is cancelled with its state
 //   the user selecting lines at any point ─▶ idle, their selection kept (no glow, no clearing it later)
@@ -23,10 +26,14 @@ export const revealMachine = setup({
     prepare: fromPromise<Prepared, CodeTarget>(async () => 'nothing'),
     /** unfold folded context around the lines once the file is drawn; true: it did (land again) */
     unfold: fromPromise<boolean, CodeTarget>(async () => false),
+    /** wait for what covers the panel's lower part to hold still; true: it moved since the lines landed */
+    settle: fromPromise<boolean, CodeTarget>(async () => false),
   },
   actions: {
     /** highlight the target's lines and scroll them into view */
     land: () => {},
+    /** land the lines again where the cover settled (unless the reader scrolled meanwhile: settle says false) */
+    recentre: () => {},
     /** start the pulse */
     glow: () => {},
     /** stop the pulse */
@@ -69,6 +76,7 @@ export const revealMachine = setup({
     glowing: {
       entry: ['glow', 'landed'],
       exit: 'unglow',
+      invoke: { src: 'settle', input: ({ context }) => context.target!, onDone: { guard: ({ event }) => event.output, actions: 'recentre' } },
       after: { glow: { target: 'idle', actions: 'clear' } },
       on: { reveal: { target: 'preparing', actions: ['clear', 'target'] } },
     },

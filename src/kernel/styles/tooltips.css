@@ -23,6 +23,12 @@
   background: color-mix(in srgb, var(--rr-bg) 14%, transparent);
   color: var(--rr-bg);
 }
+/* no keyboard shortcuts to hint at on touch */
+@media (hover: none) {
+  .rr-tooltip kbd {
+    display: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .rr-tooltip,
   .rr-modal,

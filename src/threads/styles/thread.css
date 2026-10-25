@@ -130,6 +130,11 @@
 .rr-msg:hover .rr-msg__actions {
   opacity: 1;
 }
+@media (hover: none) {
+  .rr-msg__actions {
+    opacity: 1;
+  }
+}
 .rr-quote {
   margin: 0;
   padding: 8px 12px;

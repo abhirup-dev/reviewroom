@@ -1,5 +1,5 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
-// It owns data (meta, files, threads), preferences, navigation and the dock.
+// It owns data (meta, files, threads), preferences, navigation and the panel surface (dock or phone shell).
 import { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
 import { Commands } from './kernel/commands';
@@ -14,7 +14,7 @@ import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
-import { showPanel } from './kernel/dock';
+import { showPanel, type PanelSurface } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
 import type { Anchor, Op } from './kernel/state/schema.shared';
@@ -51,6 +51,13 @@ export const defaultPrefs: Prefs = {
 };
 
 
+/** How the workbench is presented, picked once at boot (main.ts): the dock, or the phone shell. */
+export interface Presentation {
+  kind: 'dock' | 'phone';
+  /** Layouts, windows and docking: the dock's. A phone shows one panel at a time. */
+  canArrange: boolean;
+}
+
 export interface AppEvents extends Record<string, unknown> {
   state: ReviewState;
   prefs: Prefs;
@@ -73,7 +80,7 @@ export interface AppEvents extends Record<string, unknown> {
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
   walkthrough: Walkthrough | null;
-  toast: { text: string; kind?: 'info' | 'error' };
+  toast: { text: string; kind?: 'info' | 'error'; action?: { label: string; run: () => void } };
 }
 
 
@@ -95,7 +102,11 @@ export class ReviewApp {
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;
   range!: DiffRange;
-  dock!: DockviewApi;
+  /** The dock, once mounted; none on a phone. */
+  dock?: DockviewApi;
+  readonly presentation: Presentation;
+  /** Where panels open, once mounted: the dock's surface, or the phone shell. */
+  surface?: PanelSurface;
   /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
   /** The PR's description from GitHub: read-only, but commentable like the walkthrough (anchors target PR_DESCRIPTION). */
@@ -113,6 +124,7 @@ export class ReviewApp {
   readonly services: ReviewServices;
   private cleanups: (() => void)[] = [];
   private disposed = false;
+  private prefsKey: string;
 
   onDispose(cleanup: () => void) {
     if (this.disposed) cleanup();
@@ -134,8 +146,12 @@ export class ReviewApp {
   }
 
   // Keep new ReviewApp(root) compatible; boot supplies its composition explicitly.
-  constructor(public root: HTMLElement, createServices = createReviewServices) {
-    this.prefs = loadLocal('reviewroom:prefs', defaultPrefs);
+  constructor(public root: HTMLElement, createServices = createReviewServices, kind: Presentation['kind'] = 'dock') {
+    this.presentation = { kind, canArrange: kind === 'dock' };
+    const phone = kind === 'phone';
+    // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
+    this.prefsKey = phone ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
+    this.prefs = loadLocal(this.prefsKey, phone ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
     this.services = createServices({
       github: {
         backend: () => this.backend,
@@ -168,7 +184,7 @@ export class ReviewApp {
   // ------------------------------------------------------------ prefs/theme
   setPref<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     this.prefs = { ...this.prefs, [k]: v };
-    saveLocal('reviewroom:prefs', this.prefs);
+    saveLocal(this.prefsKey, this.prefs);
     this.bus.emit('prefs', this.prefs);
     if (k === 'theme') this.applyTheme();
   }
@@ -326,8 +342,8 @@ export class ReviewApp {
   }
 
   // ------------------------------------------------------------ misc
-  toast(text: string, kind: 'info' | 'error' = 'info') {
-    this.bus.emit('toast', { text, kind });
+  toast(text: string, kind: 'info' | 'error' = 'info', action?: { label: string; run: () => void }) {
+    this.bus.emit('toast', { text, kind, action });
   }
   showPanel(id: string) {
     return showPanel(this, id);

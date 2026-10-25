@@ -1,0 +1,10 @@
+{
+  "title": "Tablet",
+  "hint": "Two panes: the narrative and its tabs, code beside",
+  "root": {
+    "row": [
+      { "tabs": ["narrative", "toc", "files", "threads", "description", "ci"], "active": "narrative" },
+      { "size": 0.5, "tabs": ["code"] }
+    ]
+  }
+}

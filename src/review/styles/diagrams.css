@@ -144,3 +144,9 @@ rr-mermaid.rr-diagram-baseline {
   --pele-line: var(--rr-muted);
   --pele-fg: var(--rr-muted);
 }
+
+/* Phone: Pele's zoom buttons (24px, inline styles) become 44px touch targets. */
+:is(.is-phone, [data-form='phone']) rr-mermaid .pele-zoom > button {
+  width: 44px !important;
+  height: 44px !important;
+}

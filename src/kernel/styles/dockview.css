@@ -80,6 +80,11 @@
 .dockview-theme-rr .dv-tab.dv-active-tab .dv-default-tab-action {
   opacity: 0.7;
 }
+@media (hover: none) {
+  .dockview-theme-rr .dv-default-tab .dv-default-tab-action {
+    opacity: 0.7;
+  }
+}
 .dockview-theme-rr .dv-resize-container {
   border-radius: var(--rr-radius-lg);
   overflow: hidden;

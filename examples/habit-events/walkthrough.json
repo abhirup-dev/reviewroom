@@ -66,6 +66,50 @@
       ]
     },
     {
+      "id": "degrade",
+      "title": "The degraded path, drawn",
+      "steps": [
+        {
+          "id": "happy",
+          "text": "<p>The happy path: <a href=\"rr:code/pkg/features/habit/fetcher.go#L20-28\">RecentEvents</a> answers in time and the events ride on field 12.</p><rr-mermaid class=\"rr-diagram-signal\">flowchart TD\n  RE[habit.RecentEvents] --> DL([rows within 30 ms?])\n  DL -- yes --> Req[RankerRequest]\n  DL -- no --> Warn[log.Warn]\n  Warn -- events = nil --> Req\n  Warn -. not counted .-> M[(habit_degraded_total)]\n  click RE \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click Warn \"rr:code/pkg/ranker/request_builder.go#L51-54\" \"the degrade branch\"\n  click Req \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"\n  click M \"rr:code/pkg/ranker/request_builder.go#L28-34\" \"the metrics, already injected\"</rr-mermaid>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L20-28",
+          "focus": [
+            "habit.RecentEvents",
+            "rows within 30 ms?",
+            "RankerRequest"
+          ]
+        },
+        {
+          "id": "degraded",
+          "text": "<p>On an error or the deadline the builder <a href=\"rr:code/pkg/ranker/request_builder.go#L50-54\">logs and sends nil</a>; the request still goes out.</p><rr-mermaid class=\"rr-diagram-signal\">flowchart TD\n  RE[habit.RecentEvents] --> DL([rows within 30 ms?])\n  DL -- yes --> Req[RankerRequest]\n  DL -- no --> Warn[log.Warn]\n  Warn -- events = nil --> Req\n  Warn -. not counted .-> M[(habit_degraded_total)]\n  click RE \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click Warn \"rr:code/pkg/ranker/request_builder.go#L51-54\" \"the degrade branch\"\n  click Req \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"\n  click M \"rr:code/pkg/ranker/request_builder.go#L28-34\" \"the metrics, already injected\"</rr-mermaid>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L50-54",
+          "focus": [
+            "rows within 30 ms?",
+            "log.Warn",
+            "RankerRequest"
+          ]
+        },
+        {
+          "id": "uncounted",
+          "text": "<p>Nothing counts it: the dotted edge is the line this PR is missing.</p><rr-mermaid class=\"rr-diagram-signal\">flowchart TD\n  RE[habit.RecentEvents] --> DL([rows within 30 ms?])\n  DL -- yes --> Req[RankerRequest]\n  DL -- no --> Warn[log.Warn]\n  Warn -- events = nil --> Req\n  Warn -. not counted .-> M[(habit_degraded_total)]\n  click RE \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click Warn \"rr:code/pkg/ranker/request_builder.go#L51-54\" \"the degrade branch\"\n  click Req \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"\n  click M \"rr:code/pkg/ranker/request_builder.go#L28-34\" \"the metrics, already injected\"</rr-mermaid>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L28-34",
+          "focus": [
+            "log.Warn",
+            "habit_degraded_total"
+          ]
+        },
+        {
+          "id": "states",
+          "text": "<p>The same request as states: every path ends in <em>Sent</em>, so the feed never fails on habit.</p><rr-mermaid>stateDiagram-v2\n  [*] --> Fetching\n  Fetching --> WithEvents: rows in 30 ms\n  Fetching --> Degraded: TFS error or deadline\n  WithEvents --> Sent\n  Degraded --> Sent: events = nil\n  Sent --> [*]</rr-mermaid>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L50-60",
+          "focus": [
+            "Degraded",
+            "Sent"
+          ]
+        }
+      ]
+    },
+    {
       "id": "schema",
       "title": "Proto, storage & tests",
       "lead": "<p class=\"rr-lede\">Field 12 is appended, never reused, so older ranker builds ignore it. The table is additive and its index matches the window read.</p>",
@@ -79,6 +123,10 @@
           "id": "s2",
           "text": "<p>The offline sink. <code>(user_id, ts DESC)</code> serves \"last N for a user\" without a sort.</p>",
           "ref": "rr:code/migrations/004_habit_events.sql#L1-8"
+        },
+        {
+          "id": "map",
+          "text": "<p>How a row travels: the table row is decoded into a <code>HabitEvent</code>, and up to 50 ride on field 12.</p><rr-mermaid>erDiagram\n  habit_events ||--|| HabitEvent : decode\n  RankerRequest ||--o{ HabitEvent : \"field 12\"</rr-mermaid>"
         },
         {
           "id": "s3",

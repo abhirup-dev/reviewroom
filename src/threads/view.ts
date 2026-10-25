@@ -2,7 +2,7 @@
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
 import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
-import { avatarUrl, h, icon, relTime, copyText, backdropCloses } from '../kernel/dom';
+import { avatarUrl, h, icon, relTime, copyText } from '../kernel/dom';
 import { loadRaw } from '../kernel/store';
 import { renderMarkdown } from '../kernel/markdown';
 import { refIcon } from '../kernel/refs/browser';
@@ -15,6 +15,8 @@ import { closePanel, definePanel } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 import { renderPreview } from '../review/previews';
 import { popMenu } from '../kernel/menus';
+import { trackKeyboard } from '../kernel/keyboard';
+import { openSheet, sheetDialog } from '../kernel/sheet';
 import { createActor, fromPromise } from 'xstate';
 import { threadMachine, type ThreadTarget } from './thread.machine';
 import type { Anchor } from '../kernel/state/schema.shared';
@@ -240,7 +242,7 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
     h(
       'div',
       { class: 'rr-composer__foot' },
-      h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link · ', h('kbd', null, keyLabel('mod+enter')), buttons.length > 1 ? ' ' + main.label : ' send'),
+      h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link', h('span', { class: 'rr-composer__send-key' }, ' · ', h('kbd', null, keyLabel('mod+enter')), buttons.length > 1 ? ' ' + main.label : ' send')),
       h('span', { class: 'rr-toolbar__spacer' }),
       // Cancel throws the draft away; Esc, the backdrop and the close button keep it
       opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', title: 'Discard this draft', onclick: () => (keepDraft(''), opts.onCancel!()) }, 'Cancel') : null,
@@ -515,11 +517,21 @@ export function mountThreadPopup(app: ReviewApp) {
     }),
   );
   // closing (Esc, the backdrop, a button) returns focus to where it was: the dialog does that
-  const box = h('dialog', { class: 'rr-modal', 'aria-label': 'Comment thread', onmousedown: backdropCloses, onclose: () => flow.send({ type: 'close' }) });
-  document.body.append(box);
+  // on a phone: a bottom sheet (kernel/sheet.ts, threads.phone.css) that keeps clear of the on-screen keyboard while it's open
+  const sheet = app.presentation.kind === 'phone';
+  const box = sheetDialog({ 'aria-label': 'Comment thread', onclose: () => flow.send({ type: 'close' }) }, sheet);
   const close = () => flow.send({ type: 'close' });
   let current: { el: HTMLElement; dispose: () => void } | null = null;
   let shown: ThreadTarget | null = null;
+  let stopKb: (() => void) | undefined;
+  // the sheet just got shorter or moved: keep the caret in view inside the composer
+  const keepCaret = () =>
+    requestAnimationFrame(() => {
+      const cm = document.activeElement?.closest('.cm-editor');
+      const v = cm && box.contains(cm) ? EditorView.findFromDOM(cm as HTMLElement) : null;
+      v?.dispatch({ effects: EditorView.scrollIntoView(v.state.selection.main.head) });
+    });
+  let wasSending = false;
   // the composer keeps its text (and its saved draft) unless the comment went out, even if the popup has moved on
   const send = async (body: string, toGitHub: boolean) => {
     const before = sending;
@@ -529,19 +541,27 @@ export function mountThreadPopup(app: ReviewApp) {
   };
   flow.subscribe((s) => {
     box.classList.toggle('is-leaving', s.matches('leaving'));
+    // a phone sheet covers what was commented on: once the new comment is saved, go back to it
+    const saved = sheet && wasSending && s.matches('viewing');
+    wasSending = s.matches({ composing: 'sending' });
+    if (saved) return queueMicrotask(close);
     if (s.context.view === shown) return;
     current?.dispose();
     current = null;
     shown = s.context.view;
-    if (!shown) return box.close();
+    if (!shown) {
+      stopKb?.();
+      stopKb = undefined;
+      return box.close();
+    }
     current = threadView(app, { ...shown, onClose: close, onDock: dock, onCreate: send, onResolve: () => flow.send({ type: 'resolve' }) });
-    box.replaceChildren(current.el);
-    if (!box.open) box.showModal();
+    openSheet(box, current.el);
+    if (sheet) stopKb ??= trackKeyboard(keepCaret);
   });
   // drag by the header to park it somewhere; it opens centred, then stays where it was put until reload
   let dx = 0, dy = 0;
   box.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || !(e.target as Element).closest('.rr-thread__head') || (e.target as Element).closest('button, a, input')) return;
+    if (sheet || e.button !== 0 || !(e.target as Element).closest('.rr-thread__head') || (e.target as Element).closest('button, a, input')) return;
     e.preventDefault();
     const x0 = e.clientX - dx, y0 = e.clientY - dy;
     const r = box.getBoundingClientRect(), cx = r.left - dx, cy = r.top - dy;
@@ -560,7 +580,7 @@ export function mountThreadPopup(app: ReviewApp) {
     const t = app.services.threads.thread(id)!;
     dockThread(app, id, t.title ?? app.anchorLabel(t.anchor));
   };
-  app.onDispose(() => { flow.stop(); current?.dispose(); box.remove(); });
+  app.onDispose(() => { flow.stop(); current?.dispose(); stopKb?.(); box.remove(); });
   flow.start();
   app.bus.on('open-thread', ({ id }) => (app.showPanel('thread:' + id) || flow.send({ type: 'open', id })));
   app.bus.on('compose-thread', ({ anchor, quote, to }) => flow.send({ type: 'compose', anchor, quote, to }));

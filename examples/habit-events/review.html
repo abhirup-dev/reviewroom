@@ -29,7 +29,7 @@
     <section id="summary">
       <h2>Summary</h2>
       <p>Three pieces, landed in two commits: a new <rr-ref ref="rr:sym/Fetcher">habit.Fetcher</rr-ref> over TFS v2, a <code>HabitEvent</code> message plus <rr-ref ref="rr:code/proto/feed/v2/ranker_request.proto#L25">field 12</rr-ref> on <code>RankerRequest</code>, and one new call inside <rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54">Builder.Build</rr-ref>. A storage table backs the online store.</p>
-      <rr-flow>
+      <rr-flow direction="column">
         <rr-node state="baseline">FeedRequest</rr-node>
         <rr-node state="baseline" ref="rr:code/pkg/ranker/request_builder.go#L42">Builder.Build</rr-node>
         <rr-node state="baseline" ref="rr:code/pkg/ranker/request_builder.go#L46">Tardis.Fetch</rr-node>
@@ -43,6 +43,25 @@
     <section id="request-path">
       <h2>Request path &amp; latency</h2>
       <p>The habit call runs <strong>after</strong> the Tardis fetch, sequentially, so its latency adds straight onto the feed request. The fetcher caps itself with a <rr-ref ref="rr:code/pkg/features/habit/fetcher.go#L21">30 ms deadline</rr-ref>. Staging p99s below; toggle to see what running both calls concurrently would buy.</p>
+      <rr-mermaid id="request-sequence">sequenceDiagram
+  participant B as Build
+  participant T as Tardis
+  participant H as habit
+  participant S as TFS v2
+  B->>T: Fetch(uid, 4 keys)
+  T-->>B: feats, 18 ms
+  Note over B,H: habit starts only after Tardis returns
+  B->>H: RecentEvents(uid, 7d)
+  H->>S: BatchGet(168 hourly keys)
+  alt rows within 30 ms
+    S-->>H: rows
+    H-->>B: up to 50 events, 12 ms
+  else error or deadline
+    S-->>H: err
+    H-->>B: wrapped err
+    Note over B: log.Warn, events = nil
+  end
+  Note over B: RankerRequest field 12</rr-mermaid>
       <div class="budget" id="latency-budget" data-rr-block>
         <div class="budget__row"><span>p99, this PR</span><div class="budget__track" id="bt-track"><div class="budget__seg budget__seg--tardis" id="bt-tardis">Tardis 18</div><div class="budget__seg budget__seg--habit" id="bt-habit">habit 12</div><div class="budget__limit" style="left: 80%" title="Feed budget: 40 ms"></div></div><span class="budget__ms" id="bt-total">30 ms</span></div>
         <div class="budget__ctl"><label><input type="checkbox" id="bt-par"> run habit alongside Tardis</label><span>red line = 40 ms feed budget · click a bar to open its code</span></div>
@@ -71,6 +90,20 @@
     <section id="failure-mode">
       <h2>Failure mode</h2>
       <p>On any fetch error the builder logs at warn level and sends an empty list. Because <code>habit_events</code> is <code>repeated</code>, nil serialises as empty and the ranker reads it as "no signal" rather than an error.</p>
+      <rr-mermaid id="degrade-flow" class="rr-diagram-delta">flowchart TD
+  A[habit.RecentEvents, new]:::added --> B{TFS error or 30 ms deadline?}
+  B -- no --> C[up to 50 events]
+  B -- yes --> D[log.Warn]:::added
+  D --> E[events = nil]:::added
+  C --> F[RankerRequest field 12, changed]:::changed
+  E --> F
+  F --> G[ranker: empty list = no signal]
+  D -. not counted .-> M[(habit_degraded_total)]
+  click A "rr:code/pkg/features/habit/fetcher.go#L20-28" "the fetcher"
+  click B "rr:code/pkg/features/habit/fetcher.go#L21-26" "the deadline and the error"
+  click D "rr:code/pkg/ranker/request_builder.go#L51-54" "the degrade branch"
+  click F "rr:code/pkg/ranker/request_builder.go#L55-59" "the request"
+  click M "rr:code/pkg/ranker/request_builder.go#L28-34" "the metrics, already injected"</rr-mermaid>
       <rr-callout kind="risk" title="Silent degradation">
         <p>Nothing counts the degraded requests. If TFS v2 started failing for every user, dashboards would stay green while ranking quality dropped. <b>b.metrics</b> is already injected (<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L32"></rr-ref>), so a counter is one line.</p>
       </rr-callout>
@@ -79,6 +112,25 @@
     <section id="schema">
       <h2>Proto &amp; storage</h2>
       <p>Field 12 is appended, never reused, so older ranker builds simply ignore it. The table is additive and its <code>(user_id, ts DESC)</code> index matches the window read.</p>
+      <rr-mermaid id="schema-map">erDiagram
+  habit_events ||--|| HabitEvent : "TFS v2 decode"
+  RankerRequest ||--o{ HabitEvent : "field 12, max 50"
+  habit_events {
+    TEXT user_id
+    TIMESTAMPTZ ts
+    TEXT event
+    TEXT post_id
+  }
+  HabitEvent {
+    string event "1"
+    string post_id "2"
+    int64 ts_ms "3"
+  }
+  RankerRequest {
+    string user_id "1"
+    map features "2"
+    HabitEvent habit_events "12, new"
+  }</rr-mermaid>
       <rr-code ref="rr:code/migrations/004_habit_events.sql#L1-9"></rr-code>
       <figure id="sample-rows">
         <table class="rows">

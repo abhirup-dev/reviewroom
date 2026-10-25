@@ -1,7 +1,8 @@
 // Client build with Bun: dist/reviewroom.js (+ lazy chunks, mostly syntax grammars), dist/reviewroom.css,
 // dist/fonts/, dist/emoji.json, the hub's page (dist/hub.js, dist/hub.css), and the CLI with its dependencies bundled in: dist/cli/reviewroom.js. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
 import type { BunPlugin } from 'bun';
-import { readFileSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
+import crypto from 'node:crypto';
+import { readFileSync, readdirSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 
 const root = new URL('..', import.meta.url).pathname;
 const at = (p: string) => root + p;
@@ -58,7 +59,8 @@ const overlaysStyles = [
 ];
 
 const styles = [
-  ['src/kernel/styles/tokens.css'],
+  // Shared tokens precede every component and feature that consumes them.
+  ['src/kernel/styles/tokens.css', 'src/kernel/styles/tokens.phone.css'],
   shellStyles,
   panelsStyles,
   overlaysStyles,
@@ -66,6 +68,13 @@ const styles = [
   ['src/review/styles/content.css'],
   ['src/review/styles/diagrams.css'],
   ['src/kernel/styles/dockview.css'],
+  // The phone shell, then each feature's phone rules (they override the shell's and their desktop rules).
+  [
+    'src/kernel/styles/phone.css',
+    'src/review/styles/review.phone.css',
+    'src/threads/styles/threads.phone.css',
+    'src/slides/styles/slides.phone.css',
+  ],
 ];
 
 // Hub cascade: tokens, shell controls, overlays, then hub-specific rules.
@@ -102,6 +111,9 @@ const hubCss = () => [fontFaces((_pkg, file) => `./fonts/${file}`), sheets(hubSt
 /** All client CSS. `fontSrc(pkg, file)` says where each font is served from. */
 export const clientCss = (fontSrc: FontSrc) => [fontFaces(fontSrc), dockviewCss(), sheets(styles)].join('\n');
 
+// The id hashes the client output, so the client is built with a same-length stand-in (keeps source maps aligned) swapped for the id after.
+const BUILD_PLACEHOLDER = 'rr-build-id!';
+
 /** Bundle the client. The CSS is inlined into the JS (src/bundle.css exists only in the build) and injected at boot. */
 export function clientBuild({ css, plugins = [], ...opts }: { css: string; plugins?: BunPlugin[] } & Omit<Bun.BuildConfig, 'entrypoints' | 'plugins'>) {
   return Bun.build({
@@ -110,6 +122,7 @@ export function clientBuild({ css, plugins = [], ...opts }: { css: string; plugi
     target: 'browser',
     minify: true,
     files: { [realpathSync(at('src')) + '/bundle.css']: css },
+    define: { __RR_BUILD__: JSON.stringify(BUILD_PLACEHOLDER) },
     plugins,
     ...opts,
   });
@@ -122,6 +135,9 @@ async function build() {
   for (const [, pkg, file] of fonts) copyFileSync(fontFile(pkg, file), at(`dist/fonts/${file}`));
   // the composer's emoji picker reads its data from here (its default is a CDN); GitHub's shortcodes for search
   copyFileSync(at('node_modules/emoji-picker-element-data/en/github/data.json'), at('dist/emoji.json'));
+  // the web app manifest (served at the hub root) and its icons. Its start_url and scope stay ./ and it has no id:
+  // changing either orphans installed Home Screen icons
+  for (const f of readdirSync(at('src/pwa'))) copyFileSync(at(`src/pwa/${f}`), at(`dist/${f}`));
   writeFileSync(at('dist/reviewroom.css'), clientCss((_pkg, file) => `./fonts/${file}`));
   // __RR_FONTS__ is resolved at runtime against the script's own URL (injectCSS in src/main.ts)
   const res = await clientBuild({
@@ -129,10 +145,11 @@ async function build() {
     outdir: at('dist'),
     splitting: true,
     sourcemap: 'linked',
+    metafile: true,
     naming: { entry: 'reviewroom.[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
   });
   writeFileSync(at('dist/hub.css'), hubCss());
-  const hub = await Bun.build({ entrypoints: [at('src/hub/index.ts')], format: 'esm', target: 'browser', minify: true, outdir: at('dist'), naming: 'hub.[ext]' });
+  const hub = await Bun.build({ entrypoints: [at('src/hub/index.ts')], format: 'esm', target: 'browser', minify: true, define: { __RR_BUILD__: JSON.stringify(BUILD_PLACEHOLDER) }, outdir: at('dist'), naming: 'hub.[ext]' });
   // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
   const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'bun', format: 'esm', outdir: at('dist/cli'), naming: '[name].js' });
   for (const r of [res, hub, cli]) {
@@ -141,7 +158,58 @@ async function build() {
     throw new Error('build failed');
   }
   chmodSync(at('dist/cli/reviewroom.js'), 0o755);
+  await buildWorker(staticImports(res.metafile!, './reviewroom.js'));
   console.log(`built dist/ in ${Math.round(performance.now() - t)}ms`);
+}
+
+/**
+ * The chunks `entry` loads before it runs (its static imports, transitively), as dist/-relative paths.
+ */
+function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, entry: string) {
+  const seen = new Set<string>();
+  const walk = (out: string) => {
+    for (const i of meta.outputs[out]?.imports ?? []) {
+      if (i.kind !== 'import-statement' || seen.has(i.path)) continue;
+      seen.add(i.path);
+      walk(i.path);
+    }
+  };
+  walk(entry);
+  return new Set([...seen].map((p) => p.replace(/^\.\//, '')));
+}
+
+/**
+ * The build id (a hash of the client's files), dist/build-info.json, and dist/sw.js with the id and precache list baked in.
+ * The worker precaches the app shell: entries, CSS, fonts and the chunks the entry imports statically. The lazy chunks
+ * (~900, mostly syntax grammars) and emoji.json (~0.4MB, only the emoji picker reads it) are cached at runtime.
+ */
+async function buildWorker(shellChunks: Set<string>) {
+  const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.map$/;
+  const files = readdirSync(at('dist'), { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => `${e.parentPath}/${e.name}`.slice(at('dist/').length))
+    .filter((f) => !skip.test(f))
+    .sort();
+  const h = crypto.createHash('sha256');
+  for (const f of files) h.update(f + '\0').update(readFileSync(at(`dist/${f}`)));
+  const id = h.digest('hex').slice(0, 12);
+  for (const f of files.filter((f) => f.endsWith('.js'))) {
+    const js = readFileSync(at(`dist/${f}`), 'utf8');
+    if (js.includes(BUILD_PLACEHOLDER)) writeFileSync(at(`dist/${f}`), js.replaceAll(BUILD_PLACEHOLDER, id));
+  }
+  writeFileSync(at('dist/build-info.json'), JSON.stringify({ id }) + '\n');
+  const sw = await Bun.build({
+    entrypoints: [at('src/sw.ts')],
+    target: 'browser',
+    minify: true,
+    define: { __RR_BUILD__: JSON.stringify(id), __RR_PRECACHE__: JSON.stringify(files.filter((f) => !f.startsWith('chunks/') || shellChunks.has(f)).map((f) => `/_rr/${f}`)) },
+    outdir: at('dist'),
+    naming: 'sw.js',
+  });
+  if (!sw.success) {
+    for (const log of sw.logs) console.error(log);
+    throw new Error('build failed');
+  }
 }
 
 if (import.meta.main) {

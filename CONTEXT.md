@@ -76,6 +76,21 @@ A thread between the reviewer and the agent, answered round by round.
 A thread on the PR in GitHub, visible to the whole team. The agent can read it but not reply.
 _Avoid_: GitHub comment
 
+### Serving
+
+**Hub**:
+The one page per machine that lists every running review (reviewroom, Crit, Plannotator), served by `reviewroom hub`.
+_Avoid_: dashboard, index
+
+**Hub proxy**:
+The hub forwarding `/r/<review id>/...` to that review's own server, so every review is reachable from one origin.
+_Avoid_: gateway, router
+
+**Public origin**:
+The one HTTPS URL the reviewer configures (`publicOrigin`) at which a front outside reviewroom makes the hub reachable
+from a phone, for example `https://mac.tailnet.ts.net`. See `docs/adr/0001-phone-origin.md`.
+_Avoid_: remote URL, tunnel URL
+
 ### Outside reviewroom
 
 **CI checks**:

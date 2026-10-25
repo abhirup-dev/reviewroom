@@ -95,8 +95,31 @@
 /* body: narration | code */
 .rr-tour__body {
   display: grid;
-  grid-template-columns: minmax(320px, 34%) minmax(0, 1fr);
+  /* --rr-tour-split: the narration's width, dragged (player.ts) */
+  grid-template-columns: var(--rr-tour-split, minmax(320px, 34%)) minmax(0, 1fr);
   min-height: 0;
+}
+/* the boundary's handle: a 48px strip over it, a line on hover and while dragged */
+.rr-tour__resize {
+  position: absolute;
+  inset: 0 auto 0 -24px;
+  z-index: 2;
+  width: 48px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.rr-tour__resize::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 23px;
+  width: 2px;
+  background: var(--rr-accent);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.rr-tour__resize:hover::after,
+.rr-tour__resize:active::after {
+  opacity: 1;
 }
 .rr-tour__body.is-solo {
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
@@ -117,9 +140,19 @@
   display: flex;
   flex-direction: column;
 }
-.rr-tour__lead.is-in,
-.rr-tour__step.is-in {
+/* a slide's text (player.ts keeps each one rendered): the new rises in as the old fades out over it, in place */
+.rr-tour__lead,
+.rr-tour__text {
+  position: relative;
+}
+.rr-tour__prose.is-in {
   animation: rr-tour-in 0.2s ease;
+}
+.rr-tour__prose.is-leaving {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+  animation: rr-tour-out 0.2s ease forwards;
 }
 @keyframes rr-tour-in {
   from {
@@ -127,15 +160,20 @@
     transform: translateY(4px);
   }
 }
-.rr-tour__pane {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+@keyframes rr-tour-out {
+  to {
+    opacity: 0;
+  }
 }
-.rr-tour__pane.is-out {
-  opacity: 0;
-  transform: translateX(10px);
+/* the slides rendered ahead, out of sight (in the page, so their diagrams draw) */
+.rr-tour__stash {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
 }
-.rr-tour__lead > :first-child,
-.rr-tour__text > :first-child {
+.rr-tour__prose > :first-child {
   margin-top: 0;
 }
 .rr-tour__divider-row {
@@ -254,12 +292,37 @@
   min-height: 0;
   background: var(--rr-surface-code);
 }
+/* dark: the code on the code panel's own near-black surfaces (as in the dock), not the overlay's grey the narration
+   and the phone's slide card sit on */
+:root[data-rr-theme='dark'] .rr-tour__right {
+  --rr-panel: var(--rr-surface-code);
+  --rr-panel-2: var(--rr-surface-well);
+}
 .rr-tour__pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rr-tour__layer {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: auto;
+}
+/* the chunks a slide change replaced (player.ts): over the new ones until they land, then fading away */
+.rr-tour__layer.is-leaving {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--rr-surface-code);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.rr-tour__layer.is-gone {
+  opacity: 0;
 }
 /* one chunk fills the pane; several stack, each tall enough to read, the pane scrolls */
 .rr-tour__chunk {
@@ -298,6 +361,14 @@ button.rr-tour__chunk-head:hover {
   border: 0;
   background: none;
   white-space: nowrap;
+  min-width: 0; /* a narrow pane: the name gives way, not the Diff/Before/After switch */
+}
+.rr-toolbar .rr-tour__chunk-head > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-toolbar .rr-tour__chunk-head + .rr-seg {
+  flex: none;
 }
 span.rr-tour__chunk-head {
   cursor: default;
@@ -324,6 +395,7 @@ span.rr-tour__chunk-head {
 }
 .rr-tour__seg {
   display: flex;
+  flex: var(--rr-steps, 1); /* as wide as its share of the slides (player.ts sets --rr-steps) */
   flex-direction: column;
   gap: 5px;
   min-width: 0;
@@ -433,7 +505,18 @@ span.rr-tour__chunk-head {
   background: var(--rr-accent);
 }
 
-@media (max-width: 900px) {
+/* a short screen (a phone on its side): the player takes all of it, still side by side */
+@media (max-height: 500px) {
+  .rr-tour__player {
+    inset: 0;
+    border-radius: 0;
+  }
+  .rr-tour__body {
+    grid-template-columns: var(--rr-tour-split, minmax(0, 1fr)) minmax(0, 1fr);
+  }
+}
+/* narrow (but not short): the narration over the code */
+@media (max-width: 900px) and (min-height: 501px) {
   .rr-tour__player {
     inset: 10px;
   }
@@ -445,18 +528,23 @@ span.rr-tour__chunk-head {
     border-right: 0;
     border-bottom: 1px solid var(--rr-line);
   }
+  .rr-tour__resize {
+    display: none;
+  }
   .rr-tour__pos {
     display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-tour__player,
-  .rr-tour__pane {
+  .rr-tour__layer.is-leaving {
     transition: none;
   }
-  .rr-tour__lead.is-in,
-  .rr-tour__step.is-in {
+  .rr-tour__prose.is-in {
     animation: none;
+  }
+  .rr-tour__prose.is-leaving {
+    display: none;
   }
   .rr-tour rr-node,
   .rr-tour__lead-toggle svg {

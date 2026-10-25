@@ -17,7 +17,7 @@ export class ServerState implements StateBackend {
   private readonly beforeUnload = (e: BeforeUnloadEvent) => {
     if (this.sync && unsent(this.sync.getSnapshot().context)) e.preventDefault();
   };
-  constructor(private api = '/api') {
+  constructor(private api = 'api') {
     addEventListener('beforeunload', this.beforeUnload);
   }
   private stopSync() {
@@ -79,6 +79,10 @@ export class ServerState implements StateBackend {
   }
   apply(op: Op) {
     this.sync!.send({ type: 'op', op });
+  }
+  pending() {
+    const c = this.sync?.getSnapshot().context;
+    return { unsent: !!c && unsent(c), started: c?.started ?? null };
   }
   async flush() {
     const sync = this.sync!;

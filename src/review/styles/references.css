@@ -23,6 +23,12 @@ rr-ref:hover,
 .rr-chip:hover {
   border-color: var(--rr-accent);
 }
+/* touch: a long press opens the preview card (review/overlays.ts), not the browser's link menu */
+@media (hover: none) {
+  :is(rr-ref, a[href^='rr:'], rr-node[ref]) {
+    -webkit-touch-callout: none;
+  }
+}
 rr-ref:is([data-kind='code'], [data-kind='file'], [data-kind='sym']) {
   font-family: var(--rr-mono);
 }

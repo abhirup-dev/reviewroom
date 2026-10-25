@@ -42,6 +42,27 @@ Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<b
 (the panels as you left them), and `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the
 **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 
+## Use reviewroom from a phone
+
+A phone reaches your reviews through the hub, which serves each one at `/r/<id>/`. reviewroom only binds
+`127.0.0.1`; something that ends in HTTPS sits in front of the hub, and the hub is told that public origin once.
+With Tailscale (HTTPS certificates on), one optional step, not part of `bun run setup`, does it all:
+
+```bash
+bun run setup-phone   # tailscale serve --bg --https=4847 → the hub; portless alias reviewroom 4847 (if installed);
+                      # saves https://<this mac>.<tailnet>.ts.net:4847 as the public origin; restarts the hub
+```
+
+The phone address is then fixed (the Mac's tailnet name and port 4847), and on this Mac the hub is also
+`https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub --public-origin <https origin>`, saved
+in `~/.reviewroom/config.json` (restart the hub to apply).
+
+Open the public URL on the phone: the hub lists your reviews, and each opens in a phone layout (bottom tabs,
+sheets, touch commenting). Install it from **More › Install app** or the palette (`Install app`); on iOS, Safari's
+**Share › Add to Home Screen**. It updates itself when you rebuild or upgrade reviewroom, waiting while a comment is
+unsent. Pick the origin for good: an installed app is tied to it. Anyone the front lets through can read and write
+every running review.
+
 ## Guided walkthroughs
 
 An agent can also write a guided walkthrough, `walkthrough.json`: chapters of slides the reviewer plays
@@ -115,11 +136,13 @@ src/
   main.ts             boot, public exports, window.rr, feature composition
   app.ts              ReviewApp compatibility facade and lifecycle
   services.ts         composition of narrow code, thread and GitHub services
-  kernel/             state/refs, DOM helpers, dock, layouts, providers, header
+  kernel/             state/refs, DOM helpers, dock and phone shell, layouts, presentation (device), Back history,
+                      sheets, providers, header
   review/             code/walkthrough/files/contents, elements, previews, navigation
   threads/            local/GitHub threads, composer, controls, CI and docking
   slides/             guided walkthrough model, player machines, view and audit
   hub/                standalone hub UI and model
+  pwa/                web app manifest and icons
   testing/            DOM fixtures and integration tests
   */styles/           CSS owned by each feature; build.ts preserves cascade order
   *.shared.ts         DOM-free contracts shared with the CLI (also within folders)

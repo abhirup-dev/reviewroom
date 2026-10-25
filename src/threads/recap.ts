@@ -7,21 +7,21 @@ import type { Thread } from '../kernel/state/model.shared';
 import { recapThreads } from '../kernel/state/ops.shared';
 import { anchorRef } from '../kernel/refs/refs.shared';
 import type { ReviewApp } from '../app';
-import { definePanel, floatInPlace, putBack, type PanelInstance } from '../kernel/dock';
+import { definePanel, ensurePanel, floatInPlace, putBack, type PanelInstance } from '../kernel/dock';
 import { renderPreview } from '../review/previews';
 import { anchorChip, messageList } from './view';
+import { recapAvailable } from './docking';
 
 /** A new round the agent has answered: float the panel over the dock, once per round in this tab. */
 export function recapOnNewRound(app: ReviewApp) {
   const key = `reviewroom:recap:${app.meta.id}`;
-  const { active, rest, stale } = recapThreads(app.state);
-  if (app.state.round < 2 || sessionStorage.getItem(key) === String(app.state.round) || !(active.length + rest.length + stale.length) || !app.state.threads.some((t) => app.services.threads.unreadAgent(t))) return;
+  if (!recapAvailable(app) || sessionStorage.getItem(key) === String(app.state.round) || !app.state.threads.some((t) => app.services.threads.unreadAgent(t))) return;
   sessionStorage.setItem(key, String(app.state.round));
-  app.layout.ensurePanel('recap');
-  app.dock.getPanel('narrative')?.api.setActive(); // the docked spot keeps showing the narrative
+  ensurePanel(app, 'recap');
+  app.dock?.getPanel('narrative')?.api.setActive(); // the docked spot keeps showing the narrative
   floatInPlace(app, 'recap');
   // a feed, not a tiled window: no tab bar (the panel's own head says what it is and docks it)
-  const group = app.dock.getPanel('recap')?.group;
+  const group = app.dock?.getPanel('recap')?.group; // none on a phone: there it's a page of Read
   if (group?.api.location.type !== 'floating') return;
   group.model.header.hidden = true;
   group.element.closest('.dv-resize-container')?.classList.add('rr-feed-window');

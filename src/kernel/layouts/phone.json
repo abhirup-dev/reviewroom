@@ -1,0 +1,35 @@
+{
+  "areas": [
+    {
+      "id": "read",
+      "title": "Read",
+      "icon": "book",
+      "pages": [
+        { "id": "narrative", "title": "Review" },
+        { "id": "description", "title": "Description" },
+        { "id": "recap", "title": "Last round" }
+      ]
+    },
+    { "id": "code", "title": "Code", "icon": "code", "pages": [{ "id": "code", "title": "Code" }] },
+    {
+      "id": "threads",
+      "title": "Threads",
+      "icon": "thread",
+      "pages": [
+        { "id": "threads", "title": "Open", "params": { "filter": "open" } },
+        { "id": "threads:resolved", "title": "Resolved", "params": { "filter": "resolved" } },
+        { "id": "thread:gh_conversation", "title": "PR conversation", "params": { "id": "gh_conversation" } }
+      ]
+    },
+    {
+      "id": "files",
+      "title": "Files",
+      "icon": "files",
+      "pages": [
+        { "id": "files", "title": "Files" },
+        { "id": "toc", "title": "Contents" },
+        { "id": "ci", "title": "CI" }
+      ]
+    }
+  ]
+}
