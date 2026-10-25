@@ -642,7 +642,7 @@
   margin: 0;
 }
 
-/* Contents (player.phone.ts, kernel/sheet.ts): a bottom sheet of the chapters, the current one open on its slides. Kept in the page, so it
+/* Contents (player.phone.ts, kernel/sheet.ts; the walkthrough's .rr-toc-sheet looks the same): a bottom sheet of the chapters, the current one open on its slides. Kept in the page, so it
    slides away on close as it rose (display and overlay stay until the transition ends) */
 .rr-modal.rr-sheet.rr-tour-toc {
   max-height: 75dvh;
@@ -686,13 +686,15 @@
   margin: 8px 24px 4px;
   font: 600 16px / 1.3 var(--rr-font);
 }
-.rr-tour-toc__list {
+.rr-tour-toc__list,
+.rr-toc-sheet .rr-toc {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 12px 16px;
 }
 .rr-tour-toc__head,
-.rr-tour-toc__slide {
+.rr-tour-toc__slide,
+.rr-toc-sheet .rr-toc-item {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -704,7 +706,8 @@
   text-align: left;
   cursor: pointer;
 }
-.rr-tour-toc__head {
+.rr-tour-toc__head,
+.rr-toc-sheet .rr-toc-item:not(.rr-toc-item--sub, .rr-toc-item--pin) {
   min-height: 56px;
   padding: 0 16px 0 12px;
   font: 500 14px / 1.3 var(--rr-font);
@@ -718,7 +721,8 @@
   color: var(--rr-muted);
   font-size: var(--rr-text-sm);
 }
-.rr-tour-toc__num {
+.rr-tour-toc__num,
+.rr-toc-sheet .rr-toc-item:not(.rr-toc-item--sub, .rr-toc-item--pin)::before {
   display: grid;
   place-items: center;
   flex: none;
@@ -729,12 +733,18 @@
   color: var(--rr-ink-2);
   font: 600 12px var(--rr-font);
 }
-.rr-tour-toc__head[aria-current] {
+.rr-toc-sheet .rr-toc-item:not(.rr-toc-item--sub, .rr-toc-item--pin)::before {
+  counter-increment: rr-toc;
+  content: counter(rr-toc);
+}
+.rr-tour-toc__head[aria-current],
+.rr-toc-sheet .rr-toc-item.is-active {
   background: var(--rr-accent-soft);
   font-weight: 600;
 }
 .rr-tour-toc__head[aria-current] .rr-tour-toc__num,
-.rr-tour-toc__slide[aria-current] .rr-tour-toc__num {
+.rr-tour-toc__slide[aria-current] .rr-tour-toc__num,
+.rr-toc-sheet .rr-toc-item.is-active::before {
   background: var(--rr-accent);
   color: var(--rr-accent-ink);
 }
@@ -743,7 +753,8 @@
   padding: 0 0 0 20px;
   list-style: none;
 }
-.rr-tour-toc__slide {
+.rr-tour-toc__slide,
+.rr-toc-sheet .rr-toc-item--sub {
   min-height: 48px;
   padding: 6px 16px 6px 8px;
   color: var(--rr-ink-2);

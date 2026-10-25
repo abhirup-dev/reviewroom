@@ -247,11 +247,17 @@ class RRMermaid extends HTMLElement {
     const diagram = h('div', { class: 'rr-mermaid__diagram', role: 'img', 'aria-label': 'Mermaid diagram', 'aria-busy': 'true' });
     const status = h('div', { class: 'rr-muted', role: 'status' }, 'Rendering diagram…');
     diagram.append(status);
-    this.replaceChildren(diagram, h('details', { class: 'rr-mermaid__source' }, h('summary', null, 'Diagram source'), h('pre', null, h('code', null, source))));
+    const sourceView = h('details', { class: 'rr-mermaid__source' }, h('summary', null, 'Diagram source'), h('pre', null, h('code', null, source)));
+    const max = this.hasAttribute('data-max');
+    // the walkthrough's diagrams (not the guided walkthrough's) open full screen, for one too big to read in the column
+    const expand = !max && this.closest('rr-review') && h('button', { class: 'rr-icon-btn rr-mermaid__expand', title: 'Expand diagram', 'aria-label': 'Expand diagram', onclick: () => maximizeDiagram(this, source) }, icon('maximize', 16));
+    this.replaceChildren(diagram, expand ? h('div', { class: 'rr-mermaid__foot' }, sourceView, expand) : sourceView);
     void import('./markdown/diagram').then(async ({ mountDiagram }) => {
       if (generation !== this.generation || !this.isConnected) return;
       // every render, redraws for a new width too (they replace the nodes): the guided walkthrough relights them
-      const mounted = await mountDiagram(diagram, source, () => this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })));
+      // on a phone the walkthrough's diagrams keep their layout, fit to the width, and zoom: a phone-wide layout wraps every label
+      const natural = max || !!this.closest('.is-phone rr-review');
+      const mounted = await mountDiagram(diagram, source, () => this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })), natural, max);
       if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
       this.mounted = mounted;
       diagram.setAttribute('aria-busy', 'false');
@@ -275,6 +281,22 @@ class RRMermaid extends HTMLElement {
       this.mounted = undefined;
     });
   }
+}
+
+/** The diagram alone in a full-screen dialog, at its own layout, zoomable. Escape, Close or (phone) Back closes it; so does
+ *  following one of its rr: links, which then opens the code. */
+function maximizeDiagram(from: HTMLElement, source: string) {
+  const copy = h('rr-mermaid', { class: from.className, 'data-max': '', 'data-src': source });
+  const box = h(
+    'dialog',
+    { class: 'rr-modal rr-mermaid-max', 'aria-label': 'Diagram', onclose: () => box.remove() },
+    h('header', { class: 'rr-thread__head' }, h('strong', null, 'Diagram'), h('span', { class: 'rr-toolbar__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Close', title: 'Close', onclick: () => box.close() }, icon('close', 16))),
+    h('div', { class: 'rr-mermaid-max__body' }, copy),
+  );
+  box.addEventListener('click', (e) => e.target instanceof Element && e.target.closest('a[href^="rr:"]') && box.close(), true);
+  document.body.append(box);
+  box.showModal();
+  box.focus(); // the dialog, not its Close button: no ring on open
 }
 
 // ------------------------------------------------------------------ rr-markdown (author convenience)

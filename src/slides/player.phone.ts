@@ -391,9 +391,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   // full screen while it plays (Fullscreen API): no status or navigation bar, and the code under a cutout too. It
   // needs a tap, so the opening tap and every later one ask; once the reviewer leaves it (Back), only a reopen asks
   let declined = false;
-  const installedFullscreen = matchMedia('(display-mode: fullscreen)').matches; // the installed app already is (manifest): asking again only shows Chrome's notice
   const fullscreen = () => {
-    if (declined || installedFullscreen || !document.fullscreenEnabled || document.fullscreenElement || !actor.getSnapshot().matches({ open: 'playing' })) return;
+    if (declined || !document.fullscreenEnabled || document.fullscreenElement || !actor.getSnapshot().matches({ open: 'playing' })) return;
     document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); // no tap to go on: the next one asks
   };
   player.addEventListener('pointerup', fullscreen, true);

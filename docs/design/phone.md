@@ -85,9 +85,12 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   slide, 3px apart within a chapter and 10px between chapters, so the chapters read; a tap anywhere on it (a taller
   target than it looks) opens Contents. Immersive, a new chapter lifts the rail into a band of the card's raised
   surface ("CHAPTER 2" in accent, then its title) for 2.5 s, the card stepping up out of its way (upright only): swipes, slide changes, card drags,
-  scrolling and taps keep it immersive. The installed app is full screen (manifest `display: fullscreen`: no
-  status or navigation bar, content under a cutout too, no exit notice). In a browser tab the guided review asks for it
-  (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
+  scrolling and taps keep it immersive. Only the guided review is full screen: the installed app is
+  `display: standalone` (status bar kept, nothing under a cutout; no manifest `theme_color`, which Chrome paints the
+  navigation bar with in one colour for both themes: without it the phone's own light or dark bar shows, and the
+  `theme-color` metas still colour the status bar; `background_color`, the launch splash, is the dark background,
+  since Chrome may paint the navigation bar with it too), and the guided review asks for full screen
+  (the Fullscreen API) on the opening tap and any later one, in the app and in a browser tab; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
   immersive at once. The coach (coachMachine), on going immersive (once a page load for each orientation) and on every Full screen tap: a one-line
   note at the top (15px; "Full screen · swipe the slide below to move", "on the left" on its side) while the rest of
   the screen dims around a spotlight on the card and an accent touch dot, ringed in white, traces its swipes from the

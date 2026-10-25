@@ -190,7 +190,7 @@
 }
 .rr-loading,
 .rr-fatal {
-  height: 100vh;
+  height: 100dvh;
   display: grid;
   place-content: center;
   gap: 12px;

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { PullRequest } from '@octokit/graphql-schema';
-import { ciOf, normalize, prTarget, toGitHubMarkdown } from './github.ts';
+import { branchPr, ciOf, normalize, prTarget, toGitHubMarkdown } from './github.ts';
 
 const author = (login: string) => ({ login, avatarUrl: `https://avatars.example/${login}` });
 const comment = (databaseId: number, login: string, body: string, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
@@ -71,4 +71,10 @@ test('CI: each commit is running, failed, passed or unchecked, newest first', ()
   const ci = ciOf([commit('a', run('lint', 'COMPLETED', 'SUCCESS'), st('jenkins', 'SUCCESS')), commit('b', run('lint', 'COMPLETED', 'FAILURE'), run('skip', 'COMPLETED', 'SKIPPED')), commit('c', run('lint', 'COMPLETED', 'FAILURE'), st('jenkins', 'PENDING')), commit('d')]);
   expect(ci.map((c) => [c.sha, c.state])).toEqual([['d', 'none'], ['c', 'pending'], ['b', 'failure'], ['a', 'success']]);
   expect(ci[3].checks).toEqual([{ name: 'CI / lint', state: 'success', url: 'd' }, { name: 'jenkins', state: 'success', url: null }]);
+});
+
+test('branchPr: no lookup for a review that already has a PR, a fetched PR ref or a commit', () => {
+  expect(branchPr('.', { url: 'https://github.com/o/r/pull/3', head: 'feature' })).toBe(null);
+  expect(branchPr('.', { head: 'refs/reviewroom/pr-12' })).toBe(null);
+  expect(branchPr('.', { head: '57027b80' })).toBe(null);
 });

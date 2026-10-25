@@ -14,7 +14,8 @@ import { plainExcerpt } from '../kernel/markdown';
 import type { Thread } from '../kernel/state/model.shared';
 
 type DocThread = Thread & { anchor: Extract<Anchor, { kind: 'doc' }> };
-import { definePanel, type PanelInstance } from '../kernel/dock';
+import { definePanel, panelDef, type PanelInstance } from '../kernel/dock';
+import { openSheet, sheetDialog } from '../kernel/sheet';
 import type { ReviewApp } from '../app';
 
 const BLOCKS =
@@ -113,6 +114,9 @@ class WalkthroughPanel implements PanelInstance {
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail, this.outline, this.handle);
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     this.element = h('div', { class: 'rr-narrative' }, this.scroller);
+    // a phone: the Contents panel (the desktop's, whole) a tap away, as a sheet over the walkthrough
+    if (!isDesc && app.presentation.kind === 'phone')
+      this.element.append(h('button', { class: 'rr-toc-fab', title: 'Contents', 'aria-label': 'Contents', 'aria-haspopup': 'dialog', onclick: () => this.contentsSheet() }, icon('toc', 22)));
 
     // touch has no hover: a tap shows the block's handle instead (onClick), and lifting the finger doesn't hide it
     this.wrap.addEventListener('pointerdown', (e) => (this.touched = e.pointerType === 'touch'), true);
@@ -485,6 +489,17 @@ class WalkthroughPanel implements PanelInstance {
   onShow() {
     this.layoutRail();
   }
+  /** Contents as a bottom sheet; following an entry closes it (the entry then scrolls the walkthrough to its place). */
+  private contentsSheet() {
+    const toc = panelDef('toc')?.create(this.app, {}, 'toc');
+    if (!toc) return;
+    const sheet = sheetDialog({ class: 'rr-tour-toc rr-toc-sheet', 'aria-label': 'Contents', tabindex: '-1' });
+    const off = this.app.bus.on('reveal-doc', () => sheet.close());
+    sheet.addEventListener('close', () => (off(), toc.dispose?.(), sheet.remove()), { once: true });
+    openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), toc.element);
+    sheet.focus(); // the sheet, not its first entry: no ring on open
+  }
+
   dispose() {
     this.offs.forEach((f) => f());
     this.ro.disconnect();

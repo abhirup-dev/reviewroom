@@ -9,6 +9,87 @@
   border-radius: var(--rr-shape-xs);
 }
 
+/* ---------------------------------------------------------------- tables: wide ones scroll sideways (content.css) rather
+   squeezing every column to a word */
+.is-phone .rr-prose :where(th, td) {
+  min-width: 7em;
+}
+
+/* ---------------------------------------------------------------- walkthrough: 90% wide and centred; a thread is its
+   marker in a bubble floating over the text's right edge, not a column of its own */
+.is-phone .rr-doc-wrap,
+.is-phone .rr-doc-wrap.has-threads {
+  grid-template-columns: 5% minmax(0, 1fr) 5%;
+}
+.is-phone .rr-rail {
+  width: 0;
+}
+.is-phone .rr-rail-chip {
+  left: auto;
+  right: 10px; /* room for the count on the bubble's corner */
+  width: auto;
+  padding: 0;
+  gap: 0;
+}
+.is-phone .rr-rail-chip::before,
+.is-phone .rr-rail-chip > :not(.rr-tbadge) {
+  display: none;
+}
+/* the marker in a small bubble, its count on the corner as everywhere else */
+.is-phone .rr-rail-chip .rr-tbadge {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-overlay);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--rr-ink) 25%, transparent);
+}
+.is-phone .rr-rail-chip .rr-tbadge__n {
+  top: -6px;
+  right: -6px;
+}
+/* Contents: a button at the bottom right, its sheet the Contents panel */
+.is-phone .rr-narrative {
+  position: relative;
+}
+.rr-toc-fab {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: var(--rr-shape-l);
+  background: var(--rr-surface-overlay);
+  color: var(--rr-ink);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--rr-ink) 22%, transparent);
+}
+.rr-toc-sheet > .rr-side {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* the rest as the guided walkthrough's Contents (slides.phone.css): sections are its chapters, numbered per group;
+   sub-sections its slides, unnumbered and aligned with their text */
+.rr-toc-sheet .rr-toc {
+  flex: 1;
+  min-height: 0;
+  counter-reset: rr-toc;
+}
+.rr-toc-sheet .rr-group-label {
+  padding: 16px 16px 4px;
+  counter-reset: rr-toc;
+}
+.rr-toc-sheet .rr-toc .rr-toc-item--sub {
+  width: calc(100% - 20px);
+  margin-left: 20px;
+  padding-left: 44px;
+  border-left: 0;
+}
 /* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
 .is-phone .rr-code-scroll {
   background: var(--rr-surface-well);
