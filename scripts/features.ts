@@ -55,8 +55,10 @@ function visit(file: string, path: string[]) {
 }
 for (const file of files) visit(file, []);
 
-// The top level of src/ is composition only (AGENTS.md, Layout): UI lives in a feature folder.
-for (const file of files) if (!file.slice(4).includes('/') && !['src/main.ts', 'src/app.ts', 'src/services.ts'].includes(file)) errors.push(`${file}: only main.ts, app.ts and services.ts sit at the top of src/; move it into a feature folder`);
+// The top level of src/ is composition and entry points only (AGENTS.md, Layout): UI lives in a feature folder.
+// sw.ts: the service worker's entry, built on its own (the PWA).
+const topLevel = ['src/main.ts', 'src/app.ts', 'src/services.ts', 'src/sw.ts'];
+for (const file of files) if (!file.slice(4).includes('/') && !topLevel.includes(file)) errors.push(`${file}: only main.ts, app.ts, services.ts and sw.ts sit at the top of src/; move it into a feature folder`);
 
 // ReviewApp keeps no pass-through methods: callers use app.services.<x> directly (rr-nim.1, rr-2a3.1).
 for (const name of serviceForwarders('src/app.ts', readFileSync(resolve(root, 'src/app.ts'), 'utf8'), 'ReviewApp'))

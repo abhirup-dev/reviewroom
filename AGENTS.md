@@ -7,8 +7,8 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 - `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, state, GitHub (Octokit, as the `gh` user).
 - `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
-  `main.ts`, `app.ts` and `services.ts` compose the app and are the only modules at the top level of `src/` (with
-  their tests and `env.d.ts`): wiring, no UI. A control or menu lives in the feature it drives, even one wired into
+  `main.ts`, `app.ts` and `services.ts` compose the app and are, with an entry point like the service worker's `sw.ts`,
+  the only modules at the top level of `src/` (with their tests and `env.d.ts`): wiring, no UI. A control or menu lives in the feature it drives, even one wired into
   the header. `kernel/` owns infrastructure; `review/`, `threads/`, `slides/` and `hub/` own features, including their
   CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
