@@ -11,7 +11,7 @@ const reviewsOf = (repo: string) => path.join(reviewsDir(), remoteName(repo).rep
 /** A branch's review dir. shortcut: two forks' PRs from the same branch name share it; add a suffix if that bites. */
 export const branchDir = (repo: string, branch: string) => path.join(reviewsOf(repo), branch.replace(/[^\w.-]+/g, '-'));
 
-/** A stack's review dir: one review per stack (docs/adr/0001-one-review-per-stack.md), named by the stack's id. */
+/** A stack's review dir: one review per stack (docs/adr/0002-one-review-per-stack.md), named by the stack's id. */
 export const stackDir = (repo: string, id: number) => path.join(reviewsOf(repo), `stack-${id}`);
 /** The repo's review of a stack with a PR that `is` (by its config.json), if there is one. */
 export function stackReview(repo: string, is: (p: StackConfig['prs'][number]) => boolean): string | undefined {

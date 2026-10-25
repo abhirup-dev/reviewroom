@@ -23,7 +23,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 ## Where reviews live
 
 By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` (`stack-<id>/` for a stack of PRs, see
-`docs/adr/0001-one-review-per-stack.md`), never inside the reviewed repo.
+`docs/adr/0002-one-review-per-stack.md`), never inside the reviewed repo.
 
 ## Contracts (change deliberately, update the skill when you do)
 
