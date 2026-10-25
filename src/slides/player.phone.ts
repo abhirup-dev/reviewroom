@@ -253,12 +253,22 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const note = h('div', { class: 'rr-tour__note', role: 'status' });
   const dot = h('div', { class: 'rr-tour__trace', 'aria-hidden': 'true' });
   const cue = h('div', { class: 'rr-tour__cue', 'aria-hidden': 'true' });
-  player.append(note, dot, cue);
+  // the spotlight: a hole over what the coach is about (the card, then Show controls), its huge shadow dimming the rest
+  const spot = h('div', { class: 'rr-tour__spot', 'aria-hidden': 'true' });
+  player.append(spot, note, dot, cue);
+  const light = (el: Element, round: string, grow = 0) => {
+    const r = el.getBoundingClientRect();
+    spot.style.cssText = `left:${r.left - grow}px;top:${r.top - grow}px;width:${r.width + 2 * grow}px;height:${r.height + 2 * grow}px;border-radius:${round}`;
+    spot.classList.add('is-on');
+  };
   let timers: number[] = [];
+  let coaching = 0;
   const uncoach = () => {
+    coaching++;
     timers.forEach(clearTimeout);
     timers = [];
     note.classList.remove('is-on', 'is-ask');
+    spot.classList.remove('is-on');
     restore.classList.remove('is-hinting');
     [dot, cue].forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
   };
@@ -268,43 +278,55 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     const at = (ms: number, f: () => void) => timers.push(window.setTimeout(f, ms));
     const say = (...text: (string | Node)[]) => (note.replaceChildren(...text), note.classList.add('is-on'));
     say(`Full screen · swipe the slide ${land.matches ? 'on the left' : 'below'} to move`);
-    // drag left for the next slide, right for the one before (gestureMachine); upright, up for more and down for less
-    const strokes: [string, number, number, number, number][] = land.matches
-      ? [['← Next', 30, 0, -30, 0], ['→ Back', -30, 0, 30, 0]]
-      : [['↑ More', 0, 20, 0, -30], ['↓ Less', 0, -20, 0, 30], ['← Next', 40, 0, -40, 0], ['→ Back', -40, 0, 40, 0]];
-    const STROKE = 900, LEAD = 400, n = strokes.length;
-    // measured once full screen has resized the page
-    at(LEAD, () => {
+    const run = ++coaching;
+    // step 2, once the swipes are shown: the spotlight moves to Show controls (out, then in), which glows; then the ask
+    const step2 = () => {
+      note.classList.remove('is-on');
+      spot.classList.remove('is-on');
+      at(300, () => (say('Tap ', icon('dots', 18), ' to show the controls'), light(restore, '50%', 14), restore.classList.add('is-hinting')));
+      at(6000, () => (note.classList.remove('is-on'), spot.classList.remove('is-on'), restore.classList.remove('is-hinting')));
+      at(6300, () => {
+        say(
+          h('span', null, 'Show this again next time?'),
+          h('button', { class: 'rr-link-btn', onclick: () => (localStorage.setItem(skipKey(), '1'), uncoach()) }, 'Skip next time'),
+          h('button', { class: 'rr-link-btn', onclick: coach }, 'Repeat'),
+        );
+        note.classList.add('is-ask');
+      });
+      at(12300, uncoach); // unanswered: it plays again next time
+    };
+    // measured at each stroke: going immersive moves the card, and full screen resizes the page
+    const STROKE = 1100, labels = land.matches ? ['← Next', '→ Back'] : ['↑ More', '↓ Less', '← Next', '→ Back'];
+    const measure = (i: number) => {
       const r = left.getBoundingClientRect();
-      const [x, y] = [r.left + r.width / 2, r.top + r.height / 2];
-      dot.style.cssText = `left:${x}px;top:${y}px`;
-      cue.style.cssText = `left:${x}px;top:${y + 44}px`;
-      if (!matchMedia('(prefers-reduced-motion: no-preference)').matches) return;
-      const seg = (i: number, from: Keyframe, to: Keyframe): Keyframe[] => [
-        { ...from, offset: i / n, opacity: 0 },
-        { ...from, offset: (i + 0.15) / n, opacity: 1, easing: 'ease-in-out' },
-        { ...to, offset: (i + 0.8) / n, opacity: 1 },
-        { ...to, offset: (i + 0.95) / n, opacity: 0 },
+      light(left, getComputedStyle(left).borderRadius);
+      const [cx, cy, pad] = [r.left + r.width / 2, r.top + r.height / 2, 28];
+      cue.style.cssText = `left:${cx}px;top:${land.matches ? cy - 64 : r.top - 34}px`;
+      // edge to edge across the card: drag left for the next slide, right for the one before (gestureMachine);
+      // upright, up for more and down for less
+      const [top, bottom, lft, rgt] = [r.top + pad, r.bottom - pad, r.left + pad, r.right - pad];
+      return ({ '↑ More': [cx, bottom, cx, top], '↓ Less': [cx, top, cx, bottom], '← Next': [rgt, cy, lft, cy], '→ Back': [lft, cy, rgt, cy] } as Record<string, number[]>)[labels[i]];
+    };
+    at(600, async () => {
+      measure(0);
+      if (!matchMedia('(prefers-reduced-motion: no-preference)').matches) return at(3500, step2);
+      const frames = (from: Keyframe, to: Keyframe): Keyframe[] => [
+        { ...from, opacity: 0, scale: 1.3 },
+        { ...from, offset: 0.15, opacity: 1, scale: 1, easing: 'ease-in-out' },
+        { ...to, offset: 0.8, opacity: 1, scale: 1 },
+        { ...to, offset: 0.95, opacity: 0, scale: 1 },
+        { ...to, opacity: 0, scale: 1 },
       ];
-      const go = { duration: n * STROKE, fill: 'both' } as const;
-      dot.animate([...strokes.flatMap(([, x1, y1, x2, y2], i) => seg(i, { translate: `${x1}px ${y1}px` }, { translate: `${x2}px ${y2}px` })), { offset: 1, opacity: 0 }], go);
-      cue.animate([...strokes.flatMap((_s, i) => seg(i, {}, {})), { offset: 1, opacity: 0 }], go);
-      strokes.forEach(([label], i) => at(i * STROKE, () => (cue.textContent = label)));
+      // one stroke after another, each its caption's: the animation clock, not timers, keeps them together
+      for (const [i, label] of labels.entries()) {
+        const [x1, y1, x2, y2] = measure(i);
+        cue.textContent = label;
+        cue.animate(frames({}, {}), STROKE);
+        await dot.animate(frames({ translate: `${x1}px ${y1}px` }, { translate: `${x2}px ${y2}px` }), STROKE).finished.catch(() => {});
+        if (run !== coaching) return; // ended or restarted meanwhile
+      }
+      step2();
     });
-    const step2 = LEAD + n * STROKE + 600;
-    at(step2 - 300, () => note.classList.remove('is-on'));
-    at(step2, () => (say('Tap ', icon('dots', 14), ' to show the controls'), restore.classList.add('is-hinting')));
-    const ask = step2 + 3800;
-    at(ask - 300, () => (note.classList.remove('is-on'), restore.classList.remove('is-hinting')));
-    at(ask, () => {
-      say(
-        h('span', null, 'Show this again next time?'),
-        h('button', { class: 'rr-link-btn', onclick: () => (localStorage.setItem(skipKey(), '1'), uncoach()) }, 'Skip next time'),
-        h('button', { class: 'rr-link-btn', onclick: coach }, 'Repeat'),
-      );
-      note.classList.add('is-ask');
-    });
-    at(ask + 6000, uncoach); // unanswered: it plays again next time
   };
   let wasImmersive = false;
   chrome.subscribe(() => {

@@ -380,23 +380,36 @@
   width: 20px;
   height: 20px;
 }
-/* the coach (player.phone.ts), on going immersive: a one-line note at the top, a touch dot tracing the card's swipes
-   with a one-word cue under it, then Show controls ringed in accent while the note points at it */
+/* the coach (player.phone.ts), on going immersive: a note at the top, the rest of the screen dimmed around a spotlight
+   on the card while a touch dot traces its swipes edge to edge with a cue over it, then the spotlight on Show controls,
+   ringed and glowing in accent, while the note points at it */
+[data-form='phone'] .rr-tour__spot {
+  position: fixed;
+  z-index: 3;
+  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.62);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--rr-m-default-ms);
+}
+[data-form='phone'] .rr-tour__spot.is-on {
+  opacity: 1;
+}
 [data-form='phone'] .rr-tour__note {
   position: fixed;
-  top: calc(12px + env(safe-area-inset-top));
+  top: calc(16px + env(safe-area-inset-top));
   left: 50%;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 4px;
-  max-width: calc(100% - 32px);
-  padding: 8px 14px;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 12px 20px;
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay-2);
-  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow);
+  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow-lg);
   color: var(--rr-ink);
-  font-size: var(--rr-text-sm);
+  font-size: 15px;
+  font-weight: 500;
   white-space: nowrap;
   opacity: 0;
   translate: -50% -6px;
@@ -407,18 +420,9 @@
   opacity: 1;
   translate: -50% 0;
 }
-/* the last step asks: its two buttons take taps */
-[data-form='phone'] .rr-tour__note.is-ask {
-  gap: 12px;
-  pointer-events: auto;
-}
-[data-form='phone'] .rr-tour__note .rr-link-btn {
-  min-height: 32px;
-  font-weight: 600;
-}
 [data-form='phone'] .rr-tour__note .rr-icon {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
 }
 [data-form='phone'] .rr-tour__trace,
 [data-form='phone'] .rr-tour__cue {
@@ -428,33 +432,48 @@
   pointer-events: none;
 }
 [data-form='phone'] .rr-tour__trace {
-  width: 28px;
-  height: 28px;
-  margin: -14px;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 40px;
+  margin: -20px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--rr-ink) 22%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rr-ink) 35%, transparent);
+  background: color-mix(in srgb, var(--rr-accent) 60%, transparent); /* reads on light and dark alike */
+  box-shadow: 0 0 0 2px #fff, 0 0 0 10px color-mix(in srgb, var(--rr-accent) 20%, transparent), 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 [data-form='phone'] .rr-tour__cue {
   translate: -50% 0;
-  color: var(--rr-ink-2);
-  font-size: var(--rr-text-xs);
+  padding: 4px 12px;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-ink); /* inverse: reads over light and dark */
+  color: var(--rr-surface-doc);
+  font-size: var(--rr-text-sm);
+  font-weight: 700;
   white-space: nowrap;
 }
 [data-form='phone'] .rr-tour__restore.is-hinting {
   border-color: var(--rr-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rr-accent) 25%, transparent), var(--rr-shadow);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rr-accent) 35%, transparent), 0 0 24px color-mix(in srgb, var(--rr-accent) 55%, transparent);
   color: var(--rr-accent);
 }
 @media (prefers-reduced-motion: no-preference) {
   [data-form='phone'] .rr-tour__restore.is-hinting {
-    animation: rr-tour-beckon 1.2s ease-in-out 3;
+    animation: rr-tour-beckon 1.2s ease-in-out infinite;
   }
 }
 @keyframes rr-tour-beckon {
   50% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--rr-accent) 15%, transparent), 0 0 16px color-mix(in srgb, var(--rr-accent) 35%, transparent), var(--rr-shadow);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--rr-accent) 22%, transparent), 0 0 32px color-mix(in srgb, var(--rr-accent) 70%, transparent);
   }
+}
+/* the last step asks: its two buttons take taps */
+[data-form='phone'] .rr-tour__note.is-ask {
+  gap: 12px;
+  pointer-events: auto;
+}
+[data-form='phone'] .rr-tour__note .rr-link-btn {
+  min-height: 32px;
+  font-weight: 600;
 }
 /* the toolbar's buttons: plain icons on the pill, no fills of their own; Back and Next bright ink (disabled at either
    end, muted), Contents quieter, Comment marked by its orange stroke. Pressed or hovered, a round state layer */

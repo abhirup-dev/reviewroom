@@ -84,10 +84,11 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   status or navigation bar, content under a cutout too, no exit notice). In a browser tab the guided review asks for it
   (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
   immersive at once. The coach, on going immersive (once a page load for each orientation) and on every Full screen tap: a one-line
-  note at the top ("Full screen · swipe the slide below to move", "on the left" on its side) while a soft touch dot
-  traces the card's swipes with a one-word cue (up More, down Less, left Next, right Back; on its side only the
-  sideways two), then a second note, "Tap ⋯ to show the controls", while Show controls rings and glows in accent. About
-  8 s in all, then "Show this again next time?" with Skip next time and Repeat (replays now). Skip is kept per
+  note at the top (15px; "Full screen · swipe the slide below to move", "on the left" on its side) while the rest of
+  the screen dims around a spotlight on the card and an accent touch dot, ringed in white, traces its swipes edge to
+  edge with an inverse one-word cue (up More, down Less, left Next, right Back; on its side only the sideways two),
+  each stroke on the animation clock; then the spotlight moves to Show controls, which rings and glows in accent, under
+  "Tap ⋯ to show the controls" for 6 s, then "Show this again next time?" with Skip next time and Repeat (replays now). Skip is kept per
   orientation (local storage), so a turned phone still gets its own once; unanswered, it plays again next time. Leaving
   immersive ends it. Reduced motion: the notes and a still ring, no dot. Reduced
   motion: they fade, nothing moves. The card is a bottom sheet with three detents, kept across slides: collapsed (grip
