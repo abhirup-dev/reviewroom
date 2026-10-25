@@ -140,9 +140,19 @@
   display: flex;
   flex-direction: column;
 }
-.rr-tour__lead.is-in,
-.rr-tour__step.is-in {
+/* a slide's text (player.ts keeps each one rendered): the new rises in as the old fades out over it, in place */
+.rr-tour__lead,
+.rr-tour__text {
+  position: relative;
+}
+.rr-tour__prose.is-in {
   animation: rr-tour-in 0.2s ease;
+}
+.rr-tour__prose.is-leaving {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+  animation: rr-tour-out 0.2s ease forwards;
 }
 @keyframes rr-tour-in {
   from {
@@ -150,15 +160,20 @@
     transform: translateY(4px);
   }
 }
-.rr-tour__pane {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+@keyframes rr-tour-out {
+  to {
+    opacity: 0;
+  }
 }
-.rr-tour__pane.is-out {
-  opacity: 0;
-  transform: translateX(10px);
+/* the slides rendered ahead, out of sight (in the page, so their diagrams draw) */
+.rr-tour__stash {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
 }
-.rr-tour__lead > :first-child,
-.rr-tour__text > :first-child {
+.rr-tour__prose > :first-child {
   margin-top: 0;
 }
 .rr-tour__divider-row {
@@ -284,11 +299,30 @@
   --rr-panel-2: var(--rr-surface-well);
 }
 .rr-tour__pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rr-tour__layer {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: auto;
+}
+/* the chunks a slide change replaced (player.ts): over the new ones until they land, then fading away */
+.rr-tour__layer.is-leaving {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--rr-surface-code);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.rr-tour__layer.is-gone {
+  opacity: 0;
 }
 /* one chunk fills the pane; several stack, each tall enough to read, the pane scrolls */
 .rr-tour__chunk {
@@ -502,12 +536,14 @@ span.rr-tour__chunk-head {
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-tour__player,
-  .rr-tour__pane {
+  .rr-tour__layer.is-leaving {
     transition: none;
   }
-  .rr-tour__lead.is-in,
-  .rr-tour__step.is-in {
+  .rr-tour__prose.is-in {
     animation: none;
+  }
+  .rr-tour__prose.is-leaving {
+    display: none;
   }
   .rr-tour rr-node,
   .rr-tour__lead-toggle svg {

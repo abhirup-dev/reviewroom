@@ -4,10 +4,11 @@
 //   walkthroughMachine   closed ──open──▶ open { playing ⇄ paused } ──close──▶ closed
 //                        while open it runs a paneMachine child and tells it what the current step shows
 //   paneMachine          idle ─show─▶ resolving ─▶ gliding (same files: move the highlights) ─▶ landing ─▶ showing
-//                                              └─▶ leaving (fade out) ─▶ entering (mount) ──────────┘
-//                        landing fades in, whichever way it was reached, and waits until every code chunk's
-//                        panel says its lines are on screen (`landed`, src/review/reveal.machine.ts), or gives up (`late`)
-//                        a new `show` in any state starts over; the stale lookup or fade is cancelled with its state
+//                                              └─▶ entering (mount) ────────────────────────────┘
+//                        landing waits until every code chunk's panel says its lines are on screen (`landed`,
+//                        src/review/reveal.machine.ts), or gives up (`late`); showing settles (the view drops what the
+//                        new chunks replaced, kept over them until then)
+//                        a new `show` in any state starts over; the stale lookup is cancelled with its state
 import { assign, fromPromise, sendTo, setup } from 'xstate';
 import { target, type PaneWant, type Walkthrough, type WalkthroughPosition } from './model.shared';
 
@@ -41,22 +42,20 @@ export const paneMachine = setup({
     resolve: fromPromise<PaneShown, PaneWant>(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: input.refs.map((ref) => ({ ref, code: null })) } : input)),
   },
   actions: {
-    /** start hiding what is on screen */
-    fadeOut: () => {},
-    /** show what is on screen (whichever way it got there: a fade can be cut short by a glide) */
-    fadeIn: () => {},
-    /** replace what is on screen (disposing its views) with `context.next` and fade in */
+    /** put `context.next` on screen in new views (what they replace stays until `settle`) */
     mount: () => {},
     /** move the highlights of the views on screen to `context.next` */
     glide: () => {},
     /** dispose the views on screen */
     unmount: () => {},
+    /** what is on screen has landed (or landing gave up): drop what it replaced */
+    settle: () => {},
     want: assign({ want: ({ event }) => (event.type === 'show' ? event.want : null) }),
     /** what is in `next` is now on screen; its chunks are to land */
     shown: assign(({ context }) => ({ shown: context.next, pending: toLand(context.next), late: false })),
   },
   guards: { sameLayout: ({ context }) => sameLayout(context.shown, context.next), wanted: ({ context }) => context.want !== null, landed: ({ context }) => context.pending <= 0 },
-  delays: { fade: 150, land: 4000 },
+  delays: { land: 4000 },
 }).createMachine({
   id: 'pane',
   context: ({ input }) => ({ want: input ?? null, next: null, shown: null, pending: 0, late: false }),
@@ -71,26 +70,24 @@ export const paneMachine = setup({
         src: 'resolve',
         input: ({ context }) => context.want!,
         onDone: { target: 'deciding', actions: assign({ next: ({ event }) => event.output }) },
-        onError: { target: 'leaving', actions: assign({ next: { kind: 'empty' } }) },
+        onError: { target: 'entering', actions: assign({ next: { kind: 'empty' } }) },
       },
     },
-    deciding: { always: [{ guard: 'sameLayout', target: 'gliding' }, { target: 'leaving' }] },
+    deciding: { always: [{ guard: 'sameLayout', target: 'gliding' }, { target: 'entering' }] },
     gliding: {
       entry: ['glide', 'shown'],
       always: 'landing',
     },
-    leaving: { entry: 'fadeOut', after: { fade: 'entering' }, on: show },
     entering: {
       entry: ['mount', 'shown'],
       always: 'landing',
     },
     landing: {
-      entry: 'fadeIn',
       always: { guard: 'landed', target: 'showing' },
       after: { land: { target: 'showing', actions: assign({ late: true }) } },
       on: { ...show, landed: { actions: assign({ pending: ({ context }) => context.pending - 1 }) } },
     },
-    showing: { on: show },
+    showing: { entry: 'settle', on: show },
   },
 });
 

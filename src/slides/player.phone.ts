@@ -179,19 +179,21 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
           const { index, code } = landing;
           active = index;
           paintFiles();
-          const panel = pane.children[index]?.getAttribute('data-panel');
+          const panel = chunks()[index]?.getAttribute('data-panel');
           if (code && panel) app.bus.emit('reveal-code', { ...code, panel });
         },
         focus: ({ context: { landing } }) => landing && 'focus' in landing && actor.send({ type: 'focus', refs: [landing.focus] }),
       },
     }),
   ).start();
+  /** the chunks on screen (not the layer they replace, fading out over them) */
+  const chunks = () => [...pane.querySelectorAll(':scope > .rr-tour__layer:not(.is-leaving) > .rr-tour__chunk')];
   const pick = (index: number) => (filesSheet.close(), nav.send({ type: 'go', jump: { index } }));
   const name = (s: Slot) => (s.code ? s.code.path.split('/').pop()! : app.label(s.ref));
   let away = false; // the pane shows a link's code, not the slide's own
   const paintFiles = () => {
     const ss = slots ?? [];
-    [...pane.children].forEach((c, i) => c.classList.toggle('is-active', i === active));
+    chunks().forEach((c, i) => c.classList.toggle('is-active', i === active));
     files.hidden = !ss.length;
     const tab = (s: Slot, i: number) => h('button', { class: 'rr-tour__file', title: app.label(s.ref), 'aria-pressed': String(i === active), onclick: () => pick(i) }, name(s));
     files.replaceChildren(
@@ -268,6 +270,24 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   app.listen(document, 'fullscreenchange', () => {
     if (!document.fullscreenElement && actor.getSnapshot().matches({ open: 'playing' })) declined = true;
   });
+  // a slide change: the card glides from its old height to the new slide's (player.ts paints it after this listener)
+  const glide = (from: number) =>
+    queueMicrotask(() => {
+      const to = left.offsetHeight;
+      if (land.matches || Math.abs(to - from) < 2 || !card.getSnapshot().matches('rest')) return;
+      left.style.cssText = `height:${from}px;max-height:none`;
+      void left.offsetHeight;
+      left.classList.add('is-settling');
+      left.style.height = `${to}px`;
+      const end = (e: TransitionEvent) => {
+        if (e.target !== left || e.propertyName !== 'height') return;
+        left.removeEventListener('transitionend', end);
+        if (!card.getSnapshot().matches('rest')) return; // grabbed meanwhile: the card's own paint has it
+        left.classList.remove('is-settling');
+        left.style.cssText = '';
+      };
+      left.addEventListener('transitionend', end);
+    });
   let drop: (() => void) | undefined;
   let was = '', wasPlaying = false;
   actor.subscribe((s) => {
@@ -279,6 +299,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (slide !== was) {
       left.scrollTo({ top: 0 });
       nav.send({ type: 'cancel' });
+      if (was && playing) glide(left.offsetHeight);
     }
     [was, wasPlaying] = [slide, playing];
     if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));

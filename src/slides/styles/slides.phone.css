@@ -110,6 +110,10 @@
   position: relative;
   overflow: hidden;
 }
+[data-form='phone'] .rr-tour__layer:not(.is-leaving) {
+  position: relative;
+  overflow: hidden;
+}
 [data-form='phone'] .rr-tour__chunk {
   position: absolute;
   inset: 0;
@@ -272,8 +276,8 @@
   padding-right: 40px;
   mask-image: linear-gradient(#000 55%, transparent);
 }
-.rr-tour__left[data-detent='collapsed'] .rr-tour__text > *,
-.rr-tour__lead.is-folded > * {
+.rr-tour__left[data-detent='collapsed'] .rr-tour__prose > *,
+.rr-tour__lead.is-folded .rr-tour__prose > * {
   margin: 0;
 }
 .rr-tour__more {
@@ -418,8 +422,11 @@
 }
 /* a slide change: the new text rises in on the standard spring */
 @media (prefers-reduced-motion: no-preference) {
-  [data-form='phone'] :is(.rr-tour__lead, .rr-tour__step).is-in {
+  [data-form='phone'] .rr-tour__prose.is-in {
     animation: rr-tour-in var(--rr-m-default-ms) var(--rr-m-default);
+  }
+  [data-form='phone'] .rr-tour__prose.is-leaving {
+    animation: rr-tour-out var(--rr-m-default-ms) ease-in forwards;
   }
 }
 
