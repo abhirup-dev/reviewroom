@@ -90,9 +90,12 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   chapter intro opens its first slide; on the others it folds to its first line with More, and a swipe up (or a tall
   card) opens it. The code is one sheet on the code surface to the bottom edge. The walkthrough's progress (chapters ×
   slides) is a thin row at the screen's foot, always shown.
-- **Guided review's files**: the code shows one of the slide's chunks at a time (the others stay mounted, hidden). A
-  file tab rides the card's top edge (secondary-container, mono 12): one or two file names, the shown one on the card's
-  own surface; three or more, the shown one with `▾ +N`, opening a bottom sheet of them. It replaces the card's ref
+- **Guided review's files**: the code shows one of the slide's chunks at a time (the others stay mounted, hidden). The
+  card is a raised sheet (a step lighter than the code, `--rr-surface-overlay-2`, with a hairline rim lit along the top:
+  `--rr-rim`, `--rr-rim-top`), and a file tab rises from its top edge on the same surface and rim (mono 12): one or two
+  file names, the shown one in accent and underlined; three or more, the shown one with `▾ +N`, opening a bottom sheet
+  of them. The walkthrough's code has no file header: its toolbar row names the chunk and holds the file's open threads
+  and Viewed (marking it leaves it open). It replaces the card's ref
   chips, moves with the card (immersive too) and heads the slide column on its side. Every jump to code (a tab, a
   narration link, a symbol, a chunk's name) goes through `navMachine` (`src/slides/nav.machine.ts`): it waits while the
   pane changes, then selects the chunk showing that file and reveals the lines in it, or (another file) has the pane

@@ -73,6 +73,9 @@
   --rr-shadow-sm: 0 1px 2px rgba(27, 26, 23, 0.06);
   --rr-shadow: 0 6px 24px rgba(27, 26, 23, 0.1), 0 1px 3px rgba(27, 26, 23, 0.08);
   --rr-shadow-lg: 0 24px 64px rgba(27, 26, 23, 0.22), 0 4px 12px rgba(27, 26, 23, 0.1);
+  /* a raised sheet's edge: a hairline all round, lit a little more along the top */
+  --rr-rim: rgba(27, 26, 23, 0.1);
+  --rr-rim-top: rgba(255, 255, 255, 0.9);
   --rr-scrim: rgba(24, 22, 18, 0.32);
   color-scheme: light;
 }
@@ -120,6 +123,8 @@
   --rr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --rr-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.4);
   --rr-shadow-lg: 0 24px 72px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --rr-rim: rgba(255, 255, 255, 0.08);
+  --rr-rim-top: rgba(255, 255, 255, 0.14);
   --rr-scrim: rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }

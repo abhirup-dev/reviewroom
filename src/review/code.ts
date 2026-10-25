@@ -168,7 +168,7 @@ class CodePanel implements PanelInstance {
       app.bus.on('files', () => this.rebuild()),
       app.bus.on('prefs', () => this.refreshOptions(true)),
       app.bus.on('theme', () => this.cv.setOptions(this.options())),
-      app.bus.on('state', () => this.refreshItems()),
+      app.bus.on('state', () => (this.refreshItems(), this.embedded && this.renderToolbar())), // the walkthrough's toolbar holds Viewed
       app.bus.on('reveal-code', (t) => {
         if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
       }),
@@ -234,13 +234,22 @@ class CodePanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-toolbar__group' },
-        // the walkthrough pane has one set of these for all its files
-        ...(this.embedded ? [] : displayTools(this.app, this.mode)),
+        // the walkthrough pane has one set of these for all its files; its own row has what the file header would
+        ...(this.embedded ? (this.pin ? this.fileStatus(this.pin) : []) : displayTools(this.app, this.mode)),
         this.mode === 'diff' && !this.embedded
           ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
           : null,
       ),
     );
+  }
+
+  /** The walkthrough's code (no file header): the file's open threads and Viewed, in the toolbar. Marking it viewed
+   *  leaves it open (the workbench folds it). */
+  private fileStatus(path: string) {
+    const threads = codeThreadsOn(this.app.services.threads.threads(), path).filter((t) => t.status === 'open');
+    const cb = h('input', { type: 'checkbox', checked: this.app.state.viewed[path] !== undefined });
+    cb.addEventListener('change', () => this.app.setViewed(path, cb.checked));
+    return [...threadCounts(threads, 'in this file'), h('label', { class: 'rr-toolbar__viewed', title: 'Mark this file as viewed' }, cb, h('span', null, 'Viewed'))];
   }
 
   private setMode(m: 'diff' | 'file') {
@@ -385,7 +394,7 @@ class CodePanel implements PanelInstance {
       hunkSeparators: 'line-info',
       expansionLineCount: 20,
       stickyHeaders: true,
-      disableFileHeader: this.mode === 'file',
+      disableFileHeader: this.mode === 'file' || this.embedded, // the walkthrough names the file in its toolbar
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
       // the slide card below: room to scroll the last lines above it and the toolbar over the code
       layout: this.cardBelow ? { paddingTop: 8, paddingBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX, gap: 8 } : undefined,

@@ -66,3 +66,14 @@
 .rr-viewed input {
   margin: 0;
 }
+
+/* the walkthrough's code: Viewed in the toolbar (no file header there) */
+.rr-toolbar__viewed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: var(--rr-text-xs) var(--rr-font);
+  color: var(--rr-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
