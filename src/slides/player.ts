@@ -404,7 +404,7 @@ export function mountWalkthrough(app: ReviewApp) {
       ...d.chapters.map((c, ci) =>
         h(
           'div',
-          { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : ''), style: `flex:${c.steps.length}` },
+          { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : ''), style: `--rr-steps:${c.steps.length}` },
           h('span', { class: 'rr-tour__seg-title', title: c.title }, c.title),
           h(
             'div',

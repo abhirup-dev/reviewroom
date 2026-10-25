@@ -90,6 +90,7 @@ async function networkFirst(e: FetchEvent) {
 }
 
 function offline() {
+  // a page of its own, with none of the app's stylesheets: the system font, not --rr-font
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark"><title>reviewroom</title>
 <body style="font:16px system-ui,sans-serif;max-width:32rem;margin:20vh auto;padding:0 1.5rem;line-height:1.5">

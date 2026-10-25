@@ -131,17 +131,19 @@
 .rr-phonebar .rr-send-btn .rr-badge,
 .rr-phone-tab__badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 18px;
-  height: 18px;
   padding: 0 4px;
   border: 2px solid var(--rr-bg);
   border-radius: var(--rr-shape-full);
   box-sizing: content-box;
   background: var(--rr-comment);
-  color: var(--rr-comment-ink, #fff);
+  color: var(--rr-comment-ink);
   font: 700 10px / 18px var(--rr-font);
+}
+.rr-phonebar .rr-send-btn .rr-badge {
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
 }
 
 /* ---------------------------------------------------------------- primary tabs (48px) */

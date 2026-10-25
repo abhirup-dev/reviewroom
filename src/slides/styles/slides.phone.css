@@ -269,8 +269,11 @@
 .rr-tour__left[data-detent='collapsed'] .rr-tour__text,
 .rr-tour__lead.is-folded {
   flex: none;
-  max-height: 1.6em;
   overflow: hidden;
+}
+/* the folded intro: one line, fading out at its end */
+.rr-tour__lead.is-folded {
+  max-height: 1.6em;
   mask-image: linear-gradient(90deg, #000 70%, transparent);
 }
 /* the slide's collapsed card: two lines, fading out at the foot, clear of the Show controls icon */
@@ -353,11 +356,8 @@
 [data-form='phone'][data-orient='portrait'] .is-immersive.is-announcing .rr-tour__files {
   translate: 0 calc(84px - 20px - 44px);
 }
-[data-form='phone'] .rr-tour__left {
-  transition: translate var(--rr-m-default-ms) var(--rr-m-default);
-}
 [data-form='phone'] .rr-tour__seg {
-  flex: 1 !important;
+  flex: 1; /* every chapter the same width, whatever its slide count */
 }
 [data-form='phone'] .rr-tour__seg-title {
   display: none;

@@ -395,6 +395,7 @@ span.rr-tour__chunk-head {
 }
 .rr-tour__seg {
   display: flex;
+  flex: var(--rr-steps, 1); /* as wide as its share of the slides (player.ts sets --rr-steps) */
   flex-direction: column;
   gap: 5px;
   min-width: 0;
