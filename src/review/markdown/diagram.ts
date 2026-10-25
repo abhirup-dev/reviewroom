@@ -11,8 +11,10 @@ export const sanitizeDiagram = (svg: string) =>
   });
 
 /** Diagram types load on first use; source cannot enable remote images; `click` statements may link to rr: and http(s).
- *  `onRender` runs after every render, a redraw for a new width too. */
-export function mountDiagram(element: HTMLElement, source: string, onRender?: () => void) {
+ *  `onRender` runs after every render, a redraw for a new width too. `natural` keeps the diagram's own layout instead of
+ *  one squeezed into the container: scaled to fit, Pele's zoom then pinches and pans it. `zoomable` zooms even a diagram
+ *  that fits. */
+export function mountDiagram(element: HTMLElement, source: string, onRender?: () => void, natural = false, zoomable = false) {
   return mountAsync(element, source, {
     onRender,
     limit: 20_000,
@@ -22,5 +24,7 @@ export function mountDiagram(element: HTMLElement, source: string, onRender?: ()
     linkSchemes: ['http', 'https', 'rr'],
     fontSize: 14,
     sanitize: sanitizeDiagram,
+    ...(zoomable && { zoom: true }),
+    ...(natural && { maxWidth: Infinity }), // Pele adapts the layout only to a width under the natural one
   });
 }

@@ -4,7 +4,7 @@
 //
 // New comments go into the viewer's pending review (GitHub's own drafts, also visible on github.com)
 // until submitted; replies and PR conversation comments post at once.
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Octokit } from '@octokit/core';
 import { paginateGraphQL } from '@octokit/plugin-paginate-graphql';
@@ -46,6 +46,21 @@ export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
   // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   const r = String(cfg.repo || '').match(/^([\w.-]+)\/([\w.-]+)$/);
   return r && cfg.number ? { host: 'github.com', owner: r[1], name: r[2], number: +cfg.number } : null;
+}
+
+/** The open PR whose head is the branch a branch review compares (one opened after `pr <branch>` too), as config
+ *  fields; null without one, for a commit or a fetched PR ref, or when gh can't tell. Base and head stay as they are. */
+export function branchPr(repo: string, cfg: Partial<ReviewConfig>): Partial<ReviewConfig> | null {
+  const head = cfg.head ?? '';
+  if (prTarget(cfg) || head.startsWith('refs/reviewroom/') || /^[0-9a-f]{7,40}$/.test(head)) return null;
+  const branch = head === 'HEAD' ? [] : [cfg.headLabel ?? head.replace(/^(refs\/heads\/|refs\/remotes\/[^/]+\/|origin\/)/, '')];
+  try {
+    const out = execFileSync('gh', ['pr', 'view', ...branch, '--json', 'number,title,author,url,state'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 });
+    const pr = JSON.parse(out) as { number: number; title: string; author?: { login: string }; url: string; state: string };
+    return pr.state === 'OPEN' ? { number: pr.number, url: pr.url, author: pr.author?.login, title: cfg.title ?? pr.title } : null;
+  } catch {
+    return null; // no PR for the branch, gh missing or offline
+  }
 }
 
 const execFileP = promisify(execFile);

@@ -9,6 +9,7 @@ import { type Finished, startServer, listen, openBrowser } from '../lib/server.t
 import { DIST, PKG } from '../lib/paths.ts';
 import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
 import { agentAncestor } from '../hub/proc.ts';
+import { branchPr } from '../lib/github.ts';
 
 const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
 
@@ -36,7 +37,13 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const prev = await stopServer(dir);
   const portFlag = o.port || (prev ? String(prev.port) : undefined);
   fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
+  // a branch review whose branch has an open PR is that PR's review: its description, conversation and CI come along
+  const pr = branchPr(repo, cfg);
+  if (pr) {
+    Object.assign(cfg, pr);
+    console.error(`reviewroom: ${pr.url} is open for this branch: showing its description, comments and CI`);
+  }
+  if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title || pr) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));

@@ -14,7 +14,7 @@ body > [hidden] {
   display: none !important;
 }
 .rr-root {
-  height: 100vh;
+  height: 100dvh; /* the visible height: a browser bar over an installed app (a shortcut) takes its share */
   display: flex;
   flex-direction: column;
   background: var(--rr-bg);

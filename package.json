@@ -78,7 +78,7 @@
     "oxc-parser": "0.153.0",
     "oxlint": "^1.88.0",
     "oxlint-tsgolint": "^7.0.2004",
-    "pele": "1.6.0",
+    "pele": "1.10.0",
     "regex": "^6.1.0",
     "typescript": "^7.0.2",
     "xstate": "^5.33.2",
