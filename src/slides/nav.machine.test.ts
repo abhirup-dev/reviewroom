@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createActor, fromPromise } from 'xstate';
-import { navMachine } from './nav.machine';
+import { navMachine, slotFor } from './nav.machine';
 import type { CodeAt, Slot } from './player.machine';
 
 const code = (path: string, start = 1): CodeAt => ({ path, side: 'head', start, end: start, view: 'diff' });
@@ -8,6 +8,16 @@ const slots: Slot[] = [
   { ref: 'rr:code/head/a.go#L1', code: code('a.go') },
   { ref: 'rr:code/head/b.go#L5', code: code('b.go', 5) },
 ];
+
+test('slot identity includes side, revision and view, but not highlighted lines', () => {
+  const at = { ...code('a.go'), rev: 'abc123' };
+  const shown: Slot[] = [{ ref: 'revision', code: at }, { ref: 'section', code: null }];
+  expect(slotFor(shown, { ...at, start: 9, end: 12, view: undefined })).toBe(0);
+  expect(slotFor(shown, { ...at, side: 'base' })).toBe(-1);
+  expect(slotFor(shown, { ...at, rev: 'def456' })).toBe(-1);
+  expect(slotFor(shown, { ...at, rev: undefined })).toBe(-1);
+  expect(slotFor(shown, { ...at, view: 'file' })).toBe(-1);
+});
 
 /** `where`: what each ref resolves to; a promise held open until `release(ref)`. */
 function nav(where: Record<string, CodeAt | null>) {

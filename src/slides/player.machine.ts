@@ -16,6 +16,9 @@ import { target, type PaneWant, type Walkthrough, type WalkthroughPosition } fro
 
 /** Where a code link lands (a CodeTarget). */
 export type CodeAt = { path: string; side: 'base' | 'head'; start?: number; end?: number; rev?: string; view?: 'diff' | 'file' };
+/** A chunk's identity, independent of the lines highlighted within it. */
+export const sameCode = (a: CodeAt | null | undefined, b: CodeAt | null | undefined) =>
+  !!a && !!b && a.path === b.path && a.side === b.side && (a.view ?? 'diff') === (b.view ?? 'diff') && a.rev === b.rev;
 /** One stacked chunk: a code view of `code`, or (no code: a section, an unknown symbol) a preview of the link. */
 export type Slot = { ref: string; code: CodeAt | null };
 /** What the pane shows, resolved. */
@@ -30,7 +33,7 @@ const toLand = (s: PaneShown | null) => (s?.kind === 'refs' ? s.slots.filter((x)
 
 /** Same files in the same order: the views stay, only their highlights move. */
 const sameLayout = (a: PaneShown | null, b: PaneShown | null) =>
-  a?.kind === 'refs' && b?.kind === 'refs' && a.slots.length === b.slots.length && a.slots.every((s, i) => !!s.code && s.code.path === b.slots[i].code?.path && s.code.view === b.slots[i].code?.view);
+  a?.kind === 'refs' && b?.kind === 'refs' && a.slots.length === b.slots.length && a.slots.every((s, i) => sameCode(s.code, b.slots[i].code));
 
 // a show from any state starts over at resolving; from resolving itself it re-enters, which stops the stale lookup
 const show = { show: { target: '#pane.resolving', actions: 'want' } } as const;

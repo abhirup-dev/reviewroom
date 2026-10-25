@@ -108,7 +108,12 @@ class PhoneShell implements PanelSurface {
     app.bus.on('prefs', () => this.paintNav());
     this.paintBar();
     this.show('narrative');
-    app.escapers.push(() => (peeking(this.ctx()) || this.ctx().sheets.length ? (this.shell.send({ type: 'escape' }), true) : false));
+    const escape = () => (peeking(this.ctx()) || this.ctx().sheets.length ? (this.shell.send({ type: 'escape' }), true) : false);
+    app.escapers.push(escape);
+    app.onDispose(() => {
+      const i = app.escapers.indexOf(escape);
+      if (i >= 0) app.escapers.splice(i, 1);
+    });
   }
 
   private ctx = () => this.shell.getSnapshot().context;

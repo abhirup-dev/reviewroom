@@ -162,6 +162,19 @@ test('pane: same files glide; other files remount; each settles once landed; cle
   expect(log).toEqual(['mount r1', 'settle', 'glide r1b', 'settle', 'mount r4', 'settle', 'unmount']);
 });
 
+test('pane: switching side or revision of the same file remounts its chunk', async () => {
+  using scope = fixture();
+  const { a, log, pending } = pane(scope);
+  const targets = [code('a.go'), { ...code('a.go'), side: 'base' as const }, { ...code('a.go'), rev: 'abc123' }, { ...code('a.go'), rev: 'def456' }];
+  for (const [i, at] of targets.entries()) {
+    const ref = `r${i}`;
+    a.send({ type: 'show', want: { kind: 'refs', refs: [ref] } });
+    pending[i].done({ kind: 'refs', slots: [{ ref, code: at }] });
+    await waitFor(a, (s) => s.matches('showing') && s.context.shown?.kind === 'refs' && s.context.shown.slots[0].ref === ref);
+  }
+  expect(log).toEqual(['mount r0', 'settle', 'mount r1', 'settle', 'mount r2', 'settle', 'mount r3', 'settle']);
+});
+
 
 test('the player aims its pane at every step and stops it on close', async () => {
   using scope = fixture();

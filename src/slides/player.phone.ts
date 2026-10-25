@@ -7,7 +7,7 @@ import { sanitizeProse } from '../kernel/markdown';
 import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
 import type { ReviewApp } from '../app';
-import type { CodeAt, paneMachine, Slot, walkthroughMachine } from './player.machine';
+import { sameCode, type CodeAt, type paneMachine, type Slot, type walkthroughMachine } from './player.machine';
 import { cardMachine, chromeMachine, coachMachine, type Detent, type Orient } from './phone.machine';
 import { navMachine } from './nav.machine';
 import { current, target } from './model.shared';
@@ -253,8 +253,12 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
       const shown = ps.matches('landing') || ps.matches('showing') ? ps.context.shown : null;
       const now = shown?.kind === 'refs' ? shown.slots : shown ? [] : null;
       if (now && now !== slots) {
-        active = 0; // a new slide (or a link's code): its first chunk
-        away = JSON.stringify(ps.context.want) !== JSON.stringify(target(ctx()));
+        const before = slots;
+        const same = before && now.length === before.length && now.every((s, i) =>
+          s.ref === before[i].ref && (s.code || before[i].code ? sameCode(s.code, before[i].code) : true));
+        if (!same) active = 0; // different chunks: start with the first
+        const want = ps.context.want, own = target(ctx());
+        away = want?.kind !== own.kind || (want?.kind === 'refs' && own.kind === 'refs' && (want.refs.length !== own.refs.length || want.refs.some((ref, i) => ref !== own.refs[i])));
       }
       if (now) slots = now;
       paintFiles();
@@ -441,7 +445,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (!playing) declined = false;
     chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
   });
-  app.onDispose(() => (coach.stop(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
+  app.onDispose(() => (drop?.(), coach.stop(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
   return {
     contents: () => contentsSheet(),
     // each slide folds the intro again (but the chapter's first), unless the card is tall

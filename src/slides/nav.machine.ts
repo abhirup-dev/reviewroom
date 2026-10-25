@@ -7,7 +7,7 @@
 //                         another file: focus the pane on the link (paneMachine replaces it) ◀┘
 //   a new go in any state starts over (the stale lookup is cancelled with its state); a slide change cancels
 import { assign, fromPromise, setup } from 'xstate';
-import type { CodeAt, Slot } from './player.machine';
+import { sameCode, type CodeAt, type Slot } from './player.machine';
 
 /** A tab's chunk by index, or a link (code, file or symbol) by its ref. */
 export type Jump = { index: number } | { ref: string };
@@ -18,7 +18,7 @@ type NavCtx = { jump: Jump | null; slots: Slot[] | null; landing: Landing | null
 type NavEvent = { type: 'go'; jump: Jump } | { type: 'pane'; slots: Slot[] | null } | { type: 'cancel' };
 
 /** The chunk on screen showing the same file (and view) as `code`. */
-export const slotFor = (slots: Slot[], code: CodeAt) => slots.findIndex((s) => s.code?.path === code.path && (s.code.view ?? 'diff') === (code.view ?? 'diff'));
+export const slotFor = (slots: Slot[], code: CodeAt) => slots.findIndex((s) => sameCode(s.code, code));
 
 export const navMachine = setup({
   types: { context: {} as NavCtx, events: {} as NavEvent },
