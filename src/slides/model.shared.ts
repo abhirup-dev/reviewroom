@@ -112,6 +112,18 @@ export function target({ doc, chapter, step }: WalkthroughPosition): PaneWant {
   return earlier.length ? { kind: 'refs', refs: earlier, ...layer } : { kind: 'empty', ...layer };
 }
 
+/** On a stack of PRs (bottom first), what every form of the player shows: `at`, the place of the chapter's PR in it
+ *  (-1: a chapter about the whole stack); `handoff`, on a chapter's last slide, the PR the next chapter is about when
+ *  that is another PR. */
+export function stackPlace<P extends { number: number }>({ doc, chapter, step }: WalkthroughPosition, stack: P[]): { at: number; handoff?: P } {
+  const ch = doc!.chapters[chapter];
+  const after = step === ch.steps.length - 1 ? doc!.chapters[chapter + 1] : undefined;
+  return {
+    at: ch.pr ? stack.findIndex((p) => p.number === ch.pr) : -1,
+    handoff: after?.pr && after.pr !== ch.pr ? stack.find((p) => p.number === after.pr) : undefined,
+  };
+}
+
 /** The `?walkthrough=<chapter>/<step>` deep link (either part optional); null when absent. */
 export function deepLink(search: string): { chapter?: string; step?: string } | null {
   const v = new URLSearchParams(search).get('walkthrough');

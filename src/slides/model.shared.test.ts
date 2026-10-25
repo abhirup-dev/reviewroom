@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { edgeBetween, encodeBlock, findBlocks, inFocus, parseWalkthrough, stepRefs, type Walkthrough } from './model.shared';
+import { edgeBetween, encodeBlock, findBlocks, inFocus, parseWalkthrough, stackPlace, stepRefs, type Walkthrough } from './model.shared';
 
 const demo = readFileSync(new URL('../../examples/habit-events/walkthrough.json', import.meta.url), 'utf8');
 const valid = () => ({
@@ -99,4 +99,14 @@ test('a Mermaid edge flows only between two lit nodes', () => {
   expect(edgeBetween('L_A_B_0', ['A'])).toBe(false);
   expect(edgeBetween('L_B_C_0', ['A', 'B'])).toBe(false);
   expect(edgeBetween('edge0', ['Pending', 'Done'])).toBe(false); // ids that don't name their nodes never light
+});
+
+test("stackPlace: the chapter's PR in the stack, and the hand-off on its last slide", () => {
+  const steps = [{ id: 's1', text: '<p>x</p>' }, { id: 's2', text: '<p>y</p>' }];
+  const doc = { version: 1, title: 'T', chapters: [{ id: 'intro', title: 'I', steps }, { id: 'a', title: 'A', pr: 1, steps }, { id: 'b', title: 'B', pr: 2, steps }] } as Walkthrough;
+  const stack = [{ number: 1 }, { number: 2 }];
+  expect(stackPlace({ doc, chapter: 0, step: 1 }, stack)).toEqual({ at: -1, handoff: { number: 1 } });
+  expect(stackPlace({ doc, chapter: 1, step: 0 }, stack)).toEqual({ at: 0, handoff: undefined });
+  expect(stackPlace({ doc, chapter: 1, step: 1 }, stack)).toEqual({ at: 0, handoff: { number: 2 } });
+  expect(stackPlace({ doc, chapter: 2, step: 1 }, stack)).toEqual({ at: 1, handoff: undefined });
 });

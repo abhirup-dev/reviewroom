@@ -14,7 +14,7 @@ import type { ReviewApp } from '../app';
 import { menuItem, popMenu } from '../kernel/menus';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools } from '../review/code';
-import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
+import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stackPlace, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
@@ -291,8 +291,8 @@ export function mountWalkthrough(app: ReviewApp) {
       enter(lead);
     }
     const prs = app.meta.stack;
-    const pi = prs && ch.pr ? prs.findIndex((x) => x.number === ch.pr) : -1;
-    position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}` + (pi >= 0 && scope === 'stack' ? ` · PR ${pi + 1} of ${prs!.length}` : '');
+    const { at, handoff } = prs ? stackPlace({ doc: d, chapter, step }, prs) : { at: -1, handoff: undefined };
+    position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}` + (at >= 0 && scope === 'stack' ? ` · PR ${at + 1} of ${prs!.length}` : '');
     chapterPrev.toggleAttribute('disabled', chapter === 0);
     chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);
     divider.textContent = `Slide ${step + 1} of ${n}`;
@@ -305,9 +305,6 @@ export function mountWalkthrough(app: ReviewApp) {
     );
     enter(stepBox);
     prev.toggleAttribute('disabled', cur.isFirst);
-    // a stack: the last slide before another PR's chapter hands off to it
-    const after = step === n - 1 ? d!.chapters[chapter + 1] : undefined;
-    const handoff = after?.pr && after.pr !== ch.pr ? prs?.find((x) => x.number === after.pr) : undefined;
     next.replaceChildren(cur.isLast ? 'Finish' : handoff ? `Next: #${handoff.number}` : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
     next.title = cur.isLast ? 'End the guided walkthrough' : handoff ? `${ch.pr ? `#${ch.pr} done. ` : ''}Next, #${handoff.number}: ${handoff.title} (the code pane switches to its changes)` : 'Next slide';
     progress.replaceChildren(
