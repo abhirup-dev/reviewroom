@@ -1,4 +1,5 @@
-// A stack of PRs in the header: which PR the panes show, and the menu of every PR with its state.
+// Desktop: a stack of PRs in the header: which PR the panes show, and the menu of every PR with its state. What it
+// drives (ranges, stepping) is not desktop: code-service.ts and ReviewApp.setRange/stepPr.
 import { h, icon } from '../kernel/dom';
 import { keyLabel } from '../kernel/commands';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';

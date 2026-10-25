@@ -1,4 +1,4 @@
-// The Guided walkthrough button's menu on a stack: this PR's story, or the whole stack's.
+// Desktop: the Guided walkthrough button's menu on a stack: this PR's story, or the whole stack's.
 import { h } from '../kernel/dom';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 import type { ReviewApp } from '../app';
