@@ -268,7 +268,7 @@ class PhoneShell implements PanelSurface {
       back.append(icon('chevron', 16));
       host.append(h('header', { class: 'rr-phone-sheet-head' }, back, h('span', { class: 'rr-phone-sheet-title' }, title)));
     }
-    const inst = def.create(this.app, params ?? {}, id);
+    const inst = def.create(this.app, { ...params, ...(id === 'code' ? { rail: true } : {}) }, id);
     host.append(inst.element);
     if (sheet) {
       this.stage.append(host);

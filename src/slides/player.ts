@@ -17,7 +17,7 @@ import { desktopPlayer } from './player.desktop';
 import { phonePlayer } from './player.phone';
 import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
-import { displayTools } from '../review/code';
+import { displayTools, type CodePanelOptions } from '../review/code';
 import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
@@ -32,10 +32,8 @@ type PlayerForm = {
   paintNav(cur: ReturnType<typeof current>): void;
   /** each slide: fold the chapter intro its own way */
   foldLead?(): void;
-  /** the slide card sits over the code's lower part: the code pane leaves it room */
-  cardBelow?(): boolean;
-  /** with cardBelow: the card's top edge on screen now (its file tab's, when it has one) */
-  cardTop?(): number;
+  /** Scroll room and an optional covering edge for each code pane. */
+  codeLayout?(): Pick<CodePanelOptions, 'padBottom' | 'coverTop'>;
   /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
   focus?(ref: string): void;
 };
@@ -95,7 +93,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : slot.code ? h('span', { class: 'rr-tour__chunk-head' }) : null;
     if (head) nameHead(head, slot.ref);
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, cardBelow: form.cardBelow?.(), cardTop: () => form.cardTop?.() ?? Infinity }, id) : null;
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, ...form.codeLayout?.() }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     views.push({ panel, id, head });

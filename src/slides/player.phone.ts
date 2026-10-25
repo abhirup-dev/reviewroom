@@ -36,6 +36,8 @@ type PhoneParts = {
 
 /** How far sideways a swipe on the card goes to turn the slide. */
 const SWIPE_PX = 60;
+// Room for the last code lines above the default card (40dvh, lifted 84px, plus a 12px gap).
+const CARD_SHARE = 0.4, CARD_LIFT_PX = 96;
 
 /** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
  *  floating toolbar of Back, Contents, Comment, Full screen and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
@@ -445,8 +447,10 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     // each slide folds the intro again (but the chapter's first), unless the card is tall
     foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
     // upright, the card is over the code's lower part
-    cardBelow: () => !land.matches,
-    cardTop: () => (files.hidden ? left : files).getBoundingClientRect().top,
+    codeLayout: () => land.matches ? {} : {
+      padBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX,
+      coverTop: () => (files.hidden ? left : files).getBoundingClientRect().top,
+    },
     focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough
     paintNav: ({ isFirst, isLast }: ReturnType<typeof current>) => {
