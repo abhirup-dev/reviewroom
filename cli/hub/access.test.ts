@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { hubAllows } from './access.ts';
+import { hubAllows, LOCAL_ORIGIN } from './access.ts';
 import { parseOrigin } from '../commands/hub.ts';
 
 const pub = 'https://mac.tailnet.ts.net';
@@ -32,6 +32,15 @@ test('the public origin: its Host only when configured; same-site API, writes fr
   expect(hubAllows(at('127.0.0.1:4847', { ...write, path: '/r/0123456789ab//api/ops', origin: 'https://evil.com' }), 4847, null)).toBe(false);
   // pages and assets are not API: a cross-site navigation may open them
   expect(hubAllows(at('mac.tailnet.ts.net', { path: '/r/0123456789ab/', site: 'cross-site' }), 4847, pub)).toBe(true);
+});
+
+test('the portless name on this Mac: its Host and Origin, no other .localhost', () => {
+  const host = new URL(LOCAL_ORIGIN).host;
+  const write = { path: '/r/0123456789ab/api/ops', method: 'POST', site: 'same-origin' };
+  expect(hubAllows(at(host), 4847, null)).toBe(true);
+  expect(hubAllows(at(host, { ...write, origin: LOCAL_ORIGIN }), 4847, pub)).toBe(true);
+  expect(hubAllows(at(host, { ...write, origin: 'https://evil.com' }), 4847, null)).toBe(false);
+  expect(hubAllows(at('evil.localhost:1355'), 4847, null)).toBe(false);
 });
 
 test('--public-origin takes an origin only', () => {

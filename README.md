@@ -45,13 +45,17 @@ Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<b
 ## Use reviewroom from a phone
 
 A phone reaches your reviews through the hub, which serves each one at `/r/<id>/`. reviewroom only binds
-`127.0.0.1` and ships no tunnel or Tailscale code: put any front that ends in HTTPS in front of the hub, then tell
-the hub its public origin once.
+`127.0.0.1`; something that ends in HTTPS sits in front of the hub, and the hub is told that public origin once.
+With Tailscale (HTTPS certificates on), one optional step, not part of `bun run setup`, does it all:
 
 ```bash
-tailscale serve --bg 4847                                   # or any HTTPS tunnel to 127.0.0.1:4847 that admits only you
-reviewroom hub --public-origin https://mac.tailnet.ts.net   # saved in ~/.reviewroom/config.json; restart the hub to apply
+bun run setup-phone   # tailscale serve --bg --https=4847 → the hub; portless alias reviewroom 4847 (if installed);
+                      # saves https://<this mac>.<tailnet>.ts.net:4847 as the public origin; restarts the hub
 ```
+
+The phone address is then fixed (the Mac's tailnet name and port 4847), and on this Mac the hub is also
+`https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub --public-origin <https origin>`, saved
+in `~/.reviewroom/config.json` (restart the hub to apply).
 
 Open the public URL on the phone: the hub lists your reviews, and each opens in a phone layout (bottom tabs,
 sheets, touch commenting). Install it from **More › Install app** or the palette (`Install app`); on iOS, Safari's

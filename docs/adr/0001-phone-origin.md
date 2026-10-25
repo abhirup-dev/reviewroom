@@ -28,6 +28,9 @@ phone --https--> [front: not reviewroom] --http--> hub 127.0.0.1:4847 --/r/<id>/
    and `start_url` are `./` at the hub root; the service worker is `/sw.js` with scope `/`.
 2. **HTTPS and connectivity.** Not reviewroom's job. No Tailscale code, no tunnel management, no pairing. Nothing binds
    anything but `127.0.0.1`.
+   *Later:* an optional setup script (`bun run setup-phone`, `scripts/phone-setup.ts`) runs the Tailscale and portless
+   commands for the reviewer; the CLI and servers still carry no Tailscale code. The hub also admits the portless name
+   `https://reviewroom.localhost:1355` (hard-coded, a personal setup).
 3. **Access: one seam.** A hub-only middleware, `hubAccess(c)` in `cli/hub/`, decides who may use the hub and its
    proxy. Today it accepts:
    - loopback, exactly as `allowed()` does now;
