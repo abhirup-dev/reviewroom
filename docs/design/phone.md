@@ -71,9 +71,9 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
 - **Drawer** (modal navigation drawer): 300px max, large trailing corners, header with title and facts, 56px items,
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
 - **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
-  toolbar (full pill, 52px, surface-container-high, the only surface): Back, Contents, Comment and Next are plain 44px
+  toolbar (full pill, 52px, surface-container-high, the only surface): Back, Contents, Comment, Full screen and Next are plain 44px
   icon buttons on it, no fills of their own; pressed or hovered, a round 12% / 8% state layer. Back and Next are
-  `--rr-ink`; Contents `--rr-ink-2`; Comment is marked only by its `chat` icon's `--rr-comment` stroke. On the first
+  `--rr-ink`; Contents and Full screen `--rr-ink-2`; Comment is marked only by its `chat` icon's `--rr-comment` stroke. On the first
   slide Back is disabled (muted), on the last Next is ("Last slide"): the close in the top bar ends the walkthrough. No
   blue, no pulse. Contents (and the chapter title in the top bar) opens a bottom sheet of the chapters with their
   slide counts, the current one expanded to its slides; Back or the scrim closes it. Immersive:
@@ -82,7 +82,12 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   Show controls icon in its corner, the only thing that brings them back: swipes, slide changes, card drags,
   scrolling and taps keep it immersive. The installed app is full screen (manifest `display: fullscreen`: no
   status or navigation bar, content under a cutout too, no exit notice). In a browser tab the guided review asks for it
-  (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Reduced
+  (the Fullscreen API) on the opening tap and any later one; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
+  immersive at once. The coach, the first time immersive ever (local storage) and on every Full screen tap: a one-line
+  note at the top ("Full screen · swipe the slide below to move", "on the left" on its side) while a soft touch dot
+  traces the card's swipes with a one-word cue (up More, down Less, left Next, right Back; on its side only the
+  sideways two), then a second note, "Tap ⋯ to show the controls", while Show controls rings and glows in accent. About
+  8 s in all; leaving immersive ends it. Reduced motion: the notes and a still ring, no dot. Reduced
   motion: they fade, nothing moves. The card is a bottom sheet with three detents, kept across slides: collapsed (grip
   and the text's first two lines), default (its content, up to 40% of the screen) and tall (up to all but the bar and a
   strip of code). Dragging the grip or the card follows the finger and settles on the nearest detent, a flick at least

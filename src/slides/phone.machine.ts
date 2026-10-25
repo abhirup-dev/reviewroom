@@ -4,7 +4,7 @@
 //                   off: paused or closed (`stop` from any state). shown: a `wake` or a `touch` restarts the wait;
 //                   `held` (a menu, the composer or a selection open) waits another IDLE_MS. immersive: the bars and the
 //                   toolbar fade, Show controls in the card's corner; a `touch` (a tap, a swipe, a drag, a slide change) does nothing
-//                   there; only Show controls sends `wake`
+//                   there; only Show controls sends `wake`. `hide` (the toolbar's Full screen) goes immersive at once
 //
 //   cardMachine     the slide card, a bottom sheet with detents collapsed (0), default (1), tall (2)
 //                   rest ─grab─▶ dragging ─release / cancel─▶ settling ─(SETTLE_MS)─▶ rest
@@ -21,7 +21,7 @@ export const SETTLE_MS = 400;
 const FLICK = 40;
 
 export const chromeMachine = setup({
-  types: { events: {} as { type: 'wake' } | { type: 'touch' } | { type: 'stop' } },
+  types: { events: {} as { type: 'wake' } | { type: 'touch' } | { type: 'hide' } | { type: 'stop' } },
   guards: { held: () => false },
   delays: { idle: IDLE_MS },
 }).createMachine({
@@ -31,7 +31,7 @@ export const chromeMachine = setup({
   states: {
     off: { on: { wake: 'shown' } },
     shown: {
-      on: { wake: { target: 'shown', reenter: true }, touch: { target: 'shown', reenter: true } },
+      on: { wake: { target: 'shown', reenter: true }, touch: { target: 'shown', reenter: true }, hide: 'immersive' },
       after: { idle: [{ guard: 'held', target: 'shown', reenter: true }, { target: 'immersive' }] },
     },
     immersive: { on: { wake: 'shown' } },

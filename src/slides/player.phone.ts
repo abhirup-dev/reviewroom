@@ -38,7 +38,7 @@ type PhoneParts = {
 const SWIPE_PX = 60;
 
 /** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
- *  floating toolbar of Back, Contents, Comment and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
+ *  floating toolbar of Back, Contents, Comment, Full screen and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
  *  untouched the chrome fades, and only Show controls in the card's corner brings it back (chromeMachine); the card
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
@@ -47,7 +47,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
   if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
-  // the floating toolbar: Back, Contents, Comment and Next, plain icon buttons on one pill
+  // the floating toolbar: Back, Contents, Comment, Full screen and Next, plain icon buttons on one pill
   prev.replaceChildren(icon('chevron', 20));
   prev.className = 'rr-icon-btn rr-tour__back';
   next.replaceChildren(icon('chevron', 20));
@@ -56,7 +56,9 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   comment.className = 'rr-tour__comment';
   comment.setAttribute('aria-label', 'Comment on this slide');
   const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet() }, icon('toc', 20));
-  next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents and comment' }, contents, comment));
+  // Full screen: immersive now, not after IDLE_MS, and the swipes shown again (coach, below)
+  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => ((declined = false), fullscreen(), chrome.send({ type: 'hide' }), coach()) }, icon('maximize', 20));
+  next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents, comment and full screen' }, contents, comment, full));
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
   // no intro toggle: the intro opens the chapter's first slide, and on the others is folded to its first line with More
@@ -240,9 +242,65 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
   const chrome = createActor(chromeMachine.provide({ guards: { held } })).start();
   const immersive = () => chrome.getSnapshot().matches('immersive');
-  chrome.subscribe(() => player.classList.toggle('is-immersive', immersive()));
   const wake = () => chrome.send({ type: 'wake' });
   const restore = h('button', { class: 'rr-icon-btn rr-tour__restore', title: 'Show controls', 'aria-label': 'Show controls', onclick: wake }, icon('dots', 20)); // immersive only (slides.phone.css)
+  // the coach, on the first immersive ever and every Full screen tap: a note and a touch dot tracing the card's swipes,
+  // then a note pointing at Show controls, which glows; leaving immersive ends it
+  const COACHED = 'rr-tour-coached';
+  const note = h('div', { class: 'rr-tour__note', role: 'status' });
+  const dot = h('div', { class: 'rr-tour__trace', 'aria-hidden': 'true' });
+  const cue = h('div', { class: 'rr-tour__cue', 'aria-hidden': 'true' });
+  player.append(note, dot, cue);
+  let timers: number[] = [];
+  const uncoach = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    note.classList.remove('is-on');
+    restore.classList.remove('is-hinting');
+    [dot, cue].forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
+  };
+  const coach = () => {
+    uncoach();
+    localStorage.setItem(COACHED, '1');
+    const at = (ms: number, f: () => void) => timers.push(window.setTimeout(f, ms));
+    const say = (...text: (string | Node)[]) => (note.replaceChildren(...text), note.classList.add('is-on'));
+    say(`Full screen · swipe the slide ${land.matches ? 'on the left' : 'below'} to move`);
+    // drag left for the next slide, right for the one before (gestureMachine); upright, up for more and down for less
+    const strokes: [string, number, number, number, number][] = land.matches
+      ? [['← Next', 30, 0, -30, 0], ['→ Back', -30, 0, 30, 0]]
+      : [['↑ More', 0, 20, 0, -30], ['↓ Less', 0, -20, 0, 30], ['← Next', 40, 0, -40, 0], ['→ Back', -40, 0, 40, 0]];
+    const STROKE = 900, LEAD = 400, n = strokes.length;
+    // measured once full screen has resized the page
+    at(LEAD, () => {
+      const r = left.getBoundingClientRect();
+      const [x, y] = [r.left + r.width / 2, r.top + r.height / 2];
+      dot.style.cssText = `left:${x}px;top:${y}px`;
+      cue.style.cssText = `left:${x}px;top:${y + 44}px`;
+      if (!matchMedia('(prefers-reduced-motion: no-preference)').matches) return;
+      const seg = (i: number, from: Keyframe, to: Keyframe): Keyframe[] => [
+        { ...from, offset: i / n, opacity: 0 },
+        { ...from, offset: (i + 0.15) / n, opacity: 1, easing: 'ease-in-out' },
+        { ...to, offset: (i + 0.8) / n, opacity: 1 },
+        { ...to, offset: (i + 0.95) / n, opacity: 0 },
+      ];
+      const go = { duration: n * STROKE, fill: 'both' } as const;
+      dot.animate([...strokes.flatMap(([, x1, y1, x2, y2], i) => seg(i, { translate: `${x1}px ${y1}px` }, { translate: `${x2}px ${y2}px` })), { offset: 1, opacity: 0 }], go);
+      cue.animate([...strokes.flatMap((_s, i) => seg(i, {}, {})), { offset: 1, opacity: 0 }], go);
+      strokes.forEach(([label], i) => at(i * STROKE, () => (cue.textContent = label)));
+    });
+    const step2 = LEAD + n * STROKE + 600;
+    at(step2 - 300, () => note.classList.remove('is-on'));
+    at(step2, () => (say('Tap ', icon('dots', 14), ' to show the controls'), restore.classList.add('is-hinting')));
+    at(step2 + 3800, uncoach);
+  };
+  let wasImmersive = false;
+  chrome.subscribe(() => {
+    const now = immersive();
+    player.classList.toggle('is-immersive', now);
+    if (now && !wasImmersive && !localStorage.getItem(COACHED)) coach();
+    if (!now && wasImmersive) uncoach();
+    wasImmersive = now;
+  });
   // upright: Show controls in the card's corner, the toolbar at the screen's foot; on its side: Show controls top
   // right, the toolbar at the foot of the code
   const orient = () => {
@@ -312,7 +370,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (!playing) declined = false;
     chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
   });
-  app.onDispose(() => (card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
+  app.onDispose(() => (uncoach(), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
   return {
     contents: contentsSheet,
     // each slide folds the intro again (but the chapter's first), unless the card is tall

@@ -33,6 +33,15 @@ test('chrome: a touch while shown restarts the wait; a touch while immersive doe
   expect(c.is()).toBe('shown');
 });
 
+test('chrome: hide (Full screen) goes immersive at once; only while shown', () => {
+  const c = chrome();
+  c.a.send({ type: 'hide' });
+  expect(c.is()).toBe('off');
+  c.a.send({ type: 'wake' });
+  c.a.send({ type: 'hide' });
+  expect(c.is()).toBe('immersive');
+});
+
 test('chrome: held blocks the fade until it lets go', () => {
   let held = true;
   const c = chrome(() => held);

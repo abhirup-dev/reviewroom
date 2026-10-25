@@ -3,7 +3,7 @@
 /* ---------------------------------------------------------------- guided review */
 /* slides/player.phone.ts, on a phone either way up ([data-form='phone'], even under the dock). Upright: the code under the
    whole screen, below a status bar of close and the chapter; the slide a large-radius card floating over it; an M3E
-   floating toolbar (full pill, 52px) of plain icon buttons: Back, Contents, Comment, Next. The walkthrough's progress a
+   floating toolbar (full pill, 52px) of plain icon buttons: Back, Contents, Comment, Full screen, Next. The walkthrough's progress a
    thin row at the foot, always on screen. Immersive (.is-immersive, 4 s untouched): the bar and the toolbar fade, the
    code rises into the bar's place and fills the screen edge to edge, the card drops to just above the progress row with
    a small Show controls icon in its corner. On its side: see landscape, below. */
@@ -380,6 +380,73 @@
   width: 20px;
   height: 20px;
 }
+/* the coach (player.phone.ts), on going immersive: a one-line note at the top, a touch dot tracing the card's swipes
+   with a one-word cue under it, then Show controls ringed in accent while the note points at it */
+[data-form='phone'] .rr-tour__note {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-overlay-2);
+  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow);
+  color: var(--rr-ink);
+  font-size: var(--rr-text-sm);
+  white-space: nowrap;
+  opacity: 0;
+  translate: -50% -6px;
+  pointer-events: none;
+  transition: opacity var(--rr-m-default-ms), translate var(--rr-m-default-ms) var(--rr-m-default);
+}
+[data-form='phone'] .rr-tour__note.is-on {
+  opacity: 1;
+  translate: -50% 0;
+}
+[data-form='phone'] .rr-tour__note .rr-icon {
+  width: 14px;
+  height: 14px;
+}
+[data-form='phone'] .rr-tour__trace,
+[data-form='phone'] .rr-tour__cue {
+  position: fixed;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+}
+[data-form='phone'] .rr-tour__trace {
+  width: 28px;
+  height: 28px;
+  margin: -14px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--rr-ink) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rr-ink) 35%, transparent);
+}
+[data-form='phone'] .rr-tour__cue {
+  translate: -50% 0;
+  color: var(--rr-ink-2);
+  font-size: var(--rr-text-xs);
+  white-space: nowrap;
+}
+[data-form='phone'] .rr-tour__restore.is-hinting {
+  border-color: var(--rr-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rr-accent) 25%, transparent), var(--rr-shadow);
+  color: var(--rr-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-form='phone'] .rr-tour__restore.is-hinting {
+    animation: rr-tour-beckon 1.2s ease-in-out 3;
+  }
+}
+@keyframes rr-tour-beckon {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--rr-accent) 15%, transparent), 0 0 16px color-mix(in srgb, var(--rr-accent) 35%, transparent), var(--rr-shadow);
+  }
+}
 /* the toolbar's buttons: plain icons on the pill, no fills of their own; Back and Next bright ink (disabled at either
    end, muted), Contents quieter, Comment marked by its orange stroke. Pressed or hovered, a round state layer */
 [data-form='phone'] .rr-tour__bottom button {
@@ -413,7 +480,8 @@
   display: flex;
   gap: 4px;
 }
-[data-form='phone'] .rr-tour__bottom .rr-tour__contents {
+[data-form='phone'] .rr-tour__bottom .rr-tour__contents,
+[data-form='phone'] .rr-tour__bottom .rr-tour__full {
   color: var(--rr-ink-2);
 }
 [data-form='phone'] .rr-tour__bottom .rr-tour__comment {
