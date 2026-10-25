@@ -1,7 +1,9 @@
 // The hub's page (`reviewroom hub`): every review running on this machine, refreshed every 2 s from the hub's
 // own server (a review server refuses requests from other ports). Filter, sort, open, close.
+import { installButton } from '../kernel/install'; // first: it listens for Chrome's install prompt
 import { backdropCloses, h, icon, relTime } from '../kernel/dom';
 import { mountTooltips } from '../kernel/tooltip';
+import { startUpdates } from '../kernel/pwa';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
 import type { HubSnapshot, SessionInfo } from './model.shared';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
@@ -128,6 +130,7 @@ const heads = columns.map(([key, label, tip, cls]) =>
 const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
 
 mountTooltips();
+startUpdates();
 document.body.append(
   h(
     'div',
@@ -136,6 +139,8 @@ document.body.append(
       'header',
       { class: 'rr-header' },
       h('div', { class: 'rr-header__id' }, h('div', { class: 'rr-mark', 'aria-hidden': 'true' }, 'rr'), h('div', { class: 'rr-header__titles' }, h('div', { class: 'rr-header__title' }, 'All reviews'), meta)),
+      h('div', { class: 'rr-toolbar__spacer' }),
+      installButton(true),
     ),
     banners,
     h(
@@ -296,6 +301,8 @@ async function refresh() {
     const [r, hr] = await Promise.all([fetch('/api/sessions', { cache: 'no-store' }), fetch('/api/health', { cache: 'no-store' })]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = (await r.json()) as HubSnapshot;
+    // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
+    if (!/^(127\.|localhost$|\[::1\]$)/.test(location.hostname)) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
     const health = hr.ok ? ((await hr.json()) as { compatibility?: Compat }) : null;
     const compat = Object.entries(health?.compatibility ?? {})
       .filter(([tool, c]) => c.status === 'unverified' || (c.status === 'unavailable' && data!.sessions.some((s) => s.tool === tool)))

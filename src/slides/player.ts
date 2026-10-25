@@ -1,19 +1,23 @@
 // The guided walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
 // paused. walkthroughMachine and its paneMachine child (src/slides/player.machine.ts) own every state and transition;
-// this file renders snapshots and implements the pane's actions (resolve links, fade, mount, glide, unmount).
+// this file renders snapshots and implements the pane's actions (resolve links, mount, glide, settle, unmount); what the
+// desktop and a phone do differently is in player.desktop.ts and player.phone.ts.
 // A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack, under one set of
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
-import { h, icon, plural } from '../kernel/dom';
+import { h, icon, onDrag } from '../kernel/dom';
+import { usesPhonePlayer } from '../kernel/device';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
 import { paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from './player.machine';
 import type { ReviewApp } from '../app';
-import { menuItem, popMenu } from '../kernel/menus';
+import { desktopPlayer } from './player.desktop';
+import { phonePlayer } from './player.phone';
+import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
-import { displayTools } from '../review/code';
+import { displayTools, type CodePanelOptions } from '../review/code';
 import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
@@ -21,6 +25,18 @@ import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
 
 let panes = 0;
+
+/** What the desktop and phone players (player.desktop.ts, player.phone.ts) do their own way. */
+type PlayerForm = {
+  contents(): void;
+  paintNav(cur: ReturnType<typeof current>): void;
+  /** each slide: fold the chapter intro its own way */
+  foldLead?(): void;
+  /** Scroll room and an optional covering edge for each code pane. */
+  codeLayout?(): Pick<CodePanelOptions, 'padBottom' | 'coverTop'>;
+  /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
+  focus?(ref: string): void;
+};
 
 /** Where a slide's link lands in the code pane; null for links that show no code. */
 export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null> {
@@ -54,38 +70,57 @@ export function mountWalkthrough(app: ReviewApp) {
     views.forEach((v) => v.panel?.dispose?.());
     views = [];
   };
+  // one layer of chunks per mount; the layer they replace stays over them, opaque, until they have landed (paneMachine's
+  // settle), then fades: no blank pane, no code seen loading or scrolling into place
+  let layer = h('div', { class: 'rr-tour__layer' });
+  pane.append(layer);
+  let old: { el: HTMLElement; views: typeof views } | null = null;
+  const drop = (o: NonNullable<typeof old>) => (o.views.forEach((v) => v.panel?.dispose?.()), o.el.remove());
+  const dropOld = () => {
+    const o = old;
+    if (!o) return;
+    old = null;
+    o.el.classList.add('is-gone');
+    setTimeout(() => drop(o), 250);
+  };
   // a header names the chunk (in its code panel's toolbar); stacked, clicking it shows only that one
   const nameHead = (head: HTMLElement, ref: string) => {
     const r = parseRef(ref);
     head.replaceChildren(...(r ? [refIcon(r)] : []), h('span', null, app.label(ref)));
-    if (head instanceof HTMLButtonElement) head.onclick = () => actor.send({ type: 'focus', refs: [ref] });
+    if (head instanceof HTMLButtonElement) head.onclick = () => focus(ref);
   };
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : slot.code ? h('span', { class: 'rr-tour__chunk-head' }) : null;
     if (head) nameHead(head, slot.ref);
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head }, id) : null;
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, ...form.codeLayout?.() }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     views.push({ panel, id, head });
-    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : '') }, panel ? null : head, body);
+    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
   };
   const mount = (s: PaneShown) => {
-    dispose();
+    // what landed last stays over the new chunks; a layer replaced before it landed goes at once
+    if (old || !views.length) {
+      dispose();
+      layer.remove();
+    } else {
+      old = { el: layer, views };
+      layer.classList.add('is-leaving');
+    }
+    views = [];
+    layer = pane.appendChild(h('div', { class: 'rr-tour__layer' }));
     const code = s.kind === 'refs' ? s.slots.flatMap((x) => (x.code ? [x.code] : [])) : [];
     tools.hidden = !code.length;
     toolsMode = code.some((c) => c.view === 'diff') ? 'diff' : 'file';
     paintTools();
-    if (s.kind === 'refs') pane.replaceChildren(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
-    else pane.replaceChildren();
+    if (s.kind === 'refs') layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
     // no code: the narration takes the whole player, centred
     split.classList.toggle('is-solo', s.kind === 'empty');
   };
   const pane$ = paneMachine.provide({
     actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(app, ref) }))) } : input)) },
     actions: {
-      fadeOut: () => pane.classList.add('is-out'),
-      fadeIn: () => pane.classList.remove('is-out'),
       mount: ({ context }) => mount(context.next!),
       // same files: each view's highlight moves to its new lines
       glide: ({ context }) =>
@@ -94,7 +129,14 @@ export function mountWalkthrough(app: ReviewApp) {
           if (views[i]?.head) nameHead(views[i].head, s.ref);
           if (s.code) app.bus.emit('reveal-code', { ...s.code, panel: views[i].id });
         }),
-      unmount: () => (dispose(), pane.replaceChildren(), (tools.hidden = true)),
+      settle: dropOld,
+      unmount: () => {
+        if (old) drop(old);
+        old = null;
+        dispose();
+        layer.replaceChildren();
+        tools.hidden = true;
+      },
     },
   });
   const actor = createActor(walkthroughMachine.provide({ actors: { pane: pane$ } })).start();
@@ -107,11 +149,12 @@ export function mountWalkthrough(app: ReviewApp) {
   const chapterPrev = btn('chevron', 'Previous chapter', () => go(-1));
   const chapterNext = btn('chevron', 'Next chapter', () => go(1));
   chapterPrev.classList.add('rr-tour__flip');
-  const chapterBtn = h('button', { class: 'rr-tour__chapter', title: 'Jump to a chapter', 'aria-haspopup': 'menu', onclick: () => chapterMenu() });
+  const chapterBtn = h('button', { class: 'rr-tour__chapter', onclick: () => form.contents() });
   const position = h('span', { class: 'rr-tour__pos' });
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
-  // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back
+  // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back (a phone folds it
+  // its own way: form.foldLead)
   let leadOpen = true;
   const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
   const paintLead = () => {
@@ -133,7 +176,7 @@ export function mountWalkthrough(app: ReviewApp) {
     const { focus } = current(c).step;
     // Mermaid nodes (rendered later: `rr-mermaid:ready` repaints) take their label from the text, their ref from a `click` link
     requestAnimationFrame(() =>
-      root.querySelectorAll('rr-flow, rr-mermaid').forEach((flow) => {
+      player.querySelectorAll('rr-flow, rr-mermaid').forEach((flow) => {
         let any = false;
         flow.querySelectorAll('rr-node, .pele-node').forEach((n) => {
           const node = n.matches('rr-node') ? { label: label(n), ref: n.getAttribute('ref') } : { label: n.querySelector('.pele-label')?.textContent ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
@@ -174,33 +217,48 @@ export function mountWalkthrough(app: ReviewApp) {
     actor.send({ type: 'pause' });
     if (ref) void app.open(ref);
   });
-  const right = h('div', { class: 'rr-tour__right' }, tools, pane);
+  // the boundary between the narration and the code drags to resize (side by side only: CSS hides it otherwise); the
+  // share of the width is kept per device, a double-click goes back to the default
+  const SPLIT = 'reviewroom:tour-split';
+  const splitAt = (f: unknown) => (typeof f === 'number' ? split.style.setProperty('--rr-tour-split', `clamp(240px, ${f * 100}%, calc(100% - 240px))`) : split.style.removeProperty('--rr-tour-split'));
+  splitAt(loadJSON(SPLIT));
+  const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => (saveLocal(SPLIT, null), splitAt(null)) });
+  let box: DOMRect, share = 0;
+  onDrag(resize, {
+    start: () => (box = split.getBoundingClientRect()),
+    move: (_dx, _dy, e) => splitAt((share = (e.clientX - box.left) / box.width)),
+    end: (dx) => dx && saveLocal(SPLIT, share),
+  });
+  const right = h('div', { class: 'rr-tour__right' }, resize, tools, pane);
   const prev = btn('chevron', 'Previous slide', () => actor.send({ type: 'prev' }), '←');
   prev.classList.add('rr-tour__flip');
   const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
   const progress = h('div', { class: 'rr-tour__progress' });
+  const bottom = h('div', { class: 'rr-tour__bottom' }, prev, progress, next);
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
     h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
     (split.append(left, right), split),
-    h('div', { class: 'rr-tour__bottom' }, prev, progress, next),
+    bottom,
   );
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
-  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill);
+  // slides' text rendered ahead (below: prose)
+  const stash = h('div', { class: 'rr-tour__stash rr-prose', 'aria-hidden': 'true', inert: true });
+  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill, stash);
   root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
+  // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
+  // The phone player goes by the device, either way up, under either shell
+  const form: PlayerForm = usesPhonePlayer()
+    ? phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
+    : desktopPlayer({ actor, chapterBtn, next });
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
-  const chapterMenu = () =>
-    popMenu(chapterBtn, (close) =>
-      ctx().doc!.chapters.map((c, i) =>
-        menuItem(c.title, () => (close(), actor.send({ type: 'goto', chapter: i, step: 0 })), { checked: i === ctx().chapter, hint: plural(c.steps.length, 'slide') }),
-      ),
-    );
+  const focus = (ref: string) => (form.focus ? form.focus(ref) : actor.send({ type: 'focus', refs: [ref] }));
 
   // links in the narration: code goes to the pane (the step stays); anything else pauses and opens in the workbench
   left.addEventListener(
@@ -212,7 +270,7 @@ export function mountWalkthrough(app: ReviewApp) {
       e.stopPropagation();
       const ref = link.getAttribute('href') ?? link.getAttribute('ref')!;
       const type = parseRef(ref)?.type;
-      if (type === 'code' || type === 'file' || type === 'sym') actor.send({ type: 'focus', refs: [ref] });
+      if (type === 'code' || type === 'file' || type === 'sym') focus(ref);
       else {
         actor.send({ type: 'pause' });
         void app.open(ref);
@@ -223,8 +281,65 @@ export function mountWalkthrough(app: ReviewApp) {
 
   // ------------------------------------------------------------ render the player's snapshot
   let last = { chapter: -1, step: -1, doc: null as Walkthrough | null };
-  const prose = (el: HTMLElement, html: string) => (el.innerHTML = sanitizeProse(html));
-  // the step (or chapter) changed: new content at once, a CSS entrance (nothing to race)
+  // Each slide's text (and chapter intro) is rendered once and kept, its diagrams drawn: a slide change swaps it in
+  // whole, nothing re-renders. The rest render in the background, nearest first, in a hidden stash beside the player
+  // (in the page: a diagram moved out of it stays drawn)
+  const rendered = new Map<string, HTMLElement>();
+  let renderedFor: Walkthrough | null = null;
+  const proseFor = (key: string, html: string) => {
+    if (renderedFor !== ctx().doc) {
+      rendered.clear();
+      stash.replaceChildren();
+      renderedFor = ctx().doc;
+    }
+    let el = rendered.get(key);
+    if (!el) {
+      el = h('div', { class: 'rr-tour__prose' });
+      el.innerHTML = sanitizeProse(html);
+      stash.append(el);
+      rendered.set(key, el);
+    }
+    return el;
+  };
+  // a change crossfades: the old text stays where it was, fading out over the new one fading in (no blank frame)
+  const leave = (el: Element) => (el.classList.remove('is-leaving'), stash.append(el));
+  const prose = (box: HTMLElement, key: string, html: string) => {
+    const el = proseFor(key, html);
+    box.querySelectorAll(':scope > .is-leaving').forEach(leave);
+    const old = box.firstElementChild;
+    if (old === el) return;
+    if (old) {
+      old.classList.add('is-leaving');
+      // only while it is still fading out here: going back to it within the second puts it on screen again
+      const gone = () => old.parentElement === box && old.classList.contains('is-leaving') && leave(old);
+      const done = (e: Event) => e.target === old && (e as AnimationEvent).animationName === 'rr-tour-out' && (old.removeEventListener('animationend', done), gone());
+      old.addEventListener('animationend', done);
+      setTimeout(() => (old.removeEventListener('animationend', done), gone()), 1000); // no animation ran (reduced motion, hidden)
+    }
+    box.prepend(el);
+    enter(el);
+  };
+  const idle = (f: () => void) => ('requestIdleCallback' in window ? requestIdleCallback(f, { timeout: 500 }) : setTimeout(f, 50));
+  let preloading = false;
+  const preload = () => {
+    const { doc: d, chapter: at, step: on } = ctx();
+    if (preloading || !d) return;
+    stash.style.width = `${stepText.clientWidth || 360}px`;
+    const here = d.chapters.slice(0, at).reduce((a, c) => a + c.steps.length, 0) + on;
+    let i = 0;
+    const todo = d.chapters
+      .flatMap((c, ci) => [...(c.lead ? [{ key: `lead/${ci}`, html: c.lead, i }] : []), ...c.steps.map((st, si) => ({ key: `${ci}/${si}`, html: st.text, i: i++ }))])
+      .sort((a, b) => Math.abs(a.i - here - 0.5) - Math.abs(b.i - here - 0.5)); // ahead first, then behind
+    preloading = true;
+    const one = () => {
+      const next = todo.shift();
+      if (!next || ctx().doc !== d || !actor.getSnapshot().matches('open')) return void (preloading = false);
+      proseFor(next.key, next.html);
+      idle(one);
+    };
+    idle(one);
+  };
+  // new text: a CSS entrance (nothing to race)
   const enter = (el: HTMLElement) => {
     el.classList.remove('is-in');
     void el.offsetWidth;
@@ -254,33 +369,40 @@ export function mountWalkthrough(app: ReviewApp) {
     pillText.textContent = `Resume · ${ch.title} · ${step + 1}/${n}`;
     pillBar.style.width = `${(done / total) * 100}%`;
     if (chapter === last.chapter && step === last.step && d === last.doc) return;
-
-    if (chapter !== last.chapter || d !== last.doc) {
+    const prior = last;
+    last = { chapter, step, doc: d };
+    paint(prior);
+    preload();
+  });
+  const paint = (prior: typeof last) => {
+    const { chapter, step, doc: d } = ctx();
+    if (!d) return;
+    const cur = current(ctx());
+    const ch = cur.chapter, n = ch.steps.length;
+    if (chapter !== prior.chapter || d !== prior.doc) {
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
-      prose(lead, ch.lead ?? '');
-      paintLead();
-      enter(lead);
+      prose(lead, `lead/${chapter}`, ch.lead ?? '');
     }
-    position.textContent = `Chapter ${chapter + 1} of ${d!.chapters.length}`;
+    paintLead();
+    form.foldLead?.();
+    position.textContent = `Chapter ${chapter + 1} of ${d.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);
-    chapterNext.toggleAttribute('disabled', chapter === d!.chapters.length - 1);
+    chapterNext.toggleAttribute('disabled', chapter === d.chapters.length - 1);
     divider.textContent = `Slide ${step + 1} of ${n}`;
-    prose(stepText, cur.step.text);
+    prose(stepText, `${chapter}/${step}`, cur.step.text);
     paintFocus();
     const refs = stepRefs(cur.step);
     chips.replaceChildren(
       ...refs.map((ref) => h('button', { class: 'rr-tour__ref', title: refs.length > 1 ? 'Show only this in the code pane' : 'Show this in the code pane', onclick: () => actor.send({ type: 'focus', refs: [ref] }) }, refIcon(parseRef(ref)!), h('span', null, app.label(ref)))),
       ...(refs.length > 1 ? [h('button', { class: 'rr-tour__ref', title: 'Show all of this slide\'s code again', onclick: () => actor.send({ type: 'focus' }) }, icon('split', 12), h('span', null, `All ${refs.length}`))] : []),
     );
-    enter(stepBox);
     prev.toggleAttribute('disabled', cur.isFirst);
-    next.replaceChildren(cur.isLast ? 'Finish' : 'Next', cur.isLast ? icon('check', 14) : icon('chevron', 14));
-    next.title = cur.isLast ? 'End the guided walkthrough' : 'Next slide';
+    form.paintNav(cur);
     progress.replaceChildren(
-      ...d!.chapters.map((c, ci) =>
+      ...d.chapters.map((c, ci) =>
         h(
           'div',
-          { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : ''), style: `flex:${c.steps.length}` },
+          { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : ''), style: `--rr-steps:${c.steps.length}` },
           h('span', { class: 'rr-tour__seg-title', title: c.title }, c.title),
           h(
             'div',
@@ -293,9 +415,8 @@ export function mountWalkthrough(app: ReviewApp) {
         ),
       ),
     );
-    last = { chapter, step, doc: d };
     paintThreads();
-  });
+  };
   app.bus.on('state', paintThreads);
   app.bus.on('code-landed', ({ panel }) => views.some((v) => v.id === panel) && actor.send({ type: 'landed' }));
 
@@ -374,13 +495,14 @@ export function mountWalkthrough(app: ReviewApp) {
     const want = JSON.stringify(target(ctx()));
     // showing: the code has landed (or landing gave up: late)
     const { shown, late } = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context;
-    // the entrance; an author's endless or paused animation would never finish
-    await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished)), new Promise((r) => setTimeout(r, 1000))]);
+    // the entrance (the old text's fade is cancelled when it leaves: done too); an author's endless or paused animation
+    // would never finish
+    await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1000))]);
     const settled = (await settle(left)) && !late;
     const { chapter: ch, step: st } = current(ctx());
-    return measure({ left, lead, pane }, shown, { lead: proseRemoved(ch.lead ?? ''), text: proseRemoved(st.text) }, settled);
+    return measure({ left, lead, pane: layer }, shown, { lead: proseRemoved(ch.lead ?? ''), text: proseRemoved(st.text) }, settled);
   }
-  app.onDispose(() => { disposed = true; actor.stop(); dispose(); root.remove(); });
+  app.onDispose(() => { disposed = true; actor.stop(); dispose(); if (old) drop(old); root.remove(); });
   return { actor, audit };
 }
 

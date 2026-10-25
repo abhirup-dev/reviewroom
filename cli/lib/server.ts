@@ -9,7 +9,7 @@ import { makeProvider, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { DIST, PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
-import { ensureHub } from './registry.ts';
+import { ensureHub, reviewId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
 import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { makeGitHub } from './github.ts';
@@ -17,6 +17,8 @@ import { checkLinks, problems, report } from './links.ts';
 import { tourText } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { compress } from 'hono/compress';
+import { etag, RETAINED_304_HEADERS } from 'hono/etag';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
@@ -85,26 +87,88 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
   };
 }
 
-// Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too (no-cors GETs, form POSTs,
-// DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
-function allowed(c: Context) {
-  const port = getBunServer<Bun.Server<undefined>>(c)?.port;
-  const origins = [`127.0.0.1:${port}`, `localhost:${port}`];
-  if (!origins.includes(c.req.header('host') ?? '')) return false;
-  if (!c.req.path.startsWith('/api/')) return true;
-  const site = c.req.header('sec-fetch-site');
-  if (site && site !== 'same-origin' && site !== 'none') return false;
-  const origin = c.req.header('origin');
-  return c.req.method === 'GET' || c.req.method === 'HEAD' || origin === undefined || origins.some((o) => origin === `http://${o}`);
+/** What the access checks look at in a request. */
+export type AccessRequest = { host?: string; origin?: string; site?: string; method: string; path: string };
+export const accessRequest = (c: Context): AccessRequest => ({ host: c.req.header('host'), origin: c.req.header('origin'), site: c.req.header('sec-fetch-site'), method: c.req.method, path: c.req.path });
+export const serverPort = (c: Context) => getBunServer<Bun.Server<undefined>>(c)?.port;
+
+/** Host is one of `hosts`; API requests (`isApi`) are not cross-site, and writes carry no Origin or one of `origins`. */
+export function sameSite(r: AccessRequest, hosts: string[], origins: string[], isApi = (p: string) => p.startsWith('/api/')) {
+  if (!hosts.includes(r.host ?? '')) return false;
+  if (!isApi(r.path.replace(/\/{2,}/g, '/'))) return true; // the router reads //api/ops as /api/ops
+  if (r.site && r.site !== 'same-origin' && r.site !== 'none') return false;
+  return r.method === 'GET' || r.method === 'HEAD' || r.origin === undefined || origins.includes(r.origin);
 }
 
-/** Every response says which process sent it (lock.ts `answers`); the hub's server uses this too. */
-export const localOnly: MiddlewareHandler = async (c, next) => {
+// Only this machine's browser tab may talk to us: other sites can reach 127.0.0.1 too (no-cors GETs, form POSTs,
+// DNS rebinding), so check Host, Sec-Fetch-Site and Origin.
+export const loopbackHosts = (port: number | undefined) => [`127.0.0.1:${port}`, `localhost:${port}`];
+function allowed(c: Context) {
+  const hosts = loopbackHosts(serverPort(c));
+  return sameSite(accessRequest(c), hosts, hosts.map((h) => `http://${h}`));
+}
+
+// dist/build-info.json's id, read again when the file changes: a running server serves dist/ while `bun run dev` rebuilds it
+let build: { mtime: number; id?: string } = { mtime: -1 };
+const buildId = () => {
+  const f = path.join(DIST, 'build-info.json');
+  try {
+    const mtime = fs.statSync(f).mtimeMs;
+    if (mtime !== build.mtime) build = { mtime, id: JSON.parse(fs.readFileSync(f, 'utf8')).id };
+  } catch {
+    build = { mtime: -1 }; // missing or half-written: no header, try again next time
+  }
+  return build.id;
+};
+
+/** Every response says which process and which client build sent it (lock.ts `answers`); requests `ok` refuses get a 403.
+ *  The hub's server uses this too, with its own check (hubAccess). */
+export const guarded = (ok: (c: Context) => boolean): MiddlewareHandler => async (c, next) => {
   c.header('x-reviewroom-pid', String(process.pid));
+  const id = buildId();
+  if (id) c.header('x-reviewroom-build', id);
   c.header('cache-control', 'no-store'); // unless a route says otherwise
-  if (!allowed(c)) return c.json({ error: 'forbidden' }, 403);
+  if (!ok(c)) return c.json({ error: 'forbidden' }, 403);
   await next();
 };
+export const localOnly = guarded(allowed);
+
+/** The PWA head: the hub-root manifest (absolute: review pages live under /r/<id>/), iOS Home Screen tags, theme colours (--rr-bg). */
+export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/_rr/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="reviewroom">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#e4e2db" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#07080a" media="(prefers-color-scheme: dark)">
+`;
+
+/** Adds what a page's <head> lacks (older review.html files): viewport-fit=cover, the PWA tags, the client entry. */
+export function withHead(html: string) {
+  const end = html.indexOf('</head>');
+  if (end < 0) return html;
+  let head = html.slice(0, end).replace(/(<meta name="viewport" content="(?![^"]*viewport-fit)[^"]*)"/, '$1, viewport-fit=cover"');
+  if (!head.includes('rel="manifest"')) head += PWA_HEAD;
+  // the client build loads relatively, so under the hub's /r/<id>/ the page gets this server's build, not the hub's
+  head = head.replace(/(src=["'])\/_rr\/reviewroom\.js/, '$1_rr/reviewroom.js');
+  if (!head.includes('_rr/reviewroom.js')) head += '<script type="module" src="_rr/reviewroom.js"></script>\n';
+  return head + html.slice(end);
+}
+
+/**
+ * The client build (/_rr/*), its service worker (/sw.js) and the web app manifest, on the review server and the hub. Chunks are
+ * content-hashed, so immutable; fonts keep their file names across package upgrades, so a day; the rest (the entries,
+ * css, build-info.json, sw.js, the manifest) revalidates so a new build never mixes with stale files.
+ */
+export function serveClient(app: Hono) {
+  // no-cache files revalidate: an unchanged 2 MB entry costs a 304, not a download (a phone on a slow tailnet)
+  for (const p of ['/_rr/*', '/manifest.webmanifest', '/sw.js']) app.use(p, etag({ retainedHeaders: [...RETAINED_304_HEADERS, 'x-reviewroom-pid', 'x-reviewroom-build'] })); // the hub proxy checks the pid on a 304 too
+  const policy = (p: string) => (p.startsWith('/_rr/chunks/') ? 'public, max-age=31536000, immutable' : p.startsWith('/_rr/fonts/') ? 'max-age=86400' : 'no-cache');
+  app.get('/_rr/*', async (c, next) => (c.header('cache-control', policy(c.req.path)), next()), serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
+  app.get('/manifest.webmanifest', async (c, next) => (c.header('cache-control', 'no-cache'), next()), serveStatic({ root: DIST, mimes: { webmanifest: 'application/manifest+json' } }));
+  app.get('/sw.js', async (c, next) => (c.header('cache-control', 'no-cache'), c.header('service-worker-allowed', '/'), next()), serveStatic({ root: DIST }));
+}
 
 /** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
@@ -156,6 +220,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
 
   const app = new Hono();
   app.use(localOnly);
+  app.use(compress()); // skips the event stream (text/event-stream) and small bodies
   if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
@@ -166,20 +231,14 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   });
 
   const page = (c: Context) => {
-    let html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
-    if (!html.includes('/_rr/reviewroom.js')) html = html.replace('</head>', '<script type="module" src="/_rr/reviewroom.js"></script>\n</head>');
-    return c.html(html);
+    const html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
+    return c.html(withHead(html), 200, { 'cache-control': 'no-cache' });
   };
   app.get('/', page);
   app.get('/index.html', page);
-  // the client build; reviewroom.js is the entry and changes with every build, its chunks are content-hashed
-  app.get(
-    '/_rr/*',
-    async (c, next) => (c.header('cache-control', c.req.path.endsWith('/reviewroom.js') ? 'no-store' : 'max-age=3600'), next()),
-    serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }),
-  );
+  serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  app.get('/api/meta', (c) => json(c, prov.meta()));
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir) })); // id: the same for direct and proxied access
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
@@ -328,14 +387,14 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   return { app, prov, commit, github, checkNarrative, close };
 }
 
-/** Serve on 127.0.0.1 at `port`, or the next free one of the 20 after it. */
-export function listen(app: Hono, port: number) {
+/** Serve on 127.0.0.1 at `port`, or the next free one of the `spread` after it. */
+export function listen(app: Hono, port: number, spread = 20) {
   for (let p = port; ; p++) {
     try {
       // idleTimeout 0: an SSE stream is quiet for 20 s between pings, past Bun's 10 s default
       return Bun.serve({ fetch: app.fetch, hostname: '127.0.0.1', port: p, idleTimeout: 0 });
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE' || p >= port + 20) throw e;
+      if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE' || p >= port + spread) throw e;
     }
   }
 }

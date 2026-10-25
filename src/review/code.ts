@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { copyText, h, icon, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
@@ -41,10 +41,10 @@ const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hun
 
 const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
 
-export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
+export function inlineThread(app: ReviewApp, t: Thread): HTMLElement {
   const last = t.messages[t.messages.length - 1];
   const first = t.messages[0];
-  const card = h(
+  const button = h(
     'button',
     {
       class: 'rr-inline-thread' + (t.status === 'resolved' ? ' is-resolved' : '') + (app.services.threads.unreadAgent(t) ? ' has-agent' : ''),
@@ -60,7 +60,7 @@ export function threadCard(app: ReviewApp, t: Thread): HTMLElement {
     last && last !== first ? h('span', { class: 'rr-inline-thread__last' }, (last.author === 'github' ? last.gh?.login : last.author) + ': ' + plainExcerpt(last.body, 60)) : null,
     t.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok' }, 'resolved') : null,
   );
-  return h('div', { class: 'rr-inline-thread-wrap' }, card);
+  return h('div', { class: 'rr-inline-thread-wrap' }, button);
 }
 
 // GitHub threads whose code moved on (outdated) or that are about the whole file have no line here
@@ -93,6 +93,16 @@ export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): (HTMLElemen
   ];
 }
 
+/** Optional code-panel layout and navigation controls, supplied by its host. */
+export type CodePanelOptions = {
+  /** Pixels of scroll room at the foot; when supplied, uses an 8px top inset and item gap. */
+  padBottom?: number;
+  /** Viewport y where a lower covering element begins. Land above it and re-centre once its edge settles. */
+  coverTop?: () => number;
+  /** Show the file scrubber and file-position menus in diff headers. */
+  rail?: boolean;
+};
+
 class CodePanel implements PanelInstance {
   element: HTMLElement;
   private toolbar: HTMLElement;
@@ -116,15 +126,25 @@ class CodePanel implements PanelInstance {
   private optionsInit = false;
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
+  private padBottom?: number;
+  private coverTop?: () => number;
+  private withRail: boolean;
+  /** The covering edge when lines last landed (revealMachine's settle compares). */
+  private landedAt = 0;
   /** Embedded: the walkthrough's name for this chunk, first in the toolbar (its own path label is left out). */
   private head?: HTMLElement;
   /** Reveals (src/review/reveal.machine.ts): a new one cancels the last one's wait, unfold and glow. */
   private revealer: Actor<typeof revealMachine>;
+  /** A segment per file down the right edge (drag it to scrub) and where the view is on it. */
+  private rail?: { el: HTMLElement; thumb: HTMLElement; sig: string };
 
-  constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown>) {
+  constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown> & CodePanelOptions) {
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
+    this.padBottom = params.padBottom;
+    this.coverTop = params.coverTop;
+    this.withRail = !!params.rail;
     this.head = params.head as HTMLElement | undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
@@ -136,11 +156,14 @@ class CodePanel implements PanelInstance {
     const frame = () => new Promise((r) => requestAnimationFrame(r));
     this.revealer = createActor(
       revealMachine.provide({
-        actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, frame)) },
+        actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, frame)), settle: fromPromise(({ signal }) => this.settle(signal)) },
         actions: {
           land: ({ context }) => this.land(context.target!),
-          // restart the pulse: it runs while --rr-pulse names it
+          recentre: ({ context }) => this.land(context.target!, matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'),
+          // restart the pulse: it runs while --rr-pulse names it. The walkthrough's pane doesn't pulse: it snaps to the
+          // lines and keeps them highlighted
           glow: () => {
+            if (this.embedded) return;
             this.scroller.style.removeProperty('--rr-pulse');
             requestAnimationFrame(() => this.revealer.getSnapshot().matches('glowing') && this.scroller.style.setProperty('--rr-pulse', 'rr-pulse'));
           },
@@ -151,13 +174,14 @@ class CodePanel implements PanelInstance {
       }),
     ).start();
     // read the position once CodeView's frame has settled it (mid-jump it rebases its paged scroll)
-    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => this.trackActive()), { passive: true });
+    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => (this.trackActive(), this.paintRail())), { passive: true });
+    if (this.withRail) this.mountRail();
 
     this.offs.push(
       app.bus.on('files', () => this.rebuild()),
       app.bus.on('prefs', () => this.refreshOptions(true)),
       app.bus.on('theme', () => this.cv.setOptions(this.options())),
-      app.bus.on('state', () => this.refreshItems()),
+      app.bus.on('state', () => (this.refreshItems(), this.embedded && this.renderToolbar())), // the walkthrough's toolbar holds Viewed
       app.bus.on('reveal-code', (t) => {
         if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
       }),
@@ -223,13 +247,22 @@ class CodePanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-toolbar__group' },
-        // the walkthrough pane has one set of these for all its files
-        ...(this.embedded ? [] : displayTools(this.app, this.mode)),
+        // the walkthrough pane has one set of these for all its files; its own row has what the file header would
+        ...(this.embedded ? (this.pin ? this.fileStatus(this.pin) : []) : displayTools(this.app, this.mode)),
         this.mode === 'diff' && !this.embedded
           ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
           : null,
       ),
     );
+  }
+
+  /** The walkthrough's code (no file header): the file's open threads and Viewed, in the toolbar. Marking it viewed
+   *  leaves it open (the workbench folds it). */
+  private fileStatus(path: string) {
+    const threads = codeThreadsOn(this.app.services.threads.threads(), path).filter((t) => t.status === 'open');
+    const cb = h('input', { type: 'checkbox', checked: this.app.state.viewed[path] !== undefined });
+    cb.addEventListener('change', () => this.app.setViewed(path, cb.checked));
+    return [...threadCounts(threads, 'in this file'), h('label', { class: 'rr-toolbar__viewed', title: 'Mark this file as viewed' }, cb, h('span', null, 'Viewed'))];
   }
 
   private setMode(m: 'diff' | 'file') {
@@ -311,6 +344,8 @@ class CodePanel implements PanelInstance {
     const viewed = app.state.viewed[f.path] !== undefined;
     const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
     const name = f.path.slice(dir.length);
+    // With a scrubber, the header names its position ("2 / 5") and its path opens the file list.
+    const list = this.withRail;
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => {
       this.toggleCollapse(f.path, cb.checked);
@@ -327,11 +362,14 @@ class CodePanel implements PanelInstance {
       h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added in this PR', modified: 'Modified', deleted: 'Deleted in this PR', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
       h(
         'button',
-        { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, defaultSide(f)) },
+        list
+          ? { class: 'rr-file__path', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }
+          : { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, defaultSide(f)) },
         f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' → ') : null,
         h('span', { class: 'rr-muted' }, dir),
         h('strong', null, name),
       ),
+      list ? h('button', { class: 'rr-file__pos', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }, `${[...this.files.keys()].indexOf(f.path) + 1} / ${this.files.size}`, icon('chevronDown', 12)) : null,
       h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
@@ -369,8 +407,10 @@ class CodePanel implements PanelInstance {
       hunkSeparators: 'line-info',
       expansionLineCount: 20,
       stickyHeaders: true,
-      disableFileHeader: this.mode === 'file',
+      disableFileHeader: this.mode === 'file' || this.embedded, // the walkthrough names the file in its toolbar
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
+      // Extra scroll room lets the last lines rise above a covering element.
+      layout: this.padBottom !== undefined ? { paddingTop: 8, paddingBottom: this.padBottom, gap: 8 } : undefined,
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,
@@ -378,9 +418,9 @@ class CodePanel implements PanelInstance {
       renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
       renderAnnotation: (a: { metadata: Meta }) => {
         const t = this.app.services.threads.thread(a.metadata.threadId);
-        return t ? threadCard(this.app, t) : undefined;
+        return t ? inlineThread(this.app, t) : undefined;
       },
-      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => r && !fv?.rev && this.onSelect(ctx.item.id, side(r)),
+      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => !fv?.rev && (r ? this.onSelect(ctx.item.id, side(r)) : this.onDeselect(ctx.item.id)),
       onGutterUtilityClick: (r: SelectedLineRange, ctx: Ctx) => !fv?.rev && this.onGutter(ctx.item.id, side(r)),
       loadDiffFiles: async (d: FileDiffMetadata) => {
         const { base, head } = this.app.range;
@@ -402,7 +442,7 @@ class CodePanel implements PanelInstance {
       });
   }
 
-  /** Split view: the new line drawn across from an old line, so threads on either side share one row's card instead of two half-width ones. */
+  /** Split view: the new line drawn across from an old line, so threads on either side share one row's annotation instead of two half-width ones. */
   private pairedNewLine(path: string, oldLine: number): number | undefined {
     const d = this.files.get(path)?.diff;
     if (!d || this.app.prefs.diffStyle !== 'split') return;
@@ -510,13 +550,50 @@ class CodePanel implements PanelInstance {
     return !signal.aborted;
   }
 
-  /** Highlight the target's lines and scroll them to 30% from the top. */
-  private land(t: CodeTarget) {
+  /** Highlight the target's lines and scroll them to 30% from the top (a covering element: centred above it). */
+  private land(t: CodeTarget, behavior: 'instant' | 'smooth' = 'instant') {
     const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
-    this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset: this.scroller.clientHeight * 0.3 });
+    // Centre in the uncovered code, or 8px from the top when the lines do not fit there.
+    const offset = this.coverTop ? this.centredAbove(t.path, lines, side) : this.scroller.clientHeight * 0.3;
+    this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset, behavior });
+    this.landedAt = this.coverTop?.() ?? 0;
+  }
+
+  /** A covering element may still be sizing when lines land: true once its top edge has held still
+   *  (or ~1 s) somewhere else than where they landed against, false if the reader scrolled meanwhile. */
+  private settle(signal: AbortSignal) {
+    if (!this.coverTop) return Promise.resolve(false);
+    const at = this.landedAt;
+    return new Promise<boolean>((done) => {
+      let last = at, still = 0, left = 60, top = -1;
+      const tick = () => {
+        if (signal.aborted || !this.element.isConnected) return done(false);
+        const scroll = this.cv.getScrollTop();
+        if (top >= 0 && Math.abs(scroll - top) > 2) return done(false); // the reader scrolled
+        top = scroll;
+        const now = this.coverTop?.() ?? 0;
+        still = Math.abs(now - last) < 1 ? still + 1 : 0;
+        last = now;
+        if (still < 4 && --left > 0) return void requestAnimationFrame(tick);
+        done(Math.abs(now - at) > 4);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  /** The offset from the top that centres these lines between the pane's top and the covering element's top edge. */
+  private centredAbove(path: string, lines: { start: number; end: number }, side: Side) {
+    type Lines = { getLinePosition(n: number, side?: Side): { top: number; height: number } | undefined };
+    const it = this.cv.getRenderedItems().find((x) => x.id === path)?.instance as Lines | undefined;
+    const [a, b] = [it?.getLinePosition(lines.start, side), it?.getLinePosition(lines.end, side)];
+    const open = (this.coverTop?.() ?? Infinity) - this.scroller.getBoundingClientRect().top;
+    if (!Number.isFinite(open)) return 8;
+    // lines not rendered yet (off screen): Pierre's own estimate, 20px a line (wrapped lines run taller)
+    const tall = a && b ? b.top + b.height - a.top : (lines.end - lines.start + 1) * 20;
+    return Math.max(8, (open - tall) / 2);
   }
 
   /** The first line of every run of changed lines in the files on screen, top to bottom. */
@@ -575,13 +652,78 @@ class CodePanel implements PanelInstance {
     this.app.selection = { kind: 'code', path, side: revOf(r.side), start, end, ...this.lastPointer };
     this.app.bus.emit('selection', this.app.selection);
   }
+  /** Tapping the selected line again unselects it: let go of it, so Comment (and c) don't act on what isn't shown. */
+  private onDeselect(path: string) {
+    if (this.app.selection?.kind !== 'code' || this.app.selection.path !== path) return;
+    this.app.selection = null;
+    this.app.bus.emit('selection', null);
+  }
   private onGutter(path: string, r: SelectedLineRange) {
     const [start, end] = ordered(r);
     this.app.compose({ kind: 'code', path, rev: revOf(r.side), start, end });
   }
 
+  // ------------------------------------------------------------ the file rail
+  private mountRail() {
+    // a slider (focusable): a finger's touch lands on it, not on the code beside it
+    const el = h('div', { class: 'rr-code-rail', role: 'slider', tabindex: '-1', 'aria-label': 'Files: drag to scrub through them', 'aria-orientation': 'vertical', title: 'Files: drag to scrub through them' });
+    const thumb = h('div', { class: 'rr-code-rail__thumb' });
+    this.rail = { el, thumb, sig: '' };
+    this.element.append(el);
+    const scrub = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const f = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      this.cv.scrollTo({ type: 'position', position: f * Math.max(0, this.cv.getScrollHeight() - this.cv.getHeight()) });
+    };
+    onDrag(el, { start: (e) => (el.classList.add('is-dragging'), scrub(e)), move: (_, __, e) => scrub(e), end: () => el.classList.remove('is-dragging') });
+  }
+
+  /** Each file's share of the scroll and its viewed mark; the thumb where the view is. */
+  private paintRail() {
+    const rail = this.rail;
+    if (!rail || this.mode !== 'diff') return void (rail && (rail.el.hidden = true));
+    const total = this.cv.getScrollHeight();
+    const ids = [...this.files.keys()];
+    rail.el.hidden = ids.length < 2 || !total;
+    if (rail.el.hidden) return;
+    const tops = ids.map((id) => this.cv.getTopForItem(id) ?? 0);
+    const cur = this.fileAt(40);
+    const sig = JSON.stringify([total, tops, cur, ids.map((id) => this.app.state.viewed[id] !== undefined)]);
+    if (sig !== rail.sig) {
+      rail.sig = sig;
+      rail.el.replaceChildren(
+        ...ids.map((id, i) =>
+          h('div', {
+            class: 'rr-code-rail__seg' + (i === cur ? ' is-current' : '') + (this.app.state.viewed[id] !== undefined ? ' is-viewed' : ''),
+            style: { flexGrow: String(Math.max(1, (tops[i + 1] ?? total) - tops[i])) },
+          }),
+        ),
+        rail.thumb,
+      );
+    }
+    rail.el.setAttribute('aria-valuetext', `File ${cur + 1} of ${ids.length}: ${ids[cur] ?? ''}`);
+    rail.thumb.style.top = `${(this.cv.getScrollTop() / total) * 100}%`;
+    rail.thumb.style.height = `${(this.cv.getHeight() / total) * 100}%`;
+  }
+
+  /** The file list, from a file's header: that file ticked; jump to any, its open threads or viewed mark beside it. */
+  private fileList(anchor: HTMLElement, at: string) {
+    const threads = this.app.services.threads.threads();
+    popMenu(anchor, (close) => [
+      menuLabel(`${this.files.size} files`),
+      ...[...this.files.values()].map(({ file: f }) => {
+        const open = codeThreadsOn(threads, f.path).filter((t) => t.status === 'open').length;
+        return menuItem(f.path.split('/').pop()!, () => (close(), this.reveal({ path: f.path, side: defaultSide(f) })), {
+          checked: f.path === at,
+          hint: open ? `${open} open` : this.app.state.viewed[f.path] !== undefined ? 'viewed' : STATUS[f.status],
+        });
+      }),
+    ]);
+  }
+
   onShow() {
     this.trackActive();
+    this.paintRail();
   }
   dispose() {
     this.revealer.stop();

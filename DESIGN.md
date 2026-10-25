@@ -214,7 +214,8 @@ float above the page.
 
 Square. 2px radius on chips, buttons, inputs, cards and blocks; 4px on floating layers (menus, dialogs, palette,
 popovers). 1px hairline borders define controls and separate rows; strong hairlines outline buttons. Nothing is pill-
-shaped or fully rounded.
+shaped or fully rounded. The phone shell is the one exception: it takes Material 3 Expressive shapes and touch sizes
+on these same tokens (`docs/design/phone.md`).
 
 ## Components
 
@@ -227,7 +228,8 @@ Quiet, square, outlined.
 - **Icon button:** 26px square, muted icon, hover fill; pressed state uses the active fill.
 - **Send (signature):** the one tactile control. A raised key cap with a lit top edge, a darker 2px bottom edge and a
   soft shadow; lifts 1px on hover and presses in on click. Orange for Agent, neutral for PR. When unavailable it
-  becomes flat and dashed.
+  becomes flat and dashed. On the phone it becomes the flat M3E filled button (full pill, a state layer, no key cap;
+  `docs/design/phone.md`).
 
 ### Pills and badges
 - **Pill:** 20px, hairline border, muted text, 11px; `--mono` for ids. State variants (ok, draft, accent) drop the

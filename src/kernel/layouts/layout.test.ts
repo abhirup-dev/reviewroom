@@ -44,8 +44,8 @@ function mount(o: Opts = {}) {
 type Tree = string | Tree[];
 const tree = (n: { type: string; data: unknown }): Tree => (n.type === 'leaf' ? (n.data as { views: string[] }).views.join(',') : (n.data as typeof n[]).map(tree));
 /** The docked panels as the grid nests them (rows and columns alternate), tab stacks joined by commas. */
-const docked = (a = app!) => tree((a.dock.toJSON().grid as unknown as { root: { type: string; data: unknown } }).root);
-const floating = (a = app!) => (a.dock.toJSON().floatingGroups ?? []).map((f) => f.data!.views.join(','));
+const docked = (a = app!) => tree((a.dock!.toJSON().grid as unknown as { root: { type: string; data: unknown } }).root);
+const floating = (a = app!) => (a.dock!.toJSON().floatingGroups ?? []).map((f) => f.data!.views.join(','));
 // dockview reports layout changes asynchronously; the save machine reads the dock 250 ms after the last one
 const settled = () => tick(300);
 
@@ -69,8 +69,8 @@ test('applyLayout builds the named layout; on-demand panels stay out', () => {
   expect(app.layout.apply('nope')).toBe(false);
   expect(app.layout.apply('code-focus')).toBe(true);
   expect(docked(app)).toEqual(CODE_FOCUS);
-  expect(app.dock.getPanel('pin')).toBeUndefined();
-  expect(app.dock.activePanel?.id).toBe('narrative');
+  expect(app.dock!.getPanel('pin')).toBeUndefined();
+  expect(app.dock!.activePanel?.id).toBe('narrative');
 });
 
 test('undo goes back through layout changes, and brings back the layout they were built from', async () => {
@@ -95,7 +95,7 @@ test('a saved dock comes back as it was, with its layout; a broken one falls bac
   const first = mount().app;
   first.layout.apply('code-focus');
   dock.closePanel(first, 'toc');
-  const saved: LastLayout = { dock: first.dock.toJSON(), offered: [], layout: 'code-focus' };
+  const saved: LastLayout = { dock: first.dock!.toJSON(), offered: [], layout: 'code-focus' };
   const { app } = mount({ saved });
   expect(docked(app)).toEqual(['files', 'code', ['description', 'narrative,agent-chart', 'threads,ci']]);
   dock.closePanel(app, 'code');
@@ -119,7 +119,7 @@ test('saving a layout: a usable new name is stored and becomes a command; anythi
   app.backend.saveLayout = async () => false;
   expect(await app.layout.save('Other')).toBe(false);
   expect(toasts.at(-1)).toBe('error: Could not save the layout');
-  app.dock.clear();
+  app.dock!.clear();
   expect(await app.layout.save('Empty')).toBe(false);
   expect(toasts.at(-1)).toBe('error: Nothing to save: no panels are open');
 });
@@ -141,9 +141,9 @@ test('the default layout: set when saving as default, cleared when forgotten or 
 test('a conditional panel waits for its provider, is offered once where the layout puts it, and is no undo step', async () => {
   let ready = false;
   const { app } = mount({ availability: { ids: ['ci'], isAvailable: () => ready } });
-  expect(app.dock.getPanel('ci')).toBeUndefined();
+  expect(app.dock!.getPanel('ci')).toBeUndefined();
   app.layout.offerAvailable();
-  expect(app.dock.getPanel('ci')).toBeUndefined();
+  expect(app.dock!.getPanel('ci')).toBeUndefined();
   ready = true;
   app.layout.offerAvailable();
   expect(docked(app)).toEqual(READING);
@@ -151,7 +151,7 @@ test('a conditional panel waits for its provider, is offered once where the layo
   expect(app.layout.canUndo()).toBe(false);
   dock.closePanel(app, 'ci');
   app.layout.offerAvailable(); // closed by the reviewer: not offered again
-  expect(app.dock.getPanel('ci')).toBeUndefined();
+  expect(app.dock!.getPanel('ci')).toBeUndefined();
 });
 
 test('floating a panel leaves a stand-in in its place; putting it back returns it there', () => {

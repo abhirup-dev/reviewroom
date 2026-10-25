@@ -4,12 +4,13 @@ import reading from './reading.json';
 import wideCode from './wide-code.json';
 import codeFocus from './code-focus.json';
 import narrativeFocus from './narrative-focus.json';
+import tablet from './tablet.json';
 
 const panel = (id: string) => (id.includes(':') ? undefined : { id, contentComponent: id, title: id });
 const ids = (n: LayoutNode): string[] => ('tabs' in n ? n.tabs : ('row' in n ? n.row : n.column).flatMap(ids));
 
 test('built-in layouts are valid layout files', () => {
-  for (const l of [reading, wideCode, codeFocus, narrativeFocus]) expect(Layout.safeParse(l).success).toBe(true);
+  for (const l of [reading, wideCode, codeFocus, narrativeFocus, tablet]) expect(Layout.safeParse(l).success).toBe(true);
 });
 
 test('pixels first, fractions of the rest, unsized share what is left', () => {

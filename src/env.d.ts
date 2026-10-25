@@ -6,3 +6,5 @@ declare module '*.svg' {
   const svg: string;
   export default svg;
 }
+/** The build id, baked in by scripts/build.ts. */
+declare const __RR_BUILD__: string;

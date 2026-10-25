@@ -1,0 +1,723 @@
+/* Phone shell (kernel/phone.ts): four areas along the bottom, each a row of pages under its top tabs; on-demand
+   panels as sheets over them. The look is Material 3 Expressive on reviewroom's tokens (docs/design/phone.md):
+   colour, type and restraint from DESIGN.md; shape, touch and motion from M3E. Desktop and the tablet dock never
+   match these selectors (.is-phone, .rr-phone, :root:has(.is-phone) for the dialogs outside the root). This file is
+   the shell only; each feature's phone rules load after it (review.phone.css, threads.phone.css, slides.phone.css:
+   the guided review's phone player, keyed off its own [data-form='phone'], either way up, even under the dock). */
+
+@keyframes rr-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* ---------------------------------------------------------------- shell */
+.rr-phone {
+  display: flex;
+  flex-direction: column;
+  border-top: 0;
+}
+.rr-phone-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+/* areas stay laid out when not current (visibility, not display): their pages keep their scroll */
+.rr-phone-area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  background: var(--rr-bg);
+}
+.rr-phone-area.is-current {
+  visibility: visible;
+}
+
+/* ---------------------------------------------------------------- top app bar (small, 64px) */
+.rr-phonebar {
+  height: var(--rr-phone-bar);
+  gap: 0;
+  padding: 0 8px 0 4px;
+  background: var(--rr-bg);
+}
+.rr-phonebar .rr-hbtn--icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--rr-shape-full);
+  color: var(--rr-ink-2);
+}
+.rr-phonebar .rr-hbtn .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.rr-phonebar__titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.rr-phonebar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 16px / 1.25 var(--rr-font);
+}
+.rr-phonebar__sub {
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-phonebar .rr-round-status,
+.rr-phonebar .rr-unsaved {
+  height: auto;
+  font-size: inherit;
+}
+/* Send: the one filled control, a round ink icon button; the unsent count an orange badge on its corner */
+.rr-phonebar .rr-send-btn {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-ink);
+  color: var(--rr-bg);
+  box-shadow: none;
+  transform: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.rr-phonebar .rr-send-btn:hover {
+  background: var(--rr-ink); /* a state layer instead (Send, below) */
+}
+.rr-phonebar .rr-send-btn > span:not(.rr-badge) {
+  display: none;
+}
+.rr-phonebar .rr-send-btn .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.rr-phonebar .rr-send-btn .rr-badge,
+.rr-phone-tab__badge {
+  position: absolute;
+  padding: 0 4px;
+  border: 2px solid var(--rr-bg);
+  border-radius: var(--rr-shape-full);
+  box-sizing: content-box;
+  background: var(--rr-comment);
+  color: var(--rr-comment-ink);
+  font: 700 10px / 18px var(--rr-font);
+}
+.rr-phonebar .rr-send-btn .rr-badge {
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+}
+
+/* ---------------------------------------------------------------- primary tabs (48px) */
+.rr-phone-toptabs {
+  position: relative; /* the indicator's offsetParent (kernel/phone.ts slide) */
+  flex: none;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-bg);
+}
+.rr-phone-toptab {
+  flex: 1 0 auto;
+  height: 48px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  font: 500 14px / 1 var(--rr-font);
+  white-space: nowrap;
+  transition: color 150ms ease-out;
+}
+.rr-phone-toptab[aria-selected='true'] {
+  color: var(--rr-ink);
+}
+/* 3px, rounded top corners, as wide as the label; follows the pager mid-swipe */
+.rr-phone-toptabs__ind {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--rr-accent);
+  pointer-events: none;
+}
+/* the pages side by side: a sideways swipe scrolls (and snaps) between them */
+.rr-phone-pager {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.rr-phone-pager::-webkit-scrollbar {
+  display: none;
+}
+.rr-phone-page {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--rr-panel, var(--rr-bg)); /* by kind, as on desktop: paper, notebook, code */
+}
+.rr-phone-page > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+/* a wide block scrolled to its end stays put rather than turning the page */
+.rr-phone-page :is(pre, table, .rr-toolbar) {
+  overscroll-behavior-x: contain;
+}
+
+/* ---------------------------------------------------------------- sheets (a thread, a code pop-out) */
+.rr-phone-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-panel, var(--rr-bg));
+  overflow: hidden;
+}
+.rr-phone-panel > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+.rr-phone-sheet-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 56px;
+  padding: 0 8px 0 4px;
+  border-bottom: 1px solid var(--rr-line);
+  font: 600 15px / 1.3 var(--rr-font);
+}
+.rr-phone-sheet-head .rr-icon {
+  transform: rotate(180deg);
+}
+.rr-phone-sheet-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- navigation bar (M3E flexible, 64px) */
+.rr-phone-nav {
+  flex: none;
+  display: flex;
+  height: calc(var(--rr-phone-bar) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--rr-bg);
+}
+.rr-phone-tab {
+  flex: 1 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  color: var(--rr-muted);
+  font: 500 12px / 16px var(--rr-font);
+}
+.rr-phone-tab[aria-current='true'] {
+  color: var(--rr-ink);
+}
+.rr-phone-tab__pill {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 32px;
+  border-radius: var(--rr-shape-full);
+}
+.rr-phone-tab__pill .rr-icon {
+  width: 24px;
+  height: 24px;
+}
+.rr-phone-tab[aria-current='true'] .rr-phone-tab__pill {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+.rr-phone-tab__badge {
+  top: -4px;
+  right: 6px;
+  min-width: 12px;
+  height: 16px;
+  line-height: 16px;
+}
+/* the indicator grows from the centre on the fast spring */
+.rr-phone-tab.is-new .rr-phone-tab__pill {
+  animation: rr-pill-in var(--rr-m-fast-ms) var(--rr-m-fast);
+}
+@keyframes rr-pill-in {
+  from {
+    clip-path: inset(0 50% round 16px);
+  }
+  to {
+    clip-path: inset(0 0 round 16px);
+  }
+}
+.rr-side-head__count {
+  flex: 1;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+
+/* Comment, for a selection (no c key on a phone) */
+.rr-phone-comment {
+  position: absolute;
+  right: 16px;
+  bottom: calc(var(--rr-phone-bar) + 16px + env(safe-area-inset-bottom));
+  z-index: 5;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: var(--rr-shape-full);
+  box-shadow: var(--rr-shadow);
+}
+
+/* ---------------------------------------------------------------- code sheet (standard bottom sheet) */
+/* the Code area itself, at 40% over the page; no scrim at peek, one only while dragged above 70% */
+.rr-phone-peek-head {
+  display: none;
+}
+.rr-phone-area.is-peek {
+  visibility: visible;
+  z-index: 3;
+  top: auto;
+  bottom: max(0px, calc(var(--rr-kb, 0px) - var(--rr-phone-bar)));
+  height: var(--rr-peek-h, 42%);
+  max-height: 100%;
+  border-radius: var(--rr-shape-xl) var(--rr-shape-xl) 0 0;
+  background: var(--rr-surface-overlay);
+  box-shadow: var(--rr-shadow-lg);
+  overflow: hidden;
+  animation: rr-rise var(--rr-m-default-ms) var(--rr-m-default);
+}
+.rr-phone-area.is-peek:not(.is-dragging) {
+  transition: height var(--rr-m-default-ms) var(--rr-m-default);
+}
+.rr-phone-area.is-peek.is-rising {
+  box-shadow: var(--rr-shadow-lg), 0 0 0 100vmax var(--rr-scrim);
+}
+/* past 70% it keeps rising from where it was, on the expressive spring, and lands as the Code area */
+.rr-phone-area.is-landing {
+  animation: rr-land var(--rr-m-expressive-ms) var(--rr-m-expressive);
+}
+@keyframes rr-land {
+  from {
+    transform: translateY(var(--rr-from, 40%));
+  }
+}
+.is-peek .rr-phone-peek-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-surface-overlay);
+  touch-action: none;
+}
+/* 32x4 handle in a 24px strip; the header row under it drags too, so the touch strip is 72px */
+.rr-phone-peek-grip {
+  align-self: center;
+  width: 32px;
+  height: 4px;
+  margin: 10px 0;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+.rr-phone-peek-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 4px 0 16px;
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-phone-peek-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 13px / 1 var(--rr-mono);
+}
+.rr-phone-peek-lines {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: var(--rr-shape-s);
+  background: var(--rr-surface-nav-2);
+  color: var(--rr-muted);
+  font: 500 12px / 1 var(--rr-mono);
+}
+.rr-phone-peek-row .rr-icon-btn {
+  width: 48px;
+  height: 48px;
+}
+/* peeking, the lines are all there is room for */
+.is-peek .rr-code-panel > .rr-toolbar {
+  display: none;
+}
+
+/* menus (the file list, rounds): medium radius, 48px rows */
+:root:has(.is-phone) .rr-menu {
+  border-radius: var(--rr-shape-m);
+  padding: 6px 0;
+}
+:root:has(.is-phone) .rr-menu__item {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 0;
+}
+
+/* ---------------------------------------------------------------- search view (M3E contained) */
+/* the palette is a full-screen view: the <dialog> sits outside .rr-root, hence :has() */
+:root:has(.is-phone) .rr-palette {
+  margin: var(--rr-kb-top, 0px) 0 0;
+  width: 100%;
+  max-width: 100%;
+  /* above the on-screen keyboard (kernel/keyboard.ts) */
+  box-sizing: border-box;
+  height: calc(100dvh - var(--rr-kb-top, 0px));
+  max-height: none;
+  padding: env(safe-area-inset-top) 0 var(--rr-kb, 0px);
+  border: 0;
+  border-radius: 0;
+  background: var(--rr-surface-overlay);
+  transform-origin: calc(100% - 140px) 32px;
+  animation: rr-search-in var(--rr-m-fast-ms) var(--rr-m-fast);
+}
+@keyframes rr-search-in {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+}
+.rr-palette__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 56px;
+  margin: 8px 12px;
+  padding: 0 4px;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-nav-2);
+}
+.rr-palette__bar .rr-icon-btn {
+  width: 48px;
+  height: 48px;
+}
+:root:has(.is-phone) .rr-palette__input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-size: 16px; /* under 16px iOS zooms the page on focus */
+}
+:root:has(.is-phone) .rr-palette__input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.rr-palette__chips {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rr-palette__chips[hidden],
+.rr-palette__chips:not([hidden]) ~ .rr-palette__hint,
+.rr-palette__bar ~ .rr-palette__cancel,
+.rr-palette__clear[hidden] {
+  display: none !important;
+}
+.rr-palette__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-shape-s);
+  background: none;
+  color: var(--rr-ink-2);
+  font: 500 13px / 1 var(--rr-font);
+}
+.rr-palette__chip > span {
+  color: var(--rr-muted);
+  font: 400 12px / 1 var(--rr-font);
+}
+.rr-palette__chip.is-on {
+  padding-left: 8px;
+  border-color: transparent;
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+.rr-palette__group {
+  padding: 16px 16px 6px;
+  font: 600 10.5px / 1 var(--rr-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rr-faint);
+}
+:root:has(.is-phone) .rr-palette__list {
+  flex: 1;
+}
+:root:has(.is-phone) .rr-palette__item {
+  /* the kind's tile, then the label over its detail */
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 12px;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 0;
+}
+:root:has(.is-phone) .rr-palette__kind {
+  grid-row: 1 / span 2;
+}
+:root:has(.is-phone) .rr-palette__label,
+:root:has(.is-phone) .rr-palette__detail {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+:root:has(.is-phone) .rr-palette__detail {
+  justify-self: stretch;
+  max-width: none;
+  margin: 0;
+  font-size: var(--rr-text-sm);
+}
+:root:has(.is-phone) .rr-palette__item.is-sel {
+  background: var(--rr-accent-soft);
+}
+:root:has(.is-phone) .rr-palette__item kbd {
+  display: none;
+}
+:root:has(.is-phone) .rr-palette__kind {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rr-shape-s);
+  background: var(--rr-surface-nav-2);
+  color: var(--rr-ink-2);
+}
+:root:has(.is-phone) .rr-palette__item.is-sel .rr-palette__kind {
+  background: var(--rr-surface-overlay);
+  color: var(--rr-accent);
+}
+:root:has(.is-phone) .rr-palette__cancel {
+  display: inline-flex;
+}
+
+/* ---------------------------------------------------------------- bottom sheet (the thread popup, Contents) */
+/* a <dialog class="rr-modal rr-sheet">; padded clear of the on-screen keyboard (kernel/keyboard.ts) */
+.rr-modal.rr-sheet {
+  inset: auto 0 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  max-height: min(85dvh, calc(100dvh - var(--rr-kb-top, 0px)));
+  padding-bottom: calc(var(--rr-kb, 0px) + env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: var(--rr-shape-xl) var(--rr-shape-xl) 0 0;
+  background: var(--rr-surface-overlay);
+  animation: rr-rise var(--rr-m-default-ms) var(--rr-m-default);
+}
+/* the drag-handle bar */
+.rr-modal.rr-sheet::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 32px;
+  height: 4px;
+  margin: 10px 0 2px;
+  border-radius: 2px;
+  background: var(--rr-line-strong);
+}
+/* ---------------------------------------------------------------- snackbar: above the navigation bar */
+:root:has(.is-phone) .rr-toasts {
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--rr-phone-bar) + 12px + env(safe-area-inset-bottom));
+  transform: none;
+  align-items: stretch;
+}
+:root:has(.is-phone) .rr-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  max-width: none;
+  padding: 4px 6px 4px 16px;
+  border-radius: var(--rr-shape-m);
+  box-shadow: var(--rr-shadow);
+}
+:root:has(.is-phone) .rr-toast__action {
+  margin-left: auto;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: var(--rr-accent-soft);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- menu drawer (modal navigation drawer) */
+/* kernel/header.ts openDrawer: a modal dialog from the left edge, large trailing corners */
+.rr-drawer {
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(300px, 86vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  border: 0;
+  border-radius: 0 var(--rr-shape-l) var(--rr-shape-l) 0;
+  background: var(--rr-surface-overlay);
+  color: var(--rr-ink);
+  font: var(--rr-text) / 1.45 var(--rr-font);
+  box-shadow: var(--rr-shadow-lg);
+  flex-direction: column;
+}
+.rr-drawer[open] {
+  display: flex;
+  animation: rr-drawer-in var(--rr-m-default-ms) var(--rr-m-default);
+}
+.rr-drawer::backdrop {
+  background: var(--rr-scrim);
+}
+.rr-drawer * {
+  box-sizing: border-box;
+}
+@keyframes rr-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+.rr-drawer__head {
+  padding: 28px 28px 16px;
+}
+.rr-drawer__title {
+  font: 600 16px / 1.3 var(--rr-font);
+}
+.rr-drawer__facts {
+  margin-top: 6px;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-drawer__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+.rr-drawer__sep {
+  height: 1px;
+  margin: 8px 16px;
+  background: var(--rr-line);
+}
+.rr-drawer__item,
+.rr-drawer__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: inherit;
+  font: 500 14px / 1.3 var(--rr-font);
+  text-align: left;
+}
+.rr-drawer__item > span,
+.rr-drawer__row > span {
+  flex: 1;
+  min-width: 0;
+}
+.rr-drawer__item small,
+.rr-drawer__row small {
+  color: var(--rr-muted);
+  font: 400 12px / 1.3 var(--rr-font);
+}
+.rr-drawer__item > .rr-icon,
+.rr-drawer__row > .rr-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--rr-muted);
+}
+.rr-drawer__item:active {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+/* a segmented button: full pill outside, three segments */
+.rr-drawer__row .rr-seg {
+  flex: none;
+  height: 40px;
+  border-radius: var(--rr-shape-full);
+  overflow: hidden;
+}
+.rr-drawer__row .rr-seg > button {
+  min-width: 44px;
+  height: 100%;
+  padding: 0 10px;
+  font-weight: 600;
+}
+.rr-drawer__row .rr-seg > button.is-on {
+  background: var(--rr-accent-soft);
+  color: var(--rr-accent);
+}
+
+/* ---------------------------------------------------------------- reduced motion: movement becomes a fade */
+@media (prefers-reduced-motion: reduce) {
+  :root:has(.is-phone, .rr-tour[data-form='phone']) :is(.rr-phone-area, .rr-drawer, .rr-palette, .rr-modal.rr-sheet) {
+    animation: rr-fade 150ms ease-out !important; /* dialogs.css */
+    transition: none !important;
+  }
+  .rr-phone-tab.is-new .rr-phone-tab__pill {
+    animation: none;
+    transition: none;
+  }
+}
+.rr-drawer:focus {
+  outline: none;
+}

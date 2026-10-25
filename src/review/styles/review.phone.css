@@ -1,0 +1,93 @@
+/* The review on a phone (kernel/styles/phone.css has the shell). Loads after phone.css. */
+
+/* ---------------------------------------------------------------- lists: file rows, chips */
+.is-phone .rr-file-row.is-active {
+  border-radius: var(--rr-shape-full);
+}
+.is-phone .rr-prose .rr-chip,
+.is-phone rr-ref {
+  border-radius: var(--rr-shape-xs);
+}
+
+/* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
+.is-phone .rr-code-scroll {
+  background: var(--rr-surface-well);
+}
+.is-phone .rr-code-scroll diffs-container {
+  border-radius: var(--rr-shape-m);
+}
+.is-phone .rr-file__head {
+  background: var(--rr-bg);
+  font-size: 12px;
+}
+.rr-file__pos {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: none;
+  color: var(--rr-muted);
+  font: 500 12px / 1 var(--rr-font);
+  white-space: nowrap;
+}
+.is-phone .rr-code-panel {
+  position: relative;
+}
+/* a 20px touch strip on the trailing edge; the segments themselves 4px wide (12px while dragged) */
+.rr-code-rail {
+  position: absolute;
+  right: 0;
+  top: var(--rr-bar-h);
+  bottom: 8px;
+  z-index: 4;
+  width: 20px;
+  padding: 4px 4px 0 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  touch-action: none;
+}
+.rr-code-rail__seg {
+  flex: 1 1 0;
+  width: 4px;
+  min-height: 4px;
+  border-radius: var(--rr-shape-s);
+  background: var(--rr-line-strong);
+  transition: width var(--rr-m-fast-ms) var(--rr-m-fast);
+}
+.rr-code-rail.is-dragging .rr-code-rail__seg {
+  width: 12px;
+}
+.rr-code-rail__seg.is-viewed {
+  opacity: 0.5;
+}
+.rr-code-rail__seg.is-current {
+  opacity: 1;
+  background: var(--rr-accent);
+}
+.rr-code-rail__thumb {
+  display: none;
+}
+/* peeking, the rail's room goes to the lines */
+.is-peek .rr-code-rail {
+  display: none;
+}
+.rr-code-panel:has(> .rr-code-rail:not([hidden])) > .rr-code-scroll {
+  margin-right: 12px;
+}
+.is-peek .rr-code-panel:has(> .rr-code-rail) > .rr-code-scroll {
+  margin-right: 0;
+}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .rr-code-rail__seg {
+    animation: none;
+    transition: none;
+  }
+}

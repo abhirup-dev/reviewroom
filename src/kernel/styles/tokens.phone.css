@@ -1,0 +1,18 @@
+/* Shared phone tokens for the shell and guided review, loaded after tokens.css. */
+:root:has(.is-phone, .rr-tour[data-form='phone']) {
+  /* the M3 shape scale (desktop keeps 2px) */
+  --rr-shape-xs: 4px;
+  --rr-shape-s: 8px;
+  --rr-shape-m: 12px;
+  --rr-shape-l: 16px;
+  --rr-shape-xl: 28px;
+  --rr-shape-full: 999px;
+  /* M3 springs sampled as linear(): standard fast (200ms), standard default (280ms), expressive default (480ms) */
+  --rr-m-fast: linear(0, 0.067, 0.174, 0.296, 0.418, 0.53, 0.646, 0.726, 0.791, 0.843, 0.883, 0.915, 0.939, 0.957, 0.97, 0.98, 0.986, 0.991, 0.995, 0.997, 0.999, 0.999, 1, 1, 1);
+  --rr-m-default: linear(0, 0.058, 0.16, 0.279, 0.4, 0.513, 0.613, 0.697, 0.768, 0.824, 0.869, 0.904, 0.931, 0.949, 0.964, 0.976, 0.984, 0.99, 0.994, 0.996, 0.998, 0.999, 1, 1, 1);
+  --rr-m-expressive: linear(0, 0.077, 0.223, 0.388, 0.544, 0.679, 0.786, 0.867, 0.925, 0.964, 0.988, 1.003, 1.01, 1.013, 1.013, 1.011, 1.009, 1.007, 1.005, 1.004, 1.002, 1.001, 1.001, 1, 1);
+  --rr-m-fast-ms: 200ms;
+  --rr-m-default-ms: 280ms;
+  --rr-m-expressive-ms: 480ms;
+  --rr-phone-bar: 64px;
+}

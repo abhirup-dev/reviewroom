@@ -3,6 +3,7 @@
   "entry": [
     "src/main.ts",
     "src/hub/index.ts",
+    "src/sw.ts",
     "cli/reviewroom.ts",
     "scripts/*.ts"
   ],

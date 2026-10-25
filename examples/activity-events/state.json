@@ -120,9 +120,7 @@
       ]
     }
   ],
-  "viewed": {
-    "migrations/004_activity_events.sql": 1
-  },
+  "viewed": {},
   "pins": [
     "rr:doc/request-path"
   ],

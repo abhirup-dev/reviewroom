@@ -25,8 +25,8 @@ export interface PanelInstance {
 }
 
 const registry = new Map<string, PanelDef>();
-/** Register a panel type. Agents can add their own (a metrics chart, a query runner...) from review.html. */
-/** Register a panel kind; the returned function restores what was registered under its id before. */
+/** Register a panel kind; agents can add their own (a metrics chart, a query runner...) from review.html. The returned
+ *  function restores what was registered under its id before. */
 export function definePanel(def: PanelDef) {
   const before = registry.get(def.id);
   registry.set(def.id, def);
@@ -34,6 +34,8 @@ export function definePanel(def: PanelDef) {
 }
 export const panelDefs = () => [...registry.values()];
 export const panelDef = (id: string) => registry.get(id);
+/** The panel kinds reviewroom itself defines; any other (an agent's) joins the narrative's tabs, a page of Read on a phone. */
+export const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap'];
 
 /** Create the dock surface; saved-layout selection and persistence belong to layout.ts. */
 export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
@@ -81,9 +83,9 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
         const floating = isFloating(group);
         const kids: HTMLElement[] = [
           floating
-            ? hasSlot(app, group)
+            ? hasSlot(api, group)
               ? btn('dock', 'Put it back where it was (Esc)', () => putBack(app, group.activePanel!.id))
-              : btn('dock', 'Dock this window', (b) => dockMenu(app, group, b))
+              : btn('dock', 'Dock this window', (b) => dockMenu(api, group, b))
             : btn('popout', 'Float as a window (double-click the tab)', () => group.activePanel && floatInPlace(app, group.activePanel.id)),
         ];
         if (!floating) kids.push(btn('maximize', group.api.isMaximized() ? 'Restore' : 'Maximise', () => (group.api.isMaximized() ? group.api.exitMaximized() : group.api.maximize())));
@@ -105,10 +107,11 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
     floatingGroupBounds: 'boundedWithinViewport',
     floatingGroupDragHandle: 'titlebar',
     // our own menu (styled, and its Float keeps the layout): dockview shows nothing for an empty list
-    getTabContextMenuItems: ({ panel, event }) => (tabMenu(app, panel, event), []),
+    getTabContextMenuItems: ({ panel, event }) => (tabMenu(app, api, panel, event), []),
   });
 
   app.dock = api;
+  app.surface = new DockSurface(app, api);
   // double-click a tab: float it in place, or put a floated one back
   const doubleClick = (e: MouseEvent) => {
     const tab = (e.target as Element).closest('.dv-tab');
@@ -141,56 +144,143 @@ export function addDockPanel(api: DockviewApi, id: string, ref?: { panel?: strin
   });
 }
 
-// The rest of the app asks for panels through these, never dockview itself: a phone or tablet layout replaces them.
-export const hasPanel = (app: ReviewApp, id: string) => !!app.dock?.getPanel(id);
-export const closePanel = (app: ReviewApp, id: string) => app.dock?.getPanel(id)?.api.close();
-export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.dock?.getPanel(id)?.api.setTitle(title);
-/** The first open panel `match` accepts. */
-export const findPanel = (app: ReviewApp, match: (id: string, params: Record<string, unknown> | undefined) => boolean) => app.dock?.panels.find((p) => match(p.id, p.params))?.id;
-
-/** Bring an open panel to the front; false if it isn't open. */
-export function showPanel(app: ReviewApp, id: string) {
-  const p = app.dock?.getPanel(id);
-  if (!p) return false;
-  // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
-  // a panel behind another group's maximize still needs setActive, which brings it out
-  const covered = app.dock.hasMaximizedGroup() && !p.group.api.isMaximized();
-  if (p.api.isVisible && !covered) p.group.api.setActive();
-  else p.api.setActive();
-  return true;
+type Match = (id: string, params: Record<string, unknown> | undefined) => boolean;
+export type DockPlacement = 'right' | 'below' | 'float' | 'center';
+/** Where panels open: the dock (DockSurface), or the phone shell (phone.ts: one panel at a time, nothing floats). */
+export interface PanelSurface {
+  has(id: string): boolean;
+  /** Open (if needed) and bring to the front; false if there's no such panel. */
+  show(id: string, params?: Record<string, unknown>): boolean;
+  close(id: string): void;
+  setTitle(id: string, title: string): void;
+  find(match: Match): string | undefined;
+  /** Bring an open panel to the front; false if it isn't open. */
+  toFront(id: string): boolean;
+  /** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
+  add(panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: DockPlacement, near?: string): void;
+  /** Float a panel in place (see floatInPlace). */
+  float(id: string): void;
+  putBack(id: string): void;
+  /** Esc runs `back` once, if the panel is still floating then. */
+  onEscape(id: string, back: () => void): void;
+  /** The panel in front. */
+  front(): string | undefined;
 }
 
-export type DockPlacement = 'right' | 'below' | 'float' | 'center';
+// The rest of the app asks for panels through these, never dockview itself: through `app.surface` (DockSurface or PhoneShell).
+export const hasPanel = (app: ReviewApp, id: string) => !!app.surface?.has(id);
+export const closePanel = (app: ReviewApp, id: string) => app.surface?.close(id);
+export const setPanelTitle = (app: ReviewApp, id: string, title: string) => app.surface?.setTitle(id, title);
+/** The first open panel `match` accepts. */
+export const findPanel = (app: ReviewApp, match: Match) => app.surface?.find(match);
+/** Open a panel (if needed: where the layout puts it) and bring it to the front; false if there's no such panel. */
+export const ensurePanel = (app: ReviewApp, id: string, params?: Record<string, unknown>) => !!app.surface?.show(id, params);
+/** The panel in front: the phone's page or sheet, the dock's active panel. */
+export const frontPanel = (app: ReviewApp) => app.surface?.front();
+/** Bring an open panel to the front; false if it isn't open. */
+export const showPanel = (app: ReviewApp, id: string) => !!app.surface?.toFront(id);
 /** Add a panel beside `near` (else the code panel, else the active one), below it, or as a window. */
-export function addPanelAt(app: ReviewApp, panel: { id: string; component: string; title: string; params: Record<string, unknown> }, placement: DockPlacement, near?: string) {
-  const api = app.dock;
-  const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
-  if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(app) : floatBox(app) });
-  else api.addPanel({ ...panel, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined });
+export const addPanelAt = (app: ReviewApp, panel: Parameters<PanelSurface['add']>[0], placement: DockPlacement, near?: string) => app.surface?.add(panel, placement, near);
+/** Esc runs `back` once, if the panel is still floating then. */
+export const onEscape = (app: ReviewApp, id: string, back: () => void) => app.surface?.onEscape(id, back);
+/** Float a docked panel to the centre. A stand-in keeps its docked spot so nothing else moves;
+ *  Esc, "Put it back" or closing the window returns it to exactly that spot. Every way of floating
+ *  a panel (header button, tab double-click or menu, double-clicking a section, file or pin) comes here. */
+export const floatInPlace = (app: ReviewApp, id: string) => app.surface?.float(id);
+export const putBack = (app: ReviewApp, id: string) => app.surface?.putBack(id);
+
+/** The dock as a PanelSurface: dockview's panels, groups and floating windows. */
+class DockSurface implements PanelSurface {
+  constructor(
+    private app: ReviewApp,
+    private api: DockviewApi,
+  ) {}
+
+  has = (id: string) => !!this.api.getPanel(id);
+  /** The dock opens a panel where the layout puts it (Layouts.ensurePanel). */
+  show = (id: string, params?: Record<string, unknown>) => !!this.app.layout.ensurePanel(id, params);
+  close = (id: string) => this.api.getPanel(id)?.api.close();
+  setTitle = (id: string, title: string) => this.api.getPanel(id)?.api.setTitle(title);
+  find = (match: Match) => this.api.panels.find((p) => match(p.id, p.params))?.id;
+  front = () => this.api.activePanel?.id;
+
+  toFront(id: string) {
+    const p = this.api.getPanel(id);
+    if (!p) return false;
+    // dockview re-appends an already shown panel on setActive, which resets its scroll (and CodeView's idea of it);
+    // a panel behind another group's maximize still needs setActive, which brings it out
+    const covered = this.api.hasMaximizedGroup() && !p.group.api.isMaximized();
+    if (p.api.isVisible && !covered) p.group.api.setActive();
+    else p.api.setActive();
+    return true;
+  }
+
+  add(panel: Parameters<PanelSurface['add']>[0], placement: DockPlacement, near?: string) {
+    const api = this.api;
+    const ref = (near && api.getPanel(near)) || api.getPanel('code') || api.activePanel;
+    if (placement === 'float' || placement === 'center') api.addPanel({ ...panel, floating: placement === 'center' ? centerBox(api) : floatBox(api) });
+    else api.addPanel({ ...panel, position: ref ? { referencePanel: ref.id, direction: placement === 'below' ? 'below' : 'right' } : undefined });
+  }
+
+  onEscape(id: string, back: () => void) {
+    const app = this.app;
+    const f = () => {
+      app.escapers.splice(app.escapers.indexOf(f), 1);
+      const p = this.api.getPanel(id);
+      if (!p || !isFloating(p.group)) return false;
+      back();
+      return true;
+    };
+    app.escapers.push(f);
+  }
+
+  float(id: string) {
+    if (id.startsWith('slot:')) return this.putBack(id.slice(5)); // the stand-in itself: bring the panel home
+    const p = this.api.getPanel(id);
+    if (!p) return;
+    if (isFloating(p.group)) return p.api.setActive();
+    const group = p.group;
+    this.api.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p });
+    this.api.addFloatingGroup(p, centerBox(this.api));
+    this.onEscape(id, () => this.putBack(id));
+  }
+
+  putBack(id: string) {
+    const slot = slotOf(this.api, id);
+    if (!slot) return;
+    const group = slot.group;
+    const index = group.panels.indexOf(slot);
+    const keep = group.activePanel !== slot ? group.activePanel : undefined;
+    const p = this.api.getPanel(id);
+    if (p) p.api.moveTo({ group, position: 'center', index });
+    else this.api.addPanel({ id, component: slot.params!.component, params: slot.params!.params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
+    slot.api.close();
+    keep?.api.setActive();
+  }
 }
 
 // ------------------------------------------------------------------ floating / docking helpers
 /** Where a floating window opens: right half of the dock, inside the viewport. */
-export function floatBox(app: ReviewApp, w = 0.5, hgt = 0.62) {
-  const W = app.dock.width || window.innerWidth;
-  const H = app.dock.height || window.innerHeight;
+function floatBox(api: DockviewApi, w = 0.5, hgt = 0.62) {
+  const W = api.width || window.innerWidth;
+  const H = api.height || window.innerHeight;
   const width = Math.round(Math.min(980, Math.max(420, W * w)));
   const height = Math.round(Math.min(H - 60, Math.max(320, H * hgt)));
   return { position: { top: Math.max(24, Math.round((H - height) / 3)), left: Math.max(24, W - width - 40) }, width, height };
 }
 
 /** A large window centred on the dock. */
-export function centerBox(app: ReviewApp) {
-  const W = app.dock.width || window.innerWidth;
-  const H = app.dock.height || window.innerHeight;
+function centerBox(api: DockviewApi) {
+  const W = api.width || window.innerWidth;
+  const H = api.height || window.innerHeight;
   const width = Math.round(W * 0.8);
   const height = Math.round(H * 0.86);
   return { position: { top: Math.round((H - height) / 2), left: Math.round((W - width) / 2) }, width, height };
 }
 
-const hasSlot = (app: ReviewApp, group: DockviewGroupPanel) => !!group.activePanel && !!slotOf(app.dock, group.activePanel.id);
+const hasSlot = (api: DockviewApi, group: DockviewGroupPanel) => !!group.activePanel && !!slotOf(api, group.activePanel.id);
 
-function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
+function tabMenu(app: ReviewApp, api: DockviewApi, p: IDockviewPanel, e: MouseEvent) {
   e.preventDefault();
   const tab = ((e.target as Element).closest('.dv-tab') ?? e.target) as HTMLElement;
   const g = p.group;
@@ -199,7 +289,7 @@ function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
     p.id.startsWith('slot:')
       ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
       : floating
-      ? slotOf(app.dock, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
+      ? slotOf(api, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
       : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
     floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
     menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
@@ -207,8 +297,8 @@ function tabMenu(app: ReviewApp, p: IDockviewPanel, e: MouseEvent) {
   ]);
 }
 
-function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement) {
-  const targets = app.dock.groups.filter((g) => g.api.location.type === 'grid' && g !== group);
+function dockMenu(api: DockviewApi, group: DockviewGroupPanel, anchor: HTMLElement) {
+  const targets = api.groups.filter((g) => g.api.location.type === 'grid' && g !== group);
   const named = (g: DockviewGroupPanel) => g.panels.map((p) => p.title).join(' · ');
   const go = (target: DockviewGroupPanel | undefined, position: 'left' | 'right' | 'top' | 'bottom' | 'center') => {
     if (!target) return;
@@ -227,63 +317,24 @@ function dockMenu(app: ReviewApp, group: DockviewGroupPanel, anchor: HTMLElement
   ]);
 }
 
-/** Esc runs `back` once, if the panel is still floating then. */
-export function onEscape(app: ReviewApp, id: string, back: () => void) {
-  const f = () => {
-    app.escapers.splice(app.escapers.indexOf(f), 1);
-    const p = app.dock.getPanel(id);
-    if (!p || !isFloating(p.group)) return false;
-    back();
-    return true;
-  };
-  app.escapers.push(f);
-}
-
-// ---------------------------------------------------------------- float in place
-/** Float a docked panel to the centre. A stand-in keeps its docked spot so nothing else moves;
- *  Esc, "Put it back" or closing the window returns it to exactly that spot. Every way of floating
- *  a panel (header button, tab double-click or menu, double-clicking a section, file or pin) comes here. */
-export function floatInPlace(app: ReviewApp, id: string) {
-  if (id.startsWith('slot:')) return putBack(app, id.slice(5)); // the stand-in itself: bring the panel home
-  const p = app.dock.getPanel(id);
-  if (!p) return;
-  if (isFloating(p.group)) return p.api.setActive();
-  const group = p.group;
-  app.dock.addPanel({ id: 'slot:' + id, component: 'slot', title: p.title ?? id, params: { for: id, component: id.split(':')[0], params: p.params }, position: { referenceGroup: group, index: group.panels.indexOf(p) + 1 }, inactive: group.activePanel !== p });
-  app.dock.addFloatingGroup(p, centerBox(app));
-  onEscape(app, id, () => putBack(app, id));
-}
-
-export function putBack(app: ReviewApp, id: string) {
-  const slot = slotOf(app.dock, id);
-  if (!slot) return;
-  const group = slot.group;
-  const index = group.panels.indexOf(slot);
-  const keep = group.activePanel !== slot ? group.activePanel : undefined;
-  const p = app.dock.getPanel(id);
-  if (p) p.api.moveTo({ group, position: 'center', index });
-  else app.dock.addPanel({ id, component: slot.params!.component, params: slot.params!.params, title: slot.title, position: { referenceGroup: group, index } }); // its window was closed
-  slot.api.close();
-  keep?.api.setActive();
-}
-
 definePanel({
   id: 'slot',
   title: 'Open in a window',
   onDemand: true,
   create: (app, params, panelId) => {
     const id = params.for as string;
-    const name = app.dock.getPanel(panelId)?.title ?? 'This panel';
+    const dock = app.dock!; // only the dock makes stand-ins
+    const name = dock.getPanel(panelId)?.title ?? 'This panel';
     const el = h(
       'div',
       { class: 'rr-slot' },
       h('p', null, `${name} is open in a window.`),
       h('button', { class: 'rr-btn', title: 'Back into this spot', 'data-keys': 'Escape', onclick: () => putBack(app, id) }, 'Put it back'),
     );
-    const sub = app.dock.onDidLayoutChange(() =>
+    const sub = dock.onDidLayoutChange(() =>
       queueMicrotask(() => {
-        const slot = app.dock.getPanel(panelId);
-        const p = app.dock.getPanel(id);
+        const slot = dock.getPanel(panelId);
+        const p = dock.getPanel(id);
         if (!slot) return;
         if (!p) putBack(app, id);
         // docked somewhere else by hand: this spot has no job left
