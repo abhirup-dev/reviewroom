@@ -147,8 +147,10 @@ class CodePanel implements PanelInstance {
         actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, frame)) },
         actions: {
           land: ({ context }) => this.land(context.target!),
-          // restart the pulse: it runs while --rr-pulse names it
+          // restart the pulse: it runs while --rr-pulse names it. The walkthrough's pane doesn't pulse: it snaps to the
+          // lines and keeps them highlighted
           glow: () => {
+            if (this.embedded) return;
             this.scroller.style.removeProperty('--rr-pulse');
             requestAnimationFrame(() => this.revealer.getSnapshot().matches('glowing') && this.scroller.style.setProperty('--rr-pulse', 'rr-pulse'));
           },
