@@ -1,7 +1,7 @@
 // Contracts shared by provider implementations and their callers. No runtime dependencies.
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, GitHubSnapshot } from '../state/model.shared';
 import type { GitHubAction } from '../state/schema.shared';
-import type { LastLayout, Layout, SavedLayouts } from '../layouts/layout.shared';
+import type { LayoutStore } from '../layouts/layout.shared';
 import type { Op } from '../state/schema.shared';
 
 export interface CodeProvider {
@@ -34,15 +34,8 @@ export interface StateBackend {
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
   /** Narrative HTML as it was at the end of round n. */
   snapshot?(round: number): Promise<string | null>;
-  /** The reviewer's saved layouts and their default, shared by every review. */
-  layouts(): Promise<SavedLayouts>;
-  /** Save a new layout as `id` (false if that name is taken), or delete it (null). */
-  saveLayout(id: string, layout: Layout | null): Promise<boolean>;
-  /** Make saved layout `id` the default, or have none (null). */
-  setDefaultLayout(id: string | null): Promise<boolean>;
-  /** This review's dock as the reviewer left it. */
-  lastLayout(): Promise<LastLayout | null>;
-  saveLastLayout(layout: LastLayout): Promise<void>;
+  /** Every layout: the reviewer's saved ones and their default (shared by every review), this review's last dock. */
+  readonly layouts: LayoutStore;
   /** The PR's GitHub threads (cached by the server unless refresh). */
   github?(refresh?: boolean): Promise<GitHubSnapshot>;
   /** Post/edit/resolve/submit on GitHub (actions in cli/lib/github.ts); resolves to the refetched threads. */

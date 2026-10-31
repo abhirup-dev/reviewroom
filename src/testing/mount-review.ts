@@ -16,11 +16,7 @@ export function memoryBackend(seed = emptyState()) {
       state = applyOp(state, op);
       writes.push({ op: structuredClone(op), next: structuredClone(next) });
     },
-    layouts: async () => ({ layouts: {}, default: null }),
-    saveLayout: async () => true,
-    setDefaultLayout: async () => true,
-    lastLayout: async () => null,
-    saveLastLayout: async () => {},
+    layouts: { get: async (scope) => (scope === 'default' || scope === 'last' ? null : {}) as never, put: async () => true },
   };
   return { backend, writes, persisted: () => structuredClone(state) };
 }

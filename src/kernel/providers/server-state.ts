@@ -1,7 +1,7 @@
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import type { ReviewState } from '../state/model.shared';
 import { roundStatus, syncMachine, unsent } from './sync.machine';
-import type { LastLayout, Layout } from '../layouts/layout.shared';
+import { builtinLayouts, type LastLayout, type Layout, type LayoutScope, type LayoutsOf, type LayoutStore, type SavedLayouts } from '../layouts/layout.shared';
 import type { GitHubAction } from '../state/schema.shared';
 import type { BackendEvents, StateBackend } from './contracts';
 import { json, sendJSON } from './fetch';
@@ -125,24 +125,21 @@ export class ServerState implements StateBackend {
     return r.ok ? r.text() : null;
   }
   // files kept by the server (ports change, so localStorage wouldn't follow)
-  layouts() {
-    return fetch(`${this.api}/layouts`).then(json);
-  }
-  async saveLayout(id: string, layout: Layout | null) {
-    const r = await (layout ? sendJSON(`${this.api}/layouts/${id}`, 'PUT', layout) : fetch(`${this.api}/layouts/${id}`, { method: 'DELETE' }));
-    return r.ok;
-  }
-  async setDefaultLayout(id: string | null) {
-    const r = await sendJSON(`${this.api}/default-layout`, 'PUT', { layout: id });
-    return r.ok;
-  }
-  lastLayout() {
-    return fetch(`${this.api}/layout`).then(json);
-  }
-  // one at a time (kernel/layouts/save.machine.ts); keepalive: a save made while leaving the page still lands
-  async saveLastLayout(layout: LastLayout) {
-    await sendJSON(`${this.api}/layout`, 'PUT', layout, { keepalive: true });
-  }
+  readonly layouts: LayoutStore = {
+    get: async <S extends LayoutScope>(scope: S): Promise<LayoutsOf<S>> => {
+      if (scope === 'shipped') return builtinLayouts as LayoutsOf<S>;
+      if (scope === 'last') return fetch(`${this.api}/layout`).then(json);
+      const all: SavedLayouts = await fetch(`${this.api}/layouts`).then(json);
+      return (scope === 'saved' ? all.layouts : all.default) as LayoutsOf<S>;
+    },
+    put: async (scope: Exclude<LayoutScope, 'shipped'>, key: string | LastLayout | null, layout?: Layout | null) => {
+      const id = key as string | null;
+      // 'last': one at a time (kernel/layouts/save.machine.ts); keepalive: a save made while leaving the page still lands
+      if (scope === 'last') return (await sendJSON(`${this.api}/layout`, 'PUT', key, { keepalive: true })).ok;
+      if (scope === 'default') return (await sendJSON(`${this.api}/default-layout`, 'PUT', { layout: id })).ok;
+      return (await (layout ? sendJSON(`${this.api}/layouts/${id}`, 'PUT', layout) : fetch(`${this.api}/layouts/${id}`, { method: 'DELETE' }))).ok;
+    },
+  };
   async walkthrough(): Promise<unknown> {
     const r = await fetch(`${this.api}/walkthrough`);
     if (r.status === 404) return null;
