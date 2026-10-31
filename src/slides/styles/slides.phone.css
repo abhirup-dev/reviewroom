@@ -131,7 +131,7 @@
 [data-form='phone'] .rr-tour__files {
   position: absolute;
   left: 28px;
-  bottom: calc(84px + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) - 1px);
+  bottom: calc(var(--rr-card-lift) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) - 1px);
   z-index: 2;
   display: flex;
   gap: 2px;
@@ -144,7 +144,7 @@
   transition: translate var(--rr-m-default-ms) var(--rr-m-default);
 }
 [data-form='phone'] .is-immersive .rr-tour__files {
-  translate: 0 calc(84px - 20px);
+  translate: 0 calc(var(--rr-card-lift) - 20px);
 }
 .rr-tour__files[hidden] {
   display: none;
@@ -191,12 +191,37 @@
   clip-path: none;
   translate: none;
 }
+/* what covers the code's foot, for its pane to centre lines above (player.phone.ts reads these, review/code.ts lands by
+   them): the card where it sits (lower when immersive, see its translate) and, when shown, the file tab on its edge; and
+   the room the pane keeps under its last lines for the default card and a gap. Registered: they read back in px */
+@property --rr-cover {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+@property --rr-card-room {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+[data-form='phone'] .rr-tour__player {
+  --rr-card-foot: var(--rr-card-lift);
+  --rr-tab-h: 0px;
+  --rr-cover: calc(var(--rr-card-foot) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) + var(--rr-tab-h));
+  --rr-card-room: calc(var(--rr-card-default) + var(--rr-card-lift) + 12px);
+}
+[data-form='phone'] .rr-tour__player.is-immersive {
+  --rr-card-foot: 20px;
+}
+[data-form='phone'] .rr-tour__player:has(.rr-tour__files:not([hidden])) {
+  --rr-tab-h: 31px; /* .rr-tour__file's 30px and the tab's 2px top, less the 1px it overlaps the card */
+}
 /* the slide: a 16px card above the toolbar, at most ~40% of the screen, scrolling on its own */
 [data-form='phone'] .rr-tour__left {
   position: absolute;
   left: 12px;
   right: 12px;
-  bottom: calc(84px + env(safe-area-inset-bottom));
+  bottom: calc(var(--rr-card-lift) + env(safe-area-inset-bottom));
   padding: 0 16px 14px;
   border: 0;
   border-radius: var(--rr-shape-l);
@@ -218,15 +243,15 @@
   font-size: 15px;
 }
 [data-form='phone'] .is-immersive .rr-tour__left {
-  translate: 0 calc(84px - 20px); /* down to just above the progress row */
+  translate: 0 calc(var(--rr-card-lift) - 20px); /* down to just above the progress row */
 }
 /* the sheet's detents (player.phone.ts, cardMachine): two lines, its text up to 40% of the screen, up to all but the bar and a strip of
    code. Dragged, it follows the finger (inline height); let go, it glides to a detent (.is-settling) */
 .rr-tour__left[data-detent='default'] {
-  max-height: 40dvh;
+  max-height: var(--rr-card-default);
 }
 .rr-tour__left[data-detent='tall'] {
-  max-height: calc(100dvh - var(--rr-phone-bar) - 84px - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - var(--rr-phone-bar) - var(--rr-card-lift) - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 [data-form='phone'] .rr-tour__left.is-settling {
   transition:
@@ -354,7 +379,7 @@
 }
 [data-form='phone'][data-orient='portrait'] .is-immersive.is-announcing .rr-tour__left,
 [data-form='phone'][data-orient='portrait'] .is-immersive.is-announcing .rr-tour__files {
-  translate: 0 calc(84px - 20px - 44px);
+  translate: 0 calc(var(--rr-card-lift) - 20px - 44px);
 }
 [data-form='phone'] .rr-tour__seg {
   flex: 1; /* every chapter the same width, whatever its slide count */

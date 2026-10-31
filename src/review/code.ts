@@ -97,8 +97,9 @@ export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): (HTMLElemen
 export type CodePanelOptions = {
   /** Pixels of scroll room at the foot; when supplied, uses an 8px top inset and item gap. */
   padBottom?: number;
-  /** Viewport y where a lower covering element begins. Land above it and re-centre once its edge settles. */
-  coverTop?: () => number;
+  /** What covers the pane's foot (a phone's slide card): its height, and a way to hear that it changed. Lines land
+   *  centred above it, and land again once it changes. */
+  cover?: { px: () => number; onChange: (fn: () => void) => () => void };
   /** Show the file scrubber and file-position menus in diff headers. */
   rail?: boolean;
 };
@@ -127,9 +128,9 @@ class CodePanel implements PanelInstance {
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
   private padBottom?: number;
-  private coverTop?: () => number;
+  private cover?: CodePanelOptions['cover'];
   private withRail: boolean;
-  /** The covering edge when lines last landed (revealMachine's settle compares). */
+  /** The cover's height when lines last landed (revealMachine's settle compares). */
   private landedAt = 0;
   /** Embedded: the walkthrough's name for this chunk, first in the toolbar (its own path label is left out). */
   private head?: HTMLElement;
@@ -143,7 +144,7 @@ class CodePanel implements PanelInstance {
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
     this.padBottom = params.padBottom;
-    this.coverTop = params.coverTop;
+    this.cover = params.cover;
     this.withRail = !!params.rail;
     this.head = params.head as HTMLElement | undefined;
     this.toolbar = h('div', { class: 'rr-toolbar' });
@@ -557,40 +558,36 @@ class CodePanel implements PanelInstance {
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
     // Centre in the uncovered code, or 8px from the top when the lines do not fit there.
-    const offset = this.coverTop ? this.centredAbove(t.path, lines, side) : this.scroller.clientHeight * 0.3;
+    const offset = this.cover ? this.centredAbove(t.path, lines, side, this.cover.px()) : this.scroller.clientHeight * 0.3;
     this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset, behavior });
-    this.landedAt = this.coverTop?.() ?? 0;
+    this.landedAt = this.cover?.px() ?? 0;
   }
 
-  /** A covering element may still be sizing when lines land: true once its top edge has held still
-   *  (or ~1 s) somewhere else than where they landed against, false if the reader scrolled meanwhile. */
+  /** The cover may still be sizing when lines land: true once it has changed from what they landed against (the
+   *  cover says when: no polling), false if the reader scrolled meanwhile or the reveal is over (`signal`). */
   private settle(signal: AbortSignal) {
-    if (!this.coverTop) return Promise.resolve(false);
+    const cover = this.cover;
+    if (!cover) return Promise.resolve(false);
     const at = this.landedAt;
     return new Promise<boolean>((done) => {
-      let last = at, still = 0, left = 60, top = -1;
-      const tick = () => {
-        if (signal.aborted || !this.element.isConnected) return done(false);
-        const scroll = this.cv.getScrollTop();
-        if (top >= 0 && Math.abs(scroll - top) > 2) return done(false); // the reader scrolled
-        top = scroll;
-        const now = this.coverTop?.() ?? 0;
-        still = Math.abs(now - last) < 1 ? still + 1 : 0;
-        last = now;
-        if (still < 4 && --left > 0) return void requestAnimationFrame(tick);
-        done(Math.abs(now - at) > 4);
-      };
-      requestAnimationFrame(tick);
+      let top = -1;
+      requestAnimationFrame(() => (top = this.cv.getScrollTop())); // where land() left the view, once CodeView has it
+      const off = cover.onChange(() => {
+        if (Math.abs(cover.px() - at) <= 4) return;
+        off();
+        done(top < 0 || Math.abs(this.cv.getScrollTop() - top) <= 2);
+      });
+      signal.addEventListener('abort', () => (off(), done(false)), { once: true });
     });
   }
 
-  /** The offset from the top that centres these lines between the pane's top and the covering element's top edge. */
-  private centredAbove(path: string, lines: { start: number; end: number }, side: Side) {
+  /** The offset from the top that centres these lines between the pane's top and the cover, `cover` px up from the
+   *  viewport's foot (the pane may run on under it). */
+  private centredAbove(path: string, lines: { start: number; end: number }, side: Side, cover: number) {
     type Lines = { getLinePosition(n: number, side?: Side): { top: number; height: number } | undefined };
     const it = this.cv.getRenderedItems().find((x) => x.id === path)?.instance as Lines | undefined;
     const [a, b] = [it?.getLinePosition(lines.start, side), it?.getLinePosition(lines.end, side)];
-    const open = (this.coverTop?.() ?? Infinity) - this.scroller.getBoundingClientRect().top;
-    if (!Number.isFinite(open)) return 8;
+    const open = innerHeight - cover - this.scroller.getBoundingClientRect().top;
     // lines not rendered yet (off screen): Pierre's own estimate, 20px a line (wrapped lines run taller)
     const tall = a && b ? b.top + b.height - a.top : (lines.end - lines.start + 1) * 20;
     return Math.max(8, (open - tall) / 2);

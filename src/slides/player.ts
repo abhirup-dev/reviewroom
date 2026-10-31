@@ -33,7 +33,7 @@ type PlayerForm = {
   /** each slide: fold the chapter intro its own way */
   foldLead?(): void;
   /** Scroll room and an optional covering edge for each code pane. */
-  codeLayout?(): Pick<CodePanelOptions, 'padBottom' | 'coverTop'>;
+  codeLayout?(): Pick<CodePanelOptions, 'padBottom' | 'cover'>;
   /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
   focus?(ref: string): void;
 };

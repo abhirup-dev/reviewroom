@@ -36,8 +36,6 @@ type PhoneParts = {
 
 /** How far sideways a swipe on the card goes to turn the slide. */
 const SWIPE_PX = 60;
-// Room for the last code lines above the default card (40dvh, lifted 84px, plus a 12px gap).
-const CARD_SHARE = 0.4, CARD_LIFT_PX = 96;
 
 /** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
  *  floating toolbar of Back, Contents, Comment, Full screen and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
@@ -266,9 +264,19 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     });
     paneOff = sub && (() => sub.unsubscribe());
   };
-  // the card's height, for the tab riding on its top edge
-  const cardH = new ResizeObserver(() => player.style.setProperty('--rr-card-h', `${left.offsetHeight}px`));
+  // the card's height, for the tab riding on its top edge and the code pane's cover (--rr-cover, slides.phone.css);
+  // the pane hears of it once the card is at rest: not mid-glide or under a finger, at the glide's end instead
+  const coverFns = new Set<() => void>();
+  const coverChanged = () => coverFns.forEach((f) => f());
+  const cardH = new ResizeObserver(() => {
+    player.style.setProperty('--rr-card-h', `${left.offsetHeight}px`);
+    if (!left.classList.contains('is-settling') && card.getSnapshot().matches('rest')) coverChanged();
+  });
   cardH.observe(left);
+  left.addEventListener('transitionend', (e) => e.target === left && e.propertyName === 'height' && coverChanged());
+  card.subscribe((s) => s.matches('rest') && coverChanged()); // reduced motion: a let-go card has no transition
+  /** A length token of the player's, in px (--rr-cover and --rr-card-room are registered, so calc() has resolved). */
+  const px = (name: string) => parseFloat(getComputedStyle(player).getPropertyValue(name)) || 0;
   // immersive (chromeMachine): IDLE_MS after the last touch or slide change, never while a menu, the composer or a
   // selection is open, the top bar and the toolbar fade; Show controls, in the card's corner, brings them back
   const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
@@ -451,8 +459,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
     // upright, the card is over the code's lower part
     codeLayout: () => land.matches ? {} : {
-      padBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX,
-      coverTop: () => (files.hidden ? left : files).getBoundingClientRect().top,
+      padBottom: Math.round(px('--rr-card-room')),
+      cover: { px: () => px('--rr-cover'), onChange: (fn: () => void) => (coverFns.add(fn), () => void coverFns.delete(fn)) },
     },
     focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough

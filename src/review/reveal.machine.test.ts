@@ -84,7 +84,7 @@ test('reveal: selecting while it unfolds ends it, nothing clears the selection l
   expect(r.log.slice(-3)).toEqual(['land b.go:2', 'clear', 'landed']);
 });
 
-test('reveal: once the cover below holds still elsewhere it lands again; the user selecting first drops that', async () => {
+test('reveal: once the cover below changes it lands again; the user selecting first drops that', async () => {
   using scope = fixture();
   const r = revealer(scope);
   r.reveal('a.go', 5);
