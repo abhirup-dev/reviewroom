@@ -1,7 +1,7 @@
 // The phone's presentation (Refactor 3.0, rr-486): the status bar and menu drawer, the phone shell, and its part of each
 // seam. Phone code: only main.ts reaches it (scripts/features.ts), and later only by a lazy import.
 import { h, icon } from './kernel/dom';
-import { buildPhoneBar, type PhoneBarContributions } from './kernel/header';
+import { buildPhoneBar, type PhoneBarContributions } from './kernel/header.phone';
 import { mountPhone } from './kernel/phone';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
