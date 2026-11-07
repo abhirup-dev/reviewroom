@@ -79,3 +79,9 @@
   min-height: 44px;
   max-height: 30dvh;
 }
+
+/* recap cards keep their own size; the desktop grows them into their lane (recap.css) */
+.is-phone .rr-recap-card {
+  flex: 0 1 auto;
+  max-width: none;
+}

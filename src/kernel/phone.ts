@@ -27,6 +27,7 @@ export interface PhoneOptions {
 export function mountPhone(app: ReviewApp, host: HTMLElement, options: PhoneOptions & Pick<MountDockOptions, 'panelAvailability'>) {
   const availability = options.panelAvailability;
   app.root.classList.add('is-phone');
+  app.root.dataset.rrDiagramFit = 'width'; // the walkthrough's diagrams keep their layout and fit the width (review/elements.ts)
   app.surface = new PhoneShell(app, host, {
     available: (id) => options.available(id) && (!availability?.ids.includes(id) || availability.isAvailable(id)),
     openThreads: () => options.openThreads(),

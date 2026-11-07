@@ -286,11 +286,6 @@
     clip-path: inset(0 0 round 16px);
   }
 }
-.rr-side-head__count {
-  flex: 1;
-  color: var(--rr-muted);
-  font-size: var(--rr-text-sm);
-}
 
 /* Comment, for a selection (no c key on a phone) */
 .rr-phone-comment {
