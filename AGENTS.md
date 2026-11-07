@@ -93,6 +93,10 @@ bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
 ```
 
+A refactor that must not change how anything looks: `bun scripts/snapshot.ts before.json` on the old build, again on
+the new one, then `bun scripts/snapshot.ts --diff before.json after.json` (computed styles of the demo on a phone and
+a computer, light and dark).
+
 Lint is oxlint (`.oxlintrc.json`), stylelint (`stylelint.config.js`: the design tokens) plus `ast-grep scan` (`rules/*.yml`: structural checks oxlint has no rule for, such as
 raw `innerHTML` and global listeners outside the kernel). The `overrides` lists in `.oxlintrc.json` are ratchets: each names
 the files that broke a rule when it was turned on. Take a file off a list once it complies; never add one.
