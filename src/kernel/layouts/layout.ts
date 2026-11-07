@@ -5,7 +5,8 @@ import type { ReviewApp } from '../../app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
-import { addDockPanel, createDock, isFloating, ownPanels, panelDef, panelDefs } from '../dock';
+import { ownPanels, panelDef, panelDefs } from '../dock';
+import { addDockPanel, createDock, isFloating } from '../dockview';
 import { isTablet } from '../device';
 
 /** Conditional panels are offered once, when their provider first has content. */
