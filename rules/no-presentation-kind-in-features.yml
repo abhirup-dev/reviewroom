@@ -15,6 +15,5 @@ ignores:
   - src/**/*.phone.ts
   # A ratchet: the features still branching, each taken off as its seam moves behind the contract (rr-486.9-.12)
   - src/review/overlays.ts
-  - src/review/walkthrough.ts
 rule:
   pattern: $APP.presentation.kind
