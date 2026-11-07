@@ -12,9 +12,9 @@
   right: 12px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  height: 28px;
-  padding: 0 8px 0 4px;
+  gap: var(--rr-space-6);
+  height: var(--rr-control);
+  padding: 0 var(--rr-space-8) 0 var(--rr-space-4);
   /* just the marker (and its excerpt where there's room), no box */
   border: 0;
   background: none;

@@ -18,7 +18,7 @@ div.rr-composer__input .cm-scroller {
 }
 div.rr-composer__input .cm-content {
   min-height: 70px;
-  padding: 8px 10px;
+  padding: var(--rr-space-8) var(--rr-space-10);
   caret-color: var(--rr-ink);
 }
 div.rr-composer__input .cm-line {
@@ -31,7 +31,7 @@ div.rr-composer__input .cm-placeholder {
   height: 21px;
   margin: 0 1px;
   vertical-align: 1px;
-  font-size: 12px;
+  font-size: var(--rr-text-sm);
   cursor: default;
 }
 .rr-chip--token.is-embed {
@@ -40,8 +40,8 @@ div.rr-composer__input .cm-placeholder {
   border-color: color-mix(in srgb, var(--rr-comment) 30%, transparent);
 }
 .rr-chip__kind {
-  font: 600 9.5px/1 var(--rr-font);
-  letter-spacing: 0.05em;
+  font: 600 var(--rr-text-2xs)/1 var(--rr-font);
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
   opacity: 0.8;
 }

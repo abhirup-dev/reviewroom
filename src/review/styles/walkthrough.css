@@ -13,8 +13,8 @@
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
+  gap: var(--rr-space-10);
+  padding: var(--rr-space-8) var(--rr-space-16);
   background: var(--rr-warn-soft);
   color: var(--rr-warn);
   font-size: var(--rr-text-sm);
@@ -27,7 +27,8 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(48px, 1fr) minmax(0, var(--rr-doc-width)) minmax(48px, 1fr);
-  padding: 32px 0 120px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- room to scroll the last section up */
+  padding: var(--rr-space-32) 0 120px;
 }
 .rr-doc-wrap.has-threads {
   grid-template-columns: minmax(48px, 1fr) minmax(0, var(--rr-doc-width)) minmax(var(--rr-rail-width), 1fr);

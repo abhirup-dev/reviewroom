@@ -63,7 +63,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   and events and don't branch on phone vs desktop; phone-only or desktop-only UI lives in its presentation's files
   (`src/kernel/phone.ts`, `*.phone.ts`, `*.desktop.ts`, `*.phone.css`). Checks on input modality (touch, `hover: none`)
   are fine anywhere.
-- Colours and fonts only through `--rr-*` tokens (`src/kernel/styles/tokens.css`).
+- Colours, fonts, font sizes, spacing, weights (400/500/600) and letter-spacing only through `--rr-*` tokens
+  (`src/kernel/styles/tokens.css`), or `em`/`%` relative to their context; controls take `--rr-control-sm/-/-lg` heights.
+  stylelint (`stylelint.config.js`, in `bun run lint`) enforces it; a deliberate exception carries a
+  `stylelint-disable` comment saying why. The phone CSS is on its ignore list until its own pass.
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).
 - No raw `rr:` strings, ids or CSS paths in visible text: use `app.label()` / `describeElement()`.
 
@@ -90,7 +93,7 @@ bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
 ```
 
-Lint is oxlint (`.oxlintrc.json`) plus `ast-grep scan` (`rules/*.yml`: structural checks oxlint has no rule for, such as
+Lint is oxlint (`.oxlintrc.json`), stylelint (`stylelint.config.js`: the design tokens) plus `ast-grep scan` (`rules/*.yml`: structural checks oxlint has no rule for, such as
 raw `innerHTML` and global listeners outside the kernel). The `overrides` lists in `.oxlintrc.json` are ratchets: each names
 the files that broke a rule when it was turned on. Take a file off a list once it complies; never add one.
 

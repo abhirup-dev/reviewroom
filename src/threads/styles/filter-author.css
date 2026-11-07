@@ -2,7 +2,7 @@
 .rr-filter-author {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
 }
 .rr-filter-author img {
   width: 16px;

@@ -1,13 +1,13 @@
 /* ---------------------------------------------------------------- PR description */
 .rr-description .rr-doc-wrap {
-  padding: 16px 0 40px;
+  padding: var(--rr-space-16) 0 var(--rr-space-48);
 }
 .rr-description__head {
   grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: var(--rr-space-8);
+  margin-bottom: var(--rr-space-10);
   font-size: var(--rr-text-sm);
 }
 .rr-description__head .rr-avatar {

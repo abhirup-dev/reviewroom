@@ -15,7 +15,7 @@
 }
 /* state: a soft fill and coloured text */
 .rr-hub__banner {
-  padding: 7px 14px;
+  padding: var(--rr-space-6) var(--rr-space-16);
   background: var(--rr-warn-soft);
   color: var(--rr-warn);
   font-size: var(--rr-text-sm);
@@ -31,9 +31,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   min-height: var(--rr-bar-h);
-  padding: 5px 12px;
+  padding: var(--rr-space-4) var(--rr-space-12);
   background: var(--rr-surface-bar);
   border-top: 1px solid var(--rr-line-strong);
   border-bottom: 1px solid var(--rr-line);
@@ -91,13 +91,13 @@
   top: 0;
   z-index: 1;
   height: 30px;
-  padding: 0 8px;
+  padding: 0 var(--rr-space-8);
   background: var(--rr-surface-nav);
   border-bottom: 1px solid var(--rr-line-strong);
   color: var(--rr-faint);
-  font-size: 10.5px;
+  font-size: var(--rr-text-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
   text-align: left;
   white-space: nowrap;
@@ -121,7 +121,7 @@
 .rr-hub__table td {
   transition: background-color 0.12s ease-out, color 0.12s ease-out;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 var(--rr-space-8);
   border-bottom: 1px solid var(--rr-line);
   white-space: nowrap;
 }
@@ -156,7 +156,7 @@
 }
 .rr-hub__table .rr-hub__sel {
   width: 32px;
-  padding-left: 14px;
+  padding-left: var(--rr-space-16);
 }
 .rr-hub__check {
   display: block;
@@ -177,7 +177,7 @@
 .rr-hub__sub {
   display: none;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   margin-top: 1px;
   color: var(--rr-muted);
   font-size: var(--rr-text-xs);
@@ -191,7 +191,7 @@
   text-overflow: ellipsis;
 }
 .rr-hub__sub .rr-hub__mark {
-  font-size: 13px;
+  font-size: var(--rr-text);
 }
 .rr-hub__trunc {
   max-width: 200px;
@@ -217,7 +217,7 @@
 }
 .rr-hub__mono {
   font-family: var(--rr-mono);
-  font-size: 11.5px;
+  font-size: var(--rr-text-sm);
 }
 .rr-hub__tool {
   display: inline-flex;
@@ -229,13 +229,13 @@
   height: 18px;
 }
 .rr-hub__tool > .rr-mark {
-  font-size: 8.5px;
+  font-size: 8.5px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its 18px tile */
 }
 .rr-hub__author {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
-  gap: 6px;
+  gap: var(--rr-space-6);
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -254,7 +254,7 @@
 }
 .rr-hub__mark {
   display: inline-flex;
-  font-size: 16px; /* the marks are 1em */
+  font-size: var(--rr-text-lg); /* the marks are 1em */
 }
 .rr-hub__dim {
   color: var(--rr-faint);
@@ -262,8 +262,8 @@
 .rr-hub__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding-right: 12px;
+  gap: var(--rr-space-2);
+  padding-right: var(--rr-space-12);
 }
 .rr-hub__actions a.rr-icon-btn {
   text-decoration: none;
@@ -355,7 +355,7 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
   }
 }
 .rr-hub__empty {
-  padding: 32px 14px;
+  padding: var(--rr-space-32) var(--rr-space-16);
 }
 
 /* close dialog */
@@ -364,11 +364,11 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
 }
 .rr-hub__foot {
   justify-content: flex-end;
-  padding: 10px 14px 14px;
+  padding: var(--rr-space-10) var(--rr-space-16) var(--rr-space-12);
 }
 .rr-hub__sub .rr-hub__tool > img,
 .rr-hub__sub .rr-hub__tool > .rr-mark {
   width: 14px;
   height: 14px;
-  font-size: 7px;
+  font-size: 7px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its 14px tile */
 }

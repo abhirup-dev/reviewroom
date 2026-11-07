@@ -1,16 +1,16 @@
 .rr-inline-thread-wrap {
   /* the card takes the code column's width, never sets it: with wrap on it would hold the column wide */
   contain: inline-size;
-  padding: 6px 10px 6px 12px;
+  padding: var(--rr-space-6) var(--rr-space-10) var(--rr-space-6) var(--rr-space-12);
   font-family: var(--rr-font);
 }
 .rr-inline-thread {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--rr-space-8);
   max-width: 720px;
   width: 100%;
-  padding: 6px 10px;
+  padding: var(--rr-space-6) var(--rr-space-10);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   background: var(--rr-panel);

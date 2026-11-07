@@ -1,19 +1,19 @@
 /* ---------------------------------------------------------------- CI */
 .rr-ci {
-  padding: 8px;
+  padding: var(--rr-space-8);
 }
 .rr-ci-commit {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: var(--rr-space-4);
+  padding: var(--rr-space-8) var(--rr-space-10);
   border-bottom: 1px solid var(--rr-line);
   font-size: var(--rr-text-sm);
 }
 .rr-ci-commit__head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   flex-wrap: wrap;
 }
 .rr-ci-commit__label {
@@ -33,8 +33,8 @@
 .rr-ci-check {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-left: 14px;
+  gap: var(--rr-space-6);
+  padding-left: var(--rr-space-16);
   color: var(--rr-ink);
   font-size: var(--rr-text-xs);
   text-decoration: none;
