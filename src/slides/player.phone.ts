@@ -98,8 +98,9 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     const { doc, chapter } = ctx();
     band.replaceChildren(h('small', null, `Chapter ${chapter + 1}`), h('span', null, doc!.chapters[chapter].title));
     player.classList.add('is-announcing');
+    coverChanged(); // the card lifts clear of the band: --rr-cover with it (slides.phone.css)
     clearTimeout(bandTimer);
-    bandTimer = window.setTimeout(() => player.classList.remove('is-announcing'), 2500);
+    bandTimer = window.setTimeout(() => { player.classList.remove('is-announcing'); coverChanged(); }, 2500);
   };
   // the viewport, not the screen: `?phone` in a window follows its shape
   const land = matchMedia('(orientation: landscape)');

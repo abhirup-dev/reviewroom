@@ -213,6 +213,10 @@
 [data-form='phone'] .rr-tour__player.is-immersive {
   --rr-card-foot: 20px;
 }
+/* a chapter's announcement lifts the card clear of its band (below): the cover follows it */
+[data-form='phone'][data-orient='portrait'] .rr-tour__player.is-immersive.is-announcing {
+  --rr-card-foot: calc(20px + 44px);
+}
 [data-form='phone'] .rr-tour__player:has(.rr-tour__files:not([hidden])) {
   --rr-tab-h: 31px; /* .rr-tour__file's 30px and the tab's 2px top, less the 1px it overlaps the card */
 }
