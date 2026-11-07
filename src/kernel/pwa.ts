@@ -22,14 +22,38 @@ export const workerScope = (entry: string) => new URL(entry.replace(/(\/r\/[^/]+
 
 const SCROLL = 'reviewroom:scroll';
 const narrative = () => document.querySelector('.rr-narrative-scroll');
-/** Before any reload: remember where the walkthrough was scrolled (restoreScroll puts it back). */
-export const keepScroll = () => sessionStorage.setItem(SCROLL, String(narrative()?.scrollTop ?? 0));
-/** At boot: put the walkthrough back where keepScroll left it, once the panel has laid out. */
+const READER_INPUT = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+/** Before any reload: remember where the walkthrough was scrolled, and how tall it was (restoreScroll puts it back). */
+export const keepScroll = () => {
+  const s = narrative();
+  sessionStorage.setItem(SCROLL, JSON.stringify([s?.scrollTop ?? 0, s?.scrollHeight ?? 0]));
+};
+/** At boot: put the walkthrough back where keepScroll left it. Diagrams and code render after boot and grow it, so
+ *  hold the spot until it is as tall as it was, the reader scrolls, or 5s pass. */
 export function restoreScroll() {
-  const y = sessionStorage.getItem(SCROLL);
-  if (!y) return;
+  const raw = sessionStorage.getItem(SCROLL);
+  if (!raw) return;
   sessionStorage.removeItem(SCROLL);
-  requestAnimationFrame(() => narrative()?.scrollTo({ top: +y }));
+  const saved = JSON.parse(raw) as number | [number, number]; // a bare number: written by an older build
+  const [top, height] = typeof saved === 'number' ? [saved, 0] : saved;
+  requestAnimationFrame(() => {
+    const s = narrative() as HTMLElement | null;
+    if (!s) return;
+    s.style.overflowAnchor = 'none'; // the browser's scroll anchoring would shift it as content above renders
+    const hold = new ResizeObserver(() => {
+      s.scrollTo({ top });
+      if (s.scrollHeight >= height) stop();
+    });
+    const stop = () => {
+      hold.disconnect();
+      clearTimeout(timer);
+      s.style.removeProperty('overflow-anchor');
+      for (const t of READER_INPUT) s.removeEventListener(t, stop);
+    };
+    const timer = setTimeout(stop, 5000);
+    for (const t of READER_INPUT) s.addEventListener(t, stop, { passive: true });
+    for (const c of s.children) hold.observe(c);
+  });
 }
 
 /** sessionStorage-backed "once": true the first time for `id`, false after (survives the reload it causes). */
