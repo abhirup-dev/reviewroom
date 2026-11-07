@@ -14,6 +14,7 @@ import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
+import { presentationFor, type Presentation } from './kernel/presentation';
 import { showPanel, type PanelSurface } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
@@ -51,12 +52,6 @@ export const defaultPrefs: Prefs = {
 };
 
 
-/** How the workbench is presented, picked once at boot (main.ts): the dock, or the phone shell. */
-export interface Presentation {
-  kind: 'dock' | 'phone';
-  /** Layouts, windows and docking: the dock's. A phone shows one panel at a time. */
-  canArrange: boolean;
-}
 
 export interface AppEvents extends Record<string, unknown> {
   state: ReviewState;
@@ -169,12 +164,10 @@ export class ReviewApp {
   }
 
   // Keep new ReviewApp(root) compatible; boot supplies its composition explicitly.
-  constructor(public root: HTMLElement, createServices = createReviewServices, kind: Presentation['kind'] = 'dock') {
-    this.presentation = { kind, canArrange: kind === 'dock' };
-    const phone = kind === 'phone';
-    // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
-    this.prefsKey = phone ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
-    this.prefs = loadLocal(this.prefsKey, phone ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
+  constructor(public root: HTMLElement, createServices = createReviewServices, presentation: Presentation = presentationFor('desktop')) {
+    this.presentation = presentation;
+    this.prefsKey = presentation.prefs.key;
+    this.prefs = loadLocal(this.prefsKey, { ...defaultPrefs, ...presentation.prefs.defaults });
     this.services = createServices({
       github: {
         backend: () => this.backend,

@@ -7,7 +7,6 @@
 // author's HTML, sanitized: a walkthrough can come from a PR.
 import { createActor, fromPromise, waitFor } from 'xstate';
 import { h, icon, onDrag } from '../kernel/dom';
-import { usesPhonePlayer } from '../kernel/device';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { renderPreview, type PreviewOptions } from '../review/previews';
@@ -252,7 +251,7 @@ export function mountWalkthrough(app: ReviewApp) {
   app.root.append(root);
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
   // The phone player goes by the device, either way up, under either shell
-  const form: PlayerForm = usesPhonePlayer()
+  const form: PlayerForm = app.presentation.phonePlayer
     ? phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
     : desktopPlayer({ actor, chapterBtn, next });
 

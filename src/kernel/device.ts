@@ -1,6 +1,7 @@
 // Which shell a device gets. A phone (touch, shorter screen side at most 720px) gets the phone shell upright and the
 // dock on its side, like a computer; it switches on rotation. Tablets keep the dock either way.
 import type { ReviewApp } from '../app';
+import { formFor, type Form } from './presentation';
 import { busy, keepScroll, shouldHoldReload } from './pwa';
 import { ensurePanel, frontPanel } from './dock';
 
@@ -12,13 +13,10 @@ const PHONE_MAX = 720, TABLET_MAX = 1024;
 const small = () => touch() && side() <= PHONE_MAX;
 const landscape = () => screen.orientation?.type.startsWith('landscape') ?? matchMedia('(orientation: landscape)').matches;
 const forced = () => new URLSearchParams(globalThis.location?.search).has('phone');
-/** The phone shell: a phone held upright, or `?phone` to try it on any device. */
-export const wantsPhone = () => (small() && !landscape()) || forced();
-/** A phone on its side: the dock, from the `tablet` layout, never saved over the reviewer's last layout. */
-export const turnedPhone = () => small() && !wantsPhone();
-/** The guided review's phone player: a phone either way up, under either shell (or `?phone`); tablets and computers
- *  get the desktop player. Its portrait or landscape variant follows the viewport (slides/player.phone.ts). */
-export const usesPhonePlayer = () => small() || forced();
+/** This screen's form (kernel/presentation.ts): a phone upright or `?phone` gets the phone shell; a phone on its side,
+ *  the dock from the `tablet` layout, never saved over the reviewer's last layout. */
+export const currentForm = (): Form => formFor({ small: small(), landscape: landscape(), forced: forced() });
+const wantsPhone = () => currentForm() === 'phone';
 /** A tablet (touch, shorter side 721–1024px) or a turned phone: the dock, starting from the `tablet` layout. */
 export const isTablet = () => touch() && side() <= TABLET_MAX && !wantsPhone();
 
