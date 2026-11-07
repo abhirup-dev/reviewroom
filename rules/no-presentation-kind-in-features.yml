@@ -1,0 +1,21 @@
+id: no-presentation-kind-in-features
+language: typescript
+severity: error
+message: Features don't branch on phone vs desktop; ask the presentation contract (app.presentation, src/kernel/presentation.ts)
+note: The phone is an extension of the desktop core (Refactor 3.0, rr-486). Its differences live in its presentation and *.phone.ts files. Checks on input modality (touch, hover) are fine anywhere.
+files:
+  - src/**/*.ts
+ignores:
+  - src/**/*.test.ts
+  # composition and the device's own code pick the presentation
+  - src/main.ts
+  - src/app.ts
+  - src/kernel/device.ts
+  - src/kernel/phone.ts
+  - src/**/*.phone.ts
+  # A ratchet: the features still branching, each taken off as its seam moves behind the contract (rr-486.9-.12)
+  - src/review/overlays.ts
+  - src/review/walkthrough.ts
+  - src/threads/view.ts
+rule:
+  pattern: $APP.presentation.kind

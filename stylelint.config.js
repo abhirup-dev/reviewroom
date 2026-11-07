@@ -26,6 +26,8 @@ export default {
       { 'letter-spacing': ['0', 'normal', '/^var\\(--rr-tracking-/'] },
       { message: (prop, value) => `"${prop}: ${value}": use var(--rr-tracking-*)` },
     ],
+    // the phone's looks live in its own CSS (phone.css, *.phone.css): no phone selectors in the core's (rr-486)
+    'selector-disallowed-list': [[/\.is-phone\b/, /\[data-form=['"]?phone/], { message: (s) => `"${s}" styles the phone: put it in the phone CSS (phone.css, *.phone.css)` }],
     'color-no-hex': true,
     'color-named': 'never',
     'function-disallowed-list': ['rgb', 'rgba', 'hsl', 'hsla'],
@@ -33,5 +35,6 @@ export default {
   overrides: [
     // the palette itself
     { files: ['src/kernel/styles/tokens.css'], rules: { 'color-no-hex': null, 'function-disallowed-list': null } },
+    { files: ['src/**/*.phone.css', 'src/kernel/styles/phone.css'], rules: { 'selector-disallowed-list': null } },
   ],
 };
