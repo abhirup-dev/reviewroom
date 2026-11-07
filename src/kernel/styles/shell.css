@@ -35,6 +35,8 @@ body > [hidden] {
   flex: 1;
   min-height: 0;
   position: relative;
+  /* dockview's floating groups (z-index 999+) stack inside the dock, so overlays outside it (the guided walkthrough) stay on top */
+  isolation: isolate;
   border-top: 1px solid var(--rr-line-strong);
 }
 .rr-icon {

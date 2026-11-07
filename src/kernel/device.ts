@@ -1,7 +1,7 @@
 // Which shell a device gets. A phone (touch, shorter screen side at most 720px) gets the phone shell upright and the
 // dock on its side, like a computer; it switches on rotation. Tablets keep the dock either way.
 import type { ReviewApp } from '../app';
-import { busy, shouldHoldReload } from './pwa';
+import { busy, keepScroll, shouldHoldReload } from './pwa';
 import { ensurePanel, frontPanel } from './dock';
 
 const side = () => Math.min(screen.width, screen.height);
@@ -34,7 +34,7 @@ export function watchShell(app: ReviewApp) {
     screen.orientation?.removeEventListener('change', check);
     const go = () => {
       sessionStorage.setItem(KEY, JSON.stringify({ front: frontPanel(app), file: app.activeFile }));
-      sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0)); // boot() restores it
+      keepScroll();
       location.reload();
     };
     if (shouldHoldReload(busy(app))) app.toast('This screen suits a different layout.', 'info', { label: 'Switch layout', run: go });
