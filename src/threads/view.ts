@@ -517,8 +517,8 @@ export function mountThreadPopup(app: ReviewApp) {
     }),
   );
   // closing (Esc, the backdrop, a button) returns focus to where it was: the dialog does that
-  // on a phone: a bottom sheet (kernel/sheet.ts, threads.phone.css) that keeps clear of the on-screen keyboard while it's open
-  const sheet = app.presentation.kind === 'phone';
+  // the presentation's form: a bottom sheet (kernel/sheet.ts, threads.phone.css) that keeps clear of the on-screen keyboard while it's open
+  const sheet = app.presentation.threadPopup === 'sheet';
   const box = sheetDialog({ 'aria-label': 'Comment thread', onclose: () => flow.send({ type: 'close' }) }, sheet);
   const close = () => flow.send({ type: 'close' });
   let current: { el: HTMLElement; dispose: () => void } | null = null;
@@ -541,7 +541,7 @@ export function mountThreadPopup(app: ReviewApp) {
   };
   flow.subscribe((s) => {
     box.classList.toggle('is-leaving', s.matches('leaving'));
-    // a phone sheet covers what was commented on: once the new comment is saved, go back to it
+    // a sheet covers what was commented on: once the new comment is saved, go back to it
     const saved = sheet && wasSending && s.matches('viewing');
     wasSending = s.matches({ composing: 'sending' });
     if (saved) return queueMicrotask(close);
