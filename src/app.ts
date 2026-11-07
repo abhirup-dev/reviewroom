@@ -105,8 +105,11 @@ export class ReviewApp {
   /** The dock, once mounted; none on a phone. */
   dock?: DockviewApi;
   readonly presentation: Presentation;
-  /** Where panels open, once mounted: the dock's surface, or the phone shell. */
-  surface?: PanelSurface;
+  private mounted?: PanelSurface;
+  /** Where panels open, once mounted (mountSurface): the dock's surface, or the phone shell. */
+  get surface(): PanelSurface | undefined {
+    return this.mounted;
+  }
   /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
   /** The PR's description from GitHub: read-only, but commentable like the walkthrough (anchors target PR_DESCRIPTION). */
@@ -116,7 +119,7 @@ export class ReviewApp {
   viewRound = 0;
   selection: Selection = null;
   /** Esc handlers for open overlays, newest last; each returns true if it closed something. */
-  escapers: (() => boolean)[] = [];
+  private escapers: (() => boolean)[] = [];
   activeFile = '';
   /** Set when the palette overlay mounts. */
   openPalette!: (initial?: string) => void;
@@ -125,6 +128,26 @@ export class ReviewApp {
   private cleanups: (() => void)[] = [];
   private disposed = false;
   private prefsKey: string;
+
+  /** The presentation's panel surface (the dock's, or the phone shell), once it has mounted. */
+  mountSurface(surface: PanelSurface) {
+    this.mounted = surface;
+  }
+
+  /** Esc runs `close` before older handlers while it's registered; it returns true if it closed something.
+   *  The returned function unregisters it. */
+  registerEscape(close: () => boolean): () => void {
+    this.escapers.push(close);
+    return () => {
+      const i = this.escapers.indexOf(close);
+      if (i >= 0) this.escapers.splice(i, 1);
+    };
+  }
+
+  /** Esc: the newest handler that closes something; false if none did. */
+  escape(): boolean {
+    return [...this.escapers].reverse().some((close) => close());
+  }
 
   onDispose(cleanup: () => void) {
     if (this.disposed) cleanup();

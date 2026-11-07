@@ -28,10 +28,10 @@ export function mountPhone(app: ReviewApp, host: HTMLElement, options: PhoneOpti
   const availability = options.panelAvailability;
   app.root.classList.add('is-phone');
   app.root.dataset.rrDiagramFit = 'width'; // the walkthrough's diagrams keep their layout and fit the width (review/elements.ts)
-  app.surface = new PhoneShell(app, host, {
+  app.mountSurface(new PhoneShell(app, host, {
     available: (id) => options.available(id) && (!availability?.ids.includes(id) || availability.isAvailable(id)),
     openThreads: () => options.openThreads(),
-  });
+  }));
 }
 
 type Open = { id: string; title: string; params?: Record<string, unknown>; host: HTMLElement; inst: PanelInstance };
@@ -110,11 +110,7 @@ class PhoneShell implements PanelSurface {
     this.paintBar();
     this.show('narrative');
     const escape = () => (peeking(this.ctx()) || this.ctx().sheets.length ? (this.shell.send({ type: 'escape' }), true) : false);
-    app.escapers.push(escape);
-    app.onDispose(() => {
-      const i = app.escapers.indexOf(escape);
-      if (i >= 0) app.escapers.splice(i, 1);
-    });
+    app.onDispose(app.registerEscape(escape));
   }
 
   private ctx = () => this.shell.getSnapshot().context;

@@ -329,7 +329,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'round.current', title: 'Back to current round', group: 'Rounds', run: () => app.bus.emit('round-view', 0) },
     { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
       // innermost first: overlays (newest first), then the selection, then pick mode
-      for (const f of [...app.escapers].reverse()) if (f()) return;
+      if (app.escape()) return;
       if (app.root.classList.contains('is-picking')) return app.bus.emit('picker', false);
       app.selection = null;
       document.getSelection()?.removeAllRanges();

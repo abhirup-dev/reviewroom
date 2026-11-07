@@ -111,7 +111,7 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   });
 
   app.dock = api;
-  app.surface = new DockSurface(app, api);
+  app.mountSurface(new DockSurface(app, api));
   // double-click a tab: float it in place, or put a floated one back
   const doubleClick = (e: MouseEvent) => {
     const tab = (e.target as Element).closest('.dv-tab');
@@ -224,14 +224,13 @@ class DockSurface implements PanelSurface {
 
   onEscape(id: string, back: () => void) {
     const app = this.app;
-    const f = () => {
-      app.escapers.splice(app.escapers.indexOf(f), 1);
+    const off = app.registerEscape(() => {
+      off();
       const p = this.api.getPanel(id);
       if (!p || !isFloating(p.group)) return false;
       back();
       return true;
-    };
-    app.escapers.push(f);
+    });
   }
 
   float(id: string) {
