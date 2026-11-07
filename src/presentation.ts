@@ -5,6 +5,7 @@ import { buildHeader } from './kernel/header';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
+import type { PaletteHost, PaletteVariant } from './review/overlays';
 import type { ReviewApp } from './app';
 
 export interface PresentationModule {
@@ -23,6 +24,8 @@ export interface PresentationModule {
   // 2.5 player form (rr-486.11)
 
   // 2.6 palette (rr-486.12)
+  /** The palette's variant; none is the desktop's ⌘K. */
+  palette?: (app: ReviewApp, host: PaletteHost) => PaletteVariant;
 }
 
 export const desktop: PresentationModule = {

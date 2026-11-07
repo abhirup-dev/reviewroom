@@ -14,7 +14,6 @@ ignores:
   - src/kernel/phone.ts
   - src/**/*.phone.ts
   # A ratchet: the features still branching, each taken off as its seam moves behind the contract (rr-486.9-.12)
-  - src/review/overlays.ts
   - src/review/walkthrough.ts
   - src/threads/view.ts
 rule:

@@ -1,8 +1,7 @@
-// Command palette (⌘K; a phone's full-screen search), click-away selection release, link hover previews.
+// Command palette (⌘K; a presentation's variant, such as a phone's full-screen search), click-away selection release,
+// link hover previews.
 import { single } from 'fuzzysort';
 import { h, icon, debounce, placeNear, backdropCloses, onLongPress } from '../kernel/dom';
-import { loadRaw, saveLocal } from '../kernel/store';
-import { trackKeyboard } from '../kernel/keyboard';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
 import { keyLabel } from '../kernel/commands';
 import { plainExcerpt } from '../kernel/markdown';
@@ -11,7 +10,7 @@ import { renderPreview } from './previews';
 import { defaultSide } from './files.shared';
 import { formatRef, parseRef } from '../kernel/refs/refs.shared';
 
-interface Item {
+export interface PaletteItem {
   kind: 'command' | 'file' | 'section' | 'thread' | 'symbol' | 'text' | 'link';
   label: string;
   detail?: string;
@@ -22,53 +21,57 @@ interface Item {
   score: number;
   run(): void;
 }
-type Recent = Pick<Item, 'kind' | 'label' | 'detail' | 'ref' | 'cmd'>;
+type Item = PaletteItem;
+type IconName = Parameters<typeof icon>[0];
+/** Results under a label (none: the flat list), their icon in place of each kind's when given. */
+export type PaletteGroup = [label: string, items: Item[], icon?: IconName];
 
-/** A phone's search chips: what each narrows the results to (a kind), in the order results are grouped. */
-const CHIPS = [
-  ['all', 'All'],
-  ['file', 'Files'],
-  ['section', 'Sections'],
-  ['symbol', 'Symbols'],
-  ['thread', 'Threads'],
-  ['command', 'Actions'],
-] as const;
-type Chip = (typeof CHIPS)[number][0];
-const GROUP: Partial<Record<Item['kind'], string>> = { link: 'Link', file: 'Files', section: 'Sections', symbol: 'Symbols', text: 'Code', thread: 'Threads', command: 'Actions' };
-const ORDER: Item['kind'][] = ['link', 'file', 'section', 'symbol', 'text', 'thread', 'command'];
+/** What a variant reaches of the palette: its input, closing it, and painting it afresh (the selection back on the
+ *  first result, the input focused). */
+export interface PaletteHost {
+  input: HTMLInputElement;
+  close: () => void;
+  refresh: () => void;
+}
 
-const KIND_ICON: Record<Item['kind'], Parameters<typeof icon>[0]> = { command: 'chevron', file: 'files', section: 'section', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
+/** A presentation's palette (rr-486.12). Without one it is the desktop's ⌘K: the best matches in one flat list. A
+ *  variant browses: outside pick and the typed modes (> # /) the palette also searches symbols as you type, and the
+ *  variant lays out the results. */
+export interface PaletteVariant {
+  /** Above the list: the input inside the variant's own field, then anything between them. */
+  top: HTMLElement[];
+  placeholder: string;
+  iconSize: number;
+  /** Each paint: the results in groups while browsing; undefined for the flat list. */
+  paint(all: Item[], q: string, browsing: boolean): PaletteGroup[] | undefined;
+  /** A result was run (not picked as a link). */
+  ran(it: Item): void;
+  /** On every open; on close (and on dispose). */
+  opened(): void;
+  closed(): void;
+}
+
+const KIND_ICON: Record<Item['kind'], IconName> = { command: 'chevron', file: 'files', section: 'section', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
 
 // ================================================================ palette
-export function mountPalette(app: ReviewApp) {
+export function mountPalette(app: ReviewApp, variantFor?: (app: ReviewApp, host: PaletteHost) => PaletteVariant) {
   const input = h('input', { class: 'rr-palette__input', placeholder: '', 'aria-label': 'Command palette', autocomplete: 'off', spellcheck: 'false' });
   const list = h('div', { class: 'rr-palette__list', role: 'listbox' });
   const hint = h('div', { class: 'rr-palette__hint' });
-  // a phone's search: chips to narrow it, Recent and Actions before typing, results grouped by kind
-  const phone = app.presentation.kind === 'phone';
-  const chips = h('div', { class: 'rr-palette__chips', role: 'group', 'aria-label': 'Show', hidden: true });
-  let chip: Chip = 'all';
-  const recentKey = () => `reviewroom:recent:${app.meta.id}`;
-  // a phone's search bar: a pill with back and clear around the input
-  const clear = h('button', { class: 'rr-icon-btn rr-palette__clear', 'aria-label': 'Clear', title: 'Clear', hidden: true, onclick: () => { input.value = ''; input.dispatchEvent(new Event('input')); input.focus(); } }, icon('close', 20));
-  const field = phone
-    ? h('div', { class: 'rr-palette__bar' }, h('button', { class: 'rr-icon-btn', 'aria-label': 'Back', title: 'Back', onclick: () => close() }, icon('back', 24)), input, clear)
-    : input;
-  // Esc and the backdrop close it too, without a pick (and Cancel, shown on a phone, which has no Esc key)
-  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, field, chips, list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
-  document.body.append(box);
   let items: Item[] = [];
   let sel = 0;
   let pick: ((ref: string | null) => void) | null = null;
   let remote: Item[] = [];
   let reqId = 0;
-  let stopKb: (() => void) | undefined; // on a phone the full-screen palette keeps its list above the keyboard
+  const variant = variantFor?.(app, { input, close: () => close(), refresh: () => { sel = 0; paint(); input.focus(); } });
+  // Esc and the backdrop close it too, without a pick (and Cancel, shown on a phone, which has no Esc key)
+  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, ...(variant?.top ?? [input]), list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
+  document.body.append(box);
 
   const close = (result: string | null = null) => {
     const p = pick;
     pick = null;
-    stopKb?.();
-    stopKb = undefined;
+    variant?.closed();
     box.close();
     p?.(result);
   };
@@ -135,58 +138,26 @@ export function mountPalette(app: ReviewApp) {
     paint();
   }, 160);
 
-  /** On a phone, outside pick mode and the typed modes (> # /): the chips, and what the list shows grouped. */
-  const grouped = () => phone && !pick && !/^[>#/]/.test(input.value);
-  // a list (loadLocal merges objects): anything else stored there is no list of recents
-  const stored = (): Recent[] => {
-    try {
-      const v: unknown = JSON.parse(loadRaw(recentKey()) ?? '[]');
-      return Array.isArray(v) ? v : [];
-    } catch {
-      return [];
-    }
-  };
-  const recents = (): Item[] =>
-    stored().map((r) => ({ ...r, score: 0, run: () => (r.cmd ? app.commands.run(r.cmd) : r.ref && void app.open(r.ref)) }));
-  const remember = (it: Item) => {
-    if (!phone || (!it.ref && !it.cmd)) return;
-    const r: Recent = { kind: it.kind, label: it.label, detail: it.detail, ref: it.ref, cmd: it.cmd };
-    saveLocal(recentKey(), [r, ...stored().filter((x) => x.ref !== r.ref || x.cmd !== r.cmd)].slice(0, 6));
-  };
-  /** Items in their groups (by kind; Recent first before typing), each group under its label. */
-  let groups: [string, Item[]][] = [];
+  /** Browsing a variant's results: outside pick and the typed modes (> # /). */
+  const browsing = () => !!variant && !pick && !/^[>#/]/.test(input.value);
+  let groups: PaletteGroup[] = [];
 
   const paint = () => {
     const q = input.value;
-    const all = [...(/^[#/]/.test(q) || grouped() ? remote : []), ...local(q)].filter((i) => !pick || i.ref).sort((a, b) => b.score - a.score);
-    chips.hidden = !grouped();
-    clear.hidden = !q;
-    if (grouped()) {
-      const typed = !!q.trim();
-      const count = (c: Chip) => (c === 'all' ? all.length : all.filter((i) => i.kind === c).length);
-      chips.replaceChildren(
-        ...CHIPS.map(([c, label]) =>
-          h('button', { class: 'rr-palette__chip' + (c === chip ? ' is-on' : ''), 'aria-pressed': String(c === chip), onclick: () => { chip = c; sel = 0; paint(); input.focus(); } }, c === chip ? icon('check', 16) : null, label, c === 'symbol' && !remote.length ? null : h('span', null, String(count(c)))),
-        ),
-      );
-      const shown = all.filter((i) => chip === 'all' || i.kind === chip);
-      groups = !typed && chip === 'all'
-        ? [['Recent', recents()], ['Actions', shown.filter((i) => i.kind === 'command')]]
-        : ORDER.map((k): [string, Item[]] => [GROUP[k]!, shown.filter((i) => i.kind === k).slice(0, 40)]);
-      groups = groups.filter(([, g]) => g.length);
-    } else groups = [['', all.slice(0, 60)]];
+    const all = [...(/^[#/]/.test(q) || browsing() ? remote : []), ...local(q)].filter((i) => !pick || i.ref).sort((a, b) => b.score - a.score);
+    groups = variant?.paint(all, q, browsing()) ?? [['', all.slice(0, 60)]];
     items = groups.flatMap(([, g]) => g);
     sel = Math.min(sel, Math.max(0, items.length - 1));
     let i = 0;
     list.replaceChildren(
-      ...groups.flatMap(([label, g]) => [
+      ...groups.flatMap(([label, g, groupIcon]) => [
         label ? h('div', { class: 'rr-palette__group' }, label) : null,
         ...g.map((it) => {
           const n = i++;
           return h(
             'div',
             { class: 'rr-palette__item' + (n === sel ? ' is-sel' : ''), role: 'option', 'aria-selected': String(n === sel), onmousemove: () => n !== sel && ((sel = n), paint()), onclick: () => choose(n) },
-            h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(label === 'Recent' ? 'history' : KIND_ICON[it.kind], phone ? 16 : 12)),
+            h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(groupIcon ?? KIND_ICON[it.kind], variant?.iconSize ?? 12)),
             h('span', { class: 'rr-palette__label' }, it.label),
             it.detail ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
             it.keys?.length ? h('kbd', null, keyLabel(it.keys[0])) : null,
@@ -208,14 +179,14 @@ export function mountPalette(app: ReviewApp) {
     if (!it) return;
     if (pick) return close(it.ref ?? null);
     close();
-    remember(it);
+    variant?.ran(it);
     it.run();
   };
 
   input.addEventListener('input', () => {
     sel = 0;
     if (/^[#/]/.test(input.value)) searchRemote(input.value);
-    else if (grouped()) searchRemote('#' + input.value); // a phone's search finds symbols as you type
+    else if (browsing()) searchRemote('#' + input.value); // browsing finds symbols as you type
     paint();
   });
   input.addEventListener('keydown', (e) => {
@@ -235,11 +206,10 @@ export function mountPalette(app: ReviewApp) {
 
   const open = (initial = '') => {
     remote = [];
-    chip = 'all';
     input.value = initial;
-    input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : phone ? 'Search this review' : 'Jump to a file, section, thread or command…';
+    input.placeholder = pick ? 'Link to a section, file, thread… (# symbols, / text)' : (variant?.placeholder ?? 'Jump to a file, section, thread or command…');
     if (!box.open) box.showModal();
-    if (phone) stopKb ??= trackKeyboard();
+    variant?.opened();
     paint();
     if (/^[#/]/.test(initial)) searchRemote(initial);
     requestAnimationFrame(() => {
@@ -253,7 +223,7 @@ export function mountPalette(app: ReviewApp) {
       pick = resolve;
       open();
     });
-  app.onDispose(() => { pick?.(null); stopKb?.(); box.remove(); });
+  app.onDispose(() => { pick?.(null); variant?.closed(); box.remove(); });
   return { open };
 }
 

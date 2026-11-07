@@ -173,7 +173,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   root.classList.add('rr-root');
   mountToasts(app);
   mountTooltips(app);
-  mountPalette(app);
+  mountPalette(app, ui.palette);
   mountSelectionRelease(app);
   mountHoverCards(app);
   mountThreadPopup(app);
