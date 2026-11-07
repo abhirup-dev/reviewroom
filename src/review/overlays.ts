@@ -64,8 +64,8 @@ export function mountPalette(app: ReviewApp, variantFor?: (app: ReviewApp, host:
   let remote: Item[] = [];
   let reqId = 0;
   const variant = variantFor?.(app, { input, close: () => close(), refresh: () => { sel = 0; paint(); input.focus(); } });
-  // Esc and the backdrop close it too, without a pick (and Cancel, shown on a phone, which has no Esc key)
-  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, ...(variant?.top ?? [input]), list, hint, h('button', { class: 'rr-link-btn rr-palette__cancel', onclick: () => close() }, 'Cancel'));
+  // Esc and the backdrop close it too, without a pick (a variant may add its own way out: the phone's Back)
+  const box = h('dialog', { class: 'rr-palette', 'aria-label': 'Command palette', onmousedown: backdropCloses, onclose: () => close() }, ...(variant?.top ?? [input]), list, hint);
   document.body.append(box);
 
   const close = (result: string | null = null) => {

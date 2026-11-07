@@ -15,19 +15,13 @@ export interface PresentationModule {
   /** The panel surface (the dock, or the phone shell) into `host`; `lastLayout` is the dock's last layout. */
   mountSurface(app: ReviewApp, host: HTMLElement, ctx: { lastLayout: LastLayout | null }): void;
 
-  // The seams (rr-486.9-.12) each add their member below, with the phone's part in src/phone.ts and its use in
-  // main.ts. Features never ask which presentation they're in: they take what composition hands them.
-
-  // 2.4 walkthrough Contents (rr-486.10)
+  // Each seam's part (rr-486): features never ask which presentation they're in, they take what main.ts hands them.
   /** What it adds to the walkthrough panel (not the description): the phone's Contents button. */
   walkthrough?: WalkthroughExtension;
-
-  // 2.5 player form (rr-486.11): not a member. The phone player plays on any phone, a turned one under the dock, so
-  // main.ts hands src/phone.ts's phonePlayer to mountWalkthrough by app.presentation.phonePlayer.
-
-  // 2.6 palette (rr-486.12)
   /** The palette's variant; none is the desktop's ⌘K. */
   palette?: (app: ReviewApp, host: PaletteHost) => PaletteVariant;
+  // The guided walkthrough's player is no member: a turned phone has the dock but the phone player, so main.ts hands
+  // src/phone.ts's phonePlayer in by app.presentation.phonePlayer.
 }
 
 export const desktop: PresentationModule = {

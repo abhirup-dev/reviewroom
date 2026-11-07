@@ -7,7 +7,7 @@ import { repaintOn, shellStatus } from './header';
 
 /** A drawer entry: closes the drawer, then runs `run`, a command's id (shown while its `when` holds; see commands.ts)
  *  or, for what no command does, a function. */
-export type DrawerItem = (label: string, ic: Parameters<typeof icon>[0], run: string | (() => void), opts?: { title?: string; hint?: string }) => HTMLElement | null;
+type DrawerItem = (label: string, ic: Parameters<typeof icon>[0], run: string | (() => void), opts?: { title?: string; hint?: string }) => HTMLElement | null;
 /** Live feature controls in the phone's status bar and menu drawer. */
 export interface PhoneBarContributions {
   /** Under the title, after the repo: "Round 2", "Team review". */

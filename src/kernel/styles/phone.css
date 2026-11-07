@@ -452,7 +452,6 @@
 }
 .rr-palette__chips[hidden],
 .rr-palette__chips:not([hidden]) ~ .rr-palette__hint,
-.rr-palette__bar ~ .rr-palette__cancel,
 .rr-palette__clear[hidden] {
   display: none !important;
 }
@@ -534,9 +533,6 @@
 :root:has(.is-phone) .rr-palette__item.is-sel .rr-palette__kind {
   background: var(--rr-surface-overlay);
   color: var(--rr-accent);
-}
-:root:has(.is-phone) .rr-palette__cancel {
-  display: inline-flex;
 }
 
 /* ---------------------------------------------------------------- bottom sheet (the thread popup, Contents) */

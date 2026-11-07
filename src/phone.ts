@@ -23,13 +23,7 @@ export const phone: PresentationModule = {
         id === 'recap' ? recapAvailable(app) : id === 'thread:gh_conversation' ? app.services.threads.threads().some((t) => t.gh?.conversation) : true,
       openThreads: () => openThreadCount(app),
     }),
-
-  // 2.4 walkthrough Contents (rr-486.10)
   walkthrough: contentsButton,
-
-  // 2.5 player form (rr-486.11): not a member, a turned phone has the dock; phonePlayer below
-
-  // 2.6 palette (rr-486.12)
   palette: phonePalette,
 };
 
