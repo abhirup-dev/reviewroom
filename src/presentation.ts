@@ -6,6 +6,7 @@ import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
+import type { PaletteHost, PaletteVariant } from './review/overlays';
 import type { ReviewApp } from './app';
 
 export interface PresentationModule {
@@ -25,6 +26,8 @@ export interface PresentationModule {
   // main.ts hands src/phone.ts's phonePlayer to mountWalkthrough by app.presentation.phonePlayer.
 
   // 2.6 palette (rr-486.12)
+  /** The palette's variant; none is the desktop's ⌘K. */
+  palette?: (app: ReviewApp, host: PaletteHost) => PaletteVariant;
 }
 
 export const desktop: PresentationModule = {

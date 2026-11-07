@@ -6,6 +6,7 @@ import { mountPhone } from './kernel/phone';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
 import { contentsButton } from './review/walkthrough.phone';
+import { phonePalette } from './review/overlays.phone';
 import type { PresentationModule } from './presentation';
 import type { ReviewApp } from './app';
 
@@ -29,6 +30,7 @@ export const phone: PresentationModule = {
   // 2.5 player form (rr-486.11): not a member, a turned phone has the dock; phonePlayer below
 
   // 2.6 palette (rr-486.12)
+  palette: phonePalette,
 };
 
 /** Open threads the Threads list shows by default in this review mode: the phone's Threads badge. */
