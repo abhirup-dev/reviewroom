@@ -23,7 +23,7 @@ const PHONE = new Set(['src/phone.ts', 'src/kernel/phone.ts', 'src/kernel/shell.
 const isPhone = (file: string) => file.endsWith('.phone.ts') || PHONE.has(file);
 // A ratchet like the oxlint overrides: today's core-to-phone imports, each removed as its seam moves behind the
 // contract (rr-486.8-.12). Entries only come off; one that no longer holds is an error.
-const PHONE_IMPORTS = new Set<string>(['src/main.ts -> src/phone.ts', 'src/slides/player.ts -> src/slides/player.phone.ts']);
+const PHONE_IMPORTS = new Set<string>(['src/main.ts -> src/phone.ts']);
 const phoneImports = new Set<string>();
 
 const lines = new Map<string, number>();

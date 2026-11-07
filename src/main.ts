@@ -22,7 +22,7 @@ import { definePanel, ensurePanel, type PanelDef } from './kernel/dock';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { hubHref, saveLayoutDialog } from './kernel/header';
 import { desktop } from './presentation';
-import { phone } from './phone';
+import { phone, phonePlayer } from './phone';
 import { currentForm, restoreShell, watchShell } from './kernel/device';
 import { presentationFor } from './kernel/presentation';
 import { keepScroll, restoreScroll, startUpdates } from './kernel/pwa';
@@ -177,7 +177,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountSelectionRelease(app);
   mountHoverCards(app);
   mountThreadPopup(app);
-  const tour = mountWalkthrough(app);
+  const tour = mountWalkthrough(app, { phoneForm: app.presentation.phonePlayer ? phonePlayer : undefined });
   ui.mountSurface(app, dockHost, { lastLayout });
   watchShell(app);
   registerCommands(app);

@@ -6,33 +6,11 @@ import { onBack, watchBack } from '../kernel/history';
 import { sanitizeProse } from '../kernel/markdown';
 import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
-import type { ReviewApp } from '../app';
-import { sameCode, type CodeAt, type paneMachine, type Slot, type walkthroughMachine } from './player.machine';
+import { sameCode, type paneMachine, type Slot } from './player.machine';
 import { cardMachine, chromeMachine, coachMachine, type Detent, type Orient } from './phone.machine';
 import { navMachine } from './nav.machine';
 import { current, target } from './model.shared';
-
-/** The skeleton's parts the phone player rearranges and listens on. */
-type PhoneParts = {
-  app: ReviewApp;
-  actor: Actor<typeof walkthroughMachine>;
-  root: HTMLElement;
-  player: HTMLElement;
-  split: HTMLElement;
-  left: HTMLElement;
-  right: HTMLElement;
-  pane: HTMLElement;
-  /** where a link lands (player.ts's codeAt) */
-  codeAt: (ref: string) => Promise<CodeAt | null>;
-  bottom: HTMLElement;
-  progress: HTMLElement;
-  lead: HTMLElement;
-  leadToggle: HTMLElement;
-  prev: HTMLElement;
-  next: HTMLElement;
-  comment: HTMLElement;
-  chapterBtn: HTMLElement;
-};
+import type { PhoneParts, PlayerForm } from './player';
 
 /** How far sideways a swipe on the card goes to turn the slide. */
 const SWIPE_PX = 60;
@@ -43,7 +21,7 @@ const SWIPE_PX = 60;
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
-export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts) {
+export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts): PlayerForm {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
   if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back

@@ -8,6 +8,9 @@ import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusContr
 import type { PresentationModule } from './presentation';
 import type { ReviewApp } from './app';
 
+/** The phone's guided walkthrough player: main.ts hands it to the player on any phone (app.presentation.phonePlayer). */
+export { phonePlayer } from './slides/player.phone';
+
 export const phone: PresentationModule = {
   header: (app) => buildPhoneBar(app, phoneBar(app)),
   mountSurface: (app, host) =>
@@ -23,7 +26,7 @@ export const phone: PresentationModule = {
 
   // 2.4 walkthrough Contents (rr-486.10)
 
-  // 2.5 player form (rr-486.11)
+  // 2.5 player form (rr-486.11): not a member, a turned phone has the dock; phonePlayer below
 
   // 2.6 palette (rr-486.12)
 };
