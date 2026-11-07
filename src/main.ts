@@ -23,7 +23,7 @@ import type { LastLayout } from './kernel/layouts/layout.shared';
 import { buildHeader, buildPhoneBar, hubHref, saveLayoutDialog, type PhoneBarContributions } from './kernel/header';
 import { mountPhone } from './kernel/phone';
 import { restoreShell, turnedPhone, wantsPhone, watchShell } from './kernel/device';
-import { startUpdates } from './kernel/pwa';
+import { keepScroll, restoreScroll, startUpdates } from './kernel/pwa';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
 import { sendDialog, submitReviewDialog, githubControls, feedbackButton, threadHeaderControls, roundStatusControls, subscribeThreadHeader, roundMenu, reviewModeSwitch } from './threads/controls';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
@@ -216,15 +216,11 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     github: (s) => app.services.github.set(s),
     // the backend has let a save in flight finish first
     review: () => {
-      sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0));
+      keepScroll();
       (options.reload ?? (() => location.reload()))();
     },
   });
-  const y = sessionStorage.getItem('reviewroom:scroll');
-  if (y) {
-    sessionStorage.removeItem('reviewroom:scroll');
-    requestAnimationFrame(() => document.querySelector('.rr-narrative-scroll')?.scrollTo({ top: +y }));
-  }
+  restoreScroll();
   restoreShell(app);
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);

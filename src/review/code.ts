@@ -117,6 +117,7 @@ class CodePanel implements PanelInstance {
   private loadToken = 0;
   private rangeKey = '';
   private version = 0;
+  private versions = new Map<string, { sig: string; v: number }>();
   private lastPointer = { x: 0, y: 0 };
   private offs: (() => void)[] = [];
   private isPrimary: boolean;
@@ -323,16 +324,27 @@ class CodePanel implements PanelInstance {
     })());
   }
 
-  /** Hand CodeView the current items; a new version makes it re-render each (threads, header, collapse). */
+  /** Hand CodeView the current items; it re-renders only those whose version changed (threads, header, collapse). */
   private refreshItems() {
     const items: CodeViewItem<Meta>[] = [];
     const fv = this.fileView;
     if (this.mode === 'file') {
-      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side), version: ++this.version });
+      if (fv?.text !== undefined) items.push({ id: fv.path, type: 'file', file: { name: fv.path, contents: fv.text }, annotations: this.fileAnnotations(fv.path, fv.side), version: this.versionOf(fv.path) });
     } else {
-      for (const [path, f] of this.files) items.push({ id: path, type: 'diff', fileDiff: f.diff ?? NO_DIFF(path), annotations: this.annotations(path), collapsed: f.collapsed, version: ++this.version });
+      for (const [path, f] of this.files) items.push({ id: path, type: 'diff', fileDiff: f.diff ?? NO_DIFF(path), annotations: this.annotations(path), collapsed: f.collapsed, version: this.versionOf(path, f.collapsed) });
     }
     this.cv.setItems(items);
+  }
+
+  /** A new version only when what the item draws changed, so a state update elsewhere doesn't repaint every diff. */
+  private versionOf(path: string, ...extra: unknown[]) {
+    const s = this.app.services.threads;
+    const threads = codeThreadsOn(s.threads(), path).map((t) => [t, s.unreadAgent(t)]);
+    const sig = JSON.stringify([this.loadToken, this.mode, this.app.prefs, this.app.state.viewed[path], threads, ...extra]);
+    const was = this.versions.get(path);
+    if (was?.sig === sig) return was.v;
+    this.versions.set(path, { sig, v: ++this.version });
+    return this.version;
   }
 
   private fileHeader(path: string) {

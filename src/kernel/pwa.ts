@@ -20,6 +20,18 @@ export const shouldHoldReload = (b: Busy) => b.unsent || b.composing || b.dialog
 /** The worker lives at the hub root (ADR 0001): strip `_rr/<entry>` and, under the hub proxy, `r/<id>/`. */
 export const workerScope = (entry: string) => new URL(entry.replace(/(\/r\/[^/]+)?\/_rr\/[^/]*$/, '/'));
 
+const SCROLL = 'reviewroom:scroll';
+const narrative = () => document.querySelector('.rr-narrative-scroll');
+/** Before any reload: remember where the walkthrough was scrolled (restoreScroll puts it back). */
+export const keepScroll = () => sessionStorage.setItem(SCROLL, String(narrative()?.scrollTop ?? 0));
+/** At boot: put the walkthrough back where keepScroll left it, once the panel has laid out. */
+export function restoreScroll() {
+  const y = sessionStorage.getItem(SCROLL);
+  if (!y) return;
+  sessionStorage.removeItem(SCROLL);
+  requestAnimationFrame(() => narrative()?.scrollTo({ top: +y }));
+}
+
 /** sessionStorage-backed "once": true the first time for `id`, false after (survives the reload it causes). */
 export function once(key: string, id: string, store: Pick<Storage, 'getItem' | 'setItem'> = sessionStorage) {
   if (store.getItem(key) === id) return false;
@@ -66,7 +78,7 @@ export function startUpdates(app?: UpdatesHost) {
       for (const k of await caches.keys()) if (k.startsWith('rr-')) await caches.delete(k);
       await reg?.unregister();
     }
-    sessionStorage.setItem('reviewroom:scroll', String(document.querySelector('.rr-narrative-scroll')?.scrollTop ?? 0)); // boot() restores it
+    keepScroll();
     location.reload();
   };
   const tryReload = () => {
