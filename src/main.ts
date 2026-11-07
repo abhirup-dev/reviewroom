@@ -42,7 +42,7 @@ import { mountWalkthrough, renderWalkthroughPreview } from './slides/player';
 import { renderPreview, registerPreviewExtensions } from './review/previews';
 import { provideFocusCode } from './review/focus';
 import { openInNewPanel } from './review/code';
-import './review/walkthrough';
+import { registerWalkthroughExtension } from './review/walkthrough';
 import './review/code';
 import './review/files';
 import './review/contents';
@@ -170,6 +170,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   const dockHost = h('div', { class: 'rr-dock' });
   const ui = app.presentation.kind === 'phone' ? phone : desktop;
   root.replaceChildren(ui.header(app), dockHost);
+  registerWalkthroughExtension(ui.walkthrough); // before the surface creates the panel
   root.classList.add('rr-root');
   mountToasts(app);
   mountTooltips(app);

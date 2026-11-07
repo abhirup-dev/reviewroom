@@ -5,6 +5,7 @@ import { buildPhoneBar, type PhoneBarContributions } from './kernel/header';
 import { mountPhone } from './kernel/phone';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
+import { contentsButton } from './review/walkthrough.phone';
 import type { PresentationModule } from './presentation';
 import type { ReviewApp } from './app';
 
@@ -22,6 +23,7 @@ export const phone: PresentationModule = {
   // 2.3 thread popup (rr-486.9)
 
   // 2.4 walkthrough Contents (rr-486.10)
+  walkthrough: contentsButton,
 
   // 2.5 player form (rr-486.11)
 

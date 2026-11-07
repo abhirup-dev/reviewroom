@@ -5,6 +5,7 @@ import { buildHeader } from './kernel/header';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
+import type { WalkthroughExtension } from './review/walkthrough';
 import type { ReviewApp } from './app';
 
 export interface PresentationModule {
@@ -19,6 +20,8 @@ export interface PresentationModule {
   // 2.3 thread popup (rr-486.9)
 
   // 2.4 walkthrough Contents (rr-486.10)
+  /** What it adds to the walkthrough panel (not the description): the phone's Contents button. */
+  walkthrough?: WalkthroughExtension;
 
   // 2.5 player form (rr-486.11)
 
