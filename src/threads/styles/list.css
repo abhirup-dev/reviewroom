@@ -1,10 +1,10 @@
 .rr-thread-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--rr-space-4);
   width: 100%;
-  padding: 8px 10px;
-  margin-bottom: 2px;
+  padding: var(--rr-space-8) var(--rr-space-10);
+  margin-bottom: var(--rr-space-2);
   border: 1px solid transparent;
   border-radius: var(--rr-radius);
   background: transparent;
@@ -22,7 +22,7 @@
 .rr-thread-item__anchor {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   font-size: var(--rr-text-xs);
   color: var(--rr-muted);
   min-width: 0;
@@ -43,7 +43,7 @@
 }
 .rr-thread-item__meta {
   display: flex;
-  gap: 8px;
+  gap: var(--rr-space-8);
   align-items: center;
   font-size: var(--rr-text-xs);
   color: var(--rr-faint);
@@ -56,7 +56,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 6px;
+  gap: var(--rr-space-2);
+  padding: var(--rr-space-8) var(--rr-space-6);
   font-size: var(--rr-text-sm);
 }

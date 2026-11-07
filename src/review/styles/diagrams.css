@@ -1,6 +1,6 @@
 /* Opt-in diagram presets. Palette values come from the current review theme. */
 rr-mermaid[class*='rr-diagram-'] {
-  padding: 16px;
+  padding: var(--rr-space-16);
   background: var(--pele-bg);
   border-radius: var(--rr-radius-lg);
   --pele-series-1: var(--rr-accent);

@@ -4,13 +4,13 @@
   max-width: 300px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   flex-wrap: wrap;
-  padding: 6px 9px;
-  border-radius: var(--rr-radius-sm);
+  padding: var(--rr-space-6) var(--rr-space-8);
+  border-radius: var(--rr-radius);
   background: var(--rr-ink);
   color: var(--rr-bg);
-  font: 500 12px/1.4 var(--rr-font);
+  font: 500 var(--rr-text-sm)/1.4 var(--rr-font);
   box-shadow: var(--rr-shadow);
   pointer-events: none;
   animation: rr-fade 0.1s ease-out;

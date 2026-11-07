@@ -13,8 +13,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 10px 10px 14px;
+  gap: var(--rr-space-8);
+  padding: var(--rr-space-10) var(--rr-space-10) var(--rr-space-10) var(--rr-space-16);
   border-bottom: 1px solid var(--rr-line);
 }
 .rr-thread__ctx:empty {
@@ -24,7 +24,7 @@
   flex: none;
   max-height: 32vh;
   overflow: auto;
-  padding: 10px 14px;
+  padding: var(--rr-space-10) var(--rr-space-16);
   background: var(--rr-panel-2);
   border-bottom: 1px solid var(--rr-line);
 }
@@ -51,7 +51,7 @@
   flex: 1;
   min-height: 60px;
   overflow: auto;
-  padding: 6px 14px 12px;
+  padding: var(--rr-space-6) var(--rr-space-16) var(--rr-space-12);
 }
 .rr-thread__scroll:empty {
   display: none;
@@ -59,11 +59,11 @@
 .rr-round-sep {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 12px 0 6px;
+  gap: var(--rr-space-10);
+  margin: var(--rr-space-12) 0 var(--rr-space-6);
   color: var(--rr-faint);
-  font: 600 10.5px/1 var(--rr-font);
-  letter-spacing: 0.06em;
+  font: 600 var(--rr-text-xs)/1 var(--rr-font);
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
 }
 .rr-round-sep::before,
@@ -75,8 +75,8 @@
 .rr-msg {
   display: grid;
   grid-template-columns: 28px 1fr;
-  gap: 10px;
-  padding: 10px 0;
+  gap: var(--rr-space-10);
+  padding: var(--rr-space-10) 0;
 }
 .rr-msg + .rr-msg {
   border-top: 1px solid color-mix(in srgb, var(--rr-line) 60%, transparent);
@@ -89,7 +89,7 @@
   place-items: center;
   background: var(--rr-hover);
   color: var(--rr-ink-2);
-  font: 600 10px/1 var(--rr-font);
+  font: 600 var(--rr-text-2xs)/1 var(--rr-font);
 }
 .rr-avatar--agent {
   background: var(--rr-accent-soft);
@@ -113,9 +113,9 @@
 .rr-msg__meta {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--rr-space-8);
   font-size: var(--rr-text-sm);
-  margin-bottom: 2px;
+  margin-bottom: var(--rr-space-2);
 }
 .rr-msg--agent .rr-msg__meta strong {
   color: var(--rr-accent);
@@ -123,7 +123,7 @@
 .rr-msg__actions {
   margin-left: auto;
   display: flex;
-  gap: 10px;
+  gap: var(--rr-space-10);
   font-size: var(--rr-text-xs);
   opacity: 0;
 }
@@ -137,14 +137,14 @@
 }
 .rr-quote {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--rr-space-8) var(--rr-space-12);
   border-left: 3px solid var(--rr-comment);
   background: var(--rr-comment-soft);
   color: var(--rr-ink-2);
-  font: 13px/1.5 var(--rr-font);
+  font: var(--rr-text)/1.5 var(--rr-font);
 }
 .rr-anchor-ctx {
-  font-size: 12px;
+  font-size: var(--rr-text-sm);
 }
 /* the whole element: the context box around it scrolls, so no clipping here */
 .rr-anchor-ctx .rr-embed__doc {

@@ -50,36 +50,36 @@ body > [hidden] {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 12px 0 14px;
+  gap: var(--rr-space-12);
+  padding: 0 var(--rr-space-12) 0 var(--rr-space-16);
 }
 .rr-header__id {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--rr-space-12);
   min-width: 0;
 }
 .rr-mark {
   width: 28px;
   height: 28px;
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   background: var(--rr-ink);
   color: var(--rr-bg);
   display: grid;
   place-items: center;
-  font: 700 12px/1 var(--rr-mono);
-  letter-spacing: -0.04em;
+  font: 600 var(--rr-text-sm)/1 var(--rr-mono);
+  letter-spacing: -0.04em; /* stylelint-disable-line declaration-property-value-allowed-list -- the logo mark */
   flex: none;
 }
 .rr-header__titles {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--rr-space-4);
 }
 .rr-header__title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--rr-text-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,27 +102,27 @@ body > [hidden] {
   font-size: inherit;
 }
 .rr-header__meta .rr-pill--mono {
-  font-size: 11.5px;
+  font-size: var(--rr-text-sm);
 }
 .rr-header__meta .rr-pill + .rr-pill::before {
   content: '·';
-  margin: 0 7px;
+  margin: 0 var(--rr-space-8);
   color: var(--rr-faint);
   font-family: var(--rr-font);
 }
 .rr-header__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
 }
 .rr-hbtn {
   white-space: nowrap;
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 10px;
+  gap: var(--rr-space-6);
+  height: var(--rr-control-lg);
+  padding: 0 var(--rr-space-10);
   border-radius: var(--rr-radius);
   border: 1px solid transparent;
   background: transparent;
@@ -148,10 +148,10 @@ body > [hidden] {
 .rr-search-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 32px;
+  gap: var(--rr-space-8);
+  height: var(--rr-control-lg);
   width: 240px;
-  padding: 0 6px 0 10px;
+  padding: 0 var(--rr-space-6) 0 var(--rr-space-10);
   border-radius: var(--rr-radius);
   border: 1px solid var(--rr-line);
   background: var(--rr-panel);
@@ -167,9 +167,9 @@ body > [hidden] {
   border-color: var(--rr-line-strong);
 }
 kbd {
-  font: 500 10.5px/1 var(--rr-mono);
-  padding: 3px 5px;
-  border-radius: var(--rr-radius-sm);
+  font: 500 var(--rr-text-xs)/1 var(--rr-mono);
+  padding: var(--rr-space-4) var(--rr-space-6);
+  border-radius: var(--rr-radius);
   border: 1px solid var(--rr-line);
   background: var(--rr-panel-2);
   color: var(--rr-muted);

@@ -8,24 +8,24 @@
 }
 .rr-palette__input {
   height: 48px;
-  padding: 0 16px;
+  padding: 0 var(--rr-space-16);
   border: 0;
   border-bottom: 1px solid var(--rr-line);
   background: transparent;
   color: var(--rr-ink);
-  font: 15px var(--rr-font);
+  font: var(--rr-text-lg) var(--rr-font);
   outline: none;
 }
 .rr-palette__list {
   overflow: auto;
-  padding: 6px;
+  padding: var(--rr-space-6);
 }
 .rr-palette__item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 34px;
-  padding: 0 10px;
+  gap: var(--rr-space-10);
+  height: var(--rr-control-lg);
+  padding: 0 var(--rr-space-10);
   border-radius: var(--rr-radius);
   cursor: pointer;
 }
@@ -35,12 +35,12 @@
 .rr-palette__kind {
   width: 20px;
   height: 20px;
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   display: grid;
   place-items: center;
   background: var(--rr-hover);
   color: var(--rr-muted);
-  font: 600 11px/1 var(--rr-mono);
+  font: 600 var(--rr-text-xs)/1 var(--rr-mono);
   flex: none;
 }
 .rr-palette__kind--section {
@@ -58,16 +58,16 @@
 .rr-palette__kind--text + .rr-palette__label,
 .rr-palette__item:has(:is(.rr-palette__kind--file, .rr-palette__kind--text, .rr-palette__kind--symbol)) .rr-palette__detail {
   font-family: var(--rr-mono); /* paths */
-  font-size: 11px;
+  font-size: var(--rr-text-xs);
 }
 .rr-palette__kind--symbol + .rr-palette__label {
-  font: 12px var(--rr-mono);
+  font: var(--rr-text-sm) var(--rr-mono);
 }
 .rr-palette__detail {
   margin-left: auto;
-  padding-left: 12px;
+  padding-left: var(--rr-space-12);
   color: var(--rr-faint);
-  font: 11.5px var(--rr-font);
+  font: var(--rr-text-sm) var(--rr-font);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -81,13 +81,13 @@
   top: 0;
   right: 4px;
   height: 48px;
-  padding: 0 12px;
+  padding: 0 var(--rr-space-12);
 }
 .rr-palette__hint {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 14px;
+  gap: var(--rr-space-4);
+  padding: var(--rr-space-8) var(--rr-space-16);
   border-top: 1px solid var(--rr-line);
   color: var(--rr-muted);
   font-size: var(--rr-text-xs);

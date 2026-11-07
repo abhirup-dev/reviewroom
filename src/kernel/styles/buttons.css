@@ -3,9 +3,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
+  gap: var(--rr-space-6);
+  height: var(--rr-control-lg);
+  padding: 0 var(--rr-space-12);
   border-radius: var(--rr-radius);
   border: 1px solid var(--rr-line-strong);
   background: var(--rr-panel);

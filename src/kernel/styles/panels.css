@@ -26,8 +26,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px 0 10px;
+  gap: var(--rr-space-8);
+  padding: 0 var(--rr-space-8) 0 var(--rr-space-10);
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-panel);
   overflow: hidden;
@@ -35,7 +35,7 @@
 .rr-toolbar__group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   min-width: 0;
 }
 .rr-toolbar__title {
@@ -52,10 +52,10 @@
 .rr-tool {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  min-width: 26px;
-  padding: 0 6px;
+  gap: var(--rr-space-4);
+  height: var(--rr-control);
+  min-width: var(--rr-control);
+  padding: 0 var(--rr-space-6);
   border: 1px solid transparent;
   border-radius: var(--rr-radius);
   background: transparent;
@@ -89,7 +89,7 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px 0 4px;
+  gap: var(--rr-space-8);
+  padding: 0 var(--rr-space-10) 0 var(--rr-space-4);
   border-top: 1px solid var(--rr-line);
 }

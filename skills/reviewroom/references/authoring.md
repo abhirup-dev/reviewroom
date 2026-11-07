@@ -242,7 +242,10 @@ The tool sets both; don't load fonts or hard-code colours. Headings, lists, tabl
 inside `<rr-review>` are already styled: write plain semantic HTML. In your own widgets use the tokens:
 
 - Fonts: `--rr-font-read` (prose), `--rr-font` (labels, legends, table headers), `--rr-mono` (code, identifiers, numbers).
-- Sizes: `--rr-text-prose`, `--rr-text`, `--rr-text-sm`, `--rr-text-xs`.
+- Sizes, one scale for every voice: `--rr-text-xs` (11px), `--rr-text-sm` (12), `--rr-text` (13), `--rr-text-md` (14),
+  `--rr-text-prose` (16, the body), `--rr-text-xl` (19), `--rr-text-2xl` (23), `--rr-text-3xl` (32). Or `em`, relative to the
+  text around it.
+- Spacing: `--rr-space-2`, `-4`, `-6`, `-8`, `-10`, `-12`, `-16`, `-24`, `-32`, `-48` (px).
 - Colours: `--rr-ink`, `--rr-muted`, `--rr-line`, `--rr-surface-doc-2` (figure background), `--rr-accent` (links only), `--rr-add`, `--rr-del`, `--rr-comment`.
 
 They switch with light and dark mode, so widgets built on them follow the theme.

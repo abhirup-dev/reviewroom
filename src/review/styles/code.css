@@ -12,7 +12,7 @@
 }
 /* one CodeView item per file: the card's edge is a shadow, so it adds nothing to the heights CodeView computes */
 .rr-code-scroll diffs-container {
-  margin-inline: 8px;
+  margin-inline: var(--rr-space-8);
   border-radius: var(--rr-radius);
   box-shadow: 0 0 0 1px var(--rr-line);
   background: var(--rr-panel);
@@ -21,9 +21,9 @@
 .rr-file__head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--rr-space-8);
   height: 38px;
-  padding: 0 8px 0 4px;
+  padding: 0 var(--rr-space-8) 0 var(--rr-space-4);
   background: color-mix(in srgb, var(--rr-surface-bar-active) 70%, var(--rr-panel));
   border-bottom: 1px solid var(--rr-line);
 }
@@ -37,7 +37,7 @@
   border: 0;
   background: none;
   padding: 0;
-  font: 12px/1 var(--rr-mono);
+  font: var(--rr-text-sm)/1 var(--rr-mono);
   color: var(--rr-ink);
   cursor: pointer;
   white-space: nowrap;
@@ -54,9 +54,9 @@
 .rr-viewed {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding: 0 8px;
+  gap: var(--rr-space-4);
+  height: var(--rr-control-sm);
+  padding: 0 var(--rr-space-8);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   font-size: var(--rr-text-xs);
@@ -71,7 +71,7 @@
 .rr-toolbar__viewed {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--rr-space-4);
   font: var(--rr-text-xs) var(--rr-font);
   color: var(--rr-muted);
   white-space: nowrap;

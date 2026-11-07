@@ -1,14 +1,14 @@
 .rr-embed__thread {
-  padding: 8px 12px;
+  padding: var(--rr-space-8) var(--rr-space-12);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
+  gap: var(--rr-space-4);
+  font-size: var(--rr-text-sm);
 }
 .rr-embed__avatar {
   width: 16px;
   height: 16px;
-  margin-right: 5px;
+  margin-right: var(--rr-space-6);
   border-radius: 50%;
   vertical-align: -3px;
 }

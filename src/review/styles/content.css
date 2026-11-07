@@ -1,16 +1,16 @@
 /* Mermaid diagrams follow the active review theme. */
-rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(--rr-panel); --pele-fg: var(--rr-ink); --pele-muted: var(--rr-muted); --pele-line: var(--rr-ink-2); --pele-surface: var(--rr-panel-2); --pele-surface-alt: var(--rr-panel); --pele-border: var(--rr-line); --pele-accent: var(--rr-accent); --pele-font: var(--rr-font); --pele-font-mono: var(--rr-mono); --pele-radius: var(--rr-radius-sm); }
+rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr-space-24); --pele-bg: var(--rr-panel); --pele-fg: var(--rr-ink); --pele-muted: var(--rr-muted); --pele-line: var(--rr-ink-2); --pele-surface: var(--rr-panel-2); --pele-surface-alt: var(--rr-panel); --pele-border: var(--rr-line); --pele-accent: var(--rr-accent); --pele-font: var(--rr-font); --pele-font-mono: var(--rr-mono); --pele-radius: var(--rr-radius); }
 .rr-mermaid__diagram { width: 100%; min-width: 0; overflow: hidden; }
 .rr-mermaid__diagram svg { max-width: 100%; height: auto; }
-.rr-mermaid__source { font: var(--rr-text-sm)/1.5 var(--rr-font); margin-top: 8px; color: var(--rr-muted); }
+.rr-mermaid__source { font: var(--rr-text-sm)/1.5 var(--rr-font); margin-top: var(--rr-space-8); color: var(--rr-muted); }
 .rr-mermaid__source summary { cursor: pointer; width: fit-content; }
 .rr-mermaid__source pre { overflow: auto; max-height: 280px; white-space: pre-wrap; font-family: var(--rr-mono); color: var(--rr-ink); }
-.rr-mermaid__foot { display: flex; align-items: flex-start; gap: 8px; }
+.rr-mermaid__foot { display: flex; align-items: flex-start; gap: var(--rr-space-8); }
 .rr-mermaid__foot > .rr-mermaid__source { flex: 1; min-width: 0; }
-.rr-mermaid__expand { flex: none; margin-top: 4px; color: var(--rr-muted); }
+.rr-mermaid__expand { flex: none; margin-top: var(--rr-space-4); color: var(--rr-muted); }
 /* one diagram, full screen: the whole dialog is its zoom frame, the diagram fit inside it both ways */
 .rr-modal.rr-mermaid-max { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-.rr-mermaid-max__body { flex: 1; min-height: 0; overflow: hidden; padding: 12px; }
+.rr-mermaid-max__body { flex: 1; min-height: 0; overflow: hidden; padding: var(--rr-space-12); }
 .rr-mermaid-max:focus { outline: none; }
 .rr-mermaid-max rr-mermaid { height: 100%; margin: 0; }
 .rr-mermaid-max .rr-mermaid__diagram { height: 100%; display: grid; place-items: center; }
@@ -27,13 +27,13 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   overflow-wrap: break-word;
 }
 .rr-embed__doc.rr-prose {
-  font-size: 14.5px;
+  font-size: var(--rr-text-md);
   line-height: 1.5;
 }
 /* comments are conversation, not walkthrough: one interface face for reading and writing them */
 .rr-msg__body.rr-prose,
 .rr-composer__preview.rr-prose {
-  font: 13.5px/1.55 var(--rr-font);
+  font: var(--rr-text-md)/1.55 var(--rr-font);
   font-variant-numeric: normal;
 }
 :is(.rr-msg__body, .rr-composer__preview).rr-prose :where(table) {
@@ -42,7 +42,7 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 :is(.rr-msg__body, .rr-composer__preview).rr-prose :where(h1, h2, h3, h4) {
   font-family: inherit;
   font-size: 1.05em;
-  margin: 12px 0 4px;
+  margin: var(--rr-space-12) 0 var(--rr-space-4);
   letter-spacing: 0;
 }
 .rr-prose > :first-child {
@@ -53,36 +53,36 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   font-family: var(--rr-font-read);
   font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--rr-tracking-tight);
   text-wrap: balance;
   scroll-margin-top: 24px;
 }
 .rr-prose :where(h1) {
-  font-size: 32px;
+  font-size: var(--rr-text-3xl);
   line-height: 1.15;
-  margin: 0 0 14px;
-  letter-spacing: -0.02em;
+  margin: 0 0 var(--rr-space-16);
+  letter-spacing: var(--rr-tracking-tight);
 }
 .rr-prose :where(h2) {
-  font-size: 23px;
-  margin: 44px 0 10px;
+  font-size: var(--rr-text-2xl);
+  margin: var(--rr-space-48) 0 var(--rr-space-10);
 }
 .rr-prose :where(h3) {
-  font-size: 18px;
-  margin: 28px 0 6px;
+  font-size: var(--rr-text-xl);
+  margin: var(--rr-space-24) 0 var(--rr-space-6);
 }
 .rr-prose :where(h4) {
-  font-size: 16px;
-  margin: 20px 0 4px;
+  font-size: var(--rr-text-lg);
+  margin: var(--rr-space-24) 0 var(--rr-space-4);
 }
 .rr-prose :where(p, ul, ol, dl, table, figure, pre, blockquote, details) {
-  margin: 0 0 14px;
+  margin: 0 0 var(--rr-space-16);
 }
 .rr-prose :where(ul, ol) {
-  padding-left: 22px;
+  padding-left: var(--rr-space-24);
 }
 .rr-prose :where(li) {
-  margin: 3px 0;
+  margin: var(--rr-space-4) 0;
 }
 /* one link treatment everywhere: accent ink + a quiet underline that firms up on hover.
    Accent is reserved for "you can go there"; nothing else in the walkthrough is blue. */
@@ -105,8 +105,8 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   font-size: 0.84em;
   text-decoration: none;
   white-space: nowrap;
-  padding: 1px 5px 1px 0;
-  border-radius: var(--rr-radius-sm);
+  padding: 1px var(--rr-space-6) 1px 0;
+  border-radius: var(--rr-radius);
   background: color-mix(in srgb, var(--sym) 9%, transparent);
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--sym) 45%, transparent);
 }
@@ -117,13 +117,13 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   content: var(--glyph);
   display: inline-block;
   min-width: 1.6em;
-  margin-right: 5px;
+  margin-right: var(--rr-space-6);
   text-align: center;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.85em;
   color: var(--rr-surface-doc);
   background: var(--sym);
-  border-radius: var(--rr-radius-sm) 0 0 var(--rr-radius-sm);
+  border-radius: var(--rr-radius) 0 0 var(--rr-radius);
 }
 .rr-prose a[data-rr-symbol] :where(code) {
   padding: 0;
@@ -157,17 +157,17 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 }
 .rr-prose :where(code, kbd, samp) {
   font: 0.84em var(--rr-mono);
-  padding: 1px 5px;
-  border-radius: var(--rr-radius-sm);
+  padding: 1px var(--rr-space-6);
+  border-radius: var(--rr-radius);
   background: var(--rr-hover);
 }
 .rr-prose :where(pre) {
-  padding: 12px 14px;
+  padding: var(--rr-space-12) var(--rr-space-16);
   border-radius: var(--rr-radius);
   background: var(--rr-panel-2);
   border: 1px solid var(--rr-line);
   overflow: auto;
-  font: 12.5px/1.6 var(--rr-mono);
+  font: var(--rr-text-sm)/1.6 var(--rr-mono);
 }
 .rr-prose :where(pre code) {
   padding: 0;
@@ -175,26 +175,26 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   font-size: inherit;
 }
 .rr-prose :where(blockquote) {
-  padding: 2px 14px;
+  padding: var(--rr-space-2) var(--rr-space-16);
   border-left: 3px solid var(--rr-line-strong);
   color: var(--rr-ink-2);
 }
 .rr-prose :where(table) {
   border-collapse: collapse;
   width: 100%;
-  font-size: 14px;
+  font-size: var(--rr-text-md);
   font-variant-numeric: lining-nums tabular-nums;
   display: block;
   overflow-x: auto;
 }
 .rr-prose :where(th, td) {
-  padding: 6px 10px;
+  padding: var(--rr-space-6) var(--rr-space-10);
   border-bottom: 1px solid var(--rr-line);
   text-align: left;
   vertical-align: top;
 }
 .rr-prose :where(th) {
-  font: 600 12px/1.4 var(--rr-font);
+  font: 600 var(--rr-text-sm)/1.4 var(--rr-font);
   color: var(--rr-muted);
   border-bottom-color: var(--rr-line-strong);
 }
@@ -202,8 +202,8 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
   margin-inline: 0;
 }
 .rr-prose :where(figcaption) {
-  margin-top: 6px;
-  font-size: 13.5px;
+  margin-top: var(--rr-space-6);
+  font-size: var(--rr-text-md);
   color: var(--rr-muted);
 }
 .rr-prose :where(img, svg, canvas, video) {
@@ -212,14 +212,14 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 .rr-prose :where(hr) {
   border: 0;
   border-top: 1px solid var(--rr-line);
-  margin: 28px 0;
+  margin: var(--rr-space-24) 0;
 }
 .rr-prose :where(summary) {
   cursor: pointer;
   font-weight: 500;
 }
 .rr-doc .rr-lede {
-  font-size: 18px;
+  font-size: var(--rr-text-xl);
   color: var(--rr-ink-2);
 }
 
@@ -227,11 +227,11 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 .rr-doc section[data-round]:not([data-round='1']) > :is(h2, h3):first-child::after {
   content: 'R' attr(data-round);
   content: 'new in R' attr(data-round);
-  margin-left: 10px;
+  margin-left: var(--rr-space-10);
   vertical-align: 3px;
-  font: 600 10px/1 var(--rr-mono);
-  padding: 3px 6px;
-  border-radius: var(--rr-radius-sm);
+  font: 600 var(--rr-text-2xs)/1 var(--rr-mono);
+  padding: var(--rr-space-4) var(--rr-space-6);
+  border-radius: var(--rr-radius);
   background: var(--rr-active);
   color: var(--rr-ink-2);
 }
@@ -239,18 +239,18 @@ rr-mermaid { display: block; min-width: 0; margin: 12px 0 20px; --pele-bg: var(-
 .rr-doc [data-baseline]:not(rr-node) {
   border: 1px dashed var(--rr-line-strong);
   border-radius: var(--rr-radius);
-  padding: 10px 14px;
+  padding: var(--rr-space-10) var(--rr-space-16);
   color: var(--rr-ink-2);
   background: var(--rr-panel-2);
 }
 .rr-doc [data-baseline]:not(rr-node)::before {
   content: 'Baseline — what already exists';
   display: block;
-  font: 600 10.5px/1 var(--rr-font);
-  letter-spacing: 0.05em;
+  font: 600 var(--rr-text-2xs)/1 var(--rr-font);
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
   color: var(--rr-faint);
-  margin-bottom: 6px;
+  margin-bottom: var(--rr-space-6);
 }
 .rr-doc.is-historic {
   filter: saturate(0.6);
@@ -261,9 +261,9 @@ rr-flow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 0;
-  margin: 8px 0 18px;
-  padding: 16px;
+  gap: var(--rr-space-10) 0;
+  margin: var(--rr-space-8) 0 var(--rr-space-16);
+  padding: var(--rr-space-16);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   background: var(--rr-panel-2);
@@ -277,17 +277,17 @@ rr-node {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: var(--rr-space-4);
+  padding: var(--rr-space-8) var(--rr-space-12);
   border: 1px solid var(--rr-line-strong);
   border-radius: var(--rr-radius);
   background: var(--rr-panel);
-  font: 500 12.5px/1.2 var(--rr-mono);
+  font: 500 var(--rr-text-sm)/1.2 var(--rr-mono);
   color: var(--rr-ink);
   text-align: center;
 }
 rr-node + rr-node {
-  margin-left: 30px;
+  margin-left: var(--rr-space-32);
 }
 rr-node + rr-node::before {
   content: '';
@@ -306,7 +306,7 @@ rr-node + rr-node::after {
   border-left: 5px solid var(--rr-faint);
 }
 rr-flow[direction='column'] rr-node + rr-node {
-  margin: 22px 0 0;
+  margin: var(--rr-space-24) 0 0;
 }
 rr-flow[direction='column'] rr-node + rr-node::before {
   left: 24px;
@@ -347,8 +347,8 @@ rr-node[state='baseline'] {
   background: transparent;
 }
 .rr-node__badge {
-  font: 600 9.5px/1 var(--rr-font);
-  letter-spacing: 0.05em;
+  font: 600 var(--rr-text-2xs)/1 var(--rr-font);
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
   color: var(--rr-muted);
 }
@@ -365,19 +365,19 @@ rr-callout {
   --tone: var(--rr-line-strong);
   --tone-ink: var(--rr-muted);
   display: block;
-  margin: 0 0 16px;
-  padding: 10px 14px 12px;
+  margin: 0 0 var(--rr-space-16);
+  padding: var(--rr-space-10) var(--rr-space-16) var(--rr-space-12);
   border-radius: var(--rr-radius);
   background: var(--rr-panel-2);
   border: 1px solid var(--rr-line);
   border-left: 3px solid var(--tone);
-  font-size: 15px;
+  font-size: var(--rr-text-lg);
 }
 .rr-callout__label {
   display: inline-block;
-  margin-bottom: 4px;
-  font: 600 10.5px/1 var(--rr-font);
-  letter-spacing: 0.06em;
+  margin-bottom: var(--rr-space-4);
+  font: 600 var(--rr-text-xs)/1 var(--rr-font);
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
   color: var(--tone-ink);
 }
@@ -401,19 +401,19 @@ rr-callout > :last-child {
 rr-checklist {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 0 0 16px;
-  padding: 6px;
+  gap: var(--rr-space-2);
+  margin: 0 0 var(--rr-space-16);
+  padding: var(--rr-space-6);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
 }
 rr-check {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: var(--rr-space-10);
+  padding: var(--rr-space-6) var(--rr-space-8);
   border-radius: var(--rr-radius);
-  font-size: 15px;
+  font-size: var(--rr-text-lg);
 }
 rr-check:hover {
   background: var(--rr-hover);
@@ -421,12 +421,12 @@ rr-check:hover {
 .rr-check__box {
   width: 18px;
   height: 18px;
-  margin-top: 2px;
+  margin-top: var(--rr-space-2);
   flex: none;
   display: grid;
   place-items: center;
   border: 1.5px solid var(--rr-line-strong);
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   background: var(--rr-panel);
   cursor: pointer;
   padding: 0;
@@ -448,26 +448,26 @@ rr-check[data-state='fail'] {
 /* ---------------------------------------------------------------- rr-code */
 rr-code {
   display: block;
-  margin: 0 0 16px;
+  margin: 0 0 var(--rr-space-16);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--rr-text);
 }
 .rr-code__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  height: 30px;
-  padding: 0 10px;
+  gap: var(--rr-space-8);
+  height: var(--rr-control-lg);
+  padding: 0 var(--rr-space-10);
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-panel-2);
-  font: 500 12px/1 var(--rr-mono);
+  font: 500 var(--rr-text-sm)/1 var(--rr-mono);
   color: var(--rr-muted);
 }
 .rr-code__head .rr-link-btn {
-  font: 500 11.5px/1 var(--rr-font);
+  font: 500 var(--rr-text-sm)/1 var(--rr-font);
 }
 .rr-code__body {
   --diffs-font-family: var(--rr-mono);

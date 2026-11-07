@@ -7,12 +7,12 @@
 .rr-composer__bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 8px 0;
+  gap: var(--rr-space-2);
+  padding: var(--rr-space-4) var(--rr-space-8) 0;
 }
 .rr-tab {
-  height: 28px;
-  padding: 0 10px;
+  height: var(--rr-control);
+  padding: 0 var(--rr-space-10);
   border: 0;
   border-bottom: 2px solid transparent;
   background: none;
@@ -27,37 +27,37 @@
 .rr-composer__input {
   display: block;
   width: calc(100% - 20px);
-  margin: 6px 10px;
+  margin: var(--rr-space-6) var(--rr-space-10);
   min-height: 72px;
-  padding: 8px 10px;
+  padding: var(--rr-space-8) var(--rr-space-10);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   background: var(--rr-panel);
   color: var(--rr-ink);
-  font: 13.5px/1.55 var(--rr-font);
+  font: var(--rr-text-md)/1.55 var(--rr-font);
   resize: vertical;
 }
 .rr-composer__preview {
-  margin: 6px 10px;
+  margin: var(--rr-space-6) var(--rr-space-10);
   min-height: 72px;
   max-height: 320px;
   overflow: auto;
-  padding: 8px 10px;
+  padding: var(--rr-space-8) var(--rr-space-10);
   border: 1px dashed var(--rr-line);
   border-radius: var(--rr-radius);
 }
 .rr-composer__foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px 10px;
+  gap: var(--rr-space-8);
+  padding: var(--rr-space-6) var(--rr-space-10) var(--rr-space-10);
   font-size: var(--rr-text-xs);
 }
 .rr-send__body {
-  padding: 12px 14px;
+  padding: var(--rr-space-12) var(--rr-space-16);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--rr-space-8);
 }
 .rr-send__body .rr-composer__input {
   width: 100%;
@@ -65,10 +65,10 @@
 }
 .rr-send__list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: var(--rr-space-16);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--rr-space-4);
 }
 
 /* no mod+enter to hint at on touch */

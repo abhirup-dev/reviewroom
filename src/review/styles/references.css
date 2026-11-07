@@ -3,15 +3,15 @@
 rr-ref {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--rr-space-4);
   max-width: 100%;
   height: 22px;
-  padding: 0 7px;
+  padding: 0 var(--rr-space-8);
   border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   background: var(--rr-accent-soft);
   color: var(--rr-accent);
-  font: 500 12px/1 var(--rr-font);
+  font: 500 var(--rr-text-sm)/1 var(--rr-font);
   vertical-align: baseline;
   cursor: pointer;
   white-space: nowrap;
@@ -32,9 +32,17 @@ rr-ref:hover,
 rr-ref:is([data-kind='code'], [data-kind='file'], [data-kind='sym']) {
   font-family: var(--rr-mono);
 }
+/* in prose a chip keeps its kind (icon, and mono for code) but sizes with the text around it, like inline code,
+   so a sentence keeps one line height instead of opening up around each chip */
+.rr-prose rr-ref {
+  height: 1.5em;
+  gap: 0.3em;
+  padding: 0 0.45em;
+  font-size: 0.84em;
+}
 .rr-chip--anchor {
-  height: 26px;
-  font-size: 12px;
+  height: var(--rr-control-sm);
+  font-size: var(--rr-text-sm);
   min-width: 0;
 }
 .rr-chip--static {
@@ -45,7 +53,7 @@ rr-ref:is([data-kind='code'], [data-kind='file'], [data-kind='sym']) {
 .rr-embed,
 rr-embed {
   display: block;
-  margin: 10px 0;
+  margin: var(--rr-space-10) 0;
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   background: var(--rr-panel);
@@ -54,10 +62,10 @@ rr-embed {
 .rr-embed__head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   width: 100%;
-  height: 30px;
-  padding: 0 10px;
+  height: var(--rr-control-lg);
+  padding: 0 var(--rr-space-10);
   border: 0;
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-panel-2);
@@ -75,7 +83,7 @@ rr-embed {
 .rr-embed__open {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--rr-space-2);
   color: var(--rr-accent);
   font-size: var(--rr-text-xs);
 }
@@ -93,8 +101,8 @@ rr-embed {
   pointer-events: none;
 }
 .rr-embed__doc {
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: var(--rr-space-10) var(--rr-space-16);
+  font-size: var(--rr-text);
   max-height: 260px;
   overflow: hidden;
 }
@@ -102,7 +110,7 @@ rr-embed {
   zoom: 0.9;
 }
 .rr-embed__sub {
-  padding: 6px 10px 0;
-  font: 11px var(--rr-mono);
+  padding: var(--rr-space-6) var(--rr-space-10) 0;
+  font: var(--rr-text-xs) var(--rr-mono);
   color: var(--rr-muted);
 }
