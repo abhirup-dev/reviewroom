@@ -90,6 +90,10 @@ bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
 ```
 
+Lint is oxlint (`.oxlintrc.json`) plus `ast-grep scan` (`rules/*.yml`: structural checks oxlint has no rule for, such as
+raw `innerHTML` and global listeners outside the kernel). The `overrides` lists in `.oxlintrc.json` are ratchets: each names
+the files that broke a rule when it was turned on. Take a file off a list once it complies; never add one.
+
 Verify UI changes in a real browser on the demo (light and dark, wide and laptop widths). To get a new build into
 Claude Code, reinstall the plugin (`claude plugin uninstall reviewroom@reviewroom`, then `install`); running servers keep
 their old build until restarted.

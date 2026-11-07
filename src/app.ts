@@ -321,7 +321,8 @@ export class ReviewApp {
     const key = d ? d.body + d.at : String(this.github?.ok);
     if (key === this.descKey) return;
     this.descKey = key;
-    this.descDoc.innerHTML = d ? renderMarkdown(d.body.trim() || '_No description._') : '<p class="rr-muted">The description shows for GitHub pull requests.</p>';
+    if (d) this.descDoc.innerHTML = renderMarkdown(d.body.trim() || '_No description._');
+    else this.descDoc.replaceChildren(h('p', { class: 'rr-muted' }, 'The description shows for GitHub pull requests.'));
     // ids from the author's HTML would collide with the walkthrough's anchors
     this.descDoc.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
   }

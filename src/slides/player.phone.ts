@@ -59,7 +59,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   comment.setAttribute('aria-label', 'Comment on this slide');
   const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet() }, icon('toc', 20));
   // Full screen: immersive now, not after IDLE_MS, and the swipes shown again unless skipped (coach, below)
-  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => ((declined = false), fullscreen(), chrome.send({ type: 'hide' }), startCoach(true)) }, icon('maximize', 20));
+  const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => { declined = false; fullscreen(); chrome.send({ type: 'hide' }); startCoach(true); } }, icon('maximize', 20));
   next.before(h('div', { class: 'rr-tour__pair', role: 'group', 'aria-label': 'Contents, comment and full screen' }, contents, comment, full));
   chapterBtn.title = 'Chapters and slides';
   chapterBtn.setAttribute('aria-haspopup', 'dialog');
@@ -67,7 +67,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   // (unfolded for that slide only)
   leadToggle.remove();
   let leadOpen = true;
-  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, title: 'Show the whole chapter intro', onclick: () => ((leadOpen = true), paintLead()) }, 'More');
+  const more = h('button', { class: 'rr-link-btn rr-tour__more', hidden: true, title: 'Show the whole chapter intro', onclick: () => { leadOpen = true; paintLead(); } }, 'More');
   lead.after(more);
   const paintLead = () => {
     const fold = ctx().step > 0 && !leadOpen;
@@ -78,7 +78,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   // while it's open and Back closes it (PhoneShell's watchDialogs; under the dock, its own entry); kept, so it can slide
   // away (slides.phone.css)
   const sheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Chapters and slides', tabindex: '-1' });
-  const jump = (chapter: number, step: number) => (sheet.close(), actor.send({ type: 'goto', chapter, step }));
+  const jump = (chapter: number, step: number) => { sheet.close(); actor.send({ type: 'goto', chapter, step }); };
   const gist = (html: string) => Object.assign(h('div'), { innerHTML: sanitizeProse(html) }).textContent.trim();
   // a swipe up on it opens every chapter on its slides, the sheet nearly the screen's height; each opening starts compact
   const contentsSheet = (all = false) => {
@@ -116,7 +116,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   player.append(band, progress);
   progress.title = 'Chapters and slides';
   // captured, so a tick reached by the keyboard opens Contents as a tap does, rather than jumping as well
-  progress.addEventListener('click', (e) => (e.stopPropagation(), contentsSheet()), true);
+  progress.addEventListener('click', (e) => { e.stopPropagation(); contentsSheet(); }, true);
   let bandTimer = 0;
   const announce = () => {
     const { doc, chapter } = ctx();
@@ -170,7 +170,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const touch = createActor(gestureMachine).start();
   const pt = (e: TouchEvent) => ({ x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY });
   const claims = (e: TouchEvent, up: boolean) => !land.matches && card.getSnapshot().can({ type: 'grab', up, grip: e.target === grip, scrollTop: left.scrollTop, height: 0, heights: [0, 0, 0] });
-  const cancel = () => (touch.send({ type: 'cancel' }), card.send({ type: 'cancel' }));
+  const cancel = () => { touch.send({ type: 'cancel' }); card.send({ type: 'cancel' }); };
   // a zoomed-in diagram (Pele sets touch-action: none on it) pans under the finger: not a swipe or a card drag
   const pans = (e: TouchEvent) => (e.target as Element).closest<SVGElement>('svg.pele')?.style.touchAction === 'none';
   left.addEventListener('touchstart', (e) => (e.touches.length === 1 && !pans(e) ? touch.send({ type: 'start', ...pt(e), up: claims(e, true), down: claims(e, false) }) : cancel()), { passive: true });
@@ -218,7 +218,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   ).start();
   /** the chunks on screen (not the layer they replace, fading out over them) */
   const chunks = () => [...pane.querySelectorAll(':scope > .rr-tour__layer:not(.is-leaving) > .rr-tour__chunk')];
-  const pick = (index: number) => (filesSheet.close(), nav.send({ type: 'go', jump: { index } }));
+  const pick = (index: number) => { filesSheet.close(); nav.send({ type: 'go', jump: { index } }); };
   const name = (s: Slot) => (s.code ? s.code.path.split('/').pop()! : app.label(s.ref));
   let away = false; // the pane shows a link's code, not the slide's own
   const paintFiles = () => {
@@ -291,7 +291,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     spot.style.cssText = `left:${r.left - grow}px;top:${r.top - grow}px;width:${r.width + 2 * grow}px;height:${r.height + 2 * grow}px;border-radius:${round}`;
     spot.classList.add('is-on');
   };
-  const say = (...text: (string | Node)[]) => (note.replaceChildren(...text), note.classList.add('is-on'));
+  const say = (...text: (string | Node)[]) => { note.replaceChildren(...text); note.classList.add('is-on'); };
   const wait = (ms: number, signal: AbortSignal) => new Promise<void>((done) => {
     const t = setTimeout(done, ms);
     signal.addEventListener('abort', () => clearTimeout(t), { once: true });
@@ -337,8 +337,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
       actors: { swipes },
       actions: {
         showSwipes: ({ context: { orient: o } }) => say(`Full screen · swipe the slide ${o === 'landscape' ? 'on the left' : 'below'} to move`),
-        fade: () => (note.classList.remove('is-on', 'is-ask'), spot.classList.remove('is-on'), restore.classList.remove('is-hinting')),
-        point: () => (say('Tap ', icon('dots', 18), ' to show the controls'), light(restore, '50%', 14), restore.classList.add('is-hinting')),
+        fade: () => { note.classList.remove('is-on', 'is-ask'); spot.classList.remove('is-on'); restore.classList.remove('is-hinting'); },
+        point: () => { say('Tap ', icon('dots', 18), ' to show the controls'); light(restore, '50%', 14); restore.classList.add('is-hinting'); },
         ask: () => {
           say(
             h('span', null, 'Show this again next time?'),
@@ -434,7 +434,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
       if (was && chapterOf(slide) !== chapterOf(was) && immersive()) announce();
     }
     [was, wasPlaying] = [slide, playing];
-    if (playing && !drop) drop = onBack(() => ((drop = undefined), actor.send({ type: 'close' })));
+    if (playing && !drop) drop = onBack(() => { drop = undefined; actor.send({ type: 'close' }); });
     else if (!playing && drop) {
       drop();
       drop = undefined;
@@ -444,11 +444,13 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     if (!playing) declined = false;
     chrome.send({ type: !playing ? 'stop' : chrome.getSnapshot().matches('off') ? 'wake' : 'touch' }); // a slide change keeps immersive
   });
-  app.onDispose(() => (drop?.(), coach.stop(), clearTimeout(bandTimer), card.stop(), touch.stop(), chrome.stop(), nav.stop(), paneOff?.(), cardH.disconnect(), sheet.remove(), filesSheet.remove()));
+  app.onDispose(() => {
+    drop?.(); coach.stop(); clearTimeout(bandTimer); card.stop(); touch.stop(); chrome.stop(); nav.stop(); paneOff?.(); cardH.disconnect(); sheet.remove(); filesSheet.remove();
+  });
   return {
     contents: () => contentsSheet(),
     // each slide folds the intro again (but the chapter's first), unless the card is tall
-    foldLead: () => ((leadOpen = left.dataset.detent === 'tall'), paintLead()),
+    foldLead: () => { leadOpen = left.dataset.detent === 'tall'; paintLead(); },
     // upright, the card is over the code's lower part
     codeLayout: () => land.matches ? {} : {
       padBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX,

@@ -1,0 +1,24 @@
+id: no-global-listener-in-features
+language: typescript
+severity: error
+message: Listen on window or document through app.listen(...), which removes the listener on dispose
+note: A raw global listener outlives the panel that added it (rr-92j). For a drag, capture the pointer on the element instead (setPointerCapture) so no global listener is needed.
+files:
+  - src/review/**/*.ts
+  - src/threads/**/*.ts
+  - src/slides/**/*.ts
+ignores:
+  - src/**/*.test.ts
+rule:
+  any:
+    - pattern: window.addEventListener($$$)
+    - pattern: document.addEventListener($$$)
+    - pattern: globalThis.addEventListener($$$)
+    # a bare addEventListener(...) is window's
+    - pattern:
+        context: addEventListener($$$)
+        selector: call_expression
+      not:
+        has:
+          field: function
+          regex: '\.'

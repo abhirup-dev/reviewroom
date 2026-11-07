@@ -193,11 +193,11 @@ const notes: Record<string, string> = {
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
   // cac shows negated flags as "(default: true)", which reads as the opposite of what --no-open does
-  sections = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
+  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
-  if (c) return notes[c] ? [...sections, { title: 'Notes', body: notes[c] }] : sections;
+  if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
   return [
-    ...sections.map((x) => (x.title?.startsWith('For more info') ? { ...x, body: '  $ reviewroom <command> --help' } : x)),
+    ...rows.map((x) => (x.title?.startsWith('For more info') ? { ...x, body: '  $ reviewroom <command> --help' } : x)),
     {
       title: 'A review',
       body: [

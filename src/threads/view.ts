@@ -177,7 +177,7 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
     selection: { anchor: initial.length },
     extensions: [
       // Enter is a plain line break (no auto-indent); ⌘↵ sends
-      keymap.of([{ key: 'Mod-Enter', run: () => (void submit(), true) }, { key: 'Enter', shift: insertNewline, run: insertNewline }, ...standardKeymap, ...historyKeymap]),
+      keymap.of([{ key: 'Mod-Enter', run: () => { void submit(); return true; } }, { key: 'Enter', shift: insertNewline, run: insertNewline }, ...standardKeymap, ...historyKeymap]),
       history(),
       chipView,
       placeholder(opts.placeholder),
@@ -245,7 +245,7 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
       h('span', { class: 'rr-muted' }, h('kbd', null, '[['), ' link', h('span', { class: 'rr-composer__send-key' }, ' · ', h('kbd', null, keyLabel('mod+enter')), buttons.length > 1 ? ' ' + main.label : ' send')),
       h('span', { class: 'rr-toolbar__spacer' }),
       // Cancel throws the draft away; Esc, the backdrop and the close button keep it
-      opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', title: 'Discard this draft', onclick: () => (keepDraft(''), opts.onCancel!()) }, 'Cancel') : null,
+      opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', title: 'Discard this draft', onclick: () => { keepDraft(''); opts.onCancel!(); } }, 'Cancel') : null,
       // aria-disabled, not disabled: a disabled button gets no hover, so its tooltip would never show
       ...buttons.map((b) => h('button', { class: 'rr-btn' + (b.to === 'agent' ? ' rr-btn--send rr-btn--agent' : b.to ? ' rr-btn--send' : b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => submit(b) }, b.icon ? icon('send', 12) : null, b.label)),
     ),
@@ -336,7 +336,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       b.setAttribute('aria-pressed', String(on));
       b.title = on ? 'Unpin' : 'Pin';
     };
-    const b = h('button', { class: 'rr-icon-btn', 'aria-label': 'Pin', onclick: () => (app.togglePin(ref), set(b), app.toast(app.state.pins.includes(ref) ? 'Pinned' : 'Unpinned')) }, icon('pin', 14));
+    const b = h('button', { class: 'rr-icon-btn', 'aria-label': 'Pin', onclick: () => { app.togglePin(ref); set(b); app.toast(app.state.pins.includes(ref) ? 'Pinned' : 'Unpinned'); } }, icon('pin', 14));
     set(b);
     return b;
   };
@@ -357,9 +357,9 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
         ? h('button', { class: 'rr-btn rr-btn--small rr-btn--ghost', title: t.status === 'open' ? 'Mark resolved: hides the highlight and margin chip' : 'Reopen this thread', onclick: () => resolve(t) }, icon(t.status === 'open' ? 'check' : 'round', 12), t.status === 'open' ? 'Resolve' : 'Reopen')
         : null,
       // a new comment: link or pin what it's about (the code range or section), from here rather than a toolbar over the page
-      !t && ref ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this (paste it into any comment)', 'aria-label': 'Copy link', onclick: () => (copyText(bare!), app.toast(`Link to ${app.label(bare!)} copied`)) }, icon('link', 14)) : null,
+      !t && ref ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this (paste it into any comment)', 'aria-label': 'Copy link', onclick: () => { void copyText(bare!); app.toast(`Link to ${app.label(bare!)} copied`); } }, icon('link', 14)) : null,
       !t && ref ? pinBtn(bare!) : null,
-      t ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this thread (paste it into any comment)', 'aria-label': 'Copy link to thread', onclick: () => (copyText(formatRef({ type: 'thread', id: t.id })), app.toast('Link to this thread copied')) }, icon('link', 14)) : null,
+      t ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this thread (paste it into any comment)', 'aria-label': 'Copy link to thread', onclick: () => { void copyText(formatRef({ type: 'thread', id: t.id })); app.toast('Link to this thread copied'); } }, icon('link', 14)) : null,
       t && !o.docked && o.onDock ? h('button', { class: 'rr-icon-btn', title: 'Dock as a panel', 'aria-label': 'Dock as a panel', onclick: () => o.onDock!(t.id) }, icon('dock', 14)) : null,
       t && o.docked && o.onUndock ? h('button', { class: 'rr-icon-btn', title: 'Open as popup', 'aria-label': 'Open as popup', onclick: () => o.onUndock!(t.id) }, icon('maximize', 14)) : null,
       o.onClose ? h('button', { class: 'rr-icon-btn', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => o.onClose!() }, icon('close', 14)) : null,
@@ -394,7 +394,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
                 bar.style.opacity = '1'; // actions show on hover only; keep the question up
                 bar.replaceChildren(
                   h('span', { class: 'rr-muted' }, 'Delete the whole thread?'),
-                  h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => (app.services.threads.deleteMessage(t.id, m.id), o.onClose?.()) }, 'delete'),
+                  h('button', { class: 'rr-link-btn', title: 'Delete this thread for good', onclick: () => { void app.services.threads.deleteMessage(t.id, m.id); o.onClose?.(); } }, 'delete'),
                   h('button', { class: 'rr-link-btn', title: 'Keep the thread', onclick: () => render() }, 'keep'),
                 );
               },
@@ -485,7 +485,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       scroll?.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
     }
   });
-  return { el: root, dispose: () => (off?.(), drop(root)) };
+  return { el: root, dispose: () => { off?.(); drop(root); } };
 }
 
 // ------------------------------------------------------------------ popup host
@@ -565,15 +565,22 @@ export function mountThreadPopup(app: ReviewApp) {
     e.preventDefault();
     const x0 = e.clientX - dx, y0 = e.clientY - dy;
     const r = box.getBoundingClientRect(), cx = r.left - dx, cy = r.top - dy;
+    // the pointer is captured by the dialog: its own listeners see the whole drag, and go with it (no window listeners to leak)
+    box.setPointerCapture(e.pointerId);
     const move = (m: PointerEvent) => {
       // keep the header grabbable: at least 80px of it on screen
       dx = Math.min(Math.max(m.clientX - x0, 80 - cx - r.width), innerWidth - 80 - cx);
       dy = Math.min(Math.max(m.clientY - y0, -cy), innerHeight - 40 - cy);
       box.style.translate = `${dx}px ${dy}px`;
     };
-    const up = () => (removeEventListener('pointermove', move), removeEventListener('pointerup', up));
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
+    const up = () => {
+      box.removeEventListener('pointermove', move);
+      box.removeEventListener('pointerup', up);
+      box.removeEventListener('pointercancel', up);
+    };
+    box.addEventListener('pointermove', move);
+    box.addEventListener('pointerup', up);
+    box.addEventListener('pointercancel', up);
   });
   const dock = (id: string) => {
     close();

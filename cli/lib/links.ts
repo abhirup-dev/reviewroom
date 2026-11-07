@@ -36,7 +36,7 @@ export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
 export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '', tour: Walkthrough | null = null) {
-  html = uncomment(html);
+  const visible = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
     const sha = rev === 'head' ? prov.head : rev === 'base' ? prov.base : rev;
@@ -50,7 +50,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     return files.get(sha + ':' + p);
   };
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
-  for (const ref of extractLinks(html + '\n' + uncomment(extra))) {
+  for (const ref of extractLinks(visible + '\n' + uncomment(extra))) {
     const r = parseRef(ref);
     if (!r || r.type === 'thread' || r.type === 'round') {
       out(ref, 'broken', 'not a valid link');
@@ -63,7 +63,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
       continue;
     }
     if (r.type === 'doc') {
-      if (regex`\b id= ["']? ${r.id} ["'\s>]`.test(html)) out(ref, 'ok');
+      if (regex`\b id= ["']? ${r.id} ["'\s>]`.test(visible)) out(ref, 'ok');
       else out(ref, 'broken', 'no element with this id in the walkthrough');
       continue;
     }
@@ -120,12 +120,12 @@ export const report = (bad: LinkResult[]) =>
 export function applyFixes(html: string, results: LinkResult[], links: Links) {
   const to = new Map(results.filter((x) => x.status === 'moved').map((x) => [x.ref, x.to!]));
   const moved = [...to].map(([from, dest]) => [dest, links[from]]);
-  links = { ...links };
-  for (const from of to.keys()) delete links[from];
-  for (const [dest, h] of moved) links[dest] = h;
-  html = html.replace(LINK_IN_TEXT, (m) => {
+  const next = { ...links };
+  for (const from of to.keys()) delete next[from];
+  for (const [dest, h] of moved) next[dest] = h;
+  const fixed = html.replace(LINK_IN_TEXT, (m) => {
     const ref = trimLink(m);
     return to.has(ref) ? to.get(ref)! + m.slice(ref.length) : m;
   });
-  return { html, links };
+  return { html: fixed, links: next };
 }

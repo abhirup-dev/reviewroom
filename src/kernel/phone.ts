@@ -77,7 +77,7 @@ class PhoneShell implements PanelSurface {
     this.watchDialogs();
     // no c key on a phone: a selection (text in the narrative, lines in code) gets a button instead
     const comment = this.comment;
-    comment.onclick = () => (app.commands.run('comment.selection'), (comment.hidden = true));
+    comment.onclick = () => { app.commands.run('comment.selection'); comment.hidden = true; };
     comment.append(icon('chat', 14), 'Comment');
     app.bus.on('selection', (s) => this.shell.send({ type: 'selection', on: !!s }));
     // before the code panel hears it (it mounts below): lines to show from elsewhere peek, a whole file opens the area
@@ -94,13 +94,13 @@ class PhoneShell implements PanelSurface {
       const pager = h('div', { class: 'rr-phone-pager' });
       const area: Area = { id: a.id, el: h('section', { class: 'rr-phone-area', 'data-area': a.id, 'aria-label': a.title }, strip, pager), strip, ind, pager, pages: [], sig: '' };
       // the page under the finger once the pager settles (a swipe, or a tap on a tab scrolling it); the indicator follows
-      pager.addEventListener('scroll', () => (this.settle(area), this.slide(area)), { passive: true });
+      pager.addEventListener('scroll', () => { this.settle(area); this.slide(area); }, { passive: true });
       this.areas.set(a.id, area);
       this.stage.append(area.el);
     }
     this.peekHead(this.areas.get('code')!.el);
     // a resized pager (rotation, the URL bar) keeps the page it was on
-    const resized = new ResizeObserver(() => this.areas.forEach((a) => (this.scrollTo(a, this.ctx().page[a.id], 'instant'), this.slide(a))));
+    const resized = new ResizeObserver(() => this.areas.forEach((a) => { this.scrollTo(a, this.ctx().page[a.id], 'instant'); this.slide(a); }));
     resized.observe(this.stage);
     app.onDispose(() => resized.disconnect());
     host.append(this.stage, comment, this.nav);
@@ -200,7 +200,7 @@ class PhoneShell implements PanelSurface {
         area.ind,
       );
       this.shell.send({ type: 'pages', area: area.id, ids: pages.map((p) => p.id) });
-      requestAnimationFrame(() => (this.scrollTo(area, this.ctx().page[area.id], 'instant'), this.slide(area)));
+      requestAnimationFrame(() => { this.scrollTo(area, this.ctx().page[area.id], 'instant'); this.slide(area); });
       this.paintTabs(area);
     }
     this.paintNav();
@@ -267,11 +267,11 @@ class PhoneShell implements PanelSurface {
     if (!def) return undefined;
     const sheet = !title; // a thread, a code pop-out
     const host = h('div', { class: 'rr-panel-host ' + (sheet ? 'rr-phone-panel is-sheet' : 'rr-phone-page'), 'data-rr-kind': def.id, role: sheet ? null : 'tabpanel', hidden: sheet });
-    title ??= def.title + (id.includes(':') && !def.onDemand ? ' ' + id.split(':')[1] : '');
+    const name = title ?? def.title + (id.includes(':') && !def.onDemand ? ' ' + id.split(':')[1] : '');
     if (sheet) {
       const back = h('button', { class: 'rr-icon-btn', 'aria-label': 'Back', title: 'Back (Esc)', onclick: () => this.close(id) });
       back.append(icon('chevron', 16));
-      host.append(h('header', { class: 'rr-phone-sheet-head' }, back, h('span', { class: 'rr-phone-sheet-title' }, title)));
+      host.append(h('header', { class: 'rr-phone-sheet-head' }, back, h('span', { class: 'rr-phone-sheet-title' }, name)));
     }
     const inst = def.create(this.app, { ...params, ...(id === 'code' ? { rail: true } : {}) }, id);
     host.append(inst.element);
@@ -279,7 +279,7 @@ class PhoneShell implements PanelSurface {
       this.stage.append(host);
       this.sheetIds.add(id);
     }
-    o = { id, title, params, host, inst };
+    o = { id, title: name, params, host, inst };
     this.open.set(id, o);
     return o;
   }

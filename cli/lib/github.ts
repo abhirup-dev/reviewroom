@@ -93,8 +93,8 @@ function client(cwd: string, host: string) {
 export async function gql<T extends object>(cwd: string, host: string, query: string, variables: Record<string, unknown> = {}, { paginate = false } = {}): Promise<T> {
   try {
     const c = await client(cwd, host); // a failed `gh auth token` is a GitHub problem too (502)
-    if (query.startsWith('mutation')) variables = { ...variables, request: { retries: 0 } }; // never twice: it may have landed
-    return await (paginate ? c.graphql.paginate<T>(query, variables) : c.graphql<T>(query, variables));
+    const vars = query.startsWith('mutation') ? { ...variables, request: { retries: 0 } } : variables; // never twice: it may have landed
+    return await (paginate ? c.graphql.paginate<T>(query, vars) : c.graphql<T>(query, vars));
   } catch (err) {
     const e = err as Error & { status?: number; errors?: { message: string }[] }; // Octokit's RequestError / GraphqlResponseError
     if (e.status === 401) clients.delete(host); // token revoked or rotated: ask gh again next time

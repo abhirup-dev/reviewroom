@@ -1,0 +1,3 @@
+# ast-grep rules `bun run lint` runs (`ast-grep scan`): structural checks oxlint has no rule for. One file per rule in rules/.
+ruleDirs:
+  - rules

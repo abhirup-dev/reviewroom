@@ -142,7 +142,7 @@ const coach = (skipped: Orient[] = []) => {
     { clock },
   ).start();
   const start = (orient: Orient, forced = false) => a.send({ type: 'start', orient, forced, skipped: skipped.includes(orient) });
-  return { a, log, start, later: (ms: number) => clock.increment(ms), swiped: () => (done(), new Promise((r) => setTimeout(r))), is: () => a.getSnapshot().value };
+  return { a, log, start, later: (ms: number) => clock.increment(ms), swiped: () => { done(); return new Promise((r) => setTimeout(r)); }, is: () => a.getSnapshot().value };
 };
 
 test('coach: swipes, then points at Show controls, then asks; unanswered it ends', async () => {

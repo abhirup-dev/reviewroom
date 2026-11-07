@@ -213,7 +213,10 @@ export class Hub {
       withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
       next.set(info.id, info);
       // nothing answers as this server: it died without cleaning up (SIGKILL, crash)
-      const gone = () => (next.delete(info.id), unregister(r.pid));
+      const gone = () => {
+        next.delete(info.id);
+        return unregister(r.pid);
+      };
       enrich.push((async () => {
         let res: Response | null = null;
         try {
