@@ -21,7 +21,8 @@ export interface PresentationModule {
   /** What it adds to the walkthrough panel (not the description): the phone's Contents button. */
   walkthrough?: WalkthroughExtension;
 
-  // 2.5 player form (rr-486.11)
+  // 2.5 player form (rr-486.11): not a member. The phone player plays on any phone, a turned one under the dock, so
+  // main.ts hands src/phone.ts's phonePlayer to mountWalkthrough by app.presentation.phonePlayer.
 
   // 2.6 palette (rr-486.12)
 }

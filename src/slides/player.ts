@@ -5,7 +5,7 @@
 // A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack, under one set of
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
-import { createActor, fromPromise, waitFor } from 'xstate';
+import { createActor, fromPromise, waitFor, type Actor } from 'xstate';
 import { h, icon, onDrag } from '../kernel/dom';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS, refIcon } from '../kernel/refs/browser';
@@ -13,7 +13,6 @@ import { renderPreview, type PreviewOptions } from '../review/previews';
 import { paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot } from './player.machine';
 import type { ReviewApp } from '../app';
 import { desktopPlayer } from './player.desktop';
-import { phonePlayer } from './player.phone';
 import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools, type CodePanelOptions } from '../review/code';
@@ -26,7 +25,7 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closes
 let panes = 0;
 
 /** What the desktop and phone players (player.desktop.ts, player.phone.ts) do their own way. */
-type PlayerForm = {
+export type PlayerForm = {
   contents(): void;
   paintNav(cur: ReturnType<typeof current>): void;
   /** each slide: fold the chapter intro its own way */
@@ -36,6 +35,31 @@ type PlayerForm = {
   /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
   focus?(ref: string): void;
 };
+
+/** The skeleton's parts the phone player rearranges and listens on. */
+export type PhoneParts = {
+  app: ReviewApp;
+  actor: Actor<typeof walkthroughMachine>;
+  root: HTMLElement;
+  player: HTMLElement;
+  split: HTMLElement;
+  left: HTMLElement;
+  right: HTMLElement;
+  pane: HTMLElement;
+  /** where a link lands (codeAt) */
+  codeAt: (ref: string) => Promise<CodeAt | null>;
+  bottom: HTMLElement;
+  progress: HTMLElement;
+  lead: HTMLElement;
+  leadToggle: HTMLElement;
+  prev: HTMLElement;
+  next: HTMLElement;
+  comment: HTMLElement;
+  chapterBtn: HTMLElement;
+};
+
+/** The phone player (player.phone.ts), handed in by composition on any phone, either way up. */
+export type PhoneFormFactory = (parts: PhoneParts) => PlayerForm;
 
 /** Where a slide's link lands in the code pane; null for links that show no code. */
 export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null> {
@@ -50,7 +74,7 @@ export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null
   return d ? { path: d.path, side: 'head', start: d.line, end: d.line, view: app.files.some((f) => f.path === d.path) ? 'diff' : 'file' } : null;
 }
 
-export function mountWalkthrough(app: ReviewApp) {
+export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: PhoneFormFactory } = {}) {
   let disposed = false;
   const btn = (ic: Parameters<typeof icon>[0], title: string, onclick: () => void, keys?: string) =>
     h('button', { class: 'rr-icon-btn', title, 'aria-label': title, 'data-keys': keys, onclick }, icon(ic, 14));
@@ -250,9 +274,9 @@ export function mountWalkthrough(app: ReviewApp) {
   root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
-  // The phone player goes by the device, either way up, under either shell
-  const form: PlayerForm = app.presentation.phonePlayer
-    ? phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
+  // The phone player goes by the device, either way up, under either shell: composition hands it in
+  const form: PlayerForm = phoneForm
+    ? phoneForm({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
     : desktopPlayer({ actor, chapterBtn, next });
 
   const ctx = () => actor.getSnapshot().context;
