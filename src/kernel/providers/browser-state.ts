@@ -37,9 +37,15 @@ export class BrowserState implements StateBackend {
     },
     put: async (scope: Exclude<LayoutScope, 'shipped'>, key: string | LastLayout | null, layout?: Layout | null) => {
       const id = key as string | null;
-      if (scope === 'last') return saveLocal(`reviewroom:layout:${this.id}`, key), true;
+      if (scope === 'last') {
+        saveLocal(`reviewroom:layout:${this.id}`, key);
+        return true;
+      }
       const all = this.savedLayouts();
-      if (scope === 'default') return saveLocal(LAYOUTS_KEY, { ...all, default: id }), true;
+      if (scope === 'default') {
+        saveLocal(LAYOUTS_KEY, { ...all, default: id });
+        return true;
+      }
       if (layout && ((id as string) in builtinLayouts || all.layouts[id!])) return false; // saving never replaces a layout
       if (layout) all.layouts[id!] = layout;
       else delete all.layouts[id!];

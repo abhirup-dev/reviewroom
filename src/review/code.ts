@@ -589,7 +589,10 @@ class CodePanel implements PanelInstance {
         off();
         done(top < 0 || Math.abs(this.cv.getScrollTop() - top) <= 2);
       });
-      signal.addEventListener('abort', () => (off(), done(false)), { once: true });
+      signal.addEventListener('abort', () => {
+        off();
+        done(false);
+      }, { once: true });
     });
   }
 

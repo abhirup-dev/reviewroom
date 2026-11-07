@@ -462,7 +462,10 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     // upright, the card is over the code's lower part
     codeLayout: () => land.matches ? {} : {
       padBottom: Math.round(px('--rr-card-room')),
-      cover: { px: () => px('--rr-cover'), onChange: (fn: () => void) => (coverFns.add(fn), () => void coverFns.delete(fn)) },
+      cover: { px: () => px('--rr-cover'), onChange: (fn: () => void) => {
+        coverFns.add(fn);
+        return () => void coverFns.delete(fn);
+      } },
     },
     focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough

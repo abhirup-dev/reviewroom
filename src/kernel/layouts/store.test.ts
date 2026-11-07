@@ -21,11 +21,19 @@ function server(t: Fixture) {
     const body = init?.body ? JSON.parse(init.body as string) : undefined;
     if (route === 'layout') return init?.method === 'PUT' ? ((last = body), ok()) : Response.json(last);
     if (route === 'layouts') return Response.json({ layouts: files, default: def });
-    if (route === 'default-layout') return (def = body.layout), ok();
+    if (route === 'default-layout') {
+      def = body.layout;
+      return ok();
+    }
     const id = route.slice('layouts/'.length);
-    if (init?.method === 'DELETE') return delete files[id], def === id && (def = null), ok();
+    if (init?.method === 'DELETE') {
+      delete files[id];
+      if (def === id) def = null;
+      return ok();
+    }
     if (id === 'reading' || files[id]) return Response.json({ error: 'taken' }, { status: 409 });
-    return (files[id] = body), ok();
+    files[id] = body;
+    return ok();
   });
   t.global('addEventListener', () => {});
   t.global('removeEventListener', () => {});
