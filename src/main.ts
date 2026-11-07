@@ -152,10 +152,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     if (!document.title) document.title = meta.title;
     app.backend = options.backend ?? (backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.id, seedState ?? undefined, seedTour));
     app.state = { ...emptyState(), ...(await app.backend.load()) };
-    let saved;
-    [saved, lastLayout] = await Promise.all([app.backend.layouts().catch(() => null), app.backend.lastLayout().catch(() => null)]);
-    app.layout.saved = saved?.layouts ?? {};
-    app.layout.defaultId = saved?.default ?? null;
+    const layouts = app.backend.layouts;
+    [app.layout.saved, app.layout.defaultId, lastLayout] = await Promise.all([layouts.get('saved').catch(() => ({})), layouts.get('default').catch(() => null), layouts.get('last').catch(() => null)]);
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
     await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
