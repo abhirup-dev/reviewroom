@@ -16,8 +16,6 @@ export interface PresentationModule {
   // The seams (rr-486.9-.12) each add their member below, with the phone's part in src/phone.ts and its use in
   // main.ts. Features never ask which presentation they're in: they take what composition hands them.
 
-  // 2.3 thread popup (rr-486.9)
-
   // 2.4 walkthrough Contents (rr-486.10)
 
   // 2.5 player form (rr-486.11)

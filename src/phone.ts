@@ -19,8 +19,6 @@ export const phone: PresentationModule = {
       openThreads: () => openThreadCount(app),
     }),
 
-  // 2.3 thread popup (rr-486.9)
-
   // 2.4 walkthrough Contents (rr-486.10)
 
   // 2.5 player form (rr-486.11)
