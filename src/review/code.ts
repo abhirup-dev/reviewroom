@@ -174,14 +174,14 @@ class CodePanel implements PanelInstance {
       }),
     ).start();
     // read the position once CodeView's frame has settled it (mid-jump it rebases its paged scroll)
-    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => (this.trackActive(), this.paintRail())), { passive: true });
+    this.scroller.addEventListener('scroll', () => requestAnimationFrame(() => { this.trackActive(); this.paintRail(); }), { passive: true });
     if (this.withRail) this.mountRail();
 
     this.offs.push(
       app.bus.on('files', () => this.rebuild()),
       app.bus.on('prefs', () => this.refreshOptions(true)),
       app.bus.on('theme', () => this.cv.setOptions(this.options())),
-      app.bus.on('state', () => (this.refreshItems(), this.embedded && this.renderToolbar())), // the walkthrough's toolbar holds Viewed
+      app.bus.on('state', () => { this.refreshItems(); if (this.embedded) this.renderToolbar(); }), // the walkthrough's toolbar holds Viewed
       app.bus.on('reveal-code', (t) => {
         if ((t.panel ?? 'code') === this.panelId) this.reveal(t);
       }),
@@ -374,7 +374,7 @@ class CodePanel implements PanelInstance {
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
       ...threadCounts(threads, 'in this file'),
       h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => (void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })), app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`)) }, icon('link', 14)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`); } }, icon('link', 14)),
       this.pin ? null : popoutButton(app, f, this.panelId),
       h('label', { class: 'rr-viewed', title: 'Mark as viewed: collapses the file and counts toward your progress', 'data-keys': 'v' }, cb, 'Viewed'),
     );
@@ -675,7 +675,7 @@ class CodePanel implements PanelInstance {
       const f = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
       this.cv.scrollTo({ type: 'position', position: f * Math.max(0, this.cv.getScrollHeight() - this.cv.getHeight()) });
     };
-    onDrag(el, { start: (e) => (el.classList.add('is-dragging'), scrub(e)), move: (_, __, e) => scrub(e), end: () => el.classList.remove('is-dragging') });
+    onDrag(el, { start: (e) => { el.classList.add('is-dragging'); scrub(e); }, move: (_, __, e) => scrub(e), end: () => el.classList.remove('is-dragging') });
   }
 
   /** Each file's share of the scroll and its viewed mark; the thumb where the view is. */
@@ -713,7 +713,7 @@ class CodePanel implements PanelInstance {
       menuLabel(`${this.files.size} files`),
       ...[...this.files.values()].map(({ file: f }) => {
         const open = codeThreadsOn(threads, f.path).filter((t) => t.status === 'open').length;
-        return menuItem(f.path.split('/').pop()!, () => (close(), this.reveal({ path: f.path, side: defaultSide(f) })), {
+        return menuItem(f.path.split('/').pop()!, () => { close(); this.reveal({ path: f.path, side: defaultSide(f) }); }, {
           checked: f.path === at,
           hint: open ? `${open} open` : this.app.state.viewed[f.path] !== undefined ? 'viewed' : STATUS[f.status],
         });

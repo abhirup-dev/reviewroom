@@ -165,9 +165,19 @@ export function serveClient(app: Hono) {
   // no-cache files revalidate: an unchanged 2 MB entry costs a 304, not a download (a phone on a slow tailnet)
   for (const p of ['/_rr/*', '/manifest.webmanifest', '/sw.js']) app.use(p, etag({ retainedHeaders: [...RETAINED_304_HEADERS, 'x-reviewroom-pid', 'x-reviewroom-build'] })); // the hub proxy checks the pid on a 304 too
   const policy = (p: string) => (p.startsWith('/_rr/chunks/') ? 'public, max-age=31536000, immutable' : p.startsWith('/_rr/fonts/') ? 'max-age=86400' : 'no-cache');
-  app.get('/_rr/*', async (c, next) => (c.header('cache-control', policy(c.req.path)), next()), serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
-  app.get('/manifest.webmanifest', async (c, next) => (c.header('cache-control', 'no-cache'), next()), serveStatic({ root: DIST, mimes: { webmanifest: 'application/manifest+json' } }));
-  app.get('/sw.js', async (c, next) => (c.header('cache-control', 'no-cache'), c.header('service-worker-allowed', '/'), next()), serveStatic({ root: DIST }));
+  app.get('/_rr/*', async (c, next) => {
+    c.header('cache-control', policy(c.req.path));
+    return next();
+  }, serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
+  app.get('/manifest.webmanifest', async (c, next) => {
+    c.header('cache-control', 'no-cache');
+    return next();
+  }, serveStatic({ root: DIST, mimes: { webmanifest: 'application/manifest+json' } }));
+  app.get('/sw.js', async (c, next) => {
+    c.header('cache-control', 'no-cache');
+    c.header('service-worker-allowed', '/');
+    return next();
+  }, serveStatic({ root: DIST }));
 }
 
 /** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */

@@ -47,7 +47,10 @@ const readHub = (): HubRecord | null => {
 
 // One hub per machine: a second `hub` points at the running one.
 export async function cmdHub(o: HubOpts) {
-  const show = (url: string) => (console.log(url), o.open && openBrowser(url, true));
+  const show = (url: string) => {
+    console.log(url);
+    return o.open && openBrowser(url, true);
+  };
   // stdout stays the loopback URL (scripts read it); the public one goes with the status line
   const pubNote = (pub = readHub()?.publicOrigin) => (pub ? ` | public: ${pub}/` : '');
   if (o.publicOrigin !== undefined) savePublicOrigin(o.publicOrigin);

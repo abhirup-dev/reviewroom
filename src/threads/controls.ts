@@ -87,8 +87,8 @@ export function githubControls(app: ReviewApp) {
       menuLabel(g.ok ? `Signed in as @${g.viewer} · fetched ${relTime(g.at ?? '')}` : 'GitHub'),
       g.error ? h('div', { class: 'rr-menu__note' }, g.error) : null,
       g.stale ? h('div', { class: 'rr-menu__note' }, `The PR has commits you aren't reviewing yet. Run \`reviewroom pr ${app.meta.number ?? '<n>'}\` again to update; comments still land on the right lines meanwhile.`) : null,
-      menuItem('Refresh comments', () => (close(), app.services.github.refresh().then(() => app.toast('GitHub comments refreshed')))),
-      g.url ? menuItem('Open the PR on GitHub', () => (close(), window.open(g.url, '_blank', 'noopener')), { icon: 'popout' }) : null,
+      menuItem('Refresh comments', () => { close(); return app.services.github.refresh().then(() => app.toast('GitHub comments refreshed')); }),
+      g.url ? menuItem('Open the PR on GitHub', () => { close(); window.open(g.url, '_blank', 'noopener'); }, { icon: 'popout' }) : null,
     ]);
   return g.ok ? [btn, reviewModeSwitch(app)] : [btn];
 }

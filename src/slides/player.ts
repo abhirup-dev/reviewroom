@@ -75,7 +75,7 @@ export function mountWalkthrough(app: ReviewApp) {
   let layer = h('div', { class: 'rr-tour__layer' });
   pane.append(layer);
   let old: { el: HTMLElement; views: typeof views } | null = null;
-  const drop = (o: NonNullable<typeof old>) => (o.views.forEach((v) => v.panel?.dispose?.()), o.el.remove());
+  const drop = (o: NonNullable<typeof old>) => { o.views.forEach((v) => v.panel?.dispose?.()); o.el.remove(); };
   const dropOld = () => {
     const o = old;
     if (!o) return;
@@ -156,7 +156,7 @@ export function mountWalkthrough(app: ReviewApp) {
   // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back (a phone folds it
   // its own way: form.foldLead)
   let leadOpen = true;
-  const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => ((leadOpen = !leadOpen), paintLead()) }, icon('chevronDown', 14));
+  const leadToggle = h('button', { class: 'rr-icon-btn rr-tour__lead-toggle', onclick: () => { leadOpen = !leadOpen; paintLead(); } }, icon('chevronDown', 14));
   const paintLead = () => {
     const has = !!current(ctx()).chapter.lead;
     lead.hidden = !has || !leadOpen;
@@ -222,7 +222,7 @@ export function mountWalkthrough(app: ReviewApp) {
   const SPLIT = 'reviewroom:tour-split';
   const splitAt = (f: unknown) => (typeof f === 'number' ? split.style.setProperty('--rr-tour-split', `clamp(240px, ${f * 100}%, calc(100% - 240px))`) : split.style.removeProperty('--rr-tour-split'));
   splitAt(loadJSON(SPLIT));
-  const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => (saveLocal(SPLIT, null), splitAt(null)) });
+  const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => { saveLocal(SPLIT, null); splitAt(null); } });
   let box: DOMRect, share = 0;
   onDrag(resize, {
     start: () => (box = split.getBoundingClientRect()),
@@ -302,7 +302,7 @@ export function mountWalkthrough(app: ReviewApp) {
     return el;
   };
   // a change crossfades: the old text stays where it was, fading out over the new one fading in (no blank frame)
-  const leave = (el: Element) => (el.classList.remove('is-leaving'), stash.append(el));
+  const leave = (el: Element) => { el.classList.remove('is-leaving'); stash.append(el); };
   const prose = (box: HTMLElement, key: string, html: string) => {
     const el = proseFor(key, html);
     box.querySelectorAll(':scope > .is-leaving').forEach(leave);
@@ -314,7 +314,7 @@ export function mountWalkthrough(app: ReviewApp) {
       const gone = () => old.parentElement === box && old.classList.contains('is-leaving') && leave(old);
       const done = (e: Event) => e.target === old && (e as AnimationEvent).animationName === 'rr-tour-out' && (old.removeEventListener('animationend', done), gone());
       old.addEventListener('animationend', done);
-      setTimeout(() => (old.removeEventListener('animationend', done), gone()), 1000); // no animation ran (reduced motion, hidden)
+      setTimeout(() => { old.removeEventListener('animationend', done); gone(); }, 1000); // no animation ran (reduced motion, hidden)
     }
     box.prepend(el);
     enter(el);

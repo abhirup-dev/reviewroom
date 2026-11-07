@@ -29,11 +29,92 @@
     "unicorn/no-array-sort": "off",
     "unicorn/no-array-reverse": "off",
     "typescript/no-unsafe-type-assertion": "off",
-    "typescript/no-misused-promises": ["error", { "checksVoidReturn": false }],
+    "typescript/no-misused-promises": [
+      "error",
+      {
+        "checksVoidReturn": false
+      }
+    ],
     "typescript/consistent-return": "off",
-    "promise/always-return": "off"
+    "promise/always-return": "off",
+    "typescript/no-floating-promises": "error",
+    "typescript/switch-exhaustiveness-check": [
+      "error",
+      {
+        "considerDefaultExhaustiveForUnions": true
+      }
+    ],
+    "max-depth": "error",
+    "max-nested-callbacks": "error",
+    "no-sequences": "error",
+    "complexity": [
+      "error",
+      {
+        "max": 25
+      }
+    ],
+    "max-params": [
+      "error",
+      {
+        "max": 5
+      }
+    ],
+    "max-lines": [
+      "error",
+      {
+        "max": 500
+      }
+    ],
+    "max-lines-per-function": [
+      "error",
+      {
+        "max": 250,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "no-param-reassign": "error"
   },
   "overrides": [
-    { "files": ["src/kernel/dom.ts"], "rules": { "typescript/no-base-to-string": "off" } }
+    {
+      "files": [
+        "src/kernel/dom.ts"
+      ],
+      "rules": {
+        "typescript/no-base-to-string": "off"
+      }
+    },
+    {
+      "files": [
+        "cli/commands/hub.ts",
+        "cli/hub/classify.ts",
+        "cli/hub/hub.ts",
+        "cli/lib/github.ts",
+        "cli/lib/links.ts",
+        "cli/lib/slide-lint.ts",
+        "src/hub/index.ts",
+        "src/kernel/commands.ts",
+        "src/kernel/state/ops.shared.ts",
+        "src/main.ts",
+        "src/threads/view.ts"
+      ],
+      "rules": {
+        "complexity": "off"
+      }
+    },
+    {
+      "files": [
+        "src/review/code.ts",
+        "src/review/walkthrough.ts",
+        "src/slides/player.ts",
+        "src/slides/player.phone.ts",
+        "src/threads/view.ts"
+      ],
+      "rules": {
+        "max-lines": "off",
+        "max-lines-per-function": "off",
+        "max-params": "off"
+      }
+    }
   ]
 }

@@ -1,0 +1,22 @@
+id: no-raw-inner-html
+language: typescript
+severity: error
+message: innerHTML takes only renderMarkdown(...) or sanitizeProse(...) output (src/kernel/markdown.ts)
+note: Authored HTML (review.html, walkthrough.json, GitHub bodies) can come from a PR. One sanitising seam keeps it off the page raw. Build trusted markup with h() instead.
+files:
+  - src/**/*.ts
+ignores:
+  - src/kernel/dom.ts
+  - src/testing/**
+  - src/**/*.test.ts
+rule:
+  any:
+    - pattern: $EL.innerHTML = $V
+    - pattern: $EL.outerHTML = $V
+    - pattern: $EL.insertAdjacentHTML($$$)
+constraints:
+  V:
+    not:
+      any:
+        - pattern: renderMarkdown($$$)
+        - pattern: sanitizeProse($$$)

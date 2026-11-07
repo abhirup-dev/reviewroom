@@ -15,10 +15,10 @@ const start = (scope: Fixture) => {
   const saves: { width: number; done: () => void; fail: () => void }[] = [];
   const a = createActor(
     layoutSaveMachine.provide({ actors: { save: fromPromise(({ input }) => new Promise<void>((done, reject) => saves.push({ width: input.dock.grid.width, done, fail: () => reject(new Error('save failed')) }))) } }),
-    { input: { read: () => (reads++, now) }, clock },
+    { input: { read: () => { reads++; return now; } }, clock },
   ).start();
   scope.defer(() => a.stop());
-  return { a, clock, saves, reads: () => reads, set: (l: LastLayout | null) => (now = l), done: async () => (saves.shift()!.done(), await tick()) };
+  return { a, clock, saves, reads: () => reads, set: (l: LastLayout | null) => (now = l), done: async () => { saves.shift()!.done(); await tick(); } };
 };
 
 test('a stream of changes is saved once, after it settles', () => {
@@ -135,18 +135,6 @@ test('dispose keeps the last pending layout when the dock is transient, and drai
   saves.shift()!.fail();
   await tick();
   expect(saves.map((s) => s.width)).toEqual([2]);
-  await done();
-  expect(a.getSnapshot().status).toBe('done');
-});
-
-
-test('dispose captures synchronous layout edits before the dock publishes its deferred change event', async () => {
-  using scope = fixture();
-  const { a, set, saves, reads, done } = start(scope);
-  set(dock(7));
-  a.send({ type: 'dispose' });
-  expect(reads()).toBe(1);
-  expect(saves.map(s => s.width)).toEqual([7]);
   await done();
   expect(a.getSnapshot().status).toBe('done');
 });

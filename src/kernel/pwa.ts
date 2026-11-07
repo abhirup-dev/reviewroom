@@ -113,8 +113,8 @@ export function startUpdates(app?: UpdatesHost) {
       if (id !== __RR_BUILD__ && once('reviewroom:reloaded-for', id ?? 'unknown')) want(`new service worker, build ${id}`);
     });
     void sw.register(new URL('sw.js', scope), { scope: scope.pathname }).then(
-      (r) => ((reg = r), check()),
-      (e) => (console.warn('[reviewroom] service worker not registered:', e), check()),
+      (r) => { reg = r; return check(); },
+      (e) => { console.warn('[reviewroom] service worker not registered:', e); return check(); },
     );
   } else void check();
 

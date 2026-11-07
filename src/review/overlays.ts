@@ -50,7 +50,7 @@ export function mountPalette(app: ReviewApp) {
   let chip: Chip = 'all';
   const recentKey = () => `reviewroom:recent:${app.meta.id}`;
   // a phone's search bar: a pill with back and clear around the input
-  const clear = h('button', { class: 'rr-icon-btn rr-palette__clear', 'aria-label': 'Clear', title: 'Clear', hidden: true, onclick: () => ((input.value = ''), input.dispatchEvent(new Event('input')), input.focus()) }, icon('close', 20));
+  const clear = h('button', { class: 'rr-icon-btn rr-palette__clear', 'aria-label': 'Clear', title: 'Clear', hidden: true, onclick: () => { input.value = ''; input.dispatchEvent(new Event('input')); input.focus(); } }, icon('close', 20));
   const field = phone
     ? h('div', { class: 'rr-palette__bar' }, h('button', { class: 'rr-icon-btn', 'aria-label': 'Back', title: 'Back', onclick: () => close() }, icon('back', 24)), input, clear)
     : input;
@@ -166,7 +166,7 @@ export function mountPalette(app: ReviewApp) {
       const count = (c: Chip) => (c === 'all' ? all.length : all.filter((i) => i.kind === c).length);
       chips.replaceChildren(
         ...CHIPS.map(([c, label]) =>
-          h('button', { class: 'rr-palette__chip' + (c === chip ? ' is-on' : ''), 'aria-pressed': String(c === chip), onclick: () => ((chip = c), (sel = 0), paint(), input.focus()) }, c === chip ? icon('check', 16) : null, label, c === 'symbol' && !remote.length ? null : h('span', null, String(count(c)))),
+          h('button', { class: 'rr-palette__chip' + (c === chip ? ' is-on' : ''), 'aria-pressed': String(c === chip), onclick: () => { chip = c; sel = 0; paint(); input.focus(); } }, c === chip ? icon('check', 16) : null, label, c === 'symbol' && !remote.length ? null : h('span', null, String(count(c)))),
         ),
       );
       const shown = all.filter((i) => chip === 'all' || i.kind === chip);
@@ -280,7 +280,7 @@ export function mountHoverCards(app: ReviewApp) {
   const card = h('div', { class: 'rr-hovercard', popover: 'manual', role: 'dialog', 'aria-label': 'Preview' });
   document.body.append(card);
   let wrapped = false; // remembered across previews
-  const hide = () => (card.hidePopover(), (current = null), clearTimeout(timer));
+  const hide = () => { card.hidePopover(); current = null; clearTimeout(timer); };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let current: Element | null = null;
@@ -317,7 +317,7 @@ export function mountHoverCards(app: ReviewApp) {
       wrapBtn.setAttribute('aria-pressed', String(wrapped));
       place(t);
     };
-    const openBtn = h('button', { class: 'rr-icon-btn', title: 'Open', 'aria-label': 'Open', onclick: () => (hide(), app.open(ref)) }, icon('popout', 14));
+    const openBtn = h('button', { class: 'rr-icon-btn', title: 'Open', 'aria-label': 'Open', onclick: () => { hide(); void app.open(ref); } }, icon('popout', 14));
     card.replaceChildren(
       h('div', { class: 'rr-hovercard__head' }, h('span', { class: 'rr-chip__icon' }, refIcon(r)), h('span', { class: 'rr-hovercard__title' }, app.label(ref)), wrapBtn, openBtn),
       h('div', { class: 'rr-skeleton' }),

@@ -102,7 +102,7 @@ const banners = h('div', { class: 'rr-hub__banners' });
 const count = h('span', { class: 'rr-hub__count' });
 const openBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
 const closeBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
-const all = h('input', { type: 'checkbox', class: 'rr-hub__check', 'aria-label': 'Select all shown', title: 'Select every session shown', onchange: () => (visible().forEach((s) => (all.checked ? selected.add(s.id) : selected.delete(s.id))), paint()) });
+const all = h('input', { type: 'checkbox', class: 'rr-hub__check', 'aria-label': 'Select all shown', title: 'Select every session shown', onchange: () => { visible().forEach((s) => (all.checked ? selected.add(s.id) : selected.delete(s.id))); paint(); } });
 const body = h('tbody');
 const empty = h('div', { class: 'rr-empty rr-hub__empty' }, 'Looking for running reviews…');
 
@@ -125,7 +125,7 @@ const columns: [SortKey | null, string, string, string?][] = [
 /** A column's class (c-round, c-directory, ...): narrow screens hide the least needed ones (hub.css). */
 const col = (label: string) => `c-${(label || 'actions').toLowerCase()}`;
 const heads = columns.map(([key, label, tip, cls]) =>
-  h('th', { class: [cls, col(label)].filter(Boolean).join(' '), title: tip ? (key ? `${tip}. Click to sort` : tip) : undefined, onclick: key ? () => ((sort.dir = sort.key === key ? (-sort.dir as 1 | -1) : 1), (sort.key = key), paint()) : undefined, 'data-sort': key ?? undefined }, label),
+  h('th', { class: [cls, col(label)].filter(Boolean).join(' '), title: tip ? (key ? `${tip}. Click to sort` : tip) : undefined, onclick: key ? () => { sort.dir = sort.key === key ? (-sort.dir as 1 | -1) : 1; sort.key = key; paint(); } : undefined, 'data-sort': key ?? undefined }, label),
 );
 const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
 
@@ -147,7 +147,7 @@ document.body.append(
       'div',
       { class: 'rr-hub__bar' },
       f.q, f.tool, f.author, f.kind, f.repo, f.branch, f.cwd, f.comments, f.round,
-      h('button', { class: 'rr-btn rr-btn--ghost rr-btn--small', title: 'Clear every filter', onclick: () => (Object.values(f).forEach((el) => (el.value = '')), paint()) }, 'Clear'),
+      h('button', { class: 'rr-btn rr-btn--ghost rr-btn--small', title: 'Clear every filter', onclick: () => { Object.values(f).forEach((el) => (el.value = '')); paint(); } }, 'Clear'),
       h('span', { class: 'rr-hub__spacer' }),
       count, openBtn, closeBtn,
     ),
@@ -188,7 +188,7 @@ function row(s: SessionInfo) {
   return h(
     'tr',
     { class: [on && 'is-selected', !seen.has(s.id) && 'is-new'].filter(Boolean).join(' ') || undefined, ondblclick: (e: MouseEvent) => !(e.target as Element).closest('a, button, input') && open(s) },
-    h('td', { class: 'rr-hub__sel' }, h('input', { type: 'checkbox', class: 'rr-hub__check', checked: on, 'aria-label': `Select ${subject(s)}`, title: 'Select for Open or Close', onchange: () => (on ? selected.delete(s.id) : selected.add(s.id), paint()) })),
+    h('td', { class: 'rr-hub__sel' }, h('input', { type: 'checkbox', class: 'rr-hub__check', checked: on, 'aria-label': `Select ${subject(s)}`, title: 'Select for Open or Close', onchange: () => { if (on) selected.delete(s.id); else selected.add(s.id); paint(); } })),
     h('td', { class: col('Tool') }, toolMark(s.tool)),
     h(
       'td',

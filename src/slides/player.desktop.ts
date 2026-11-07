@@ -13,7 +13,7 @@ export function desktopPlayer({ actor, chapterBtn, next }: { actor: Actor<typeof
     contents: () =>
       popMenu(chapterBtn, (close) =>
         ctx().doc!.chapters.map((c, i) =>
-          menuItem(c.title, () => (close(), actor.send({ type: 'goto', chapter: i, step: 0 })), { checked: i === ctx().chapter, hint: plural(c.steps.length, 'slide') }),
+          menuItem(c.title, () => { close(); actor.send({ type: 'goto', chapter: i, step: 0 }); }, { checked: i === ctx().chapter, hint: plural(c.steps.length, 'slide') }),
         ),
       ),
     paintNav: ({ isLast }: ReturnType<typeof current>) => {

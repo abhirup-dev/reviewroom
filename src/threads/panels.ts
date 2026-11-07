@@ -106,7 +106,7 @@ class ThreadsPanel implements PanelInstance {
         this.fixed
           ? h('span', { class: 'rr-side-head__count' }, `${count(this.filter)} ${this.describe().replace('threads', count(this.filter) === 1 ? 'thread' : 'threads')}`)
           : seg(
-          (['open', 'resolved', 'all'] as const).map((f) => ({ label: `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`, title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], on: this.filter === f, onclick: () => ((this.filter = f), this.render()) })),
+          (['open', 'resolved', 'all'] as const).map((f) => ({ label: `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`, title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], on: this.filter === f, onclick: () => { this.filter = f; this.render(); } })),
           { class: 'rr-seg rr-seg--small rr-seg--fill', 'aria-label': 'Which threads' },
         ),
         this.filterBtn,
@@ -138,7 +138,7 @@ class ThreadsPanel implements PanelInstance {
     if (!out.length)
       out.push(
         all.length ? h('div', { class: 'rr-empty' }, 'Nothing here.')
-        : every.length ? h('div', { class: 'rr-empty' }, `No ${this.describe()}. `, h('button', { class: 'rr-link-btn', onclick: () => ((this.sources = new Set(['agent', 'github'])), this.authors.clear(), this.render()) }, 'Show all threads'))
+        : every.length ? h('div', { class: 'rr-empty' }, `No ${this.describe()}. `, h('button', { class: 'rr-link-btn', onclick: () => { this.sources = new Set(['agent', 'github']); this.authors.clear(); this.render(); } }, 'Show all threads'))
         : h('div', { class: 'rr-empty' }, 'No threads yet'),
       );
     this.body.replaceChildren(...out);
@@ -178,7 +178,7 @@ class ThreadsPanel implements PanelInstance {
     const starters = new Map<string, ReturnType<typeof starter>>();
     threads.forEach((t) => starters.set(starter(t).key, starter(t)));
     // several toggles in a row: each re-renders the list and reopens the menu where it was
-    const toggle = (fn: () => void) => () => (fn(), this.render(), this.filterMenu());
+    const toggle = (fn: () => void) => () => { fn(); this.render(); this.filterMenu(); };
     const toggleSource = (s: Source) =>
       toggle(() => {
         const next = new Set(src);
@@ -198,7 +198,7 @@ class ThreadsPanel implements PanelInstance {
       menuLabel('Started by'),
       menuItem('Everyone', toggle(() => this.authors.clear()), { checked: !this.authors.size }),
       ...[...starters.values()].sort((a, b) => a.order - b.order || a.label.localeCompare(b.label)).map(authorRow),
-      this.sources || this.authors.size ? menuItem('Back to the default for this mode', () => (close(), (this.sources = null), this.authors.clear(), this.render()), { icon: 'round' }) : null,
+      this.sources || this.authors.size ? menuItem('Back to the default for this mode', () => { close(); this.sources = null; this.authors.clear(); this.render(); }, { icon: 'round' }) : null,
     ]);
   }
 

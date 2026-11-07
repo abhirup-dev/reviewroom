@@ -121,8 +121,8 @@ function pane(scope: Fixture, { held = false } = {}) {
     paneMachine.provide({
       actors: { resolve: fromPromise(({ input }: { input: PaneWant }) => new Promise<PaneShown>((done) => pending.push({ want: input, done }))) },
       actions: {
-        mount: ({ context }) => (log.push('mount ' + shown(context.next!)), land(context.next!)),
-        glide: ({ context }) => (log.push('glide ' + shown(context.next!)), land(context.next!)),
+        mount: ({ context }) => { log.push('mount ' + shown(context.next!)); return land(context.next!); },
+        glide: ({ context }) => { log.push('glide ' + shown(context.next!)); return land(context.next!); },
         unmount: () => log.push('unmount'),
         settle: () => log.push('settle'),
       },

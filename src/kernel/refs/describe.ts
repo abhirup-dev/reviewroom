@@ -23,8 +23,8 @@ export function findDocElement(doc: HTMLElement, id: string, path?: string): Ele
 }
 
 const clip = (s: string, n: number) => {
-  s = s.replace(/\s+/g, ' ').trim();
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  const text = s.replace(/\s+/g, ' ').trim();
+  return text.length > n ? text.slice(0, n - 1) + '…' : text;
 };
 
 function headingOf(el: Element): string | null {

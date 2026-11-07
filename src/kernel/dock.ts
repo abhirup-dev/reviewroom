@@ -107,7 +107,7 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
     floatingGroupBounds: 'boundedWithinViewport',
     floatingGroupDragHandle: 'titlebar',
     // our own menu (styled, and its Float keeps the layout): dockview shows nothing for an empty list
-    getTabContextMenuItems: ({ panel, event }) => (tabMenu(app, api, panel, event), []),
+    getTabContextMenuItems: ({ panel, event }) => { tabMenu(app, api, panel, event); return []; },
   });
 
   app.dock = api;
@@ -287,13 +287,13 @@ function tabMenu(app: ReviewApp, api: DockviewApi, p: IDockviewPanel, e: MouseEv
   const floating = isFloating(g);
   popMenu(tab, (close) => [
     p.id.startsWith('slot:')
-      ? menuItem('Put it back', () => (close(), putBack(app, p.id.slice(5))), { icon: 'dock', hint: 'Esc' })
+      ? menuItem('Put it back', () => { close(); putBack(app, p.id.slice(5)); }, { icon: 'dock', hint: 'Esc' })
       : floating
-      ? slotOf(api, p.id) ? menuItem('Put it back', () => (close(), putBack(app, p.id)), { icon: 'dock', hint: 'Esc' }) : null
-      : menuItem('Float as a window', () => (close(), floatInPlace(app, p.id)), { icon: 'popout', hint: 'double-click' }),
-    floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => (close(), g.api.isMaximized() ? g.api.exitMaximized() : (p.api.setActive(), g.api.maximize())), { icon: 'maximize' }),
-    menuItem('Close', () => (close(), p.api.close()), { icon: 'close' }),
-    g.panels.length > 1 ? menuItem('Close others', () => (close(), g.panels.filter((x) => x !== p).forEach((x) => x.api.close()))) : null,
+      ? slotOf(api, p.id) ? menuItem('Put it back', () => { close(); putBack(app, p.id); }, { icon: 'dock', hint: 'Esc' }) : null
+      : menuItem('Float as a window', () => { close(); floatInPlace(app, p.id); }, { icon: 'popout', hint: 'double-click' }),
+    floating ? null : menuItem(g.api.isMaximized() ? 'Restore' : 'Maximise', () => { close(); if (g.api.isMaximized()) g.api.exitMaximized(); else { p.api.setActive(); g.api.maximize(); } }, { icon: 'maximize' }),
+    menuItem('Close', () => { close(); p.api.close(); }, { icon: 'close' }),
+    g.panels.length > 1 ? menuItem('Close others', () => { close(); g.panels.filter((x) => x !== p).forEach((x) => x.api.close()); }) : null,
   ]);
 }
 
@@ -307,13 +307,13 @@ function dockMenu(api: DockviewApi, group: DockviewGroupPanel, anchor: HTMLEleme
   const main = targets.find((g) => g.panels.some((p) => p.id === 'code')) ?? targets.find((g) => g.panels.some((p) => p.id === 'narrative')) ?? targets[0];
   popMenu(anchor, (close) => [
     menuLabel(`Dock next to ${main ? named(main) : 'the layout'}`),
-    menuItem('Right', () => (close(), go(main, 'right')), { icon: 'split' }),
-    menuItem('Below', () => (close(), go(main, 'bottom')), { icon: 'unified' }),
-    menuItem('Left', () => (close(), go(main, 'left'))),
-    menuItem('Above', () => (close(), go(main, 'top'))),
-    menuItem('As a tab', () => (close(), go(main, 'center'))),
+    menuItem('Right', () => { close(); go(main, 'right'); }, { icon: 'split' }),
+    menuItem('Below', () => { close(); go(main, 'bottom'); }, { icon: 'unified' }),
+    menuItem('Left', () => { close(); go(main, 'left'); }),
+    menuItem('Above', () => { close(); go(main, 'top'); }),
+    menuItem('As a tab', () => { close(); go(main, 'center'); }),
     targets.length > 1 ? menuLabel('Or as a tab in') : null,
-    ...(targets.length > 1 ? targets.filter((g) => g !== main).map((g) => menuItem(named(g), () => (close(), go(g, 'center')))) : []),
+    ...(targets.length > 1 ? targets.filter((g) => g !== main).map((g) => menuItem(named(g), () => { close(); go(g, 'center'); })) : []),
   ]);
 }
 

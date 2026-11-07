@@ -83,8 +83,8 @@ class RREmbed extends HTMLElement {
       if (!caption && r) head.querySelector('.rr-embed__title')!.textContent = app.label(ref);
       body.replaceChildren(await renderPreview(app, ref));
     };
-    if (r?.type === 'thread') this.follow = (app) => (this.off?.(), (this.off = app.bus.on('state', () => paint(app))));
-    withApp((app) => (paint(app), this.follow?.(app)));
+    if (r?.type === 'thread') this.follow = (app) => { this.off?.(); this.off = app.bus.on('state', () => paint(app)); };
+    withApp((app) => { void paint(app); this.follow?.(app); });
   }
   disconnectedCallback() {
     this.off?.();

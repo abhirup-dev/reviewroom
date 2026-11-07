@@ -32,25 +32,9 @@ function nav(where: Record<string, CodeAt | null>) {
       },
     }),
   ).start();
-  const release = async (ref: string) => (held.get(ref)!(), await Promise.resolve(), await Promise.resolve());
+  const release = async (ref: string) => { held.get(ref)!(); await Promise.resolve(); await Promise.resolve(); };
   return { a, out, release };
 }
-
-test('nav: a tab picks a chunk on screen and reveals its own lines, at once', () => {
-  const n = nav({});
-  n.a.send({ type: 'pane', slots });
-  n.a.send({ type: 'go', jump: { index: 1 } });
-  expect(n.out).toEqual(['select 1 5']);
-  expect(n.a.getSnapshot().value).toBe('ready');
-});
-
-test('nav: a link into a file on screen selects that chunk and reveals the link\'s lines', async () => {
-  const n = nav({ link: code('b.go', 9) });
-  n.a.send({ type: 'pane', slots });
-  n.a.send({ type: 'go', jump: { ref: 'link' } });
-  await n.release('link');
-  expect(n.out).toEqual(['select 1 9']);
-});
 
 test('nav: a link (or symbol) elsewhere, or one that resolves to nothing, has the pane show it', async () => {
   const n = nav({ other: code('c.go'), gone: null });

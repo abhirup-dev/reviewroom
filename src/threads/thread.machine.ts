@@ -61,7 +61,7 @@ export const threadMachine = setup({
         sending: {
           invoke: {
             src: 'create',
-            input: ({ context, event }) => (assertEvent(event, 'submit'), { anchor: context.view!.anchor!, body: event.body, toGitHub: event.toGitHub }),
+            input: ({ context, event }) => { assertEvent(event, 'submit'); return { anchor: context.view!.anchor!, body: event.body, toGitHub: event.toGitHub }; },
             onDone: [
               { guard: ({ event }) => typeof event.output === 'string', target: '#thread.viewing', actions: assign({ view: ({ event }) => ({ id: event.output as string }) }) },
               { guard: ({ event }) => event.output === true, target: '#thread.closed' },

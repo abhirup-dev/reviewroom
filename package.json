@@ -27,7 +27,7 @@
     "build": "bun scripts/build.ts",
     "dev": "bun scripts/build.ts --watch",
     "typecheck": "tsc --noEmit && tsc --noEmit -p cli && tsc --noEmit -p scripts && tsc --noEmit -p tsconfig.shared.json && tsc --noEmit -p src/sw.tsconfig.json",
-    "lint": "oxlint --type-aware --deny-warnings && knip && jscpd && bun scripts/ascii.ts && bun scripts/features.ts",
+    "lint": "oxlint --type-aware --deny-warnings && ast-grep scan && knip && jscpd && bun scripts/ascii.ts && bun scripts/features.ts",
     "test": "bun test ./src ./cli ./scripts",
     "smoke": "bun run build && bun test ./e2e --timeout 30000",
     "check": "bun run typecheck && bun run lint && bun run test && bun run smoke",

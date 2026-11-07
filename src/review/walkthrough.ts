@@ -132,14 +132,13 @@ class WalkthroughPanel implements PanelInstance {
       const r = sel.getRangeAt(0).getBoundingClientRect();
       this.onMouseUp({ clientX: r.left + r.width / 2, clientY: r.bottom } as MouseEvent);
     }, 400);
-    document.addEventListener('selectionchange', touchSel);
-    this.offs.push(() => document.removeEventListener('selectionchange', touchSel));
+    app.listen(document, 'selectionchange', touchSel);
     this.scroller.addEventListener('scroll', () => this.hoverBlock && this.hideHandle(), { passive: true });
 
     this.ro = new ResizeObserver(debounce(() => this.layoutRail(), 60));
     this.ro.observe(this.current);
     this.offs.push(
-      app.bus.on('state', () => (this.renderHead(), this.decorate())),
+      app.bus.on('state', () => { this.renderHead(); this.decorate(); }),
       app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
       app.bus.on('picker', (on: boolean) => this.setPicking(on)),
     );
@@ -148,7 +147,7 @@ class WalkthroughPanel implements PanelInstance {
       this.setupSpy();
       void this.markSymbols(this.current);
     }
-    queueMicrotask(() => (this.renderHead(), this.decorate()));
+    queueMicrotask(() => { this.renderHead(); this.decorate(); });
     this.current.querySelectorAll('img').forEach((img) => img.addEventListener('load', () => this.layoutRail(), { once: true }));
   }
 
@@ -321,7 +320,7 @@ class WalkthroughPanel implements PanelInstance {
     const t = e.target as Element;
     // description: a link to a comment on this PR opens its thread here
     const gh = this.isDesc && !e.metaKey && !e.ctrlKey && this.app.services.threads.githubThreadFor(t.closest<HTMLAnchorElement>('a[href]')?.href ?? '');
-    if (gh) return e.preventDefault(), this.app.bus.emit('open-thread', { id: gh });
+    if (gh) { e.preventDefault(); return this.app.bus.emit('open-thread', { id: gh }); }
     const link = t.closest('a[href^="rr:"], rr-ref');
     if (link) {
       e.preventDefault();
@@ -495,7 +494,7 @@ class WalkthroughPanel implements PanelInstance {
     if (!toc) return;
     const sheet = sheetDialog({ class: 'rr-tour-toc rr-toc-sheet', 'aria-label': 'Contents', tabindex: '-1' });
     const off = this.app.bus.on('reveal-doc', () => sheet.close());
-    sheet.addEventListener('close', () => (off(), toc.dispose?.(), sheet.remove()), { once: true });
+    sheet.addEventListener('close', () => { off(); toc.dispose?.(); sheet.remove(); }, { once: true });
     openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), toc.element);
     sheet.focus(); // the sheet, not its first entry: no ring on open
   }

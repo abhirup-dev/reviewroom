@@ -8,7 +8,10 @@ import { spawnSync } from 'node:child_process';
 const PORT = 4847; // the hub's port; the tailnet address keeps it, so it never changes
 const dry = process.argv.includes('--dry-run');
 const out = (cmd: string, args: string[]) => spawnSync(cmd, args, { encoding: 'utf8' });
-const fail = (m: string): never => (console.error(`reviewroom: ${m}`), process.exit(1));
+const fail = (m: string): never => {
+  console.error(`reviewroom: ${m}`);
+  return process.exit(1);
+};
 const run = (cmd: string, args: string[]) => {
   console.error(`$ ${[cmd, ...args].join(' ')}`);
   if (dry) return;

@@ -41,18 +41,18 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
     layoutBtn.onclick = () => {
       const def = app.layout.defaultId ? app.layout.all()[app.layout.defaultId] : undefined;
       popMenu(layoutBtn, (close) => [
-        app.layout.canUndo() ? menuItem('Undo layout change', () => (close(), app.layout.undo()), { icon: 'undo', hint: 'back to how it was' }) : null,
-        menuItem('Reset layout', () => (close(), app.layout.reset()), { icon: 'round', hint: def ? `back to “${def.title}”` : 'every panel back in place' }),
-        menuItem('Save layout as default…', () => (close(), saveLayoutDialog(app, true)), { icon: 'pin', hint: 'new reviews open like this' }),
-        def ? menuItem('Forget default layout', () => (close(), void app.layout.setDefault(null)), { icon: 'close', hint: `“${def.title}” stays saved` }) : null,
-        menuItem('Save layout as…', () => (close(), saveLayoutDialog(app)), { hint: 'pick it here in any review' }),
-        mine().length ? menuItem('Delete a saved layout…', () => (close(), popMenu(layoutBtn, (done) => mine().map((id) => menuItem(app.layout.saved[id].title, () => (done(), void app.layout.delete(id)), { icon: 'close' }))))) : null,
+        app.layout.canUndo() ? menuItem('Undo layout change', () => { close(); app.layout.undo(); }, { icon: 'undo', hint: 'back to how it was' }) : null,
+        menuItem('Reset layout', () => { close(); app.layout.reset(); }, { icon: 'round', hint: def ? `back to “${def.title}”` : 'every panel back in place' }),
+        menuItem('Save layout as default…', () => { close(); saveLayoutDialog(app, true); }, { icon: 'pin', hint: 'new reviews open like this' }),
+        def ? menuItem('Forget default layout', () => { close(); void app.layout.setDefault(null); }, { icon: 'close', hint: `“${def.title}” stays saved` }) : null,
+        menuItem('Save layout as…', () => { close(); saveLayoutDialog(app); }, { hint: 'pick it here in any review' }),
+        mine().length ? menuItem('Delete a saved layout…', () => { close(); popMenu(layoutBtn, (done) => mine().map((id) => menuItem(app.layout.saved[id].title, () => { done(); void app.layout.delete(id); }, { icon: 'close' }))); }) : null,
         menuLabel('Layouts'),
-        ...Object.entries(app.layout.all()).map(([id, l], i) => menuItem(l.title, () => (close(), app.layout.apply(id)), { checked: id === app.layout.defaultId, hint: [id === app.layout.defaultId ? 'default' : '', i < 9 ? keyLabel(`alt+${i + 1}`) : ''].filter(Boolean).join(' · ') || undefined })),
+        ...Object.entries(app.layout.all()).map(([id, l], i) => menuItem(l.title, () => { close(); app.layout.apply(id); }, { checked: id === app.layout.defaultId, hint: [id === app.layout.defaultId ? 'default' : '', i < 9 ? keyLabel(`alt+${i + 1}`) : ''].filter(Boolean).join(' · ') || undefined })),
         menuLabel('Panels'),
         ...panelDefs()
           .filter((d) => !d.onDemand)
-          .map((d) => menuItem(d.title, () => (close(), hasPanel(app, d.id) ? closePanel(app, d.id) : app.layout.ensurePanel(d.id)), { checked: hasPanel(app, d.id) })),
+          .map((d) => menuItem(d.title, () => { close(); if (hasPanel(app, d.id)) closePanel(app, d.id); else app.layout.ensurePanel(d.id); }, { checked: hasPanel(app, d.id) })),
       ]);
     };
     bar.replaceChildren(
@@ -170,7 +170,7 @@ function openDrawer(app: ReviewApp, features: PhoneBarContributions) {
   const item: DrawerItem = (label, ic, run, opts = {}) => {
     const c = typeof run === 'string' ? app.commands.get(run) : null;
     if (c === undefined || (c?.when && !c.when())) return null;
-    return h('button', { class: 'rr-drawer__item', title: opts.title, onclick: () => (close(), typeof run === 'string' ? app.commands.run(run) : run()) }, icon(ic, 24), h('span', null, label), opts.hint ? h('small', null, opts.hint) : null);
+    return h('button', { class: 'rr-drawer__item', title: opts.title, onclick: () => { close(); if (typeof run === 'string') app.commands.run(run); else run(); } }, icon(ic, 24), h('span', null, label), opts.hint ? h('small', null, opts.hint) : null);
   };
   const sep = () => h('div', { class: 'rr-drawer__sep', role: 'separator' });
   const more = features.drawer(item);
@@ -183,7 +183,7 @@ function openDrawer(app: ReviewApp, features: PhoneBarContributions) {
         'button',
         { class: app.prefs.theme === t ? 'is-on' : '', title: { light: 'Light', system: 'Auto: follow the system', dark: 'Dark' }[t], 'aria-label': { light: 'Light', system: 'Auto', dark: 'Dark' }[t], 'aria-pressed': String(app.prefs.theme === t), onclick: (e: Event) => {
           app.setPref('theme', t);
-          (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('button').forEach((b) => (b.className = b === e.currentTarget ? 'is-on' : '', b.setAttribute('aria-pressed', String(b === e.currentTarget))));
+          (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('button').forEach((b) => { b.className = b === e.currentTarget ? 'is-on' : ''; b.setAttribute('aria-pressed', String(b === e.currentTarget)); });
         } },
         t === 'system' ? 'Auto' : icon(t === 'light' ? 'sun' : 'moon', 16),
       ),

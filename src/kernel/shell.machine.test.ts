@@ -97,7 +97,7 @@ test('the peek dragged up past 70% becomes the Code area; Back returns', () => {
 
 test('code sheet thresholds: below 25% closes, between stays a peek', () => {
   const sheet = createActor(codeSheetMachine).start();
-  const drag = (dy: number) => (sheet.send({ type: 'open' }), sheet.send({ type: 'start', from: 400, max: 1000 }), sheet.send({ type: 'end', dy }), sheet.getSnapshot().value);
+  const drag = (dy: number) => { sheet.send({ type: 'open' }); sheet.send({ type: 'start', from: 400, max: 1000 }); sheet.send({ type: 'end', dy }); return sheet.getSnapshot().value; };
   expect(drag(200)).toBe('closed'); // 20%
   expect(drag(100)).toEqual({ open: 'peek' }); // 30%
   expect(drag(-299)).toEqual({ open: 'peek' }); // 69.9%
