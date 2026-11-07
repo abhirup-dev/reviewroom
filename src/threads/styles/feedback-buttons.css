@@ -1,3 +1,4 @@
+/* stylelint-disable color-named -- key-cap lighting: pure white and black mixed into a theme colour, not colours of their own */
 /* send buttons (Agent orange, PR neutral, the same everywhere): live ones are key caps, a lit top, a darker
    bottom edge and a shadow, that press in; ones the review mode leaves out are flat and dashed */
 .rr-btn--send {

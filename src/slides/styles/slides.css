@@ -50,8 +50,8 @@
 .rr-tour__top {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 8px;
+  gap: var(--rr-space-4);
+  padding: 0 var(--rr-space-8);
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-surface-overlay-2);
   min-width: 0;
@@ -62,15 +62,15 @@
 .rr-tour__chapter {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
+  gap: var(--rr-space-6);
+  height: var(--rr-control-lg);
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 var(--rr-space-8);
   border: 0;
   background: transparent;
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   cursor: pointer;
-  font: 600 14px var(--rr-font);
+  font: 600 var(--rr-text-md) var(--rr-font);
   color: var(--rr-ink);
 }
 .rr-tour__chapter span {
@@ -86,7 +86,7 @@
   background: var(--rr-hover);
 }
 .rr-tour__pos {
-  margin-left: 8px;
+  margin-left: var(--rr-space-8);
   font-size: var(--rr-text-sm);
   color: var(--rr-muted);
   white-space: nowrap;
@@ -129,14 +129,15 @@
 }
 .rr-tour__body.is-solo .rr-tour__left {
   border: 0;
-  padding-inline: max(26px, calc((100% - 720px) / 2));
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- centres a 720px text column */
+  padding-inline: max(var(--rr-space-24), calc((100% - 720px) / 2));
 }
 .rr-tour__left {
   contain: paint; /* author prose (maybe from a PR) can't paint over the controls, even position: fixed */
   background: var(--rr-surface-doc);
   border-right: 1px solid var(--rr-line);
   overflow: auto;
-  padding: 22px 26px 18px;
+  padding: var(--rr-space-24) var(--rr-space-24) var(--rr-space-16);
   display: flex;
   flex-direction: column;
 }
@@ -179,7 +180,7 @@
 .rr-tour__divider-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--rr-space-8);
 }
 .rr-tour__divider-row .rr-tour__divider {
   flex: 1;
@@ -223,9 +224,9 @@
 .rr-tour__badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--rr-space-4);
   height: 20px;
-  padding: 0 7px;
+  padding: 0 var(--rr-space-8);
   border: 0;
   border-radius: 10px;
   background: var(--rr-comment);
@@ -235,7 +236,7 @@
 }
 .rr-tour__actions {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: var(--rr-space-16);
 }
 .rr-tour__comment {
   color: var(--rr-comment);
@@ -243,10 +244,10 @@
 .rr-tour__divider {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 14px 0 12px;
+  gap: var(--rr-space-8);
+  margin: var(--rr-space-12) 0 var(--rr-space-12);
   font: 600 var(--rr-text-xs) var(--rr-font);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
   color: var(--rr-faint);
 }
@@ -259,20 +260,20 @@
 .rr-tour__refs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--rr-space-6);
+  margin-top: var(--rr-space-6);
 }
 .rr-tour__ref {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   max-width: 100%;
-  padding: 3px 8px;
+  padding: var(--rr-space-4) var(--rr-space-8);
   font: var(--rr-text-xs) var(--rr-mono);
   color: var(--rr-muted);
   background: var(--rr-surface-doc-2);
   border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   cursor: pointer;
 }
 .rr-tour__ref:hover {
@@ -342,8 +343,8 @@
 .rr-tour__chunk-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: var(--rr-space-6);
+  padding: var(--rr-space-4) var(--rr-space-12);
   border: 0;
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-surface-overlay-2);
@@ -374,7 +375,7 @@ span.rr-tour__chunk-head {
   cursor: default;
 }
 .rr-tour__preview {
-  padding: 16px;
+  padding: var(--rr-space-16);
   overflow: auto;
 }
 
@@ -383,25 +384,25 @@ span.rr-tour__chunk-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  padding: 0 12px;
+  gap: var(--rr-space-12);
+  padding: 0 var(--rr-space-12);
   border-top: 1px solid var(--rr-line);
   background: var(--rr-surface-overlay-2);
 }
 .rr-tour__progress {
   display: flex;
-  gap: 10px;
+  gap: var(--rr-space-10);
   min-width: 0;
 }
 .rr-tour__seg {
   display: flex;
   flex: var(--rr-steps, 1); /* as wide as its share of the slides (player.ts sets --rr-steps) */
   flex-direction: column;
-  gap: 5px;
+  gap: var(--rr-space-4);
   min-width: 0;
 }
 .rr-tour__seg-title {
-  font-size: 10px;
+  font-size: var(--rr-text-2xs);
   color: var(--rr-faint);
   white-space: nowrap;
   overflow: hidden;
@@ -413,7 +414,7 @@ span.rr-tour__chunk-head {
 }
 .rr-tour__ticks {
   display: flex;
-  gap: 3px;
+  gap: var(--rr-space-4);
 }
 .rr-tour__tick {
   position: relative;
@@ -459,8 +460,8 @@ span.rr-tour__chunk-head {
   bottom: 18px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px 8px 6px;
+  gap: var(--rr-space-10);
+  padding: var(--rr-space-6) var(--rr-space-16) var(--rr-space-8) var(--rr-space-6);
   font: 500 var(--rr-text-sm) var(--rr-font);
   color: var(--rr-ink);
   background: var(--rr-surface-overlay);
@@ -484,7 +485,7 @@ span.rr-tour__chunk-head {
   display: grid;
   place-items: center;
   width: 26px;
-  height: 26px;
+  height: var(--rr-control);
   border-radius: 50%;
   background: var(--rr-accent);
   color: var(--rr-accent-ink);
@@ -556,36 +557,36 @@ span.rr-tour__chunk-head {
 .rr-slide {
   display: grid;
   grid-template-columns: minmax(0, 1fr); /* wide code scrolls inside its preview, not the card */
-  gap: 10px;
-  padding-block: 12px;
+  gap: var(--rr-space-10);
+  padding-block: var(--rr-space-12);
 }
 /* the code previews run edge to edge, like the embed's other previews */
 .rr-slide > .rr-slide__where,
 .rr-slide > .rr-slide__text,
 .rr-slide > .rr-slide__refs {
-  padding-inline: 16px;
+  padding-inline: var(--rr-space-16);
   min-width: 0;
 }
 .rr-slide__where {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--rr-space-12);
   font-family: var(--rr-font);
   font-size: var(--rr-text-xs);
   color: var(--rr-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--rr-tracking-caps);
 }
 .rr-slide__refs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--rr-space-6);
 }
 .rr-slide__ref {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--rr-space-4);
   font-family: var(--rr-mono);
   font-size: var(--rr-text-xs);
   color: var(--rr-muted);

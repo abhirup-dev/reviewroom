@@ -3,10 +3,11 @@
 .rr-toc-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--rr-space-6);
   width: 100%;
-  min-height: 28px;
-  padding: 4px 6px 4px calc(6px + var(--depth, 0) * 14px);
+  --rr-indent: 14px; /* one tree level */
+  min-height: var(--rr-control);
+  padding: var(--rr-space-4) var(--rr-space-6) var(--rr-space-4) calc(var(--rr-space-6) + var(--depth, 0) * var(--rr-indent));
   border: 0;
   border-radius: var(--rr-radius);
   background: transparent;
@@ -65,7 +66,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--rr-mono);
-  font-size: 12px;
+  font-size: var(--rr-text-sm);
 }
 /* thread badges sit in the gutter left of the name (--pad is where the name starts), so names never shift */
 .rr-file-row {
@@ -82,12 +83,12 @@
   right: calc(100% - var(--pad) + 4px);
   transform: translateY(-50%);
   display: inline-flex;
-  gap: 4px;
+  gap: var(--rr-space-4);
 }
 .rr-dir-row {
   color: var(--rr-muted);
-  font: 500 11.5px/1.2 var(--rr-mono);
-  min-height: 24px;
+  font: 500 var(--rr-text-sm)/1.2 var(--rr-font); /* folders in the interface face; file names stay mono */
+  min-height: var(--rr-control-sm);
 }
 .rr-dir-row .rr-icon {
   transition: transform 0.15s;
@@ -96,6 +97,6 @@
   transform: rotate(-90deg);
 }
 .rr-hidden-note {
-  margin: 10px 8px;
+  margin: var(--rr-space-10) var(--rr-space-8);
   font-size: var(--rr-text-sm);
 }

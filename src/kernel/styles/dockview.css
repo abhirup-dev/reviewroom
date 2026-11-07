@@ -2,8 +2,8 @@
    (square outer corners); only floating windows are rounded and lifted. */
 .dockview-theme-rr {
   --dv-paneview-active-outline-color: var(--rr-accent);
-  --dv-tabs-and-actions-container-font-size: 12.5px;
-  --dv-tabs-and-actions-container-height: 34px;
+  --dv-tabs-and-actions-container-font-size: var(--rr-text-sm);
+  --dv-tabs-and-actions-container-height: var(--rr-bar-h);
   --dv-drag-over-background-color: color-mix(in srgb, var(--rr-accent) 14%, transparent);
   --dv-drag-over-border-color: var(--rr-accent);
   --dv-drag-over-border: 2px solid var(--rr-accent);
@@ -53,10 +53,10 @@
 }
 .dockview-theme-rr .dv-tabs-and-actions-container {
   border-bottom: 1px solid var(--rr-line);
-  padding-left: 4px;
+  padding-left: var(--rr-space-4);
 }
 .dockview-theme-rr .dv-tab {
-  padding: 0 10px;
+  padding: 0 var(--rr-space-10);
   font-weight: 500;
   position: relative;
 }
@@ -67,7 +67,7 @@
   right: 8px;
   bottom: 0;
   height: 2px;
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   background: var(--rr-ink);
 }
 .dockview-theme-rr .dv-inactive-group .dv-tab.dv-active-tab::after {
@@ -92,13 +92,13 @@
 .rr-group-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--rr-space-2);
   height: 100%;
-  padding: 0 6px;
+  padding: 0 var(--rr-space-6);
 }
 .rr-group-actions .rr-icon-btn {
-  width: 24px;
-  height: 24px;
+  width: var(--rr-control-sm);
+  height: var(--rr-control-sm);
 }
 
 /* floating windows: a real, visible move handle */
@@ -118,7 +118,7 @@
   width: 36px;
   height: 4px;
   transform: translate(-50%, -50%);
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   background: var(--rr-line-strong);
 }
 .dockview-theme-rr .dv-floating-titlebar:active {

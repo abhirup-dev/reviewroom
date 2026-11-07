@@ -13,8 +13,8 @@
 .rr-hovercard__head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 4px 3px 10px;
+  gap: var(--rr-space-6);
+  padding: var(--rr-space-4) var(--rr-space-4) var(--rr-space-4) var(--rr-space-10);
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-panel-2);
   font-size: var(--rr-text-sm);

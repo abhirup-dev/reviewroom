@@ -15,7 +15,7 @@
   .rr-doc-wrap,
   .rr-doc-wrap.has-threads {
     grid-template-columns: 44px minmax(0, 1fr) 56px;
-    padding-top: 20px;
+    padding-top: var(--rr-space-24);
   }
   .rr-rail {
     width: 56px;
@@ -24,9 +24,9 @@
     left: 10px;
     right: auto;
     width: 38px;
-    padding: 0 4px;
+    padding: 0 var(--rr-space-4);
     justify-content: center;
-    border-radius: var(--rr-radius-sm);
+    border-radius: var(--rr-radius);
   }
   .rr-rail-chip::before {
     left: -10px;
@@ -37,7 +37,7 @@
     display: none;
   }
   .rr-prose :where(h1) {
-    font-size: 25px;
+    font-size: var(--rr-text-2xl);
   }
 }
 @container (max-width: 520px) {
@@ -46,7 +46,7 @@
     grid-template-columns: 30px minmax(0, 1fr) 48px;
   }
   .rr-doc-wrap .rr-prose {
-    font-size: 14px;
+    font-size: var(--rr-text-md);
   }
   .rr-rail {
     width: 48px;
@@ -63,7 +63,7 @@
   .rr-viewed {
     font-size: 0;
     gap: 0;
-    padding: 0 6px;
+    padding: 0 var(--rr-space-6);
   }
 }
 

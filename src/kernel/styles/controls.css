@@ -3,26 +3,26 @@
   background: transparent;
 }
 .rr-btn--small {
-  height: 26px;
-  padding: 0 8px;
+  height: var(--rr-control-sm);
+  padding: 0 var(--rr-space-8);
   font-size: var(--rr-text-sm);
 }
 .rr-badge {
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
-  border-radius: var(--rr-radius-sm);
+  padding: 0 var(--rr-space-6);
+  border-radius: var(--rr-radius);
   background: var(--rr-comment);
-  color: #fff;
-  font: 600 11px/18px var(--rr-font);
+  color: var(--rr-comment-ink);
+  font: 600 var(--rr-text-xs)/18px var(--rr-font);
   text-align: center;
 }
 .rr-icon-btn {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--rr-radius-sm);
+  width: var(--rr-control);
+  height: var(--rr-control);
+  border-radius: var(--rr-radius);
   border: 0;
   background: transparent;
   color: var(--rr-muted);
@@ -46,7 +46,7 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--rr-space-4);
 }
 .rr-link-btn:hover {
   text-decoration: underline;
@@ -55,8 +55,8 @@
   display: inline-flex;
   align-items: center;
   height: 20px;
-  padding: 0 7px;
-  border-radius: var(--rr-radius-sm);
+  padding: 0 var(--rr-space-8);
+  border-radius: var(--rr-radius);
   border: 1px solid var(--rr-line);
   background: var(--rr-panel);
   color: var(--rr-muted);
@@ -65,7 +65,7 @@
 }
 .rr-pill--mono {
   font-family: var(--rr-mono);
-  font-size: 10.5px;
+  font-size: var(--rr-text-xs);
 }
 .rr-pill--ok {
   color: var(--rr-ok);
@@ -123,9 +123,9 @@
   flex: none;
 }
 .rr-seg > button {
-  height: 26px;
-  min-width: 26px;
-  padding: 0 8px;
+  height: var(--rr-control);
+  min-width: var(--rr-control);
+  padding: 0 var(--rr-space-8);
   border: 0;
   background: transparent;
   color: var(--rr-muted);
@@ -147,7 +147,7 @@
   color: var(--rr-ink);
 }
 .rr-seg--small > button {
-  height: 24px;
+  height: var(--rr-control-sm);
   font-size: var(--rr-text-xs);
 }
 .rr-seg--fill {
@@ -158,8 +158,8 @@
 }
 .rr-input,
 .rr-select {
-  height: 28px;
-  padding: 0 8px;
+  height: var(--rr-control);
+  padding: 0 var(--rr-space-8);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   background: var(--rr-panel);
@@ -183,7 +183,7 @@
   outline-offset: 1px;
 }
 .rr-empty {
-  padding: 16px;
+  padding: var(--rr-space-16);
   color: var(--rr-muted);
   font-size: var(--rr-text-sm);
   line-height: 1.5;
@@ -193,9 +193,9 @@
   height: 100dvh;
   display: grid;
   place-content: center;
-  gap: 12px;
+  gap: var(--rr-space-12);
   color: var(--rr-muted);
-  font: 14px var(--rr-font);
+  font: var(--rr-text-md) var(--rr-font);
   text-align: center;
 }
 .rr-fatal pre {
@@ -206,11 +206,11 @@
 }
 .rr-skeleton {
   height: 12px;
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   background: linear-gradient(90deg, var(--rr-hover), var(--rr-active), var(--rr-hover));
   background-size: 200% 100%;
   animation: rr-shimmer 1.2s infinite linear;
-  margin: 10px 12px;
+  margin: var(--rr-space-10) var(--rr-space-12);
 }
 @keyframes rr-shimmer {
   to {
@@ -220,19 +220,19 @@
 .rr-count-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--rr-space-4);
   height: 18px;
-  padding: 0 5px;
-  border-radius: var(--rr-radius-sm);
+  padding: 0 var(--rr-space-6);
+  border-radius: var(--rr-radius);
   background: var(--rr-comment-soft);
   color: var(--rr-comment);
-  font: 600 10.5px/1 var(--rr-font);
+  font: 600 var(--rr-text-2xs)/1 var(--rr-font);
   flex: none;
 }
 .rr-round-badge {
-  font: 600 10px/1 var(--rr-mono);
-  padding: 3px 5px;
-  border-radius: var(--rr-radius-sm);
+  font: 600 var(--rr-text-2xs)/1 var(--rr-mono);
+  padding: var(--rr-space-4) var(--rr-space-6);
+  border-radius: var(--rr-radius);
   background: var(--rr-accent-soft);
   color: var(--rr-accent);
   flex: none;
@@ -240,13 +240,13 @@
 .rr-delta {
   white-space: nowrap;
   display: inline-flex;
-  gap: 6px;
+  gap: var(--rr-space-6);
   font: 500 var(--rr-text-sm) / 1 var(--rr-mono);
   flex: none;
 }
 .rr-delta--small {
-  font-size: 10.5px;
-  gap: 4px;
+  font-size: var(--rr-text-xs);
+  gap: var(--rr-space-4);
 }
 .rr-add {
   color: var(--rr-add);
@@ -257,10 +257,10 @@
 .rr-status {
   width: 16px;
   height: 16px;
-  border-radius: var(--rr-radius-sm);
+  border-radius: var(--rr-radius);
   display: inline-grid;
   place-items: center;
-  font: 700 10px/1 var(--rr-mono);
+  font: 600 var(--rr-text-2xs)/1 var(--rr-mono);
   flex: none;
 }
 .rr-status--added {

@@ -16,3 +16,7 @@
   --rr-m-expressive-ms: 480ms;
   --rr-phone-bar: 64px;
 }
+/* the phone keeps its own dark paper (the desktop's sits closer to the nav plane); a separate pass for the phone */
+:root[data-rr-theme='dark']:has(.is-phone, .rr-tour[data-form='phone']) {
+  --rr-surface-doc: #1b1e24;
+}
