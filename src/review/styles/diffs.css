@@ -1,0 +1,35 @@
+/* @pierre/diffs: the one place its variables are set, for every diff and code block (the code panel, walkthrough
+   code, snippets, link previews) on desktop and phone. Our colours go in through its documented overrides
+   (diffs.com/docs, Styling); it derives the line, number-column and changed-word tints from them. */
+diffs-container {
+  --diffs-font-family: var(--rr-mono);
+  --diffs-font-size: 12.5px;
+  --diffs-addition-color-override: var(--rr-add);
+  --diffs-deletion-color-override: var(--rr-del);
+  /* selected lines (a jump, a click on a symbol), their numbers and rename icons: its 'modified' colour, blue by
+     default, here a neutral grey so a selection reads as a quiet band rather than a third diff colour */
+  --diffs-modified-color-override: var(--rr-muted);
+  /* changed words: in light, solid, the diff colours deepened toward ink (matte, not vivid) then lifted a quarter
+     toward the paper, their text knocked out in the paper colour (--_word-ink, applied by CODE_CSS in
+     previews.ts); in dark, a stronger tint than its default, where the code's own colours already read */
+  --diffs-bg-addition-emphasis-override: light-dark(color-mix(in srgb, color-mix(in srgb, var(--rr-add), var(--rr-ink) var(--rr-mix-md)), var(--rr-panel) var(--rr-mix-md)), color-mix(in srgb, var(--rr-add) var(--rr-mix-md), transparent));
+  --diffs-bg-deletion-emphasis-override: light-dark(color-mix(in srgb, color-mix(in srgb, var(--rr-del), var(--rr-ink) var(--rr-mix-md)), var(--rr-panel) var(--rr-mix-md)), color-mix(in srgb, var(--rr-del) var(--rr-mix-md), transparent));
+  --_word-ink: var(--rr-panel);
+  /* files in the code panel meet at a hairline: no padding above or below the code, and its own thin scrollbars.
+     It draws them with ::-webkit-scrollbar, which the browser ignores once scrollbar-color/-width are set (and they
+     inherit from .rr-scroll), leaving full system bars on the side and the foot; so they are reset here. */
+  --diffs-gap-block: 0px;
+  --diffs-scrollbar-gutter-override: 6px;
+  scrollbar-color: auto;
+  scrollbar-width: auto;
+  /* the code sits on the surface around it */
+  --diffs-light-bg: var(--rr-panel);
+  --diffs-dark-bg: var(--rr-panel);
+}
+.rr-snippet diffs-container {
+  --diffs-font-size: 12px;
+}
+.rr-code__body diffs-container {
+  --diffs-light-bg: var(--rr-panel-2);
+  --diffs-dark-bg: var(--rr-panel-2);
+}

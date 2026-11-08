@@ -17,7 +17,7 @@ rr-mermaid.rr-diagram-soft {
   --pele-radius: 14px;
   --pele-surface: var(--rr-ok-soft);
   --pele-surface-alt: var(--rr-surface-doc-2);
-  --pele-border: color-mix(in srgb, var(--rr-ok) 40%, var(--rr-surface-doc));
+  --pele-border: color-mix(in srgb, var(--rr-ok) var(--rr-mix-lg), var(--rr-surface-doc));
   --pele-line: var(--rr-ok);
 }
 
@@ -35,7 +35,7 @@ rr-mermaid.rr-diagram-warm {
   --pele-radius: 8px;
   --pele-bg: var(--rr-comment-soft);
   --pele-surface: var(--rr-surface-doc);
-  --pele-surface-alt: color-mix(in srgb, var(--rr-comment) 12%, var(--rr-surface-doc));
+  --pele-surface-alt: color-mix(in srgb, var(--rr-comment) var(--rr-mix-sm), var(--rr-surface-doc));
   --pele-border: var(--rr-comment);
   --pele-line: var(--rr-comment);
   --pele-series-1: var(--rr-comment);
@@ -66,7 +66,7 @@ rr-mermaid.rr-diagram-raised {
   --pele-border: var(--rr-line-strong);
 }
 .rr-diagram-raised .pele-node {
-  filter: drop-shadow(0 3px 3px color-mix(in srgb, var(--rr-ink) 14%, transparent));
+  filter: drop-shadow(0 3px 3px color-mix(in srgb, var(--rr-ink) var(--rr-mix-sm), transparent));
 }
 
 rr-mermaid.rr-diagram-signal {
@@ -81,7 +81,7 @@ rr-mermaid.rr-diagram-signal {
   stroke-width: 2;
 }
 .rr-diagram-signal .pele-node {
-  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--rr-accent) 24%, transparent));
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent));
 }
 
 /* Review semantics use normal Mermaid classes: :::added / :::changed / :::removed. */
@@ -105,22 +105,30 @@ rr-mermaid.rr-diagram-signal {
   text-decoration: line-through;
 }
 
-/* A linked node (a `click` statement) reads as a link by its accent label, as links do in the walkthrough;
-   the walkthrough's underline would cut through the label. */
+/* A linked node (a `click` statement) reads as a link as links do in the walkthrough: its label at medium weight over a
+   faint underline that firms up on hover (elements.ts draws it: SVG text takes no underline colour or thickness). */
 .rr-mermaid__diagram svg a {
   text-decoration: none; /* outranks `.rr-prose a` */
 }
 .rr-mermaid__diagram svg a text {
-  fill: var(--rr-accent);
+  font-weight: 500;
+}
+.rr-mermaid__underline {
+  stroke: color-mix(in srgb, var(--pele-fg) var(--rr-mix-md), transparent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+.rr-mermaid__diagram svg a:is(:hover, :focus-visible) .rr-mermaid__underline {
+  stroke: var(--pele-fg);
 }
 
 /* Hover keeps the node's geometry fixed so edges remain attached. */
 rr-mermaid .pele-node.clickable:hover,
 rr-mermaid .pele-node:has(a:focus-visible) {
-  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--rr-accent) 25%, transparent));
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--rr-ink) var(--rr-mix-sm), transparent));
 }
 rr-mermaid a:focus-visible {
-  outline: 2px solid var(--rr-accent);
+  outline: 2px solid var(--rr-ink-2);
   outline-offset: 3px;
 }
 

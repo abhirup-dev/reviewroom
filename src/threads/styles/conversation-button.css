@@ -1,4 +1,4 @@
-/* PR conversation: quiet in the footer until wanted */
+/* PR conversation: quiet beside the list's tools until wanted */
 .rr-convo-btn {
   flex: none;
   display: inline-flex;

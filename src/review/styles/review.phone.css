@@ -1,6 +1,9 @@
 /* The review on a phone (kernel/styles/phone.css has the shell). Loads after phone.css. */
 
 /* ---------------------------------------------------------------- lists: file rows, chips */
+.is-phone .rr-progress {
+  display: block;
+}
 .is-phone .rr-file-row.is-active {
   border-radius: var(--rr-shape-full);
 }
@@ -37,16 +40,42 @@
 }
 /* the marker in a small bubble, its count on the corner as everywhere else */
 .is-phone .rr-rail-chip .rr-tbadge {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
   width: 28px;
   height: 28px;
   margin: 0;
+  padding: 0;
+  color: var(--rr-comment);
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--rr-ink) 25%, transparent);
 }
+.is-phone .rr-rail-chip .rr-tbadge > :first-child {
+  width: 18px;
+  height: 18px;
+}
 .is-phone .rr-rail-chip .rr-tbadge__n {
+  position: absolute;
   top: -6px;
   right: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--rr-comment);
+  color: var(--rr-comment-ink);
+  font: 600 10px/14px var(--rr-font);
+  text-align: center;
+  box-shadow: 0 0 0 1.5px var(--rr-panel);
+}
+.is-phone .rr-rail-chip .rr-tbadge.is-resolved .rr-tbadge__n {
+  background: var(--rr-faint);
+}
+.is-phone .rr-rail-chip .rr-tbadge.has-agent .rr-tbadge__n {
+  background: var(--rr-accent);
+  color: var(--rr-accent-ink);
 }
 /* Contents: a button at the bottom right, its sheet the Contents panel */
 .is-phone .rr-narrative {
@@ -93,9 +122,6 @@
 /* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
 .is-phone .rr-code-scroll {
   background: var(--rr-surface-well);
-}
-.is-phone .rr-code-scroll diffs-container {
-  border-radius: var(--rr-shape-m);
 }
 .is-phone .rr-file__head {
   background: var(--rr-bg);

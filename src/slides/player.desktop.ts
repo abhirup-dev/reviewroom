@@ -5,7 +5,8 @@ import { menuItem, popMenu } from '../kernel/menus';
 import type { walkthroughMachine } from './player.machine';
 import type { current } from './model.shared';
 
-export function desktopPlayer({ actor, chapterBtn, next }: { actor: Actor<typeof walkthroughMachine>; chapterBtn: HTMLElement; next: HTMLElement }) {
+export function desktopPlayer({ actor, root, chapterBtn, next }: { actor: Actor<typeof walkthroughMachine>; root: HTMLElement; chapterBtn: HTMLElement; next: HTMLElement }) {
+  root.dataset.form = 'desktop'; // slides.css: the chapter as the narration's heading, the code full height beside it
   const ctx = () => actor.getSnapshot().context;
   chapterBtn.title = 'Jump to a chapter';
   chapterBtn.setAttribute('aria-haspopup', 'menu');

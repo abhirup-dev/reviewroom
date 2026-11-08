@@ -1,20 +1,26 @@
 /* palette */
 .rr-palette {
   margin-top: 12vh;
-  width: min(680px, 100%);
+  width: min(640px, 100%);
   max-height: 64vh;
   font: var(--rr-text) / 1.4 var(--rr-font);
   animation: rr-pop 0.12s ease-out;
 }
 .rr-palette__input {
-  height: 48px;
-  padding: 0 var(--rr-space-16);
-  border: 0;
-  border-bottom: 1px solid var(--rr-line);
-  background: transparent;
-  color: var(--rr-ink);
   font: var(--rr-text-lg) var(--rr-font);
+  color: var(--rr-ink);
+}
+/* the desktop's field (a phone's input sits in its own bar) */
+.rr-palette > .rr-palette__input {
+  margin: var(--rr-space-10) var(--rr-space-10) var(--rr-space-4);
+  padding: var(--rr-space-8) var(--rr-space-12);
+  border: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-radius);
+  background: var(--rr-panel-2);
   outline: none;
+}
+.rr-palette > .rr-palette__input:focus {
+  border-color: var(--rr-accent);
 }
 .rr-palette__list {
   overflow: auto;
@@ -24,7 +30,7 @@
   display: flex;
   align-items: center;
   gap: var(--rr-space-10);
-  height: var(--rr-control-lg);
+  height: var(--rr-control);
   padding: 0 var(--rr-space-10);
   border-radius: var(--rr-radius);
   cursor: pointer;
@@ -50,6 +56,7 @@
   color: var(--rr-comment);
 }
 .rr-palette__label {
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -64,7 +71,6 @@
   font: var(--rr-text-sm) var(--rr-mono);
 }
 .rr-palette__detail {
-  margin-left: auto;
   padding-left: var(--rr-space-12);
   color: var(--rr-faint);
   font: var(--rr-text-sm) var(--rr-font);
@@ -73,6 +79,27 @@
   text-overflow: ellipsis;
   max-width: 50%;
   flex-shrink: 1;
+}
+/* shortcuts: one right-aligned column of plain keys */
+.rr-palette__item kbd {
+  flex: none;
+  min-width: 4em;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rr-faint);
+  font: var(--rr-text-xs) var(--rr-mono);
+  text-align: right;
+}
+.rr-palette__item.is-sel kbd {
+  color: var(--rr-muted);
+}
+/* headings over each group (.rr-group-label); a phone restyles them (phone.css) */
+.rr-palette__group {
+  padding: var(--rr-space-12) var(--rr-space-10) var(--rr-space-4);
+}
+.rr-palette__group:first-child {
+  padding-top: var(--rr-space-6);
 }
 .rr-palette__hint {
   display: flex;

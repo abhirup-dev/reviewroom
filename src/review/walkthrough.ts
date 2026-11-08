@@ -81,6 +81,7 @@ class WalkthroughPanel implements PanelInstance {
   private wrap: HTMLElement;
   private rail: HTMLElement;
   private handle: HTMLElement;
+  private pinBtn = h('button', { class: 'rr-icon-btn rr-block-handle__pin', 'aria-label': 'Pin this block', onclick: () => this.pinBlock() }, icon('pin', 14));
   private outline: HTMLElement;
   private banner: HTMLElement;
   private hoverBlock: Element | null = null;
@@ -107,7 +108,7 @@ class WalkthroughPanel implements PanelInstance {
       { class: 'rr-block-handle', hidden: true },
       h('button', { class: 'rr-icon-btn', title: 'Comment on this whole block', 'data-keys': 'c', 'aria-label': 'Comment on this block', onclick: () => this.commentOnBlock() }, icon('thread', 14)),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this block (paste it into any comment)', 'aria-label': 'Copy link to this block', onclick: () => this.linkBlock() }, icon('link', 14)),
-      h('button', { class: 'rr-icon-btn', title: 'Pin to Contents for quick access', 'aria-label': 'Pin this block', onclick: () => this.pinBlock() }, icon('pin', 14)),
+      this.pinBtn,
     );
     this.banner = h('div', { class: 'rr-banner', hidden: true });
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail, this.outline, this.handle);
@@ -186,13 +187,17 @@ class WalkthroughPanel implements PanelInstance {
 
   // ------------------------------------------------------------ scroll spy / reveal
   private setupSpy() {
-    // active section = the last top-level section whose top has crossed 25% of the viewport
+    // what the reader is in: the last top-level section whose top has crossed 25% of the viewport, then inside it the
+    // last sub-section, h3 or h4 to have crossed it (at the very end, the last one on screen): Contents follows the leaf
     const run = () => {
       const secs = [...this.doc.querySelectorAll('section[id], [data-rr-section][id]')].filter((s) => !s.parentElement?.closest('section[id]'));
-      const line = this.scroller.getBoundingClientRect().top + this.scroller.clientHeight * 0.25;
-      let cur = secs[0]?.id;
-      for (const s of secs) if (s.getBoundingClientRect().top <= line) cur = s.id;
-      if (this.scroller.scrollTop + this.scroller.clientHeight >= this.scroller.scrollHeight - 4) cur = secs[secs.length - 1]?.id ?? cur;
+      const box = this.scroller.getBoundingClientRect();
+      const atEnd = this.scroller.scrollTop + this.scroller.clientHeight >= this.scroller.scrollHeight - 4;
+      const line = atEnd ? box.bottom : box.top + this.scroller.clientHeight * 0.25;
+      let sec = secs[0];
+      for (const s of secs) if (atEnd || s.getBoundingClientRect().top <= line) sec = s;
+      let cur = sec?.id;
+      for (const sub of sec?.querySelectorAll(':scope section[id], :scope h3[id], :scope h4[id]') ?? []) if (sub.getBoundingClientRect().top <= line) cur = sub.id;
       if (cur && cur !== this.activeId) {
         this.activeId = cur;
         this.app.bus.emit('active-section', cur);
@@ -255,6 +260,7 @@ class WalkthroughPanel implements PanelInstance {
 
   private showFor(el: Element) {
     this.hoverBlock = el;
+    this.paintPin(el);
     const wr = this.wrap.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     Object.assign(this.outline.style, { top: r.top - wr.top - 3 + 'px', left: r.left - wr.left - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 6 + 'px' });
@@ -306,12 +312,26 @@ class WalkthroughPanel implements PanelInstance {
     void copyText(ref);
     this.app.toast(`Link to ${this.app.label(ref)} copied — paste it into any comment`);
   }
+  /** What pinning a block pins: the heading that opens a section pins the section (as Contents and links name it), so
+   *  the heading's pin and a pinned section are one pin, not two; any other block, itself. */
+  private pinRef(el: Element) {
+    const sec = el.parentElement;
+    if (/^H[1-6]$/.test(el.tagName) && sec?.matches('section[id]') && sec.firstElementChild === el) return formatRef({ type: 'doc', id: sec.id });
+    const a = this.anchorOf(el);
+    return formatRef({ type: 'doc', id: a.target, path: a.path });
+  }
+  /** The handle's pin shows whether the block under it is pinned (pressed, in the pin colour). */
+  private paintPin(el: Element) {
+    const on = this.app.state.pins.includes(this.pinRef(el));
+    this.pinBtn.setAttribute('aria-pressed', String(on));
+    this.pinBtn.title = on ? 'Unpin from Contents' : 'Pin to Contents for quick access';
+  }
   private pinBlock(el = this.hoverBlock) {
     if (!el) return;
-    const a = this.anchorOf(el);
-    const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
+    const ref = this.pinRef(el);
     this.app.togglePin(ref);
-    this.app.toast(`${this.app.label(ref)} pinned to Contents`);
+    this.app.toast(`${this.app.label(ref)} ${this.app.state.pins.includes(ref) ? 'pinned to' : 'unpinned from'} Contents`);
+    this.paintPin(el);
   }
 
   private onClick(e: MouseEvent) {
@@ -376,6 +396,13 @@ class WalkthroughPanel implements PanelInstance {
 
   private decorate() {
     this.current.querySelectorAll('[data-rr-anchored]').forEach((el) => el.removeAttribute('data-rr-anchored'));
+    // what's pinned to Contents carries a pin beside it (content.css), so pinned reads apart from unpinned
+    this.current.querySelectorAll('[data-rr-pinned]').forEach((el) => el.removeAttribute('data-rr-pinned'));
+    for (const pin of this.app.state.pins) {
+      const r = parseRef(pin);
+      const el = r?.type === 'doc' ? this.app.docElement(r.id, r.path) : null;
+      if (el && this.current.contains(el)) el.setAttribute('data-rr-pinned', '');
+    }
     const ranges: Range[] = [];
     for (const t of this.docThreads()) {
       if (t.status === 'resolved') continue;
