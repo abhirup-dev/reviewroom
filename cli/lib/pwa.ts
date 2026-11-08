@@ -53,14 +53,14 @@ export function serveClient(app: Hono) {
   app.get('/_rr/*', async (c, next) => {
     c.header('cache-control', policy(c.req.path));
     return next();
-  }, serveStatic({ root: DIST, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
+  }, serveStatic({ root: DIST, precompressed: true, rewriteRequestPath: (p) => p.replace(/^\/_rr/, '') }));
   app.get('/manifest.webmanifest', async (c, next) => {
     c.header('cache-control', 'no-cache');
     return next();
-  }, serveStatic({ root: DIST, mimes: { webmanifest: 'application/manifest+json' } }));
+  }, serveStatic({ root: DIST, precompressed: true, mimes: { webmanifest: 'application/manifest+json' } }));
   app.get('/sw.js', async (c, next) => {
     c.header('cache-control', 'no-cache');
     c.header('service-worker-allowed', '/');
     return next();
-  }, serveStatic({ root: DIST }));
+  }, serveStatic({ root: DIST, precompressed: true }));
 }

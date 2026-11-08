@@ -32,7 +32,7 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
   const started = Date.now();
   const app = new Hono();
   app.use(guarded((c) => hubAccess(c, publicOrigin)));
-  app.use(compress()); // the phone's link is the slow one: compress here, proxied responses included
+  app.use(compress()); // the phone's link is the slow one; proxied reviews arrive already encoded by their own server
   app.notFound((c) => c.json({ error: 'not found' }, 404));
   app.get('/', (c) => c.html(PAGE, 200, { 'cache-control': 'no-cache' }));
   serveClient(app);

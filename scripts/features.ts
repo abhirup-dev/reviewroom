@@ -1,6 +1,6 @@
 // Architecture checks use a TypeScript syntax tree and resolved paths, before type erasure.
 import { Glob } from 'bun';
-import { moduleImports } from './features-imports';
+import { isPhone, moduleImports } from './features-imports';
 import { readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
@@ -18,12 +18,10 @@ const allowed: Record<string, string[]> = {
 };
 
 // The phone is an extension of the desktop core (Refactor 3.0, rr-486): core code reaches phone code only through the
-// presentation contract, never by importing it. Phone code: *.phone.ts and the modules only the phone uses.
-const PHONE = new Set(['src/phone.ts', 'src/kernel/phone.ts', 'src/kernel/shell.machine.ts', 'src/kernel/gesture.machine.ts', 'src/kernel/codesheet.machine.ts', 'src/kernel/history.ts', 'src/slides/phone.machine.ts', 'src/slides/nav.machine.ts']);
-const isPhone = (file: string) => file.endsWith('.phone.ts') || PHONE.has(file);
+// presentation contract, never by importing it (isPhone: features-imports.ts).
 // A ratchet like the oxlint overrides: today's core-to-phone imports, each removed as its seam moves behind the
 // contract (rr-486.8-.12). Entries only come off; one that no longer holds is an error.
-const PHONE_IMPORTS = new Set<string>(['src/main.ts -> src/phone.ts']);
+const PHONE_IMPORTS = new Set<string>(['src/main.ts -> src/phone.ts', 'src/main.ts -> src/turned.ts']);
 const phoneImports = new Set<string>();
 
 const lines = new Map<string, number>();

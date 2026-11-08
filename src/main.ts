@@ -21,11 +21,10 @@ import { createReviewServices } from './services';
 import { definePanel, ensurePanel, type PanelDef } from './kernel/dock';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { hubHref, saveLayoutDialog } from './kernel/header';
-import { desktop } from './presentation';
-import { phone, turned } from './phone';
+import type { PresentationModule } from './presentation';
 import { currentForm, restoreShell, watchShell } from './kernel/device';
 import { presentationFor } from './kernel/presentation';
-import { keepScroll, restoreScroll, startUpdates } from './kernel/pwa';
+import { keepScroll, reloadOnChunkError, restoreScroll, startUpdates } from './kernel/pwa';
 import { sendDialog, submitReviewDialog, onGitHub } from './threads/controls';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { BrowserState } from './kernel/providers/browser-state';
@@ -34,7 +33,7 @@ import { GitHubProvider } from './review/providers/github';
 import { LocalProvider } from './review/providers/local';
 import { StaticProvider, type Fixture } from './review/providers/static';
 import { defineElements, provideApp } from './review/elements';
-import { mountThreadPopup } from './threads/view';
+import { loadEditor, mountThreadPopup } from './threads/view';
 import { mountHoverCards, mountPalette, mountSelectionRelease } from './review/overlays';
 import { mountToasts } from './kernel/toasts';
 import { mountTooltips, tip } from './kernel/tooltip';
@@ -117,7 +116,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   injectCSS();
   defineElements();
   const app = new ReviewApp(root, createReviewServices, presentationFor(currentForm()));
-  startUpdates(app); // before loading: an old shell that can't load the review still updates
+  // each presentation is its own chunk, fetched alongside the review: the desktop never loads the phone's code, the
+  // phone upright never loads the dock (dockview)
+  const form = app.presentation.form;
+  const presentation: Promise<PresentationModule> =
+    form === 'phone' ? import('./phone').then((m) => m.phone) : form === 'turned' ? import('./turned').then((m) => m.turned) : import('./presentation').then((m) => m.desktop);
+  presentation.catch(() => {}); // awaited with the review below
+  startUpdates(import.meta.url, app); // before loading: an old shell that can't load the review still updates
   app.applyTheme();
   const themeQuery = matchMedia('(prefers-color-scheme: dark)');
   const onTheme = () => { if (app.prefs.theme === 'system') app.applyTheme(); };
@@ -138,6 +143,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   root.replaceChildren(h('div', { class: 'rr-loading' }, h('div', { class: 'rr-skeleton' }), 'Loading review…'));
 
   let lastLayout: LastLayout | null = null;
+  let ui!: PresentationModule;
   try {
     const { provider, backend } = options.provider ? { provider: options.provider, backend: 'browser' as const } : await pickProvider(root, authored, fixture);
     app.provider = provider;
@@ -158,9 +164,11 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     app.viewRound = app.state.round;
     app.commits = await provider.commits().catch(() => []);
     await app.setRange({ base: meta.base, head: meta.head, label: 'All changes', key: 'all' });
+    ui = await presentation;
   } catch (e) {
     app.dispose();
-    root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
+    // a chunk that won't load (a build replaced since this page loaded, or offline): the update flow reloads instead
+    if (!reloadOnChunkError(e)) root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
     throw e;
   }
 
@@ -168,7 +176,6 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   provideFocusCode(app, { openFile: (path, view, at) => openInNewPanel(app, path, view, 'center', undefined, at) });
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
-  const ui = { desktop, turned, phone }[app.presentation.form];
   root.replaceChildren(ui.header(app), dockHost);
   registerWalkthroughExtension(ui.walkthrough); // before the surface creates the panel
   root.classList.add('rr-root');
@@ -206,6 +213,9 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.bus.emit('state', app.state);
   app.bus.emit('prefs', app.prefs);
   recapOnNewRound(app);
+  // the composer's editor stays out of the first paint, then loads while the reviewer reads
+  const idle = setTimeout(() => loadEditor().catch(() => {}), 1500);
+  app.onDispose(() => clearTimeout(idle));
   if (app.backend.github) {
     const age = () => Date.now() - Date.parse(app.github?.at ?? '');
     // the server answers from its cache at once; refetch when that cache is old

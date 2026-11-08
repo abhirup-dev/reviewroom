@@ -6,7 +6,7 @@ import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
 import { ownPanels, panelDef, panelDefs } from '../dock';
-import { addDockPanel, createDock, isFloating } from '../dockview';
+import type * as Dockview from '../dockview';
 import { isTablet } from '../device';
 
 /** Conditional panels are offered once, when their provider first has content. */
@@ -15,6 +15,8 @@ export interface PanelAvailability {
   isAvailable(id: string): boolean;
 }
 export interface MountDockOptions {
+  /** kernel/dockview.ts, handed in by the presentations that have a dock: the phone never loads dockview (Refactor 3.0) */
+  dock: typeof Dockview;
   panelAvailability?: PanelAvailability;
   /** false: never save over the reviewer's last layout (a phone turned on its side, device.ts) */
   save?: boolean;
@@ -34,6 +36,7 @@ export class Layouts {
   /** A pin or section opened big over the layout (focus.ts) isn't a layout change: not saved, not an undo step. */
   readonly passing = new Set<string>();
   private availability?: PanelAvailability;
+  private dock!: typeof Dockview;
   private offered = new Set<string>();
   private undoStack: Snapshot[] = [];
   private last?: Snapshot;
@@ -85,8 +88,8 @@ export class Layouts {
     this.setCurrent(id);
     this.offered = new Set(availability?.ids.filter((pid) => api.getPanel(pid)));
     // an agent's own panels join the walkthrough's tabs (or the dock's edge, in a layout without the walkthrough)
-    for (const d of panelDefs()) if (!d.onDemand && !ownPanels.includes(d.id)) addDockPanel(api, d.id, api.getPanel('narrative') ? { panel: 'narrative', dir: 'within' } : undefined);
-    if (!api.panels.length) addDockPanel(api, 'narrative'); // a layout of nothing reviewroom has
+    for (const d of panelDefs()) if (!d.onDemand && !ownPanels.includes(d.id)) this.dock.addDockPanel(api, d.id, api.getPanel('narrative') ? { panel: 'narrative', dir: 'within' } : undefined);
+    if (!api.panels.length) this.dock.addDockPanel(api, 'narrative'); // a layout of nothing reviewroom has
     api.getPanel('narrative')?.api.setActive();
     return true;
   }
@@ -135,7 +138,7 @@ export class Layouts {
   }
 
   private isPassing() {
-    return this.api.panels.some((p) => p.id.startsWith('slot:') || (this.passing.has(p.id) && isFloating(p.group)));
+    return this.api.panels.some((p) => p.id.startsWith('slot:') || (this.passing.has(p.id) && this.dock.isFloating(p.group)));
   }
 
   // ---------------------------------------------------------------- undo
@@ -168,10 +171,11 @@ export class Layouts {
 
   // ---------------------------------------------------------------- the dock
   /** The dock, as this review last left it (`saved`) or in its starting layout. */
-  mount(host: HTMLElement, saved: LastLayout | null, options: MountDockOptions = {}): DockviewApi {
+  mount(host: HTMLElement, saved: LastLayout | null, options: MountDockOptions): DockviewApi {
     const app = this.app;
     this.availability = options.panelAvailability;
-    const api = createDock(app, host);
+    this.dock = options.dock;
+    const api = this.dock.createDock(app, host);
     let restored = false;
     if (saved) {
       try {

@@ -12,13 +12,15 @@ export function serveProxy(app: Hono, hub: Hub) {
     const u = new URL(c.req.url);
     const headers = new Headers(c.req.raw.headers);
     headers.set('host', up);
-    headers.set('accept-encoding', 'identity'); // loopback: the review answers plain (fetch adds gzip if unset), the hub server compresses once
+    if (!headers.has('accept-encoding')) headers.set('accept-encoding', 'identity'); // else fetch adds its own, and the body is passed on as encoded
     if (headers.has('origin')) headers.set('origin', `http://${up}`);
     try {
-      const res = await fetch(`http://${up}${u.pathname.slice(`/r/${id}`.length)}${u.search}`, { method: c.req.method, headers, body: c.req.raw.body, redirect: 'manual', signal: c.req.raw.signal });
+      const res = await fetch(`http://${up}${u.pathname.slice(`/r/${id}`.length)}${u.search}`, { method: c.req.method, headers, body: c.req.raw.body, redirect: 'manual', signal: c.req.raw.signal, decompress: false });
       // another process took the port since the last poll: say nothing of what it answered
       if (res.headers.get('x-reviewroom-pid') !== String(s.pid)) return (void res.body?.cancel(), c.json({ error: 'the review server is gone' }, 502));
-      return new Response(res.body, res); // as the review sent it (its cache, pid and build headers), with headers compress can set
+      // as the review sent it: its cache, pid and build headers, and its encoding (the browser's Accept-Encoding went
+      // through, so the client build arrives as the review's Brotli files; the hub's compress() skips encoded bodies)
+      return new Response(res.body, res);
     } catch (e) {
       return c.json({ error: `the review server did not answer: ${(e as Error).message}` }, 502);
     }

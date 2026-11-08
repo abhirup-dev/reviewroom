@@ -130,7 +130,7 @@ const heads = columns.map(([key, label, tip, cls]) =>
 const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel' }, all), ...heads)), body);
 
 mountTooltips();
-startUpdates();
+startUpdates(import.meta.url);
 document.body.append(
   h(
     'div',

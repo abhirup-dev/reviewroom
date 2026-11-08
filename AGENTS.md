@@ -44,7 +44,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   `_rr/reviewroom.js` unhashed (agent `review.html` names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
   `start_url` and `scope` `./` (either change orphans installed icons). `src/kernel/pwa.ts` reloads only on
   `controllerchange`, never while a worker installs, and holds the reload over unsent work. The worker never intercepts
-  `/api/` or `/r/<id>/api/`.
+  `/api/` or `/r/<id>/api/`. The build writes a Brotli copy (`<file>.br`) of each client file; `serveClient()` sends it
+  when the browser accepts br, and the hub proxy passes the review's encoding through. Code in a shared chunk sits
+  under `chunks/`: resolve sibling files against the entry's URL (passed in), never a module's `import.meta.url`
+  (the build checks).
 - **The hub proxy** (ADR 0001): a phone sees only the hub, which serves each review at `/r/<id>/`. `hubAccess()`
   (`cli/hub/access.ts`) is the single access seam (loopback or the public origin; identity goes there, nowhere else).
   Client paths are relative (`api`, `_rr/…`) so one build works at `/` and `/r/<id>/`; the manifest link, the worker
@@ -61,7 +64,9 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   `app.services.*`. `rr.app` is internal and may change; review pages use only the documented `window.rr` API. Provider contracts live in `src/kernel/providers/contracts.ts`, separate from implementations.
 - The presentation is chosen once (`app.presentation`, `src/kernel/presentation.ts`: the dock or the phone shell).
   Features expose panels, commands and events and don't branch on phone vs desktop: they read the presentation's data
-  or take what composition hands them (`src/presentation.ts` for the desktop, `src/phone.ts` for the phone). Phone-only
+  or take what composition hands them (`src/presentation.ts` for the desktop, `src/phone.ts` for the phone,
+  `src/turned.ts` for a phone on its side). Each is a lazy chunk `main.ts` picks at boot, as is the composer's editor
+  (`src/threads/editor.ts`); the build checks the phone never loads dockview and nothing loads CodeMirror at boot. Phone-only
   or desktop-only UI lives in its presentation's files (`src/kernel/phone.ts`, `*.phone.ts`, `*.desktop.ts`,
   `*.phone.css`); core never imports them (`scripts/features.ts`). Checks on input modality (touch, `hover: none`)
   are fine anywhere.

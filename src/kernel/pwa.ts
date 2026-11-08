@@ -139,10 +139,20 @@ export function dropReload(key: string) {
 /** A newer build is waiting for a reload (held over unsent work): what to call to take it. Read by the phone's menu. */
 export const updateReady = () => (wanted('update') ? () => reloads.send({ type: 'go' }) : null);
 
-/** Start the update flow. `app` (the review page) adds its unsent ops and server restarts; the hub passes none. */
-export function startUpdates(app?: UpdatesHost) {
+/** A code chunk failed to load: reload into the current build, at most once a minute. True when that reload is wanted. */
+export function reloadOnChunkError(reason: unknown) {
+  if (!CHUNK_ERROR.test(String((reason as Error | undefined)?.message ?? reason)) || !chunkReloadDue(Date.now())) return false;
+  wantReload('update', 'a code file failed to load');
+  return true;
+}
+
+/**
+ * Start the update flow. `entry` is the entry script's URL (its import.meta.url): this module may sit in a shared
+ * chunk under chunks/, and build-info.json and sw.js live beside the entry. `app` (the review page) adds its unsent
+ * ops and server restarts; the hub passes none.
+ */
+export function startUpdates(entry: string, app?: UpdatesHost) {
   host = app;
-  const entry = import.meta.url;
   const serverBuild = () =>
     fetch(new URL('build-info.json', entry), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -181,9 +191,7 @@ export function startUpdates(app?: UpdatesHost) {
     );
   } else void check();
 
-  window.addEventListener('unhandledrejection', (e) => {
-    if (CHUNK_ERROR.test(String((e.reason as Error | undefined)?.message ?? e.reason)) && chunkReloadDue(Date.now())) want('a code file failed to load');
-  });
+  window.addEventListener('unhandledrejection', (e) => void reloadOnChunkError(e.reason));
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void check());
   setInterval(() => void check(), 60_000);
   let started = app?.backend?.pending?.().started ?? null;

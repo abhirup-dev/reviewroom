@@ -11,7 +11,10 @@ test('the worker carries the build id and precaches only files that exist', () =
   expect(sw).toContain(id());
   const list: string[] = JSON.parse(sw.match(/\["\/_rr\/[^\]]*\]/)![0]);
   expect(list).toContain('/_rr/reviewroom.js');
-  expect(list.filter((p) => p.startsWith('/_rr/chunks/')).length).toBeLessThan(5); // the shell's static imports; grammars load lazily
+  // the shell: the entry's static imports, the three presentations and the composer's editor; grammars load lazily
+  const chunks = list.filter((p) => p.startsWith('/_rr/chunks/'));
+  for (const form of ['presentation', 'phone', 'turned', 'editor']) expect(chunks.some((p) => p.startsWith(`/_rr/chunks/${form}-`))).toBe(true);
+  expect(chunks.length).toBeLessThan(10);
   expect(sw).not.toMatch(/\bexport\b/); // registered as a classic worker
   for (const p of list) expect(fs.existsSync(dist + p.slice('/_rr/'.length))).toBe(true);
 });

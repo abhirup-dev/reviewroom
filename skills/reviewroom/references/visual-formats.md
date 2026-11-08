@@ -13,6 +13,7 @@ each node a link to its code.
 | Your own HTML, SVG or `<table>` | A shape Mermaid has none for: a byte layout, a grid of cases, a before/after of a data structure, a latency budget, a tiny widget the reviewer can poke | no (embed it with `rr:doc/`) |
 
 Prefer Mermaid. A table is a picture when the shape of the data is the point.
+Boxes with no edges between them (only invisible `~~~` links) are a list: write a list or a table.
 Don't force code, diffs or UI layouts into diagram labels: show the code with `<rr-code ref>`, the
 diff in the pane, the UI as HTML.
 

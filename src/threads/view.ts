@@ -1,12 +1,12 @@
 // Thread view: used as the centred popup AND as a dockable panel ("thread:<id>").
 // Markdown with live preview, rr: link chips/embeds, rounds, resolve, dock/undock.
-import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, keymap, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
 import { avatarUrl, h, icon, relTime, copyText } from '../kernel/dom';
 import { loadRaw } from '../kernel/store';
+import { reloadOnChunkError } from '../kernel/pwa';
 import { renderMarkdown } from '../kernel/markdown';
-import { refIcon } from '../kernel/refs/browser';
 import { anchorRef, formatRef, parseRef, type Ref } from '../kernel/refs/refs.shared';
+import { refIcon } from '../kernel/refs/browser';
+import type { Editor } from './editor';
 import { keyLabel } from '../kernel/commands';
 import type { Thread } from '../kernel/state/model.shared';
 import { dockThread } from './docking';
@@ -62,22 +62,22 @@ const composerMarkdown = (text: string, label: (ref: string) => string) =>
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-class Chip extends WidgetType {
-  constructor(
-    readonly ref: string,
-    readonly label: string,
-    readonly embed: boolean,
-  ) {
-    super();
-  }
-  override eq(o: Chip) {
-    return o.ref === this.ref && o.label === this.label && o.embed === this.embed;
-  }
-  toDOM() {
-    const r = parseRef(this.ref);
-    return h('span', { class: 'rr-chip rr-chip--token' + (this.embed ? ' is-embed' : ''), 'data-ref': this.ref, title: this.embed ? 'Shows a live preview of this in the comment' : 'Link: opens this when clicked' }, r ? refIcon(r) : null, this.embed ? h('span', { class: 'rr-chip__kind' }, 'preview') : null, this.label);
-  }
-}
+// the editor's module once loaded: a composer opened after that gets its editor at once, as before it was lazy
+// (a phone opens the keyboard only for focus that follows the tap, not focus moved later by a handover)
+let editorModule: typeof import('./editor') | undefined;
+let editorLoad: Promise<typeof import('./editor')> | undefined;
+/** Fetch the composer's editor (its own chunk) ahead of need: boot does at idle, a thread view when it opens. */
+export const loadEditor = () =>
+  (editorLoad ??= import('./editor').then(
+    (m) => (editorModule = m),
+    (e: unknown) => {
+      editorLoad = undefined; // offline, say: the next composer tries again
+      throw e;
+    },
+  ));
+
+// each composer's editor, by its input element: the thread view destroys them, the sheet keeps their caret in view
+const editors = new WeakMap<Element, Pick<Editor, 'destroy' | 'revealCaret'>>();
 
 /** The editor needs reference tools and a selection, not the review's mutable state. */
 interface ComposerContext {
@@ -91,21 +91,6 @@ interface ComposerContext {
 export function composer(app: ComposerContext, opts: { placeholder: string; buttons: SendButton[]; initial?: string; autofocus?: boolean; draftKey?: string; onCancel?(): void }) {
   const buttons = opts.buttons;
   const main = buttons.find((b) => b.main && !b.off) ?? buttons.find((b) => !b.off) ?? buttons[0];
-  // The text is the markdown itself, with rr: links drawn as atomic chips: people see "request_builder.go:51-53",
-  // never `[...](rr:code/...)`.
-  const chips = new MatchDecorator({ regexp: RR_LINK, decoration: (m) => Decoration.replace({ widget: new Chip(m[3], m[2] || app.label(m[3]), !!m[1]) }) });
-  const chipView = ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(v: EditorView) {
-        this.decorations = chips.createDeco(v);
-      }
-      update(u: ViewUpdate) {
-        this.decorations = chips.updateDeco(u, this.decorations);
-      }
-    },
-    { decorations: (p) => p.decorations, provide: (p) => EditorView.atomicRanges.of((v) => v.plugin(p)?.decorations ?? Decoration.none) },
-  );
   const ed = h('div', { class: 'rr-composer__input' });
   const preview = h('div', { class: 'rr-composer__preview rr-prose', hidden: true });
   // unsent text survives a reload (localStorage, per thread or anchor)
@@ -118,11 +103,64 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
       /* private mode: drafts just don't persist */
     }
   };
-  const serialize = () => composerMarkdown(view.state.doc.toString(), (r) => app.label(r));
-  const insert = (t: string) => {
-    view.focus();
-    view.dispatch(view.state.replaceSelection(t), { scrollIntoView: true });
+  const initial = opts.initial ?? (opts.draftKey ? loadRaw(opts.draftKey) : null) ?? '';
+  let editor: Editor | null = null;
+  let gone = false;
+  const onEscape = (e: KeyboardEvent) => {
+    e.stopPropagation();
+    if (opts.onCancel) e.preventDefault(); // cancel the edit, not the dialog around it
+    opts.onCancel?.();
   };
+  // CodeMirror is its own chunk (editor.ts): until it arrives a plain textarea takes the typing, then hands over
+  // its text and caret, so nothing typed straight after opening is lost
+  const stand = h('textarea', { class: 'rr-composer__stand', placeholder: opts.placeholder, 'aria-label': opts.placeholder, spellcheck: 'true' });
+  stand.value = initial;
+  ed.append(stand);
+  stand.addEventListener('input', () => keepDraft(serialize()));
+  stand.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') onEscape(e);
+    else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void submit();
+    }
+  });
+  if (opts.autofocus) requestAnimationFrame(() => editor || stand.focus());
+  const attach = ({ createEditor }: typeof import('./editor')) => {
+    if (gone) return;
+    const typing = document.activeElement === stand;
+    const caret = stand.selectionStart;
+    stand.remove();
+    editor = createEditor(ed, {
+      initial: stand.value,
+      caret,
+      placeholder: opts.placeholder,
+      linkPattern: RR_LINK,
+      label: (r) => app.label(r),
+      onChange: () => keepDraft(serialize()),
+      onSubmit: () => void submit(),
+      onLinkPicker: () => void linkPicker(),
+      onPasteRef: (ref) => {
+        insertRef(ref);
+        return true;
+      },
+      onEscape,
+    });
+    if (typing) editor.focus();
+    else if (opts.autofocus) requestAnimationFrame(() => editor?.focus());
+  };
+  // no editor (offline and not cached, or an update removed this build's chunk): the textarea goes on working, and
+  // a missing chunk reloads into the current build once the unsent text allows
+  const ready = editorModule ? Promise.resolve(attach(editorModule)) : loadEditor().then(attach, (e: unknown) => void reloadOnChunkError(e));
+  editors.set(ed, {
+    destroy: () => {
+      gone = true;
+      editor?.destroy();
+    },
+    revealCaret: () => editor?.revealCaret(),
+  });
+  const focus = () => (editor ? editor.focus() : stand.focus());
+  const serialize = () => composerMarkdown(editor?.text() ?? stand.value, (r) => app.label(r));
+  const insert = (t: string) => void ready.then(() => editor?.insert(t));
   const insertRef = (ref: string, embed = false) => {
     const link = `[${app.label(ref).replace(/[[\]]/g, '')}](${ref})`;
     insert(embed ? `\n!${link}\n` : link + ' ');
@@ -138,16 +176,13 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
     ed.hidden = m === 'preview';
     preview.hidden = m === 'write';
     if (m === 'preview') preview.innerHTML = renderMarkdown(serialize() || '_Nothing to preview_');
-    else view.focus();
+    else focus();
   };
-  const wrapSel = (before: string, after = before, placeholder = '') => {
-    const { from, to } = view.state.selection.main;
-    insert(before + (view.state.sliceDoc(from, to) || placeholder) + after);
-  };
+  const wrapSel = (before: string, after = before, placeholder = '') => void ready.then(() => editor?.wrap(before, after, placeholder));
   const linkPicker = async (embed = false) => {
     const ref = await app.pickRef?.();
     if (ref) insertRef(ref, embed);
-    else view.focus();
+    else focus();
   };
   const emojiPicker = async () => {
     const btn = el.querySelector('[aria-label="Emoji"]') as HTMLElement;
@@ -164,56 +199,17 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
   const submit = async (b: SendButton = main) => {
     if (b.off) return;
     const body = serialize();
-    if (!body) return view.focus();
+    if (!body) return focus();
     if (busy) return;
     busy = true;
     // false (GitHub refused it, say): keep the text so nothing typed is lost
     const ok = await Promise.resolve(b.onSubmit(body)).finally(() => (busy = false));
     if (ok === false) return;
     keepDraft(''); // sending may have destroyed the view, and with it the listener that would clear the draft
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length } });
+    if (editor) editor.clear();
+    else stand.value = '';
     setMode('write');
   };
-  const initial = opts.initial ?? (opts.draftKey ? loadRaw(opts.draftKey) : null) ?? '';
-  const view = new EditorView({
-    parent: ed,
-    doc: initial,
-    selection: { anchor: initial.length },
-    extensions: [
-      // Enter is a plain line break (no auto-indent); ⌘↵ sends
-      keymap.of([{ key: 'Mod-Enter', run: () => { void submit(); return true; } }, { key: 'Enter', shift: insertNewline, run: insertNewline }, ...standardKeymap, ...historyKeymap]),
-      history(),
-      chipView,
-      placeholder(opts.placeholder),
-      EditorView.lineWrapping,
-      EditorView.contentAttributes.of({ 'aria-label': opts.placeholder, spellcheck: 'true' }),
-      EditorView.updateListener.of((u) => u.docChanged && keepDraft(serialize())),
-      // "[[" opens the link picker
-      EditorView.inputHandler.of((v, from, to, text) => {
-        if (text !== '[' || v.state.sliceDoc(from - 1, from) !== '[') return false;
-        v.dispatch({ changes: { from: from - 1, to } });
-        void linkPicker();
-        return true;
-      }),
-      EditorView.domEventHandlers({
-        keydown: (e) => {
-          if (e.key !== 'Escape') return false;
-          e.stopPropagation();
-          if (opts.onCancel) e.preventDefault(); // cancel the edit, not the dialog around it
-          opts.onCancel?.();
-          return true;
-        },
-        // pasted text arrives as plain text (CodeMirror reads text/plain); a bare rr: link becomes a chip
-        paste: (e) => {
-          const t = e.clipboardData?.getData('text/plain').trim() ?? '';
-          if (!/^rr:\S+$/.test(t) || !parseRef(t)) return false;
-          e.preventDefault();
-          insertRef(t);
-          return true;
-        },
-      }),
-    ],
-  });
   ed.addEventListener('click', (e) => {
     const c = (e.target as Element).closest('[data-ref]') as HTMLElement | null;
     if (c && (e.metaKey || e.ctrlKey)) void app.open(c.dataset.ref!);
@@ -253,8 +249,7 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
       ...buttons.map((b) => b.to ? sendButton({ ...b, to: b.to }, () => submit(b)) : h('button', { class: 'rr-btn' + (b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.title, onclick: () => submit(b) }, b.label)),
     ),
   );
-  if (opts.autofocus) requestAnimationFrame(() => view.focus());
-  return { el, focus: () => view.focus() };
+  return { el, focus, ready };
 }
 
 // ------------------------------------------------------------------ anchor context
@@ -327,11 +322,12 @@ export function anchorChip(app: ReviewApp, anchor: Anchor, title?: string) {
 }
 
 export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement; dispose: () => void } {
+  loadEditor().catch(() => {}); // a reply is likely: fetch the editor now, so it is there by the tap
   const root = h('div', { class: 'rr-thread' + (o.docked ? ' is-docked' : '') + (o.id ? '' : ' is-new') });
   let off: (() => void) | undefined;
   let lastCount = -1;
   // an editor keeps document listeners (and through them this DOM) until destroyed: drop the ones about to be replaced
-  const drop = (n: Element) => n.querySelectorAll<HTMLElement>('.cm-editor').forEach((e) => EditorView.findFromDOM(e)?.destroy());
+  const drop = (n: Element) => n.querySelectorAll('.rr-composer__input').forEach((e) => editors.get(e)?.destroy());
 
   const pinBtn = (ref: string) => {
     const set = (b: HTMLElement) => {
@@ -530,9 +526,8 @@ export function mountThreadPopup(app: ReviewApp) {
   // the sheet just got shorter or moved: keep the caret in view inside the composer
   const keepCaret = () =>
     requestAnimationFrame(() => {
-      const cm = document.activeElement?.closest('.cm-editor');
-      const v = cm && box.contains(cm) ? EditorView.findFromDOM(cm as HTMLElement) : null;
-      v?.dispatch({ effects: EditorView.scrollIntoView(v.state.selection.main.head) });
+      const input = document.activeElement?.closest('.rr-composer__input');
+      if (input && box.contains(input)) editors.get(input)?.revealCaret();
     });
   let wasSending = false;
   // the composer keeps its text (and its saved draft) unless the comment went out, even if the popup has moved on
