@@ -79,6 +79,6 @@ One story at two depths:
   section can link back to its slide (`rr:tour/<chapter>/<step>`).
 - Tables, supporting detail and caveats go in the walkthrough; a slide carries only the attributed
   number its claim needs. The guided walkthrough is written once and kept stable; the walkthrough grows
-  round by round (see "Answering threads" in `review-craft.md`).
+  round by round (see "Answer each thread" in `review-rounds.md`).
 - Each slide fits the screen (the checks in `authoring.md` measure it). Split a slide rather than
   squeeze it.

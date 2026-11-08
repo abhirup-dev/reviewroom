@@ -1,6 +1,6 @@
 ---
 name: reviewroom
-description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a linked, interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code, optionally a guided walkthrough (chaptered slides played over the code), and answer the reviewer's threads round by round. Use this whenever the user wants a PR, branch or diff reviewed or explained "in reviewroom", asks for a guided walkthrough, guided review or tour of a change, gives a PR number or GitHub PR URL to review, says they left comments or sent feedback in reviewroom, or asks you to reply to review threads, even if they don't name the tool.
+description: Run agent-guided code reviews in reviewroom, a local review workbench where you write an interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code, optionally a guided walkthrough (chaptered slides played over the code), and answer the reviewer's threads round by round.
 ---
 
 # Review with reviewroom
@@ -19,30 +19,18 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 
 ## Choose the command
 
-| The reviewer wants | Run |
-| --- | --- |
-| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <n \| url \| branch> --repo <path> --wait` → Step 1 |
-| A review of uncommitted work | `reviewroom pr --head worktree --repo <path> --wait` → Step 1 |
-| You to answer feedback they already sent | `reviewroom review --dir <dir>`: prints unread feedback at once → Step 6 |
-| To see where a review stands | `reviewroom status --json --dir <dir>` (`--threads` for the threads) |
-| To end the review | `reviewroom stop --dir <dir>` |
+| The reviewer wants                                        | Run                                                                  |
+| ---                                                       | ---                                                                  |
+| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <n \| url \| branch> --repo <path> --wait` → Step 1   |
+| A review of uncommitted work                              | `reviewroom pr --head worktree --repo <path> --wait` → Step 1        |
+| You to answer feedback they already sent                  | Read `references/review-rounds.md`, "Resume an existing review"      |
+| To see where a review stands                              | `reviewroom status --json --dir <dir>` (`--threads` for the threads) |
+| To end the review                                         | `reviewroom stop --dir <dir>`                                        |
 
 ## Step 1: Start the review in the background
 
-**CRITICAL: you MUST run this step. Do NOT skip it.**
-
-Run it **in the background / async**:
-
-```bash
-reviewroom pr <n | url | branch> --repo <path> --wait
-```
-
-It creates the review, serves it, opens it (in the macOS app when installed, else the browser; `--browser`
-forces the browser), and then blocks until the reviewer clicks
-*Send feedback* or *Approve*.
-
-The page goes offline when the command exits and comes back with the next one; the reviewer's open
-tab reconnects by itself. That is expected.
+Read "Start the review server" in `references/review-rounds.md` and launch the review as it
+instructs. Keep the command running in the background while writing the walkthrough.
 
 ## Step 2: Relay the URL
 
@@ -93,12 +81,13 @@ main story; the walkthrough (`review.html`) is where they dig in.
 Before writing, read:
 1. `references/review-craft.md`: what to say and in what order (with a guided walkthrough,
    `references/guided-walkthrough-craft.md` first: outline the story once, then write both from it).
-2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
+2. `references/authoring.md`: links, symbols, code previews and typography;
+   `references/visual-formats.md` when choosing or writing visuals.
 
 The walkthrough is usually read in a narrow side panel (about 400px) or on a phone: design every
 diagram, table and widget for that width, never for a wide page.
 
-Prefer Mermaid in `<rr-mermaid>` for diagrams (`references/visual-formats.md`).
+Reviewroom has good support for rich visualizations in Mermaid; leverage it.
 
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
@@ -122,90 +111,18 @@ Only once the walkthrough (and the guided walkthrough, if wanted) is done and cl
   Approve)."** (`?walkthrough=` opens the player at the first slide; the page alone does not.)
 - Without: **"The walkthrough is ready. Leave comments, then click Send feedback (or Approve)."**
 
-## Step 5: Wait for the reviewer
+## Step 5: Continue across review rounds
 
-**Do NOT proceed until the background command exits.** Do NOT ask the reviewer to type anything. Do NOT
-read threads early. The command exiting is how you know the reviewer has finished the round.
-
-## Step 6: Read the feedback
-
-The command prints the round's feedback as markdown: one block per thread with new messages, each
-with its anchor, then the state of the walkthrough's open questions (under `Open questions`) and the
-reviewer's overall note. Its opening lines give the
-exact commands to answer and to start the next round.
-
-If its heading says `APPROVED`, tell the reviewer and stop. Leave open threads alone unless they ask.
-
-<important if="a thread's anchor points at code or walkthrough text that has changed since">
-The anchor is what the thread is about. A code anchor carries the excerpt the reviewer saw; a
-walkthrough anchor carries the quoted text. Find the current position by that excerpt or quote, not
-by line number.
-</important>
-
-## Step 7: Answer each thread
-
-For each thread in the feedback:
-
-1. Understand what it asks. Change code or the walkthrough if asked.
-2. Short answers go in the reply. Substantial ones go in a new section of `review.html`, and the
-   reply links to it (see "Answering threads" in `references/review-craft.md`).
-3. Mark every section you add or substantially change with `data-round="<next round>"`, and link
-   the thread that prompted it at the section's top.
-4. When the answer builds on an earlier thread, a team thread or what the walkthrough said in an
-   earlier round, link it (`rr:thread/<id>`, `rr:thread/gh_<n>`, `rr:round/<n>`) instead of
-   restating it.
-5. Reply with `reviewroom reply <thread-id> --file <reply.md> --dir <dir>`.
-6. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the reviewer
-   explicitly asks.
-
-If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports. For a PR
-fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
-push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
-(`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
-
-A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
-the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a
-deeper explanation, a table, a sketch), grow the walkthrough instead of the slide: a new `data-round`
-section that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its
-top and expands on it; the reply links that section, and the discussion continues there. Edit the
-slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
-again as in Step 4b until clean.
-
-<important if="you are replying to several threads at once">
-Write the answers to a JSON file, then send them in one call (all or nothing):
-`reviewroom reply --json <replies.json> --dir <dir>`, with `[{"thread": "t_ab12", "body": "…"}]`.
-</important>
-
-<important if="the feedback lists threads under 'Open on GitHub'">
-Those are team threads: colleagues' threads on the PR, shown for context. They are not feedback for you and you
-cannot reply to them. When one matters to your answer, link or embed it with `rr:thread/gh_<n>`.
-</important>
-
-## Step 8: Start the next round
-
-**CRITICAL: you MUST run this step. Do NOT skip it.**
-
-Run the command the feedback names, **in the background** as in Step 1:
-
-```bash
-reviewroom review --dir <dir>
-```
-
-Tell the reviewer: **"Replies are in. Review them in the browser and click Send feedback or Approve
-when ready."** Then return to Step 5.
+Read `references/review-rounds.md` for waiting on feedback, checking status, answering comments,
+and starting the next round. Follow that loop until the reviewer approves or asks to stop.
 
 ## Do not
 
-- Do not run `reviewroom pr --wait` or `reviewroom review` in the foreground; they block until the
-  reviewer acts. Never run `reviewroom pr` without `--wait` or `--detach`: it serves forever.
-- Do not stop or kill the background command to "finish" a round; wait for it to exit.
-- Do not pass `--resolve` unless the reviewer explicitly asks.
 - Do not edit anything in the review directory except `review.html`, `walkthrough.json` and assets
   you add next to them.
 - Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
   any round, team thread, earlier round) in plain text, and do not paraphrase or quote a thread:
-  link or embed it. Link a thing where it first comes up; when the same thing appears again within
-  the next few paragraphs (roughly 10 to 15 lines), plain mention is fine. Don't repeat links.
+  link or embed it. Follow the link-placement guidance in `references/authoring.md`, under "Links: `rr:` refs".
 - Do not paste diff code into the walkthrough or replies; link or embed it.
 - Do not cite a line number you have not checked against the head revision (ast-grep, Step 3).
 - Do not guess flags; run `reviewroom <command> --help`.
