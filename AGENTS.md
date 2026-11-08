@@ -5,7 +5,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 ## Layout
 
 - `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
-  round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, state, GitHub (Octokit, as the `gh` user).
+  round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, PWA, state, GitHub (Octokit, as the `gh` user); `hub/proxy.ts` serves reviews through the hub.
 - `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
   `main.ts`, `app.ts` and `services.ts` compose the app. `kernel/` owns infrastructure; `review/`, `threads/`,
   `slides/` and `hub/` own features, including their CSS and XState machines.
@@ -38,7 +38,7 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
   reviewer's settings, so far `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts.
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
-  (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/server.ts`):
+  (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,
   `build-info.json`) `no-cache`, the API `no-store`; every response carries `x-reviewroom-build`. Keep
   `_rr/reviewroom.js` unhashed (agent `review.html` names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
