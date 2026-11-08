@@ -344,19 +344,19 @@
    the chapter, the card stepping up out of its way, for 2.5 s */
 [data-form='phone'] .rr-tour__band {
   position: absolute;
-  left: 8px;
-  right: 8px;
+  left: var(--rr-space-8);
+  right: var(--rr-space-8);
   bottom: env(safe-area-inset-bottom);
   z-index: 1;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--rr-space-8);
   height: 20px;
-  padding: 14px 16px 0;
+  padding: var(--rr-space-12) var(--rr-space-16) 0;
   overflow: hidden;
   border-radius: var(--rr-shape-l);
   background: var(--rr-surface-overlay-2);
-  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow-lg);
+  box-shadow: var(--rr-shadow-lg);
   color: var(--rr-ink);
   font-size: var(--rr-text-sm);
   font-weight: 600;
@@ -373,8 +373,8 @@
   flex: none;
   color: var(--rr-accent);
   font-size: var(--rr-text-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
 }
 [data-form='phone'] .rr-tour__band span {
@@ -391,28 +391,19 @@
 [data-form='phone'] .rr-tour__seg-title {
   display: none;
 }
-[data-form='phone'] .rr-tour__ticks {
-  gap: 3px;
-}
-[data-form='phone'] .rr-tour__tick {
-  height: 4px;
-  border-radius: var(--rr-shape-xs);
-}
 [data-form='phone'] .rr-tour__tick.is-on {
   box-shadow: none;
 }
 [data-form='phone'] .rr-tour__bottom {
   position: absolute;
   left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(var(--rr-space-16) + env(safe-area-inset-bottom));
   translate: -50% 0;
   z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  width: auto;
+  gap: var(--rr-space-4);
   height: 52px;
-  padding: 0 4px;
+  padding: 0 var(--rr-space-4);
   border: 0;
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
@@ -443,7 +434,7 @@
   align-self: flex-end;
   width: 40px;
   height: 40px;
-  margin: -32px -8px -6px 0;
+  margin: calc(-1 * var(--rr-space-32)) calc(-1 * var(--rr-space-8)) calc(-1 * var(--rr-space-6)) 0;
   border: 1px solid var(--rr-line-strong); /* floats over code and prose alike: an edge and a shadow to find it by */
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
@@ -453,8 +444,8 @@
 /* a one-line card is shorter than the icon: centred on its right edge instead */
 [data-form='phone'] .is-immersive .rr-tour__left[data-detent='collapsed'] .rr-tour__restore {
   position: absolute;
-  top: calc(50% + 12px); /* the text's middle, under the grip */
-  right: 8px;
+  top: calc(50% + var(--rr-space-12)); /* the text's middle, under the grip */
+  right: var(--rr-space-8);
   translate: 0 -50%;
   margin: 0;
 }
@@ -479,19 +470,19 @@
 }
 [data-form='phone'] .rr-tour__note {
   position: fixed;
-  top: calc(16px + env(safe-area-inset-top));
+  top: calc(var(--rr-space-16) + env(safe-area-inset-top));
   left: 50%;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: calc(100% - 24px);
-  padding: 12px 20px;
+  gap: var(--rr-space-6);
+  max-width: calc(100% - var(--rr-space-24));
+  padding: var(--rr-space-12) var(--rr-space-16);
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay-2);
-  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow-lg);
+  box-shadow: var(--rr-shadow-lg);
   color: var(--rr-ink);
-  font-size: 15px;
+  font-size: var(--rr-text-lg);
   font-weight: 500;
   white-space: nowrap;
   opacity: 0;
@@ -519,24 +510,25 @@
   left: 0;
   width: 40px;
   height: 40px;
-  margin: -20px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--rr-accent) 60%, transparent); /* reads on light and dark alike */
-  box-shadow: 0 0 0 2px var(--rr-touch-ring), 0 0 0 10px color-mix(in srgb, var(--rr-accent) 20%, transparent), var(--rr-shadow);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- centres the 40px coach dot on its scripted coordinates */
+  margin: calc(40px / -2);
+  border-radius: var(--rr-shape-full);
+  background: color-mix(in srgb, var(--rr-accent) var(--rr-mix-lg), transparent); /* reads on light and dark alike */
+  box-shadow: 0 0 0 2px var(--rr-touch-ring), 0 0 0 10px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent), var(--rr-shadow);
 }
 [data-form='phone'] .rr-tour__cue {
   translate: -50% 0;
-  padding: 4px 12px;
+  padding: var(--rr-space-4) var(--rr-space-12);
   border-radius: var(--rr-shape-full);
   background: var(--rr-ink); /* inverse: reads over light and dark */
   color: var(--rr-surface-doc);
   font-size: var(--rr-text-sm);
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 [data-form='phone'] .rr-tour__restore.is-hinting {
   border-color: var(--rr-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rr-accent) 35%, transparent), 0 0 24px color-mix(in srgb, var(--rr-accent) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent), 0 0 24px color-mix(in srgb, var(--rr-accent) var(--rr-mix-lg), transparent);
   color: var(--rr-accent);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -546,12 +538,12 @@
 }
 @keyframes rr-tour-beckon {
   50% {
-    box-shadow: 0 0 0 8px color-mix(in srgb, var(--rr-accent) 22%, transparent), 0 0 32px color-mix(in srgb, var(--rr-accent) 70%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent), 0 0 32px color-mix(in srgb, var(--rr-accent) var(--rr-mix-lg), transparent);
   }
 }
 /* the last step asks: its two buttons take taps */
 [data-form='phone'] .rr-tour__note.is-ask {
-  gap: 12px;
+  gap: var(--rr-space-12);
   pointer-events: auto;
 }
 [data-form='phone'] .rr-tour__note .rr-link-btn {
@@ -563,8 +555,8 @@
 [data-form='phone'] .rr-tour__bottom button {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
   border: 0;
   border-radius: var(--rr-shape-full);
   background: none;
@@ -578,18 +570,18 @@
 }
 @media (hover: hover) {
   [data-form='phone'] .rr-tour__bottom button:enabled:hover {
-    box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 8%, transparent);
+    box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor var(--rr-mix-xs), transparent);
   }
 }
 [data-form='phone'] .rr-tour__bottom button:enabled:active {
-  box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor var(--rr-mix-sm), transparent);
 }
 [data-form='phone'] .rr-tour__back svg {
   transform: scaleX(-1);
 }
 .rr-tour__pair {
   display: flex;
-  gap: 4px;
+  gap: var(--rr-space-4);
 }
 [data-form='phone'] .rr-tour__bottom .rr-tour__contents,
 [data-form='phone'] .rr-tour__bottom .rr-tour__full {
@@ -632,7 +624,7 @@
 [data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__left {
   position: static;
   max-height: none;
-  padding: 12px 24px 28px; /* clear of the progress row */
+  padding: var(--rr-space-12) var(--rr-space-24) var(--rr-space-32); /* clear of the progress row */
   border-right: 1px solid var(--rr-line);
   border-radius: 0;
   background: var(--rr-surface-doc);
@@ -657,15 +649,14 @@
 }
 [data-form='phone'][data-orient='landscape'] .rr-tour__bottom {
   left: calc((100% + var(--rr-tour-split, 50%)) / 2); /* the code's middle */
-  bottom: calc(20px + env(safe-area-inset-bottom));
 }
 [data-form='phone'][data-orient='landscape'] .is-solo .rr-tour__bottom {
   left: 50%;
 }
 [data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__restore {
   position: absolute;
-  top: calc(8px + env(safe-area-inset-top));
-  right: calc(8px + env(safe-area-inset-right));
+  top: calc(var(--rr-space-8) + env(safe-area-inset-top));
+  right: calc(var(--rr-space-8) + env(safe-area-inset-right));
   bottom: auto;
   z-index: 3;
   margin: 0;
