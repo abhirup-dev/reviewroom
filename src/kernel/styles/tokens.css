@@ -1,13 +1,29 @@
-/* Design tokens. Override any of these on :root (or rr-app) to rebrand.
-   Light is the default; [data-rr-theme="dark"] on <html> switches. */
+/* Design tokens. Override any of these on :root to rebrand.
+   Light is the default; [data-rr-theme="dark"] on <html> switches.
+
+   Three layers, each with one job:
+     1. this file: the scales (type, space, radius, mix) and the palette, light and dark. The only place --rr-* are set
+        and the only place with literal colours.
+     2. --rr-panel / --rr-panel-2: the surface a component sits on, the one pair a panel redefines for its children
+        (panel-surfaces.css), so a component paints var(--rr-panel) and fits whichever panel holds it.
+     3. bridges: a library's own variables (--pele-* diagrams, --diffs-* code, --dv-* the dock) set from --rr-* in that
+        library's CSS, with no values of their own.
+   A component's private variable (a variant switch, a value from script) is --_name, set and read in its own files. */
 :root {
-  /* Typography: three voices, all bundled with the tool (no network fonts).
-     --rr-font-read  reading: the walkthrough
-     --rr-font       interface: buttons, toolbars, labels, comments
-     --rr-mono       code, file names, identifiers */
-  --rr-font-read: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+  /* Typography: four voices. Two sets, switched by the reader (the Typography pref, data-rr-type on <html>):
+     the default (Inter for text, Mona Sans, GitHub's face, for headings, code in the system mono as on GitHub) and the
+     classic set below (Inter, a Source Serif 4 walkthrough, JetBrains Mono). Inter and Mona Sans are bundled.
+     --rr-font-read     reading: the walkthrough's body
+     --rr-font-display  the walkthrough's headings
+     --rr-font          interface: buttons, toolbars, labels, comments
+     --rr-mono          code, file names, identifiers */
   --rr-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --rr-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --rr-font-read: var(--rr-font);
+  --rr-font-display: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  --rr-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  /* the walkthrough's h1 and h2 sit on a hairline, as in a GitHub README */
+  --rr-heading-rule: 1px solid var(--rr-line);
+  --rr-heading-rule-gap: 0.3em;
 
   /* One type scale for all three voices; every font size in the desktop CSS is one of these (or em/% of its
      context), and stylelint enforces it. One pixel apart where the interface is fine-grained, then steps of 1.2
@@ -22,8 +38,8 @@
   --rr-text-2xl: 23px; /* h2 */
   --rr-text-3xl: 32px; /* h1 */
   --rr-text-prose: var(--rr-text-lg); /* the reading body, as review pages name it */
-  --rr-leading-prose: 1.6;
-  /* letter-spacing: caps labels open up, serif headings tighten */
+  --rr-leading-prose: 1.5;
+  /* letter-spacing: caps labels open up, headings tighten */
   --rr-tracking-caps: 0.06em;
   --rr-tracking-tight: -0.01em;
 
@@ -49,7 +65,13 @@
   --rr-radius: 2px; /* controls, chips, cards and blocks inside a panel */
   --rr-radius-lg: 4px; /* floating: menus, dialogs, palette, popovers, floating panels */
   --rr-header-h: 52px;
+  /* toolbars: every bar of tools (the code panel's, the walkthrough's top bar, the dock's tab bars) shares these */
   --rr-bar-h: 36px;
+  --rr-bar-pad: var(--rr-space-8); /* from the bar's ends */
+  --rr-bar-gap: var(--rr-space-6); /* between its controls */
+  --rr-bar-tool: var(--rr-control-sm); /* an icon tool in it */
+  --rr-band-h: 38px; /* a file's band: its status, path, size and Viewed, over its code */
+  --rr-indent: 14px; /* one level of a tree: files, contents */
   --rr-doc-width: 760px;
   --rr-rail-width: 232px;
 
@@ -72,11 +94,8 @@
   --rr-ink-2: #3d3b36;
   --rr-muted: #67635b;
   --rr-faint: #8d897f;
-  --rr-line: #e4e1d9;
-  --rr-line-strong: #d3cfc5;
-  /* translucent so they read correctly on every surface */
-  --rr-hover: rgba(27, 26, 23, 0.055);
-  --rr-active: rgba(27, 26, 23, 0.09);
+  --rr-line: #dbd7cd;
+  --rr-line-strong: #c7c2b6;
   --rr-accent: #2557d6;
   --rr-accent-ink: #ffffff;
   --rr-accent-soft: #e8eefc;
@@ -85,7 +104,6 @@
   --rr-comment-ink: #ffffff; /* text on --rr-comment */
   --rr-highlight: rgba(244, 172, 69, 0.28);
   --rr-highlight-hot: rgba(244, 152, 32, 0.5);
-  --rr-flash: rgba(37, 87, 214, 0.12);
   --rr-add: #1a7f37;
   --rr-del: #c2402a;
   --rr-ok: #1a7f37;
@@ -94,6 +112,7 @@
   --rr-sym-fn: #7347c4;
   --rr-sym-type: #0f7a6b;
   --rr-sym-value: #9a6200;
+  --rr-pin: #b5179e; /* what's pinned to Contents */
   --rr-warn: #a35c00;
   --rr-warn-soft: #fff3dc;
   --rr-risk: #b42318;
@@ -109,7 +128,33 @@
   /* the phone coach: the screen dimmed around its spotlight, and the ring on its touch dot */
   --rr-spotlight: rgba(0, 0, 0, 0.62);
   --rr-touch-ring: #ffffff;
+
+  /* Derived colours, one mechanism for every theme. Every colour the CSS derives from a token is a color-mix() by a step
+     of this scale (stylelint rejects a literal percentage), so a wash, a tint or a rule is the same strength everywhere:
+       fade a colour:            color-mix(in srgb, var(--rr-x) var(--rr-mix-sm), transparent)
+       move it toward another:   color-mix(in srgb, var(--rr-x), var(--rr-y) var(--rr-mix-sm))
+     Computed on :root, so they follow the theme's palette (light above, dark below) on their own. */
+  --rr-mix-xs: 6%; /* a wash: rows, selections */
+  --rr-mix-sm: 12%; /* a tint: badges, chips, shadows, the hover of something tinted */
+  --rr-mix-md: 24%; /* a rule or border from a colour, emphasis */
+  --rr-mix-lg: 48%; /* half: done marks, underlines meant to read */
+  /* the code's syntax colours: how far each is pushed from the surface, 0 the theme's own (previews.ts, CODE_CSS) */
+  --rr-code-contrast: 0.3;
+  /* translucent so they read correctly on every surface */
+  --rr-hover: color-mix(in srgb, var(--rr-ink) var(--rr-mix-xs), transparent);
+  --rr-active: color-mix(in srgb, var(--rr-ink) var(--rr-mix-sm), transparent);
+  --rr-flash: color-mix(in srgb, var(--rr-accent) var(--rr-mix-sm), transparent);
   color-scheme: light;
+}
+
+/* the classic set: a serif walkthrough between Inter and JetBrains Mono */
+:root[data-rr-type='classic'] {
+  --rr-font-read: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+  --rr-font-display: var(--rr-font-read);
+  --rr-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --rr-heading-rule: none;
+  --rr-heading-rule-gap: 0;
+  --rr-leading-prose: 1.6;
 }
 
 :root[data-rr-theme='dark'] {
@@ -128,10 +173,8 @@
   --rr-ink-2: #c9c6bf;
   --rr-muted: #a09c93;
   --rr-faint: #7b776f;
-  --rr-line: #262a30;
-  --rr-line-strong: #343941;
-  --rr-hover: rgba(232, 230, 225, 0.06);
-  --rr-active: rgba(232, 230, 225, 0.1);
+  --rr-line: #2f343b;
+  --rr-line-strong: #40464f;
   --rr-accent: #7aa2f7;
   --rr-accent-ink: #0d1117;
   --rr-accent-soft: #1b2638;
@@ -140,7 +183,6 @@
   --rr-comment-ink: #1c1206;
   --rr-highlight: rgba(240, 163, 94, 0.22);
   --rr-highlight-hot: rgba(240, 163, 94, 0.42);
-  --rr-flash: rgba(122, 162, 247, 0.16);
   --rr-add: #8fc9a3; /* pastel: diffs stay calm on dark */
   --rr-del: #e49ab0;
   --rr-ok: #5fc77a;
@@ -148,6 +190,7 @@
   --rr-sym-fn: #b9a3f0;
   --rr-sym-type: #7fcdbf;
   --rr-sym-value: #e3b56b;
+  --rr-pin: #f07ad8;
   --rr-warn: #f2b45b;
   --rr-warn-soft: #2e2414;
   --rr-risk: #f58b80;

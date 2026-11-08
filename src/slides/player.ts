@@ -106,15 +106,16 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     o.el.classList.add('is-gone');
     setTimeout(() => drop(o), 250);
   };
-  // a header names the chunk (in its code panel's toolbar); stacked, clicking it shows only that one
+  // stacked chunks are named in their code panel's toolbar (one alone has only its file's band); clicking a name shows
+  // only that one
   const nameHead = (head: HTMLElement, ref: string) => {
     const r = parseRef(ref);
     head.replaceChildren(...(r ? [refIcon(r)] : []), h('span', null, app.label(ref)));
-    if (head instanceof HTMLButtonElement) head.onclick = () => focus(ref);
+    head.onclick = () => focus(ref);
   };
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
     const id = `code:tour-${++panes}`;
-    const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : slot.code ? h('span', { class: 'rr-tour__chunk-head' }) : null;
+    const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
     if (head) nameHead(head, slot.ref);
     const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, ...form.codeLayout?.() }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
@@ -163,10 +164,6 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     },
   });
   const actor = createActor(walkthroughMachine.provide({ actors: { pane: pane$ } })).start();
-  const shownRefs = () => {
-    const s = actor.getSnapshot().children.pane?.getSnapshot().context.shown;
-    return s?.kind === 'refs' ? s.slots.map((x) => x.ref) : [];
-  };
 
   // ------------------------------------------------------------ skeleton
   const chapterPrev = btn('chevron', 'Previous chapter', () => go(-1));
@@ -234,20 +231,14 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
   const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
-  const openHere = btn('popout', 'Pause and open this in the workbench', () => {
-    const [ref] = shownRefs();
-    actor.send({ type: 'pause' });
-    if (ref) void app.open(ref);
-  });
   // the boundary between the narration and the code drags to resize (side by side only: CSS hides it otherwise); the
   // share of the width is kept per device, a double-click goes back to the default
   const SPLIT = 'reviewroom:tour-split';
-  const splitAt = (f: unknown) => (typeof f === 'number' ? split.style.setProperty('--rr-tour-split', `clamp(240px, ${f * 100}%, calc(100% - 240px))`) : split.style.removeProperty('--rr-tour-split'));
-  splitAt(loadJSON(SPLIT));
+  const splitAt = (f: unknown) => (typeof f === 'number' ? player.style.setProperty('--rr-tour-split', `clamp(240px, ${f * 100}%, calc(100% - 240px))`) : player.style.removeProperty('--rr-tour-split'));
   const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => { saveLocal(SPLIT, null); splitAt(null); } });
   let box: DOMRect, share = 0;
   onDrag(resize, {
-    start: () => (box = split.getBoundingClientRect()),
+    start: () => (box = player.getBoundingClientRect()), // the desktop's body is display: contents (no box of its own)
     move: (_dx, _dy, e) => splitAt((share = (e.clientX - box.left) / box.width)),
     end: (dx) => dx && saveLocal(SPLIT, share),
   });
@@ -260,10 +251,11 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), openHere, btn('pause', 'Pause: shrink to a pill and use the workbench', () => actor.send({ type: 'pause' }), 'Esc'), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
+    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
     (split.append(left, right), split),
     bottom,
   );
+  splitAt(loadJSON(SPLIT)); // on the player: on the desktop its grid holds the columns, so the chapter bar spans only the narration
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
@@ -276,7 +268,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   // The phone player goes by the device, either way up, under either shell: composition hands it in
   const form: PlayerForm = phoneForm
     ? phoneForm({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
-    : desktopPlayer({ actor, chapterBtn, next });
+    : desktopPlayer({ actor, root, chapterBtn, next });
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });

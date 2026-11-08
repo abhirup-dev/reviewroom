@@ -5,7 +5,7 @@ import path from 'node:path';
 import { read, setup } from './fixture.ts';
 
 describe('slides', () => {
-  const { dir, d, cli, state } = setup();
+  const { dir, d, cli, state, repo } = setup();
   const demo = path.join(import.meta.dir, '..', 'examples', 'habit-events', 'walkthrough.json');
   const walkthrough = read(import.meta.dir, '..', 'examples', 'habit-events', 'review.html');
   // Keep the paired walkthrough: slides may link to its sections with rr:doc refs.
@@ -79,5 +79,25 @@ describe('slides', () => {
     expect([shot.code, shot.stdout.split('\n')[0]]).toEqual([0, png]);
     expect([...fs.readFileSync(png).subarray(1, 4)].map((c) => String.fromCharCode(c)).join('')).toBe('PNG');
     expect(listing()).toEqual(before);
+  }, 60_000);
+
+  // the desktop player's chapter heading is as tall as the code's toolbar and file band (slides.css), so a slide's text
+  // starts level with the code, with a chapter intro above it (why) or without (fetcher), whatever the tokens become
+  test.skipIf(!browser)('the narration starts level with the code, with or without a chapter intro', async () => {
+    const { withServer, withPage } = await import('../cli/lib/render.ts');
+    const gap = (url: string) =>
+      withPage(url, { width: 1440, height: 900 }, (p) =>
+        p.evaluate<number>(`new Promise((ok) => {
+          const at = () => {
+            const band = document.querySelector('.rr-tour__right .rr-file__head');
+            const first = [...document.querySelector('.rr-tour__left')?.children ?? []].find((e) => e.getBoundingClientRect().height > 0);
+            if (!band || !first) return setTimeout(at, 50);
+            ok(Math.round(first.getBoundingClientRect().top - band.getBoundingClientRect().bottom));
+          };
+          at();
+        })`),
+      );
+    const gaps = await withServer(repo, dir, async (url) => [await gap(url + '?walkthrough=why/s1'), await gap(url + '?walkthrough=fetcher/s1')]);
+    expect(gaps).toEqual([0, 0]);
   }, 60_000);
 });

@@ -105,7 +105,8 @@ the new one, then `bun scripts/snapshot.ts --diff before.json after.json` (compu
 a computer, light and dark).
 
 Lint is oxlint (`.oxlintrc.json`), stylelint (`stylelint.config.js`: the design tokens) plus `ast-grep scan` (`rules/*.yml`: structural checks oxlint has no rule for, such as
-raw `innerHTML` and global listeners outside the kernel). The `overrides` lists in `.oxlintrc.json` are ratchets: each names
+raw `innerHTML` and global listeners outside the kernel). `scripts/css-usage.ts` keeps the CSS in step with its producers: an `rr-` class nothing writes, a `--rr-*`
+token set outside `tokens.css`, a variable read but never set or set but never read. The `overrides` lists in `.oxlintrc.json` are ratchets: each names
 the files that broke a rule when it was turned on. Take a file off a list once it complies; never add one.
 
 Verify UI changes in a real browser on the demo (light and dark, wide and laptop widths). To get a new build into

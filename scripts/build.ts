@@ -33,6 +33,7 @@ const panelsStyles = [
   'src/threads/styles/list.css',
   'src/review/styles/chip-icon.css',
   'src/review/styles/code.css',
+  'src/review/styles/diffs.css',
   'src/threads/styles/inline.css',
   'src/review/styles/walkthrough.css',
   'src/threads/styles/rail.css',
@@ -99,6 +100,8 @@ export const fonts: [family: string, pkg: string, file: string, style: string][]
   ['Source Serif 4', 'source-serif-4', 'source-serif-4-latin-opsz-italic.woff2', 'italic'],
   ['JetBrains Mono', 'jetbrains-mono', 'jetbrains-mono-latin-wght-normal.woff2', 'normal'],
   ['JetBrains Mono', 'jetbrains-mono', 'jetbrains-mono-latin-wght-italic.woff2', 'italic'],
+  ['Mona Sans', 'mona-sans', 'mona-sans-latin-wght-normal.woff2', 'normal'],
+  ['Mona Sans', 'mona-sans', 'mona-sans-latin-wght-italic.woff2', 'italic'],
 ];
 export const fontFile = (pkg: string, file: string) => at(`node_modules/@fontsource-variable/${pkg}/files/${file}`);
 type FontSrc = (pkg: string, file: string) => string;

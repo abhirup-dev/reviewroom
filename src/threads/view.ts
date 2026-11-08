@@ -41,8 +41,12 @@ export interface ThreadViewOpts {
 }
 
 // ------------------------------------------------------------------ composer
-/** A send button; `off` greys it out and says why. */
-export type SendButton = { label: string; title?: string; off?: string; main?: boolean; icon?: boolean; to?: 'agent' | 'github'; onSubmit(body: string): unknown };
+/** Where a comment goes (the agent or the PR), the same button everywhere: Agent filled in the comment colour, PR plain.
+ *  aria-disabled, not disabled: a disabled button gets no hover, so its tooltip saying why would never show. */
+const sendButton = (b: { to: 'agent' | 'github'; label: string; title?: string; off?: string }, onclick: () => unknown) =>
+  h('button', { class: `rr-btn rr-btn--send${b.to === 'agent' ? ' rr-btn--agent' : ''}`, type: 'button', title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => b.off || onclick() }, icon('send', 12), b.label);
+
+export type SendButton = { label: string; title?: string; off?: string; main?: boolean; to?: 'agent' | 'github'; onSubmit(body: string): unknown };
 
 // a link in the composer's text: `[label](rr:...)`, `![label](rr:...)` for an embed
 const RR_LINK = /(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g;
@@ -242,8 +246,7 @@ export function composer(app: ComposerContext, opts: { placeholder: string; butt
       h('span', { class: 'rr-toolbar__spacer' }),
       // Cancel throws the draft away; Esc, the backdrop and the close button keep it
       opts.onCancel ? h('button', { class: 'rr-btn rr-btn--ghost', type: 'button', title: 'Discard this draft', onclick: () => { keepDraft(''); opts.onCancel!(); } }, 'Cancel') : null,
-      // aria-disabled, not disabled: a disabled button gets no hover, so its tooltip would never show
-      ...buttons.map((b) => h('button', { class: 'rr-btn' + (b.to === 'agent' ? ' rr-btn--send rr-btn--agent' : b.to ? ' rr-btn--send' : b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => submit(b) }, b.icon ? icon('send', 12) : null, b.label)),
+      ...buttons.map((b) => b.to ? sendButton({ ...b, to: b.to }, () => submit(b)) : h('button', { class: 'rr-btn' + (b === main ? ' rr-btn--primary' : ''), type: 'button', title: b.title, onclick: () => submit(b) }, b.label)),
     ),
   );
   return { el, focus, ready };
@@ -439,8 +442,8 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       : ['Comment for the agent' + (app.services.threads.commentTargets(anchor).length > 1 ? ', or on the PR…' : '…'), null];
     if (t?.gh && !t.gh.canReply) root.classList.add('is-readonly');
     const buttons = t
-      ? [{ label: replyLabel!, icon: true, onSubmit: (body: string) => app.services.threads.reply(t.id, body) }]
-      : app.services.threads.commentTargets(anchor).map((b) => ({ ...b, icon: true, main: o.to === b.to, onSubmit: (body: string) => o.onCreate?.(body, b.to === 'github') }));
+      ? [{ label: replyLabel!, onSubmit: (body: string) => app.services.threads.reply(t.id, body) }]
+      : app.services.threads.commentTargets(anchor).map((b) => ({ ...b, main: o.to === b.to, onSubmit: (body: string) => o.onCreate?.(body, b.to === 'github') }));
     const c = composer(app, {
       placeholder,
       buttons,

@@ -26,8 +26,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: var(--rr-space-8);
-  padding: 0 var(--rr-space-8) 0 var(--rr-space-10);
+  gap: var(--rr-bar-gap);
+  padding: 0 var(--rr-bar-pad);
   border-bottom: 1px solid var(--rr-line);
   background: var(--rr-panel);
   overflow: hidden;
@@ -35,7 +35,7 @@
 .rr-toolbar__group {
   display: flex;
   align-items: center;
-  gap: var(--rr-space-6);
+  gap: var(--rr-bar-gap);
   min-width: 0;
 }
 .rr-toolbar__title {
@@ -75,6 +75,30 @@
 .rr-tool--back .rr-icon {
   transform: scaleX(-1);
 }
+/* the code toolbar: sets of tools (view, lines shown, toggles, navigation); toggles are compact icons */
+.rr-toolbar__set {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-2);
+}
+.rr-toolbar__set + .rr-toolbar__set {
+  padding-left: var(--rr-bar-gap);
+  border-left: 1px solid var(--rr-line-strong);
+}
+.rr-toolbar .rr-tool {
+  height: var(--rr-bar-tool);
+  min-width: var(--rr-bar-tool);
+  padding: 0 var(--rr-space-4);
+}
+.rr-toolbar__menu {
+  height: var(--rr-control);
+  gap: var(--rr-space-4);
+  font-weight: 500;
+}
+.rr-toolbar__menu[aria-expanded='true'] {
+  background: var(--rr-active);
+}
 
 /* ---------------------------------------------------------------- side panels */
 .rr-side {
@@ -84,12 +108,4 @@
 }
 .rr-side > .rr-scroll {
   flex: 1;
-}
-.rr-side-foot {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--rr-space-8);
-  padding: 0 var(--rr-space-10) 0 var(--rr-space-4);
-  border-top: 1px solid var(--rr-line);
 }

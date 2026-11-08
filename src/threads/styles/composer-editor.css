@@ -51,7 +51,7 @@ div.rr-composer__input .cm-placeholder {
 .rr-chip--token.is-embed {
   background: var(--rr-comment-soft);
   color: var(--rr-comment);
-  border-color: color-mix(in srgb, var(--rr-comment) 30%, transparent);
+  border-color: color-mix(in srgb, var(--rr-comment) var(--rr-mix-md), transparent);
 }
 .rr-chip__kind {
   font: 600 var(--rr-text-2xs)/1 var(--rr-font);

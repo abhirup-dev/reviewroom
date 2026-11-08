@@ -14,7 +14,7 @@ class Chip extends WidgetType {
   ) {
     super();
   }
-  eq(o: Chip) {
+  override eq(o: Chip) {
     return o.ref === this.ref && o.label === this.label && o.embed === this.embed;
   }
   toDOM() {
