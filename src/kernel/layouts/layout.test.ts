@@ -9,6 +9,7 @@ import type { LastLayout, LayoutScope } from './layout.shared';
 const dom = installDOM();
 const { ReviewApp } = await import('../../app');
 const dock = await import('../dock');
+const dockview = await import('../dockview');
 
 const OWN = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description'];
 const stub = (id: string, extra = {}) => dock.definePanel({ id, title: id, create: () => ({ element: document.createElement('div') }), ...extra });
@@ -42,7 +43,7 @@ function mount(o: Opts = {}) {
   app.bus.on('toast', (t) => toasts.push(`${t.kind}: ${t.text}`));
   const host = document.createElement('div');
   root.append(host);
-  app.layout.mount(host, o.saved ?? null, { panelAvailability: o.availability });
+  app.layout.mount(host, o.saved ?? null, { dock: dockview, panelAvailability: o.availability });
   return { app, toasts, lastSaved };
 }
 type Tree = string | Tree[];

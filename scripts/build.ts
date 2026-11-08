@@ -2,7 +2,10 @@
 // dist/fonts/, dist/emoji.json, the hub's page (dist/hub.js, dist/hub.css), and the CLI with its dependencies bundled in: dist/cli/reviewroom.js. `bun scripts/build.ts --watch` rebuilds on change. build-demo.ts reuses clientBuild().
 import type { BunPlugin } from 'bun';
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
+import zlib from 'node:zlib';
 import { readFileSync, readdirSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
+import { isPhone } from './features-imports';
 
 const root = new URL('..', import.meta.url).pathname;
 const at = (p: string) => root + p;
@@ -158,14 +161,34 @@ async function build() {
     throw new Error('build failed');
   }
   chmodSync(at('dist/cli/reviewroom.js'), 0o755);
-  await buildWorker(staticImports(res.metafile!, './reviewroom.js'));
+  // Each presentation is a lazy chunk (src/main.ts), part of the app shell: precached with the editor, so a page that is
+  // open keeps working offline (its first composer, say). Pages themselves come from the network (src/sw.ts).
+  const meta = res.metafile!;
+  const lazy = (src: string) => Object.entries(meta.outputs).find(([, o]) => o.entryPoint?.endsWith(src))?.[0] ?? fail(`no chunk for ${src}`);
+  // the composer's editor (CodeMirror) loads when the first composer opens; it too is part of the shell
+  const [desktop, phone, turned, editor] = ['src/presentation.ts', 'src/phone.ts', 'src/turned.ts', 'src/threads/editor.ts'].map(lazy);
+  // what each form loads before it draws: the entry, its presentation chunk, and their static imports
+  const inputs = (...entries: string[]) => ['./reviewroom.js', ...[...staticImports(meta, ...entries)].map((p) => `./${p}`)].flatMap((o) => Object.keys(meta.outputs[o]?.inputs ?? {}));
+  const leaks = (what: string, found: string[]) => found.length && fail(`${what}: ${[...new Set(found)].join(', ')}`);
+  leaks('phone code the desktop loads', inputs('./reviewroom.js', desktop).filter(isPhone));
+  leaks('dockview the phone loads', inputs('./reviewroom.js', phone).filter((i) => i.includes('node_modules/dockview')));
+  // a module's URL is its chunk's: anything resolved against it (sw.js, build-info.json, fonts) belongs in the entry
+  leaks('import.meta.url in a shared chunk (pass the entry\'s URL in)', Object.keys(meta.outputs).filter((o) => o.startsWith('./chunks/') && o.endsWith('.js') && readFileSync(at(`dist/${o.slice(2)}`), 'utf8').includes('import.meta.url')));
+  leaks('CodeMirror at boot', inputs('./reviewroom.js', desktop, phone, turned).filter((i) => i.includes('node_modules/@codemirror')));
+  await buildWorker(staticImports(meta, './reviewroom.js', desktop, phone, turned, editor));
+  await precompress();
   console.log(`built dist/ in ${Math.round(performance.now() - t)}ms`);
 }
 
 /**
- * The chunks `entry` loads before it runs (its static imports, transitively), as dist/-relative paths.
+ * The chunks the `entries` load before they run (their static imports, transitively), as dist/-relative paths. A lazy
+ * entry (an output of a dynamic import) is itself included.
  */
-function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, entry: string) {
+const fail = (why: string): never => {
+  throw new Error(`build: ${why}`);
+};
+
+function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, ...entries: string[]) {
   const seen = new Set<string>();
   const walk = (out: string) => {
     for (const i of meta.outputs[out]?.imports ?? []) {
@@ -174,7 +197,10 @@ function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, entry: st
       walk(i.path);
     }
   };
-  walk(entry);
+  for (const e of entries) {
+    seen.add(e);
+    walk(e);
+  }
   return new Set([...seen].map((p) => p.replace(/^\.\//, '')));
 }
 
@@ -184,7 +210,7 @@ function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, entry: st
  * (~900, mostly syntax grammars) and emoji.json (~0.4MB, only the emoji picker reads it) are cached at runtime.
  */
 async function buildWorker(shellChunks: Set<string>) {
-  const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.map$/;
+  const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.(map|br)$/;
   const files = readdirSync(at('dist'), { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile())
     .map((e) => `${e.parentPath}/${e.name}`.slice(at('dist/').length))
@@ -210,6 +236,20 @@ async function buildWorker(shellChunks: Set<string>) {
     for (const log of sw.logs) console.error(log);
     throw new Error('build failed');
   }
+}
+
+/**
+ * A Brotli copy (`<file>.br`) of each text file the client serves, written last (after the build id is baked in).
+ * serveClient() sends it to browsers that accept br (secure origins, so the phone through its HTTPS front): ~18%
+ * smaller than the gzip compress() makes on the fly, and no per-request CPU.
+ */
+async function precompress() {
+  const brotli = promisify(zlib.brotliCompress);
+  const text = readdirSync(at('dist'), { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile() && /\.(js|css|json|webmanifest|svg)$/.test(e.name) && !e.parentPath.startsWith(at('dist/cli')))
+    .map((e) => `${e.parentPath}/${e.name}`);
+  const params = { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT };
+  await Promise.all(text.map(async (f) => writeFileSync(`${f}.br`, await brotli(readFileSync(f), { params }))));
 }
 
 if (import.meta.main) {

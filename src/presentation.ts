@@ -1,7 +1,9 @@
 // What a presentation draws: its header, its panel surface, and its part of each seam (Refactor 3.0, rr-486). main.ts
-// picks one by app.presentation (kernel/presentation.ts); this is the desktop's, the phone's is src/phone.ts.
+// picks one by app.presentation (kernel/presentation.ts) and loads it lazily; this is the desktop's, the phone's is
+// src/phone.ts, a turned phone's src/turned.ts. Only the presentations with a dock import dockview.
 import { h, icon } from './kernel/dom';
 import { buildHeader } from './kernel/header';
+import * as dock from './kernel/dockview';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
@@ -39,5 +41,5 @@ export const desktop: PresentationModule = {
       afterTheme: () => [feedbackButton(app)],
       subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); },
     }),
-  mountSurface: (app, host, { lastLayout }) => app.layout.mount(host, lastLayout, { panelAvailability: githubPanelAvailability(app) }),
+  mountSurface: (app, host, { lastLayout }) => app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) }),
 };

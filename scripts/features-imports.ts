@@ -1,5 +1,10 @@
 import { parseSync, Visitor } from 'oxc-parser';
 
+/** Phone code (Refactor 3.0, rr-486): *.phone.ts and the modules only the phone uses. Core never imports it
+ *  (scripts/features.ts), and the desktop never loads it (src/main.ts imports src/phone.ts lazily; scripts/build.ts checks). */
+const PHONE = new Set(['src/phone.ts', 'src/turned.ts', 'src/kernel/phone.ts', 'src/kernel/shell.machine.ts', 'src/kernel/gesture.machine.ts', 'src/kernel/codesheet.machine.ts', 'src/kernel/history.ts', 'src/slides/phone.machine.ts', 'src/slides/nav.machine.ts']);
+export const isPhone = (file: string) => file.endsWith('.phone.ts') || PHONE.has(file);
+
 /** Parse dependencies before type erasure, including inline type specifiers and side-effect imports. */
 export function moduleImports(file: string, source: string) {
   const parsed = parseSync(file, source);
