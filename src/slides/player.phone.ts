@@ -2,42 +2,18 @@
 // (player.ts) into a full-screen player and wires the card, the gestures, the chrome and full screen.
 import { createActor, fromPromise, type Actor, type SnapshotFrom } from 'xstate';
 import { h, icon, plural } from '../kernel/dom';
-import { onBack, watchBack } from '../kernel/history';
+import { onBack } from '../kernel/history';
 import { sanitizeProse } from '../kernel/markdown';
 import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
-import type { ReviewApp } from '../app';
-import { sameCode, type CodeAt, type paneMachine, type Slot, type walkthroughMachine } from './player.machine';
+import { sameCode, type paneMachine, type Slot } from './player.machine';
 import { cardMachine, chromeMachine, coachMachine, type Detent, type Orient } from './phone.machine';
 import { navMachine } from './nav.machine';
 import { current, target } from './model.shared';
-
-/** The skeleton's parts the phone player rearranges and listens on. */
-type PhoneParts = {
-  app: ReviewApp;
-  actor: Actor<typeof walkthroughMachine>;
-  root: HTMLElement;
-  player: HTMLElement;
-  split: HTMLElement;
-  left: HTMLElement;
-  right: HTMLElement;
-  pane: HTMLElement;
-  /** where a link lands (player.ts's codeAt) */
-  codeAt: (ref: string) => Promise<CodeAt | null>;
-  bottom: HTMLElement;
-  progress: HTMLElement;
-  lead: HTMLElement;
-  leadToggle: HTMLElement;
-  prev: HTMLElement;
-  next: HTMLElement;
-  comment: HTMLElement;
-  chapterBtn: HTMLElement;
-};
+import type { PhoneParts, PlayerForm } from './player';
 
 /** How far sideways a swipe on the card goes to turn the slide. */
 const SWIPE_PX = 60;
-// Room for the last code lines above the default card (40dvh, lifted 84px, plus a 12px gap).
-const CARD_SHARE = 0.4, CARD_LIFT_PX = 96;
 
 /** A phone plays full screen (slides.phone.css): the code under the whole screen, a slide card (a bottom sheet) and a
  *  floating toolbar of Back, Contents, Comment, Full screen and Next over it, the walkthrough's progress a thin row at the foot. IDLE_MS
@@ -45,10 +21,9 @@ const CARD_SHARE = 0.4, CARD_LIFT_PX = 96;
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
-export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts) {
+export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts): PlayerForm {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
-  if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
   // the floating toolbar: Back, Contents, Comment, Full screen and Next, plain icon buttons on one pill
   prev.replaceChildren(icon('chevron', 20));
   prev.className = 'rr-icon-btn rr-tour__back';
@@ -94,8 +69,6 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
           : null,
       ),
     );
-    // under the dock no PhoneShell gives the sheet a history entry: without one, Back would close the player under it
-    if (!sheet.open && app.presentation.kind !== 'phone') sheet.addEventListener('close', onBack(() => sheet.close()), { once: true });
     openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
     sheet.focus(); // the sheet, not its first chapter: no ring on open
     sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: all ? 'center' : 'nearest' });
@@ -122,8 +95,9 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     const { doc, chapter } = ctx();
     band.replaceChildren(h('small', null, `Chapter ${chapter + 1}`), h('span', null, doc!.chapters[chapter].title));
     player.classList.add('is-announcing');
+    coverChanged(); // the card lifts clear of the band: --rr-cover with it (slides.phone.css)
     clearTimeout(bandTimer);
-    bandTimer = window.setTimeout(() => player.classList.remove('is-announcing'), 2500);
+    bandTimer = window.setTimeout(() => { player.classList.remove('is-announcing'); coverChanged(); }, 2500);
   };
   // the viewport, not the screen: `?phone` in a window follows its shape
   const land = matchMedia('(orientation: landscape)');
@@ -234,7 +208,6 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     );
   };
   const openFiles = () => {
-    if (!filesSheet.open && app.presentation.kind !== 'phone') filesSheet.addEventListener('close', onBack(() => filesSheet.close()), { once: true });
     const list = (slots ?? []).map((s, i) => h('button', { class: 'rr-tour-toc__slide', 'aria-current': i === active ? 'step' : undefined, onclick: () => pick(i) }, h('span', { class: 'rr-tour-toc__num' }, String(i + 1)), h('span', null, app.label(s.ref))));
     openSheet(filesSheet, h('h2', { class: 'rr-tour-toc__title' }, 'Files'), h('nav', { class: 'rr-tour-toc__list' }, ...list));
     filesSheet.focus();
@@ -266,9 +239,19 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     });
     paneOff = sub && (() => sub.unsubscribe());
   };
-  // the card's height, for the tab riding on its top edge
-  const cardH = new ResizeObserver(() => player.style.setProperty('--rr-card-h', `${left.offsetHeight}px`));
+  // the card's height, for the tab riding on its top edge and the code pane's cover (--rr-cover, slides.phone.css);
+  // the pane hears of it once the card is at rest: not mid-glide or under a finger, at the glide's end instead
+  const coverFns = new Set<() => void>();
+  const coverChanged = () => coverFns.forEach((f) => f());
+  const cardH = new ResizeObserver(() => {
+    player.style.setProperty('--rr-card-h', `${left.offsetHeight}px`);
+    if (!left.classList.contains('is-settling') && card.getSnapshot().matches('rest')) coverChanged();
+  });
   cardH.observe(left);
+  left.addEventListener('transitionend', (e) => e.target === left && e.propertyName === 'height' && coverChanged());
+  card.subscribe((s) => s.matches('rest') && coverChanged()); // reduced motion: a let-go card has no transition
+  /** A length token of the player's, in px (--rr-cover and --rr-card-room are registered, so calc() has resolved). */
+  const px = (name: string) => parseFloat(getComputedStyle(player).getPropertyValue(name)) || 0;
   // immersive (chromeMachine): IDLE_MS after the last touch or slide change, never while a menu, the composer or a
   // selection is open, the top bar and the toolbar fade; Show controls, in the card's corner, brings them back
   const held = () => !!(getSelection()?.toString() || app.selection || document.querySelector('dialog[open], [popover=auto]:popover-open'));
@@ -453,8 +436,11 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     foldLead: () => { leadOpen = left.dataset.detent === 'tall'; paintLead(); },
     // upright, the card is over the code's lower part
     codeLayout: () => land.matches ? {} : {
-      padBottom: Math.round(innerHeight * CARD_SHARE) + CARD_LIFT_PX,
-      coverTop: () => (files.hidden ? left : files).getBoundingClientRect().top,
+      padBottom: Math.round(px('--rr-card-room')),
+      cover: { px: () => px('--rr-cover'), onChange: (fn: () => void) => {
+        coverFns.add(fn);
+        return () => void coverFns.delete(fn);
+      } },
     },
     focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough

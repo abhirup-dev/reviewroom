@@ -17,6 +17,15 @@ const allowed: Record<string, string[]> = {
   hub: ['kernel', 'hub'],
 };
 
+// The phone is an extension of the desktop core (Refactor 3.0, rr-486): core code reaches phone code only through the
+// presentation contract, never by importing it. Phone code: *.phone.ts and the modules only the phone uses.
+const PHONE = new Set(['src/phone.ts', 'src/kernel/phone.ts', 'src/kernel/shell.machine.ts', 'src/kernel/gesture.machine.ts', 'src/kernel/codesheet.machine.ts', 'src/kernel/history.ts', 'src/slides/phone.machine.ts', 'src/slides/nav.machine.ts']);
+const isPhone = (file: string) => file.endsWith('.phone.ts') || PHONE.has(file);
+// A ratchet like the oxlint overrides: today's core-to-phone imports, each removed as its seam moves behind the
+// contract (rr-486.8-.12). Entries only come off; one that no longer holds is an error.
+const PHONE_IMPORTS = new Set<string>(['src/main.ts -> src/phone.ts']);
+const phoneImports = new Set<string>();
+
 const lines = new Map<string, number>();
 /** A file's relative imports, resolved to repo paths (unresolved ones are errors). */
 function* localImports(file: string) {
@@ -39,9 +48,13 @@ for (const file of files) {
     const permittedType = typeOnly && (target === 'src/app.ts' || target.endsWith('.shared.ts'));
     if (owners && !permittedType && !owners.includes(layer(target))) errors.push(`${file} imports higher/sibling layer ${target}`);
     if (file.endsWith('.shared.ts') && target.endsWith('.ts') && !target.endsWith('.shared.ts')) errors.push(`${file}: shared code imports browser code ${target}`);
+    if (isPhone(target) && !isPhone(file)) phoneImports.add(`${file} -> ${target}`);
   }
   dependencies.set(file, imports);
 }
+
+for (const edge of phoneImports) if (!PHONE_IMPORTS.has(edge)) errors.push(`${edge.replace(' -> ', ' imports phone code ')}: reach it through the presentation contract (src/kernel/presentation.ts)`);
+for (const edge of PHONE_IMPORTS) if (!phoneImports.has(edge)) errors.push(`${edge}: no longer imported; take it off PHONE_IMPORTS in scripts/features.ts`);
 
 const active = new Set<string>();
 const visited = new Set<string>();

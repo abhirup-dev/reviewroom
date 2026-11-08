@@ -77,8 +77,9 @@
   border-radius: var(--rr-radius);
   box-shadow: var(--rr-shadow-sm);
 }
-/* on the desktop a card grows into a lane with room, so a short lane does not leave the sheet half empty */
-:root:not(:has(.is-phone)) .rr-recap-card {
+/* a card grows into a lane with room, so a short lane does not leave the sheet half empty (a phone keeps them at their
+   own size: threads.phone.css) */
+.rr-recap-card {
   flex: 1 0 380px;
   max-width: 560px;
 }

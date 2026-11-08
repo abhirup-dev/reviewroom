@@ -286,11 +286,6 @@
     clip-path: inset(0 0 round 16px);
   }
 }
-.rr-side-head__count {
-  flex: 1;
-  color: var(--rr-muted);
-  font-size: var(--rr-text-sm);
-}
 
 /* Comment, for a selection (no c key on a phone) */
 .rr-phone-comment {
@@ -457,7 +452,6 @@
 }
 .rr-palette__chips[hidden],
 .rr-palette__chips:not([hidden]) ~ .rr-palette__hint,
-.rr-palette__bar ~ .rr-palette__cancel,
 .rr-palette__clear[hidden] {
   display: none !important;
 }
@@ -539,9 +533,6 @@
 :root:has(.is-phone) .rr-palette__item.is-sel .rr-palette__kind {
   background: var(--rr-surface-overlay);
   color: var(--rr-accent);
-}
-:root:has(.is-phone) .rr-palette__cancel {
-  display: inline-flex;
 }
 
 /* ---------------------------------------------------------------- bottom sheet (the thread popup, Contents) */

@@ -14,6 +14,7 @@ import { applyOp } from './kernel/state/ops.shared';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
+import { presentationFor, type Presentation } from './kernel/presentation';
 import { showPanel, type PanelSurface } from './kernel/dock';
 import type { CodeTarget, Selection } from './review/navigation.shared';
 import { fileType, isTestFile, reviewOrder } from './review/files.shared';
@@ -51,12 +52,6 @@ export const defaultPrefs: Prefs = {
 };
 
 
-/** How the workbench is presented, picked once at boot (main.ts): the dock, or the phone shell. */
-export interface Presentation {
-  kind: 'dock' | 'phone';
-  /** Layouts, windows and docking: the dock's. A phone shows one panel at a time. */
-  canArrange: boolean;
-}
 
 export interface AppEvents extends Record<string, unknown> {
   state: ReviewState;
@@ -105,8 +100,11 @@ export class ReviewApp {
   /** The dock, once mounted; none on a phone. */
   dock?: DockviewApi;
   readonly presentation: Presentation;
-  /** Where panels open, once mounted: the dock's surface, or the phone shell. */
-  surface?: PanelSurface;
+  private mounted?: PanelSurface;
+  /** Where panels open, once mounted (mountSurface): the dock's surface, or the phone shell. */
+  get surface(): PanelSurface | undefined {
+    return this.mounted;
+  }
   /** The walkthrough root element once mounted (inside the walkthrough panel). */
   doc: HTMLElement | null = null;
   /** The PR's description from GitHub: read-only, but commentable like the walkthrough (anchors target PR_DESCRIPTION). */
@@ -116,7 +114,7 @@ export class ReviewApp {
   viewRound = 0;
   selection: Selection = null;
   /** Esc handlers for open overlays, newest last; each returns true if it closed something. */
-  escapers: (() => boolean)[] = [];
+  private escapers: (() => boolean)[] = [];
   activeFile = '';
   /** Set when the palette overlay mounts. */
   openPalette!: (initial?: string) => void;
@@ -125,6 +123,26 @@ export class ReviewApp {
   private cleanups: (() => void)[] = [];
   private disposed = false;
   private prefsKey: string;
+
+  /** The presentation's panel surface (the dock's, or the phone shell), once it has mounted. */
+  mountSurface(surface: PanelSurface) {
+    this.mounted = surface;
+  }
+
+  /** Esc runs `close` before older handlers while it's registered; it returns true if it closed something.
+   *  The returned function unregisters it. */
+  registerEscape(close: () => boolean): () => void {
+    this.escapers.push(close);
+    return () => {
+      const i = this.escapers.indexOf(close);
+      if (i >= 0) this.escapers.splice(i, 1);
+    };
+  }
+
+  /** Esc: the newest handler that closes something; false if none did. */
+  escape(): boolean {
+    return [...this.escapers].reverse().some((close) => close());
+  }
 
   onDispose(cleanup: () => void) {
     if (this.disposed) cleanup();
@@ -146,12 +164,10 @@ export class ReviewApp {
   }
 
   // Keep new ReviewApp(root) compatible; boot supplies its composition explicitly.
-  constructor(public root: HTMLElement, createServices = createReviewServices, kind: Presentation['kind'] = 'dock') {
-    this.presentation = { kind, canArrange: kind === 'dock' };
-    const phone = kind === 'phone';
-    // a phone keeps its own prefs (split diffs don't fit it), so trying ?phone leaves the desktop's alone
-    this.prefsKey = phone ? 'reviewroom:prefs:phone' : 'reviewroom:prefs';
-    this.prefs = loadLocal(this.prefsKey, phone ? { ...defaultPrefs, diffStyle: 'unified' } : defaultPrefs);
+  constructor(public root: HTMLElement, createServices = createReviewServices, presentation: Presentation = presentationFor('desktop')) {
+    this.presentation = presentation;
+    this.prefsKey = presentation.prefs.key;
+    this.prefs = loadLocal(this.prefsKey, { ...defaultPrefs, ...presentation.prefs.defaults });
     this.services = createServices({
       github: {
         backend: () => this.backend,

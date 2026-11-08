@@ -1,6 +1,6 @@
 # Phone design: Material 3 Expressive on the Reading Desk
 
-The phone shell (`src/kernel/phone.ts`, `src/kernel/styles/phone.css`; each feature's phone rules in its own
+The phone shell (`src/phone.ts` its presentation, `src/kernel/phone.ts`, `src/kernel/styles/phone.css`; each feature's phone rules in its own
 `*.phone.css`, the guided review's player in `src/slides/player.phone.ts`) follows Material 3 Expressive (M3E) for shape,
 touch, and motion, and keeps reviewroom's own colour, type, and restraint (`DESIGN.md`). Desktop and the tablet dock
 are unchanged; everything here is scoped to `.is-phone` (the root), `.rr-phone` (the shell) and `:root:has(.is-phone)`
@@ -118,8 +118,8 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   show the link, with an undo icon on the tab back to the slide's own code. A new jump cancels the last; a slide change
   cancels a pending one. Lines land centred in the code left showing above the card (its file tab's top edge), re-centred once the card has finished sizing to the new slide (revealMachine's settle; instantly under reduced motion) unless the reader scrolled or selected lines meanwhile; too tall to fit, they land at the top. The desktop keeps its stacked chunks
   and chips.
-- **Guided review on its side**: the phone player goes by the device (`usesPhonePlayer()` in `src/kernel/device.ts`: a
-  phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get
+- **Guided review on its side**: the phone player goes by the device (the `player` of `phone` and `turned` in `src/phone.ts`:
+  a phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get
   the desktop player. It marks itself `data-form="phone"` and `data-orient` (the viewport's, live), and its styles key
   off those. Landscape: the slide is a column on the left, the code on the right edge to edge, the desktop's draggable
   divider between them (half and half by default); the toolbar floats at the foot of the code, centred on it; the top
@@ -160,7 +160,7 @@ a mass-1 spring. After a drag, start the settle from the finger's velocity where
 ## Touch
 
 48px minimum targets; 8px between adjacent targets. Horizontal swipes start only after 10px of mostly-horizontal
-travel and never inside code, selection, or a long-press. Back (`popstate`) closes the topmost layer first.
+travel and never inside code, selection, or a long-press. Back (`popstate`) closes the topmost layer first; a dialog (a sheet, the menu, search) is the browser's own close request, before history.
 
 ## Sources
 

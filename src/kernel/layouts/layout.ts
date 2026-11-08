@@ -5,7 +5,8 @@ import type { ReviewApp } from '../../app';
 import { createActor, fromPromise } from 'xstate';
 import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
-import { addDockPanel, createDock, isFloating, ownPanels, panelDef, panelDefs } from '../dock';
+import { ownPanels, panelDef, panelDefs } from '../dock';
+import { addDockPanel, createDock, isFloating } from '../dockview';
 import { isTablet } from '../device';
 
 /** Conditional panels are offered once, when their provider first has content. */
@@ -101,7 +102,7 @@ export class Layouts {
     const root = fromDockview(now as DockJSON, (pid) => !pid.includes(':')); // no on-demand panels, no windows
     if (!root) return this.fail('Nothing to save: no panels are open');
     const layout = { title, root };
-    if (!(await app.backend.saveLayout(id, layout).catch(() => false))) return this.fail('Could not save the layout');
+    if (!(await app.backend.layouts.put('saved', id, layout).catch(() => false))) return this.fail('Could not save the layout');
     this.saved[id] = layout;
     app.commands.register(this.command(id));
     if (asDefault && !(await this.setDefault(id))) return true; // saved; setDefault said what failed
@@ -111,7 +112,7 @@ export class Layouts {
 
   /** Make saved layout `id` the one reviews start from, or have none (null). */
   async setDefault(id: string | null) {
-    if (!(await this.app.backend.setDefaultLayout(id).catch(() => false))) return this.fail('Could not change the default layout');
+    if (!(await this.app.backend.layouts.put('default', id).catch(() => false))) return this.fail('Could not change the default layout');
     this.defaultId = id;
     if (!id) this.app.toast('No default layout: new reviews start from their built-in layout');
     return true;
@@ -120,7 +121,7 @@ export class Layouts {
   /** Delete one of the reviewer's saved layouts (it stops being the default, if it was). */
   async delete(id: string) {
     const title = this.saved[id]?.title;
-    if (!(await this.app.backend.saveLayout(id, null).catch(() => false))) return this.app.toast('Could not delete the layout', 'error');
+    if (!(await this.app.backend.layouts.put('saved', id, null).catch(() => false))) return this.app.toast('Could not delete the layout', 'error');
     delete this.saved[id];
     if (this.defaultId === id) this.defaultId = null;
     this.app.toast(`Deleted layout “${title}”`);
@@ -187,7 +188,7 @@ export class Layouts {
     } else this.reset();
 
     this.last = this.snapshot();
-    const saver = createActor(layoutSaveMachine.provide({ actors: { save: fromPromise(({ input }) => app.backend.saveLastLayout(input)) } }), {
+    const saver = createActor(layoutSaveMachine.provide({ actors: { save: fromPromise(async ({ input }) => void (await app.backend.layouts.put('last', input))) } }), {
       input: {
         read: () => {
           if (this.isPassing()) return null;

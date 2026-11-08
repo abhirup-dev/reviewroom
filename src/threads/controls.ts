@@ -180,3 +180,9 @@ export function roundStatusControls(): HTMLElement[] {
     h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
   ];
 }
+
+/** A review of a GitHub PR (reachable or not): what offers its GitHub controls. */
+export function onGitHub(app: ReviewApp) {
+  const g = app.github;
+  return !!g && !(!g.ok && !g.threads?.length && /not a GitHub/.test(g.error ?? ''));
+}

@@ -36,6 +36,18 @@ export type SavedLayouts = { layouts: Record<string, Layout>; default: string | 
  *  and the layout the dock was built from (where closed panels go back to). */
 export type LastLayout = { dock: DockJSON; offered: string[]; layout?: string };
 
+/** Where a layout lives: shipped with reviewroom, saved by the reviewer, their default, or this review's last layout. */
+export type LayoutScope = 'shipped' | 'saved' | 'default' | 'last';
+/** What each scope holds: layouts by id, the default's id, this review's dock. */
+export type LayoutsOf<S extends LayoutScope> = S extends 'default' ? string | null : S extends 'last' ? LastLayout | null : Record<string, Layout>;
+/** One store for every layout. `put` with null deletes; false when it couldn't be done (a saved name taken, a shipped layout). */
+export interface LayoutStore {
+  get<S extends LayoutScope>(scope: S): Promise<LayoutsOf<S>>;
+  put(scope: 'saved', id: string, layout: Layout | null): Promise<boolean>;
+  put(scope: 'default', id: string | null): Promise<boolean>;
+  put(scope: 'last', layout: LastLayout): Promise<boolean>;
+}
+
 const kids = (n: LayoutNode) => ('row' in n ? n.row : 'column' in n ? n.column : null);
 const dir = (n: LayoutNode) => ('row' in n ? 'row' : 'column');
 // a HORIZONTAL branch lays its children out side by side
