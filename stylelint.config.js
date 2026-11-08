@@ -1,14 +1,7 @@
 // The design system, enforced: sizes, spacing, weights, tracking and colour in src/**/*.css come from the tokens in
-// src/kernel/styles/tokens.css (or are relative: em, %). A deliberate exception carries a stylelint-disable comment
-// saying why. `ignoreFiles` is a ratchet like the oxlint overrides: the phone CSS awaits its own pass; files only come off.
+// src/kernel/styles/tokens.css (or are relative: em, %), the phone's CSS included. A deliberate exception carries a
+// stylelint-disable comment saying why.
 export default {
-  ignoreFiles: [
-    'src/kernel/styles/phone.css',
-    'src/kernel/styles/tokens.phone.css',
-    'src/review/styles/review.phone.css',
-    'src/threads/styles/threads.phone.css',
-    'src/slides/styles/slides.phone.css',
-  ],
   reportNeedlessDisables: true,
   rules: {
     'declaration-property-value-disallowed-list': [

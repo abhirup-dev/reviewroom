@@ -430,7 +430,7 @@ re-styles a core selector is a layer too: keep it only where the phone genuinely
 ## Enforcement
 
 `bun run check` holds most of this file:
-- **stylelint** (`stylelint.config.js`): sizes, spacing, weights, letter-spacing and colours only from tokens; no hex
+- **stylelint** (`stylelint.config.js`): sizes, spacing, weights, letter-spacing and colours only from tokens, on the phone too; no hex
   or `rgb()` outside `tokens.css`; no literal percentage in `color-mix()`; correctness rules (duplicate selectors and
   properties, unknown properties and units); no phone selectors in core CSS.
 - **`scripts/css-usage.ts`**: an `rr-` class nothing writes, a `--rr-*` token set outside `tokens.css` (but the
