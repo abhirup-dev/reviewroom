@@ -7,14 +7,11 @@
 .rr-code-scroll {
   flex: 1;
   background: var(--rr-panel-2);
-  --diffs-font-family: var(--rr-mono);
-  --diffs-font-size: 12.5px;
 }
-/* one CodeView item per file: the card's edge is a shadow, so it adds nothing to the heights CodeView computes */
+/* one CodeView item per file, edge to edge: hairlines above and below are shadows, so they add nothing to the
+   heights CodeView computes */
 .rr-code-scroll diffs-container {
-  margin-inline: var(--rr-space-8);
-  border-radius: var(--rr-radius);
-  box-shadow: 0 0 0 1px var(--rr-line);
+  box-shadow: 0 -1px 0 var(--rr-line), 0 1px 0 var(--rr-line);
   background: var(--rr-panel);
   overflow: clip;
 }
@@ -22,10 +19,14 @@
   display: flex;
   align-items: center;
   gap: var(--rr-space-8);
-  height: 38px;
+  height: var(--rr-band-h);
   padding: 0 var(--rr-space-8) 0 var(--rr-space-4);
-  background: color-mix(in srgb, var(--rr-surface-bar-active) 70%, var(--rr-panel));
+  background: color-mix(in srgb, var(--rr-surface-bar-active), var(--rr-panel) var(--rr-mix-md));
   border-bottom: 1px solid var(--rr-line);
+}
+/* the walkthrough's code: its toolbar is the file's band (no collapse chevron, so the path keeps the bar's inset) */
+.rr-toolbar.rr-file__head {
+  padding: 0 var(--rr-bar-pad) 0 var(--rr-space-12);
 }
 .rr-file__head.is-collapsed {
   border-bottom-color: transparent;
@@ -51,29 +52,18 @@
 .rr-file__path strong {
   font-weight: 600;
 }
+/* Viewed: a labelled checkbox */
 .rr-viewed {
   display: inline-flex;
   align-items: center;
-  gap: var(--rr-space-4);
+  gap: var(--rr-space-6);
   height: var(--rr-control-sm);
-  padding: 0 var(--rr-space-8);
-  border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius);
-  font-size: var(--rr-text-xs);
-  color: var(--rr-muted);
+  padding: 0 var(--rr-space-4);
+  font-size: var(--rr-text-sm);
+  color: var(--rr-ink-2);
   cursor: pointer;
 }
 .rr-viewed input {
   margin: 0;
 }
 
-/* the walkthrough's code: Viewed in the toolbar (no file header there) */
-.rr-toolbar__viewed {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--rr-space-4);
-  font: var(--rr-text-xs) var(--rr-font);
-  color: var(--rr-muted);
-  white-space: nowrap;
-  cursor: pointer;
-}

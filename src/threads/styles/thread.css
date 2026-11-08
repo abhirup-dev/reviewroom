@@ -9,13 +9,39 @@
 .rr-modal > .rr-thread {
   max-height: 88vh;
 }
+/* a window's title bar (a thread, a dialog, an expanded diagram), drawn as the dock's tab bars are: the same height,
+   surface, hairline and type, its title as a tab's (icon and semibold label, no box), its tools the bar's */
 .rr-thread__head {
   flex: none;
   display: flex;
   align-items: center;
-  gap: var(--rr-space-8);
-  padding: var(--rr-space-10) var(--rr-space-10) var(--rr-space-10) var(--rr-space-16);
+  gap: var(--rr-bar-gap);
+  min-height: var(--rr-bar-h);
+  padding: 0 var(--rr-bar-pad) 0 var(--rr-space-12);
   border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface-bar-active);
+  font: 600 var(--rr-text-sm)/1 var(--rr-font);
+  color: var(--rr-ink);
+}
+.rr-thread__head > .rr-icon-btn {
+  width: var(--rr-bar-tool);
+  height: var(--rr-bar-tool);
+}
+.rr-thread__head > .rr-chip--anchor {
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.rr-thread__head > .rr-chip--anchor:not(:disabled):hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rr-thread__head > .rr-chip--anchor .rr-chip__icon {
+  color: var(--rr-muted);
 }
 .rr-thread__ctx:empty {
   display: none;
@@ -25,7 +51,11 @@
   max-height: 32vh;
   overflow: auto;
   padding: var(--rr-space-10) var(--rr-space-16);
-  background: var(--rr-panel-2);
+  /* shadow at the bottom edge while there's more to scroll (scrolls away with the content's end) */
+  background:
+    linear-gradient(transparent, var(--rr-panel-2) 70%) center bottom / 100% 24px no-repeat local,
+    linear-gradient(transparent, color-mix(in srgb, var(--rr-ink) var(--rr-mix-sm), transparent)) center bottom / 100% 12px no-repeat scroll,
+    var(--rr-panel-2);
   border-bottom: 1px solid var(--rr-line);
 }
 .rr-thread.is-docked .rr-thread__ctx {
@@ -36,13 +66,6 @@
   max-height: 70vh;
   flex-shrink: 1; /* on a short window the composer keeps its room */
   min-height: 80px;
-}
-/* shadow at the bottom edge while there's more to scroll (scrolls away with the content's end) */
-.rr-thread__ctx {
-  background:
-    linear-gradient(transparent, var(--rr-panel-2) 70%) center bottom / 100% 24px no-repeat local,
-    linear-gradient(transparent, color-mix(in srgb, var(--rr-ink) 14%, transparent)) center bottom / 100% 12px no-repeat scroll,
-    var(--rr-panel-2);
 }
 .rr-modal > .rr-thread > .rr-thread__head {
   cursor: grab;
@@ -79,7 +102,7 @@
   padding: var(--rr-space-10) 0;
 }
 .rr-msg + .rr-msg {
-  border-top: 1px solid color-mix(in srgb, var(--rr-line) 60%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--rr-line) var(--rr-mix-lg), transparent);
 }
 .rr-avatar {
   width: 28px;

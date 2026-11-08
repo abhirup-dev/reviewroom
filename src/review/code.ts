@@ -26,20 +26,27 @@ const panelTitle = (path: string, view: PopoutView) => `${path.split('/').pop()}
 /** What CodeView hands every callback as its last argument (file or diff item). */
 type Ctx = { item: { id: string } };
 
-/** Blend @pierre/diffs into the panel colours (custom properties cross the shadow boundary). */
-// diff colours come from our --rr-add/--rr-del tokens (so review themes reach the code); dark tints are kept low
-// Pierre tints a changed line's body by mixing that tint into the background again (--mix-*), which washes it out; the mixes keep more of it
-import { PIERRE_CSS } from './previews';
+// @pierre/diffs takes its colours and surface from diffs.css; CODE_CSS has the rules it has no variable for
+import { CODE_CSS } from './previews';
 import { codeThreadsOn, defaultSide } from './files.shared';
 import { formatRef } from '../kernel/refs/refs.shared';
 /** Lines a jump landed on glow a few times while the panel sets --rr-pulse (the reveal machine's glow). */
-const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-accent) 26%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
+const PULSE_CSS = `@keyframes rr-pulse{50%{background-color:color-mix(in srgb,var(--rr-ink) 12%,transparent)}}[data-selected-line]{animation:var(--rr-pulse,none) 1s ease-in-out 3}@media (prefers-reduced-motion:reduce){[data-selected-line]{animation-iteration-count:1}}`;
 /** .rr-file__head is 38px tall (border included); CodeView lays items out from this number. */
 const HEADER_HEIGHT = 38;
 /** Stands in for a file whose contents can't be shown (binary, unreadable): the header alone. */
 const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hunks: [], splitLineCount: 0, unifiedLineCount: 0, isPartial: false, deletionLines: [], additionLines: [] });
 
 const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
+/** Five squares split between added and removed lines, as their share of the file's change. */
+const diffstat = (adds: number, dels: number) => {
+  const total = adds + dels;
+  const add = total ? Math.round((adds / total) * 5) : 0;
+  const del = total ? Math.min(5 - add, Math.round((dels / total) * 5)) : 0;
+  return h('span', { class: 'rr-diffstat', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: i < add ? 'is-add' : i < add + del ? 'is-del' : '' })));
+};
+/** A file card names its change in a word; a modified file (most of them) says nothing. */
+const STATUS_WORD: Record<string, string | undefined> = { added: 'Added', deleted: 'Deleted', renamed: 'Renamed' };
 
 export function inlineThread(app: ReviewApp, t: Thread): HTMLElement {
   const last = t.messages[t.messages.length - 1];
@@ -66,36 +73,58 @@ export function inlineThread(app: ReviewApp, t: Thread): HTMLElement {
 // GitHub threads whose code moved on (outdated) or that are about the whole file have no line here
 const onLine = (t: Thread) => !t.gh?.outdated && !t.gh?.file;
 
-const tog = (ic: Parameters<typeof icon>[0], title: string, on: boolean, fn: () => void, text?: string, keys?: string) =>
-  h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'data-keys': keys, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, icon(ic, 14), text ? h('span', null, text) : null);
+const tog = (ic: Parameters<typeof icon>[0] | null, title: string, on: boolean, fn: () => void, text?: string, keys?: string) =>
+  h('button', { class: 'rr-tool' + (on ? ' is-on' : ''), title, 'data-keys': keys, 'aria-label': title, 'aria-pressed': String(on), onclick: fn }, ic ? icon(ic, 14) : null, text ? h('span', null, text) : null);
+/** One set of a toolbar's tools (view, lines shown, toggles, navigation); sets are split by a hairline. */
+const set = (...kids: (HTMLElement | null)[]) => h('div', { class: 'rr-toolbar__set' }, ...kids);
+
+const FOCUS = {
+  all: ['All lines', 'Show added and removed lines', undefined],
+  additions: ['New code', 'Hide removed lines', '+'],
+  deletions: ['Old code', 'Hide added lines', '-'],
+} as const;
+/** Which lines a diff shows, as one menu: all of them, or only the new or only the old code. */
+const focusMenu = (app: ReviewApp) =>
+  h(
+    'button',
+    {
+      class: 'rr-btn rr-btn--small rr-toolbar__menu',
+      'aria-haspopup': 'menu',
+      title: 'Lines shown: ' + FOCUS[app.prefs.focus][1].toLowerCase(),
+      onclick: (e: MouseEvent) =>
+        popMenu(e.currentTarget as HTMLElement, (close) => [
+          menuLabel('Lines shown'),
+          ...(['all', 'additions', 'deletions'] as const).map((f) => menuItem(FOCUS[f][0] + ' · ' + FOCUS[f][1].toLowerCase(), () => { close(); app.setPref('focus', f); }, { checked: app.prefs.focus === f, hint: FOCUS[f][2] })),
+        ]),
+    },
+    FOCUS[app.prefs.focus][0],
+    icon('chevronDown', 12),
+  );
 
 /** How diffs are drawn (prefs: every code panel follows them). A code panel's toolbar has them; the walkthrough pane
  *  shows one set for all its files. */
-export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): (HTMLElement | null)[] {
+export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): HTMLElement[] {
   const p = app.prefs;
-  return [
+  const sets = [
     mode === 'diff'
       ? seg([
           { label: 'Split', title: 'Side-by-side: old on the left, new on the right', on: p.diffStyle === 'split', onclick: () => app.setPref('diffStyle', 'split'), keys: 's' },
           { label: 'Unified', title: 'One column: removed lines above the lines that replace them', on: p.diffStyle === 'unified', onclick: () => app.setPref('diffStyle', 'unified'), keys: 's' },
         ])
       : null,
-    mode === 'diff'
-      ? seg([
-          { label: 'All', title: 'Show added and removed lines', on: p.focus === 'all', onclick: () => app.setPref('focus', 'all') },
-          { label: '+', title: 'Focus on new code: hide removed lines', on: p.focus === 'additions', onclick: () => app.setPref('focus', 'additions'), keys: '+' },
-          { label: '\u2212', title: 'Focus on old code: hide added lines', on: p.focus === 'deletions', onclick: () => app.setPref('focus', 'deletions'), keys: '-' },
-        ])
-      : null,
-    mode === 'diff' ? tog('filter', 'Ignore whitespace-only changes', p.ignoreWhitespace, () => app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
+    mode === 'diff' ? focusMenu(app) : null,
+    set(
+    mode === 'diff' ? tog(null, 'Ignore whitespace-only changes', p.ignoreWhitespace, () => app.setPref('ignoreWhitespace', !p.ignoreWhitespace), 'ws', 'i') : null,
     tog('wrap', 'Wrap long lines instead of scrolling sideways', p.wrap, () => app.setPref('wrap', !p.wrap), undefined, 'w'),
     mode === 'diff' ? tog('thread', 'Show comment threads inside the diff, under the lines they are on', p.inlineThreads, () => app.setPref('inlineThreads', !p.inlineThreads)) : null,
+    ),
   ];
+  return sets.filter((x) => x !== null).map((x) => (x.classList.contains('rr-toolbar__set') ? x : set(x)));
 }
 
 /** Optional code-panel layout and navigation controls, supplied by its host. */
 export type CodePanelOptions = {
-  /** Pixels of scroll room at the foot; when supplied, uses an 8px top inset and item gap. */
+  /** Pixels of scroll room at the foot (default 16). */
   padBottom?: number;
   /** What covers the pane's foot (a phone's slide card): its height, and a way to hear that it changed. Lines land
    *  centred above it, and land again once it changes. */
@@ -206,21 +235,18 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ toolbar
   private renderToolbar() {
-    const left: (HTMLElement | null)[] = [this.embedded ? (this.head ?? null) : null];
+    const band = !!(this.embedded && this.pin);
+    this.toolbar.classList.toggle('rr-file__head', band);
+    const left: (HTMLElement | null)[] = [];
+    let right: (HTMLElement | null)[] = this.embedded ? [] : [...displayTools(this.app, this.mode), ...(this.mode === 'diff' ? [this.changeNav()] : [])];
     if (this.pin) {
       const f = this.app.files.find((x) => x.path === this.pin);
       const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
-      left.push(
-        this.embedded ? null : h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()),
-        seg(
-          [
-            { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.setMode('diff') },
-            { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.openFile(this.pin!, 'base') },
-            { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.openFile(this.pin!, 'head') },
-          ],
-          { 'aria-label': 'View' },
-        ),
-      );
+      if (band) {
+        const b = this.walkthroughBand(this.pin, view);
+        left.push(...b.left);
+        right = b.right;
+      } else left.push(h('span', { class: 'rr-toolbar__path', title: this.pin }, this.pin.split('/').pop()), this.viewSeg(f, view));
       setPanelTitle(this.app, this.panelId, panelTitle(this.pin, view ?? 'head'));
     } else if (this.mode === 'file' && this.fileView) {
       const fv = this.fileView;
@@ -233,38 +259,86 @@ class CodePanel implements PanelInstance {
         ]),
         fv.rev ? h('span', { class: 'rr-pill' }, '@' + fv.rev.slice(0, 7)) : null,
       );
-    } else {
-      const vis = this.app.visibleFiles();
-      const adds = vis.reduce((a, f) => a + f.additions, 0);
-      const dels = vis.reduce((a, f) => a + f.deletions, 0);
-      left.push(
-        h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, plural(vis.length, 'file')),
-        h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels)),
-        this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
-      );
-    }
+    } else left.push(...(this.embedded ? [this.head ?? null] : this.summary()));
+    // a file band carries its own spacer (fileTrail); other toolbars put their tools after one
     this.toolbar.replaceChildren(
       h('div', { class: 'rr-toolbar__group' }, ...left),
-      h('div', { class: 'rr-toolbar__spacer' }),
-      h(
-        'div',
-        { class: 'rr-toolbar__group' },
-        // the walkthrough pane has one set of these for all its files; its own row has what the file header would
-        ...(this.embedded ? (this.pin ? this.fileStatus(this.pin) : []) : displayTools(this.app, this.mode)),
-        this.mode === 'diff' && !this.embedded
-          ? h('div', { class: 'rr-seg' }, h('button', { title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)), h('button', { title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)))
-          : null,
-      ),
+      ...(band ? right.filter((x): x is HTMLElement => !!x) : [h('div', { class: 'rr-toolbar__spacer' }), h('div', { class: 'rr-toolbar__group' }, ...right)]),
     );
   }
 
-  /** The walkthrough's code (no file header): the file's open threads and Viewed, in the toolbar. Marking it viewed
-   *  leaves it open (the workbench folds it). */
-  private fileStatus(path: string) {
-    const threads = codeThreadsOn(this.app.services.threads.threads(), path).filter((t) => t.status === 'open');
-    const cb = h('input', { type: 'checkbox', checked: this.app.state.viewed[path] !== undefined });
+  /** The workbench diff's summary: its files and line counts, and the commit when one is picked. */
+  private summary() {
+    const vis = this.app.visibleFiles();
+    const adds = vis.reduce((a, f) => a + f.additions, 0);
+    const dels = vis.reduce((a, f) => a + f.deletions, 0);
+    return [
+      h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, plural(vis.length, 'file')),
+      h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels), diffstat(adds, dels)),
+      this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
+    ];
+  }
+
+  /** Previous / next change, across files. */
+  private changeNav() {
+    return set(
+      h('button', { class: 'rr-tool', title: 'Previous change', 'data-keys': 'k', 'aria-label': 'Previous change', onclick: () => this.jumpChange(-1) }, icon('arrowUp', 14)),
+      h('button', { class: 'rr-tool', title: 'Next change (moves to the next file at the end)', 'data-keys': 'j', 'aria-label': 'Next change', onclick: () => this.jumpChange(1) }, icon('arrowDown', 14)),
+    );
+  }
+
+  /** What identifies a file in its band (the code panel's file header, the walkthrough's code row): its status as a
+   *  word when not just modified, then its path, the folder muted and the name bold. */
+  private fileLead(f: ChangedFile, path: Record<string, unknown>) {
+    const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
+    return [
+      STATUS_WORD[f.status] ? h('span', { class: `rr-status rr-status--word rr-status--${f.status}`, title: { added: 'Added in this PR', deleted: 'Deleted in this PR', renamed: 'Renamed from ' + (f.prevPath ?? '') }[f.status as 'added'] }, STATUS_WORD[f.status]) : null,
+      h(
+        'button',
+        { class: 'rr-file__path', ...path },
+        f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' \u2192 ') : null,
+        h('span', { class: 'rr-muted' }, dir),
+        h('strong', null, f.path.slice(dir.length)),
+      ),
+    ];
+  }
+
+  /** A file band's right side, the same on every surface: open threads, its size, a link to it, Viewed. */
+  private fileTrail(f: ChangedFile, cb: HTMLElement, extra: HTMLElement | null, viewedTitle: string) {
+    const threads = codeThreadsOn(this.app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
+    return [
+      h('span', { class: 'rr-toolbar__spacer' }),
+      ...threadCounts(threads, 'in this file'),
+      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null, diffstat(f.additions, f.deletions)),
+      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); this.app.toast(`Link to ${f.path.split('/').pop()} copied \u2014 paste it into any comment`); } }, icon('link', 14)),
+      extra,
+      h('label', { class: 'rr-viewed', title: viewedTitle, 'data-keys': 'v' }, cb, 'Viewed'),
+    ];
+  }
+
+  /** The walkthrough's code has no file headers: its toolbar is the file's band, built from the same pieces, with the
+   *  Diff / Before / After switch after the path. Stacked chunks keep their name, which shows only that one. Marking
+   *  it viewed leaves it open (the workbench folds it). */
+  private walkthroughBand(path: string, view: string | undefined) {
+    const f = this.app.files.find((x) => x.path === path);
+    const cb = h('input', { type: 'checkbox', checked: this.app.state.viewed[path] !== undefined, 'aria-label': 'Mark file as viewed' });
     cb.addEventListener('change', () => this.app.setViewed(path, cb.checked));
-    return [...threadCounts(threads, 'in this file'), h('label', { class: 'rr-toolbar__viewed', title: 'Mark this file as viewed' }, cb, h('span', null, 'Viewed'))];
+    const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.openFile(path, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
+    return {
+      left: [...lead, this.head ?? null, this.viewSeg(f, view)],
+      right: f ? this.fileTrail(f, cb, null, 'Mark this file as viewed') : [],
+    };
+  }
+
+  private viewSeg(f: ChangedFile | undefined, view: string | undefined) {
+    return seg(
+      [
+        { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.setMode('diff') },
+        { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.openFile(this.pin!, 'base') },
+        { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.openFile(this.pin!, 'head') },
+      ],
+      { 'aria-label': 'View' },
+    );
   }
 
   private setMode(m: 'diff' | 'file') {
@@ -353,10 +427,7 @@ class CodePanel implements PanelInstance {
     const entry = this.files.get(path);
     if (!entry) return undefined;
     const f = entry.file;
-    const threads = codeThreadsOn(app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
     const viewed = app.state.viewed[f.path] !== undefined;
-    const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
-    const name = f.path.slice(dir.length);
     // With a scrubber, the header names its position ("2 / 5") and its path opens the file list.
     const list = this.withRail;
     const cb = h('input', { type: 'checkbox', checked: viewed, 'aria-label': 'Mark file as viewed' });
@@ -372,24 +443,13 @@ class CodePanel implements PanelInstance {
         ondblclick: (e: MouseEvent) => !(e.target as Element).closest('button, input, a') && !this.pin && openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
       },
       h('button', { class: 'rr-icon-btn rr-file__chev', 'aria-label': 'Collapse file', title: 'Collapse or expand this file', onclick: () => this.toggleCollapse(f.path) }, icon('chevronDown', 14)),
-      h('span', { class: `rr-status rr-status--${f.status}`, title: { added: 'Added in this PR', modified: 'Modified', deleted: 'Deleted in this PR', renamed: 'Renamed' }[f.status] }, STATUS[f.status]),
-      h(
-        'button',
-        list
-          ? { class: 'rr-file__path', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }
-          : { class: 'rr-file__path', title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, defaultSide(f)) },
-        f.prevPath && f.prevPath !== f.path ? h('span', { class: 'rr-muted' }, f.prevPath + ' → ') : null,
-        h('span', { class: 'rr-muted' }, dir),
-        h('strong', null, name),
-      ),
+      ...this.fileLead(f, list
+        ? { title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }
+        : { title: 'Open the whole file (after the change)', onclick: () => this.openFile(f.path, defaultSide(f)) }),
       list ? h('button', { class: 'rr-file__pos', title: 'Jump to another file', 'aria-haspopup': 'menu', onclick: (e: Event) => this.fileList(e.currentTarget as HTMLElement, f.path) }, `${[...this.files.keys()].indexOf(f.path) + 1} / ${this.files.size}`, icon('chevronDown', 12)) : null,
-      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
       entry.diff ? null : h('span', { class: 'rr-pill' }, f.binary ? 'Binary file' : 'Could not load file contents'),
-      ...threadCounts(threads, 'in this file'),
-      h('span', { class: 'rr-toolbar__spacer' }),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); app.toast(`Link to ${f.path.split('/').pop()} copied — paste it into any comment`); } }, icon('link', 14)),
-      this.pin ? null : popoutButton(app, f, this.panelId),
-      h('label', { class: 'rr-viewed', title: 'Mark as viewed: collapses the file and counts toward your progress', 'data-keys': 'v' }, cb, 'Viewed'),
+      // what identifies the file on the left; its threads, size and actions on the right
+      ...this.fileTrail(f, cb, this.pin ? null : popoutButton(app, f, this.panelId), 'Mark as viewed: collapses the file and counts toward your progress'),
     );
   }
 
@@ -423,11 +483,12 @@ class CodePanel implements PanelInstance {
       disableFileHeader: this.mode === 'file' || this.embedded, // the walkthrough names the file in its toolbar
       itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
       // Extra scroll room lets the last lines rise above a covering element.
-      layout: this.padBottom !== undefined ? { paddingTop: 8, paddingBottom: this.padBottom, gap: 8 } : undefined,
+      // files run edge to edge and meet at a hairline (CodeView's documented layout option)
+      layout: { paddingTop: 0, paddingBottom: this.padBottom ?? 16, gap: 0 },
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,
-      unsafeCSS: PIERRE_CSS + PULSE_CSS + focusCSS,
+      unsafeCSS: CODE_CSS + PULSE_CSS + focusCSS,
       renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
       renderAnnotation: (a: { metadata: Meta }) => {
         const t = this.app.services.threads.thread(a.metadata.threadId);

@@ -1,10 +1,11 @@
 /* dockview theme mapped onto reviewroom tokens: docked panels tile edge to edge, split by hairlines
    (square outer corners); only floating windows are rounded and lifted. */
 .dockview-theme-rr {
+  --dv-floating-titlebar-height: 24px; /* floating windows: a real, visible move handle (below) */
   --dv-paneview-active-outline-color: var(--rr-accent);
   --dv-tabs-and-actions-container-font-size: var(--rr-text-sm);
   --dv-tabs-and-actions-container-height: var(--rr-bar-h);
-  --dv-drag-over-background-color: color-mix(in srgb, var(--rr-accent) 14%, transparent);
+  --dv-drag-over-background-color: color-mix(in srgb, var(--rr-accent) var(--rr-mix-sm), transparent);
   --dv-drag-over-border-color: var(--rr-accent);
   --dv-drag-over-border: 2px solid var(--rr-accent);
   --dv-edge-dock-indicator-color: var(--rr-accent);
@@ -24,10 +25,9 @@
   --dv-tab-border-radius: 0px;
   --dv-sash-border-radius: 2px;
   --dv-dropdown-border-radius: var(--rr-radius-lg);
-  --dv-tab-close-icon-size: 12px;
+  --dv-tab-close-icon-size: 9px;
   --dv-floating-group-border: 1px solid var(--rr-line);
   --dv-floating-group-dragging-opacity: 0.6;
-  --dv-floating-titlebar-height: 22px;
   --dv-floating-titlebar-background-color: var(--rr-panel-2);
   --dv-floating-titlebar-border-bottom: 1px solid var(--rr-line);
 
@@ -60,6 +60,18 @@
   font-weight: 500;
   position: relative;
 }
+.dockview-theme-rr .dv-tab.dv-active-tab {
+  font-weight: 600;
+}
+/* each tab leads with its panel's icon (dockview.ts), quiet until its tab is in front */
+.rr-tab-icon {
+  display: inline-flex;
+  margin-right: var(--rr-space-6);
+  color: var(--rr-muted);
+}
+.dockview-theme-rr .dv-tab.dv-active-tab .rr-tab-icon {
+  color: var(--rr-ink);
+}
 .dockview-theme-rr .dv-tab.dv-active-tab::after {
   content: '';
   position: absolute;
@@ -76,8 +88,9 @@
 .dockview-theme-rr .dv-default-tab .dv-default-tab-action {
   opacity: 0;
 }
+/* the close button shows on hover and on the focused panel's tab, not on every group's front tab */
 .dockview-theme-rr .dv-tab:hover .dv-default-tab-action,
-.dockview-theme-rr .dv-tab.dv-active-tab .dv-default-tab-action {
+.dockview-theme-rr .dv-active-group .dv-tab.dv-active-tab .dv-default-tab-action {
   opacity: 0.7;
 }
 @media (hover: none) {
@@ -88,23 +101,22 @@
 .dockview-theme-rr .dv-resize-container {
   border-radius: var(--rr-radius-lg);
   overflow: hidden;
+  box-shadow: var(--rr-shadow-lg);
+  border: 1px solid var(--rr-line-strong);
 }
 .rr-group-actions {
   display: flex;
   align-items: center;
   gap: var(--rr-space-2);
   height: 100%;
-  padding: 0 var(--rr-space-6);
+  padding: 0 var(--rr-bar-pad);
 }
 .rr-group-actions .rr-icon-btn {
-  width: var(--rr-control-sm);
-  height: var(--rr-control-sm);
+  width: var(--rr-bar-tool);
+  height: var(--rr-bar-tool);
 }
 
 /* floating windows: a real, visible move handle */
-.dockview-theme-rr {
-  --dv-floating-titlebar-height: 24px;
-}
 .dockview-theme-rr .dv-floating-titlebar {
   position: relative;
   background: var(--rr-panel-2);
@@ -123,10 +135,6 @@
 }
 .dockview-theme-rr .dv-floating-titlebar:active {
   cursor: grabbing;
-}
-.dockview-theme-rr .dv-resize-container {
-  box-shadow: var(--rr-shadow-lg);
-  border: 1px solid var(--rr-line-strong);
 }
 
 /* layering: tab bars sit one step off their panel; the focused group's bar lifts */

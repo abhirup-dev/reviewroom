@@ -42,6 +42,7 @@
     <section id="request-path">
       <h2>Request path: Builder.Build</h2>
       <p>The habit call runs after the Tardis fetch, sequentially, so its latency adds straight onto the feed request. Its <rr-ref ref="rr:code/pkg/features/habit/fetcher.go#L21">30 ms deadline</rr-ref> starts when Tardis returns.</p>
+      <h3 id="request-order">Call order</h3>
       <rr-mermaid id="request-sequence">sequenceDiagram
   participant B as Build
   participant T as Tardis
@@ -61,6 +62,8 @@
     Note over B: log.Warn, events = nil
   end
   Note over B: RankerRequest field 12</rr-mermaid>
+      <h3 id="request-wiring">Wiring</h3>
+      <h4 id="request-deps">Deps</h4>
       <p>The fetcher reaches the builder through <rr-ref ref="rr:code/pkg/ranker/request_builder.go#L22-33">Deps</rr-ref>, "injected by the service wiring in cmd/mfas".</p>
       <rr-code ref="rr:code/pkg/ranker/request_builder.go#L46-60" title="Builder.Build, after the change"></rr-code>
     </section>
@@ -68,6 +71,7 @@
     <section id="failure-mode">
       <h2>Failure mode</h2>
       <p>Only the habit fetch is best-effort. Because <code>habit_events</code> is <code>repeated</code>, nil serialises as an empty list.</p>
+      <h3 id="failure-outcomes">Outcomes</h3>
       <table id="outcomes">
         <thead><tr><th>Outcome</th><th>Field 12</th><th>Request</th></tr></thead>
         <tbody>
@@ -76,6 +80,7 @@
           <tr><td><rr-ref ref="rr:code/pkg/ranker/request_builder.go#L46-49">Tardis error</rr-ref></td><td>none</td><td>fails, as before</td></tr>
         </tbody>
       </table>
+      <h4 id="failure-silent">Silent degradation</h4>
       <rr-callout kind="risk" title="Silent degradation">
         <p>Nothing counts the degraded requests. If TFS v2 failed for every user, the only trace would be warn logs. <b>b.metrics</b> is already injected (<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L32"></rr-ref>) and unused.</p>
       </rr-callout>

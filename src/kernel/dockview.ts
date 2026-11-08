@@ -96,11 +96,17 @@ export function createDock(app: ReviewApp, host: HTMLElement): DockviewApi {
   };
   host.addEventListener('dblclick', doubleClick);
   app.onDispose(() => host.removeEventListener('dblclick', doubleClick));
-  // dockview's own tab buttons get tooltips too
+  // dockview's own tab buttons get tooltips too, and each tab leads with its panel's icon (its title, set apart, keeps it)
   const labelTabs = () =>
-    requestAnimationFrame(() =>
-      host.querySelectorAll('.dv-default-tab-action:not([data-tip])').forEach((el) => ((el as HTMLElement).dataset.tip = 'Close panel (reopen it from the layout menu)')),
-    );
+    requestAnimationFrame(() => {
+      host.querySelectorAll('.dv-default-tab-action:not([data-tip])').forEach((el) => ((el as HTMLElement).dataset.tip = 'Close panel (reopen it from the layout menu)'));
+      for (const p of api.panels) {
+        const el = p.view.tab.element;
+        const tab = el.classList.contains('dv-default-tab') ? el : el.querySelector('.dv-default-tab');
+        const def = panelDef(p.id.replace(/^slot:/, '').split(':')[0]); // a floated panel's stand-in shows its icon
+        if (tab && def?.icon && !tab.querySelector('.rr-tab-icon')) tab.prepend(h('span', { class: 'rr-tab-icon', 'aria-hidden': 'true' }, icon(def.icon, 14)));
+      }
+    });
   const subscriptions = [api.onDidAddPanel(labelTabs), api.onDidLayoutFromJSON(labelTabs)];
   app.onDispose(() => subscriptions.forEach((sub) => sub.dispose()));
   return api;
@@ -189,11 +195,11 @@ class DockSurface implements PanelSurface {
 
 // ------------------------------------------------------------------ floating / docking helpers
 /** Where a floating window opens: right half of the dock, inside the viewport. */
-function floatBox(api: DockviewApi, w = 0.5, hgt = 0.62) {
+function floatBox(api: DockviewApi) {
   const W = api.width || window.innerWidth;
   const H = api.height || window.innerHeight;
-  const width = Math.round(Math.min(980, Math.max(420, W * w)));
-  const height = Math.round(Math.min(H - 60, Math.max(320, H * hgt)));
+  const width = Math.round(Math.min(980, Math.max(420, W * 0.5)));
+  const height = Math.round(Math.min(H - 60, Math.max(320, H * 0.62)));
   return { position: { top: Math.max(24, Math.round((H - height) / 3)), left: Math.max(24, W - width - 40) }, width, height };
 }
 

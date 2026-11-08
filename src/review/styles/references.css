@@ -9,8 +9,8 @@ rr-ref {
   padding: 0 var(--rr-space-8);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
-  background: var(--rr-accent-soft);
-  color: var(--rr-accent);
+  background: var(--rr-panel-2);
+  color: var(--rr-ink);
   font: 500 var(--rr-text-sm)/1 var(--rr-font);
   vertical-align: baseline;
   cursor: pointer;
@@ -21,7 +21,9 @@ rr-ref {
 }
 rr-ref:hover,
 .rr-chip:hover {
-  border-color: var(--rr-accent);
+  border-color: var(--rr-line-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 /* touch: a long press opens the preview card (review/overlays.ts), not the browser's link menu */
 @media (hover: none) {

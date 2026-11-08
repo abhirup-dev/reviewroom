@@ -5,7 +5,7 @@ import { anchorRef, parseRef } from '../kernel/refs/refs.shared';
 import { PR_DESCRIPTION } from '../kernel/refs/refs.shared';
 import { plainExcerpt } from '../kernel/markdown';
 import type { Thread } from '../kernel/state/model.shared';
-import { definePanel, type PanelInstance } from '../kernel/dock';
+import { definePanel, setPanelTitle, type PanelInstance } from '../kernel/dock';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 import type { ReviewApp } from '../app';
 
@@ -23,7 +23,6 @@ class ThreadsPanel implements PanelInstance {
   private body: HTMLElement;
   private head: HTMLElement;
   private convo: HTMLElement;
-  private foot: HTMLElement;
   private filter: 'open' | 'resolved' | 'all' | 'mine-pending';
   /** Agent or GitHub threads; null = what the review mode implies (Agent: agent threads, Team: GitHub's). */
   private sources: Set<Source> | null = null;
@@ -39,10 +38,9 @@ class ThreadsPanel implements PanelInstance {
     // kept across renders: the filter menu stays anchored to it while toggles re-render the panel
     this.filterBtn = h('button', { class: 'rr-tool', 'aria-label': 'Filter threads', title: 'Filter threads by source and by who started them', 'aria-haspopup': 'menu', onclick: () => this.filterMenu() }, icon('filter', 14));
     this.body = h('div', { class: 'rr-scroll rr-thread-list' });
-    // the PR conversation isn't a thread on anything: it opens from a small button in the footer, not the list
+    // the PR conversation isn't a thread on anything: it opens from a small button by the tools, not the list
     this.convo = h('button', { class: 'rr-convo-btn', title: 'PR conversation', 'aria-label': 'PR conversation', onclick: () => app.bus.emit('open-thread', { id: 'gh_conversation' }) });
-    this.foot = h('div', { class: 'rr-side-foot' });
-    this.element = h('div', { class: 'rr-side' }, this.head, this.body, this.foot);
+    this.element = h('div', { class: 'rr-side' }, this.head, this.body);
     this.offs.push(app.bus.on('state', () => this.render()), app.bus.on('prefs', () => this.render()));
     this.render();
   }
@@ -50,7 +48,6 @@ class ThreadsPanel implements PanelInstance {
   private item(t: Thread) {
     const app = this.app;
     const ref = anchorRef(t.anchor);
-    const last = t.messages[t.messages.length - 1];
     const r = ref ? parseRef(ref) : null;
     return h(
       'button',
@@ -62,17 +59,17 @@ class ThreadsPanel implements PanelInstance {
       h(
         'div',
         { class: 'rr-thread-item__anchor' },
-        threadBadge(t, app.services.threads.unreadAgent(t)),
         h('span', { class: 'rr-chip__icon' }, r ? refIcon(r) : '•'),
         h('span', null, t.title ?? app.anchorLabel(t.anchor)),
         t.gh ? h('span', { class: 'rr-round-badge', title: 'Started on GitHub by ' + t.messages[0]?.gh?.login }, '@' + t.messages[0]?.gh?.login) : h('span', { class: 'rr-round-badge', title: `Started in round ${t.createdRound}` }, 'R' + t.createdRound),
+        threadBadge(t, app.services.threads.unreadAgent(t)),
       ),
       h('div', { class: 'rr-thread-item__text' }, plainExcerpt(t.messages[0]?.body ?? '', 120)),
       h(
         'div',
         { class: 'rr-thread-item__meta' },
         h('span', null, plural(t.messages.length, 'message')),
-        last?.author === 'agent' ? h('span', { class: 'rr-agent-tag' }, 'agent replied') : null,
+        app.services.threads.unreadAgent(t) ? h('span', { class: 'rr-unread-tag', title: 'The agent answered this round' }, 'unread') : null,
         t.messages.some((m) => m.gh?.pending) ? h('span', { class: 'rr-pill rr-pill--draft', title: 'In your GitHub review, not posted until you submit it' }, 'draft') : null,
         t.gh?.outdated ? h('span', { class: 'rr-pill', title: 'The code this was written on has changed since' }, 'outdated') : null,
         t.status === 'resolved' ? h('span', { class: 'rr-pill rr-pill--ok' }, 'resolved') : null,
@@ -94,7 +91,6 @@ class ThreadsPanel implements PanelInstance {
     const convo = app.services.threads.threads().find((t) => t.gh?.conversation);
     this.convo.hidden = !convo;
     if (convo) this.convo.replaceChildren(threadBadge(convo));
-    const pending = app.services.threads.pendingFeedback().length;
     const count = (f: typeof this.filter) => all.filter((t) => this.match(t, f)).length;
     const narrowed = this.authors.size > 0 || (this.sources !== null && !sameSet(this.sources, this.defaultSources()));
     this.filterBtn.classList.toggle('is-on', narrowed);
@@ -109,32 +105,25 @@ class ThreadsPanel implements PanelInstance {
           (['open', 'resolved', 'all'] as const).map((f) => ({ label: `${f[0].toUpperCase() + f.slice(1)} ${count(f)}`, title: { open: 'Threads still being discussed', resolved: 'Threads marked resolved', all: 'Every thread from every round' }[f], on: this.filter === f, onclick: () => { this.filter = f; this.render(); } })),
           { class: 'rr-seg rr-seg--small rr-seg--fill', 'aria-label': 'Which threads' },
         ),
+        this.newBtn(),
         this.filterBtn,
-      ),
-      // a comment about the whole PR: for the agent, or the PR conversation on GitHub; the review mode greys out the side it leaves out
-      h(
-        'div',
-        { class: 'rr-side-head__row rr-side-head__row--center' },
-        ...app.services.threads.commentTargets({ kind: 'general' }).map((b) =>
-          h('button', { class: 'rr-btn rr-btn--small rr-btn--send' + (b.to === 'agent' ? ' rr-btn--agent' : ''), title: b.off ?? b.title, 'aria-disabled': b.off ? 'true' : null, onclick: () => b.off || app.compose({ kind: 'general' }, undefined, b.to) }, icon('send', 12), b.label),
-        ),
+        this.convo,
       ),
     );
+    // the tab says how many are open, as Files says how many are viewed
+    if (!this.fixed) setPanelTitle(app, 'threads', `Threads ${count('open')}`);
     const list = all.filter((t) => this.match(t, this.filter));
-    const groups: [string, Thread[]][] = [
-      ['PR description', list.filter((t) => t.anchor.kind === 'doc' && t.anchor.target === PR_DESCRIPTION)],
-      ['Narrative', list.filter((t) => !t.gh && t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)],
-      ['Code', list.filter((t) => !t.gh && (t.anchor.kind === 'code' || t.anchor.kind === 'symbol'))],
-      ['Guided walkthrough', list.filter((t) => t.anchor.kind === 'tour')],
-      ['General', list.filter((t) => !t.gh && t.anchor.kind === 'general')],
-      ['GitHub', list.filter((t) => t.gh)],
+    // one list, in the order of where they are (the PR description, the walkthrough, the code, the guided walkthrough,
+    // the whole PR, then GitHub's); each item's icon says which, so no headings
+    const groups = [
+      list.filter((t) => t.anchor.kind === 'doc' && t.anchor.target === PR_DESCRIPTION),
+      list.filter((t) => !t.gh && t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION),
+      list.filter((t) => !t.gh && (t.anchor.kind === 'code' || t.anchor.kind === 'symbol')),
+      list.filter((t) => t.anchor.kind === 'tour'),
+      list.filter((t) => !t.gh && t.anchor.kind === 'general'),
+      list.filter((t) => t.gh),
     ];
-    const out: HTMLElement[] = [];
-    for (const [label, ts] of groups) {
-      if (!ts.length) continue;
-      out.push(h('div', { class: 'rr-group-label' }, label, h('span', null, String(ts.length))));
-      ts.forEach((t) => out.push(this.item(t)));
-    }
+    const out: HTMLElement[] = groups.flat().filter((t, i, a) => a.indexOf(t) === i).map((t) => this.item(t));
     if (!out.length)
       out.push(
         all.length ? h('div', { class: 'rr-empty' }, 'Nothing here.')
@@ -142,15 +131,6 @@ class ThreadsPanel implements PanelInstance {
         : h('div', { class: 'rr-empty' }, 'No threads yet'),
       );
     this.body.replaceChildren(...out);
-    this.foot.replaceChildren(
-      h(
-        'div',
-        { class: 'rr-round-foot' },
-        h('span', null, `Round ${app.state.round}`),
-        h('span', { class: 'rr-muted' }, pending ? `${plural(pending, 'thread')} with new comments` : 'nothing to send yet'),
-      ),
-      this.convo,
-    );
   }
 
   /** The review mode, as far as the list goes: without GitHub there is only one kind of thread. */
@@ -171,6 +151,25 @@ class ThreadsPanel implements PanelInstance {
     return this.authors.size ? `${what} started by ${[...this.authors].map((k) => k.replace(/^gh:/, '@')).join(', ')}` : what;
   }
 
+  /** A comment about the whole PR: straight to the composer when only the agent can take it, else a menu of where it
+   *  goes (the agent, or the PR conversation on GitHub), the side the review mode leaves out greyed with the reason. */
+  private newBtn() {
+    const app = this.app, targets = app.services.threads.commentTargets({ kind: 'general' });
+    const go = (to: 'agent' | 'github') => app.compose({ kind: 'general' }, undefined, to);
+    const btn: HTMLElement = h('button', {
+      class: 'rr-tool', 'aria-label': 'Comment on the whole PR', title: targets.length > 1 ? 'Comment on the whole PR: for the agent, or on GitHub' : 'Comment on the whole PR, for the agent',
+      'aria-haspopup': targets.length > 1 ? 'menu' : null,
+      onclick: () => targets.length > 1
+        ? popMenu(btn, () => [menuLabel('Comment on the whole PR'), ...targets.map((b) => {
+          const it = menuItem(b.to === 'agent' ? 'For the agent' : 'On the PR', () => go(b.to), { icon: b.to === 'agent' ? 'send' : 'github' });
+          it.title = b.off ?? b.title;
+          it.disabled = !!b.off;
+          return it;
+        })])
+        : go('agent'),
+    }, icon('chat', 14));
+    return btn;
+  }
   private filterMenu() {
     const src = this.sources ?? this.defaultSources();
     // only people whose threads the sources let through (Team review: no Agent), plus anyone already picked
