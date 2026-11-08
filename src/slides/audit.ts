@@ -56,7 +56,7 @@ export function measure(els: { left: HTMLElement; lead: HTMLElement; pane: HTMLE
   const wider = (e: Element) => e.scrollWidth > e.clientWidth + 1;
   const wide = [
     ...(wider(left) ? ['narration'] : []),
-    ...[...left.querySelectorAll('pre, table, rr-flow, svg, img')].filter(wider).map((e) => e.tagName.toLowerCase()),
+    ...[...left.querySelectorAll('pre, table, svg, img')].filter(wider).map((e) => e.tagName.toLowerCase()),
   ];
   return {
     left: { visible: left.clientHeight, content: left.scrollHeight, lead: lead.hidden ? 0 : lead.offsetHeight },

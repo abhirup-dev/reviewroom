@@ -16,19 +16,17 @@ export const textOf = (markup: string) =>
   markup.replace(/<[^>]*>/g, '').replace(/&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi, (all, dec: string, hex: string, name: string) =>
     dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : (ENTITY[name.toLowerCase()] ?? all));
 
-/** The node labels a slide's diagrams show: <rr-node> text, and the labels Pele lays out for each <rr-mermaid>,
+/** The node labels Pele lays out for each <rr-mermaid>,
  *  read the way the guided walkthrough reads them on the page. */
-export const diagramLabels = (html: string): string[] => [
-  ...[...html.matchAll(/<rr-node\b[^>]*>([\s\S]*?)<\/rr-node>/g)].map((m) => nodeLabel(plain(m[1]))),
-  ...[...html.matchAll(/<rr-mermaid\b[^>]*>([\s\S]*?)<\/rr-mermaid>/g)].flatMap((m) => {
+export const diagramLabels = (html: string): string[] =>
+  [...html.matchAll(/<rr-mermaid\b[^>]*>([\s\S]*?)<\/rr-mermaid>/g)].flatMap((m) => {
     try {
       const svg = render(textOf(m[1]).trim(), { links: false, images: false, measurer: { width: (t, size) => t.length * size * 0.6 } }).svg;
       return [...svg.matchAll(/<text class="pele-label"[^>]*>([\s\S]*?)<\/text>/g)].map((t) => nodeLabel(textOf(t[1])));
     } catch {
       return []; // a diagram that doesn't render is reported by `lint` itself
     }
-  }),
-];
+  });
 
 const MAX_STEPS = 6; // per chapter
 const MAX_TOTAL = 25;
@@ -68,7 +66,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
       if (s.focus) {
         const labels = diagramLabels((c.lead ?? '') + s.text);
         const gone = s.focus.filter((l) => !labels.includes(nodeLabel(l)));
-        if (gone.length) out.push({ check: 'unknown-focus', level: 'warn', where, message: `focus names no diagram node: ${gone.join(', ')}`, fix: 'Use an <rr-node> label or a Mermaid node label from the chapter lead or this slide, exactly as written.' });
+        if (gone.length) out.push({ check: 'unknown-focus', level: 'warn', where, message: `focus names no diagram node: ${gone.join(', ')}`, fix: 'Use a Mermaid node label from the chapter lead or this slide, exactly as written.' });
       }
       if (!estimates) return;
       const words = plain(s.text).split(' ').filter(Boolean).length;
@@ -122,8 +120,8 @@ export function judge(ms: Measured[]): Finding[] {
         add({ check: 'short-chunk', level: 'warn', where, message: `${a.chunks.length} stacked chunks leave ${c.ref} too little room`, fix: 'Stack at most 2 or 3 chunks, or split the slide.' }, viewport, `${c.visible} lines visible`);
     }
     for (const w of a.wide) add({ check: 'too-wide', level: 'warn', where, message: `content wider than its box (${w})`, fix: 'Narrow it (fewer columns or nodes, shorter lines), or move it to review.html.' }, viewport, 'scrolls sideways');
-    if (a.stripped.lead.length) add({ check: 'stripped', level: 'warn', where: chapter, message: `the lead loses ${a.stripped.lead.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-flow>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
-    if (a.stripped.text.length) add({ check: 'stripped', level: 'warn', where, message: `the text loses ${a.stripped.text.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-flow>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
+    if (a.stripped.lead.length) add({ check: 'stripped', level: 'warn', where: chapter, message: `the lead loses ${a.stripped.lead.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
+    if (a.stripped.text.length) add({ check: 'stripped', level: 'warn', where, message: `the text loses ${a.stripped.text.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
     for (const e of errors) add({ check: 'page-error', level: 'warn', where, message: e.slice(0, 200), fix: 'An error on the page while this slide showed: check its HTML.' }, viewport, 'console');
     if (!a.settled) add({ check: 'unsettled', level: 'info', where, message: 'the page was still changing when measured', fix: 'The numbers for this slide may be off; measure it again.' }, viewport, 'timed out');
   }

@@ -25,7 +25,7 @@ rr-ref:hover,
 }
 /* touch: a long press opens the preview card (review/overlays.ts), not the browser's link menu */
 @media (hover: none) {
-  :is(rr-ref, a[href^='rr:'], rr-node[ref]) {
+  :is(rr-ref, a[href^='rr:']) {
     -webkit-touch-callout: none;
   }
 }

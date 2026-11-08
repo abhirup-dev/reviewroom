@@ -1,7 +1,7 @@
 import { icon } from '../dom';
 import type { Ref } from './refs.shared';
-/** Elements that carry an rr: link: links, chips and diagram nodes. */
-export const REF_ELEMENTS = 'a[href^="rr:"], rr-ref, rr-node[ref]';
+/** Elements that carry an rr: link: links and chips. */
+export const REF_ELEMENTS = 'a[href^="rr:"], rr-ref';
 /** Short human label for chips; never shows ids or CSS paths (ReviewApp.label adds DOM-aware names). */
 export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | undefined): string {
   switch (r.type) {

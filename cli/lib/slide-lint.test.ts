@@ -71,8 +71,8 @@ test('lock, generated and doc files are only mentioned; the line budget depends 
 });
 
 test('a step\'s focus must name a diagram node in the chapter lead or the slide', () => {
-  const lead = '<rr-flow><rr-node state="new">habit.<b>RecentEvents</b></rr-node><rr-node>TFS</rr-node></rr-flow>';
-  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['habit.RecentEvents', 'TFS'] }, { id: 's2', text: '<rr-flow><rr-node>Cache</rr-node></rr-flow>', focus: ['Cache', 'Ranker'] }];
+  const lead = '<rr-mermaid>flowchart TD\nH[habit.RecentEvents] --&gt; T[TFS]</rr-mermaid>';
+  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['habit.RecentEvents', 'TFS'] }, { id: 's2', text: '<rr-mermaid>flowchart TD\nC[Cache]</rr-mermaid>', focus: ['Cache', 'Ranker'] }];
   const fs = lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', lead, steps }] }, [], () => undefined).filter((f) => f.check === 'unknown-focus');
   expect(fs.map((f) => `${f.where} ${f.message}`)).toEqual(['a/s2 focus names no diagram node: Ranker']);
 });

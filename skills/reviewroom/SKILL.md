@@ -31,7 +31,7 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run it **in the background** (`run_in_background: true`):
+Run it **in the background / async**:
 
 ```bash
 reviewroom pr <n | url | branch> --repo <path> --wait
@@ -39,10 +39,7 @@ reviewroom pr <n | url | branch> --repo <path> --wait
 
 It creates the review, serves it, opens it (in the macOS app when installed, else the browser; `--browser`
 forces the browser), and then blocks until the reviewer clicks
-*Send feedback* or *Approve*. That can take hours. In Claude Code, a background command is stopped
-after 30 minutes unless you also pass a longer `timeout` (up to `7200000` ms). If it is stopped by a
-time limit, run `reviewroom review --dir <dir>` in the background: nothing is lost (re-running
-`pr` would fetch the PR again and could move the head mid-round).
+*Send feedback* or *Approve*.
 
 The page goes offline when the command exits and comes back with the next one; the reviewer's open
 tab reconnects by itself. That is expected.
@@ -60,7 +57,9 @@ verbatim:
 
 Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status --json`,
 not your checkout: every line number you link is the head sha's, so read files with
-`git show <head>:<path>`. Find the entry point, the new pieces,
+`git show <head>:<path>`. For uncommitted work (`--head worktree`) the head is the literal `worktree`:
+run `git diff <base> --stat`, read files from disk, and add untracked files
+(`git ls-files --others --exclude-standard`), which `git diff` leaves out. Find the entry point, the new pieces,
 storage / proto / config changes, failure paths and what the tests cover. Read the PR description
 when `gh` is available.
 
@@ -73,6 +72,8 @@ git show <head>:<path> | ast-grep outline --stdin --lang <lang>             # ea
 git show <head>:<path> | ast-grep outline --stdin --lang <lang> --json=stream  # with end lines (0-based: add 1)
 git show <head>:<path> | ast-grep run --stdin --lang <lang> -p '<pattern>'   # a call or statement by shape
 ```
+
+For `--head worktree`, pass the file path instead of piping (`ast-grep outline <path>`).
 
 reviewroom's setup installs `ast-grep` (the `ast-grep` skill, when installed, has the pattern
 syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
@@ -94,13 +95,10 @@ Before writing, read:
    `references/guided-walkthrough-craft.md` first: outline the story once, then write both from it).
 2. `references/authoring.md`: links, symbols, code previews, diagrams, typography.
 
-The walkthrough is usually read in a narrow side panel (about 400px), and later on phones: design every
+The walkthrough is usually read in a narrow side panel (about 400px) or on a phone: design every
 diagram, table and widget for that width, never for a wide page.
 
-Pictures come in three first-class forms (`references/visual-formats.md`): Mermaid in `<rr-mermaid>`
-whenever the picture is a graph, sequence, state machine, tree or timeline; `<rr-flow>` for a short
-chain; your own HTML, SVG or table when the shape is something else. Mermaid is the fastest to write
-and renders in reviewroom's theme, so reach for it first, but never bend a picture to fit it.
+Prefer Mermaid in `<rr-mermaid>` for diagrams (`references/visual-formats.md`).
 
 Edit `review.html` in the review directory; the open page reloads on every save. Then run
 `reviewroom check --fix --dir <dir>` and fix whatever it still reports.
@@ -174,7 +172,7 @@ slide itself only if it was wrong or misleading; keep its ids (threads are ancho
 again as in Step 4b until clean.
 
 <important if="you are replying to several threads at once">
-Write the answers to a JSON file with the Write tool, then send them in one call (all or nothing):
+Write the answers to a JSON file, then send them in one call (all or nothing):
 `reviewroom reply --json <replies.json> --dir <dir>`, with `[{"thread": "t_ab12", "body": "…"}]`.
 </important>
 
