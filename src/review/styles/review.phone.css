@@ -29,7 +29,7 @@
 }
 .is-phone .rr-rail-chip {
   left: auto;
-  right: 10px; /* room for the count on the bubble's corner */
+  right: var(--rr-space-10); /* room for the count on the bubble's corner */
   width: auto;
   padding: 0;
   gap: 0;
@@ -45,12 +45,9 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  margin: 0;
-  padding: 0;
-  color: var(--rr-comment);
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--rr-ink) 25%, transparent);
+  box-shadow: var(--rr-shadow-sm);
 }
 .is-phone .rr-rail-chip .rr-tbadge > :first-child {
   width: 18px;
@@ -58,15 +55,15 @@
 }
 .is-phone .rr-rail-chip .rr-tbadge__n {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: calc(-1 * var(--rr-space-6));
+  right: calc(-1 * var(--rr-space-6));
   min-width: 14px;
   height: 14px;
-  padding: 0 4px;
-  border-radius: 7px;
+  padding: 0 var(--rr-space-4);
+  border-radius: var(--rr-shape-full);
   background: var(--rr-comment);
   color: var(--rr-comment-ink);
-  font: 600 10px/14px var(--rr-font);
+  font: 600 var(--rr-text-2xs)/14px var(--rr-font);
   text-align: center;
   box-shadow: 0 0 0 1.5px var(--rr-panel);
 }
@@ -199,8 +196,8 @@
   }
 }
 
-/* Pele's zoom buttons (24px, inline styles) become 44px touch targets, in the phone shell and the phone player. */
+/* Pele's zoom buttons (24px, inline styles) become phone touch targets in the shell and the player. */
 :is(.is-phone, [data-form='phone']) rr-mermaid .pele-zoom > button {
-  width: 44px !important;
-  height: 44px !important;
+  width: var(--rr-touch) !important;
+  height: var(--rr-touch) !important;
 }
