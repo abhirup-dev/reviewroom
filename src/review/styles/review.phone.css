@@ -120,25 +120,21 @@
   border-left: 0;
 }
 /* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
-.is-phone .rr-code-scroll {
-  background: var(--rr-surface-well);
-}
 .is-phone .rr-file__head {
   background: var(--rr-bg);
-  font-size: 12px;
 }
 .rr-file__pos {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--rr-space-2);
   height: 32px;
-  padding: 0 4px 0 8px;
+  padding: 0 var(--rr-space-4) 0 var(--rr-space-8);
   border: 0;
   border-radius: var(--rr-shape-full);
   background: none;
   color: var(--rr-muted);
-  font: 500 12px / 1 var(--rr-font);
+  font: 500 var(--rr-text-sm) / 1 var(--rr-font);
   white-space: nowrap;
 }
 .is-phone .rr-code-panel {
@@ -149,14 +145,14 @@
   position: absolute;
   right: 0;
   top: var(--rr-bar-h);
-  bottom: 8px;
+  bottom: var(--rr-space-8);
   z-index: 4;
   width: 20px;
-  padding: 4px 4px 0 12px;
+  padding: var(--rr-space-4) var(--rr-space-4) 0 var(--rr-space-12);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: var(--rr-space-4);
   touch-action: none;
 }
 .rr-code-rail__seg {
@@ -185,7 +181,7 @@
   display: none;
 }
 .rr-code-panel:has(> .rr-code-rail:not([hidden])) > .rr-code-scroll {
-  margin-right: 12px;
+  margin-right: var(--rr-space-12);
 }
 .is-peek .rr-code-panel:has(> .rr-code-rail) > .rr-code-scroll {
   margin-right: 0;
