@@ -43,8 +43,8 @@
   background: var(--rr-bg);
 }
 .rr-phonebar .rr-hbtn--icon {
-  width: 48px;
-  height: 48px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
   border-radius: var(--rr-shape-full);
   color: var(--rr-ink-2);
 }
