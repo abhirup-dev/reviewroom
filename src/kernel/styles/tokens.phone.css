@@ -1,5 +1,7 @@
 /* Shared phone tokens for the shell and guided review, loaded after tokens.css. */
 :root:has(.is-phone, .rr-tour[data-form='phone']) {
+  /* the minimum touch target (M3: 48dp); sizes and spacing otherwise come from the shared scales in tokens.css */
+  --rr-touch: 48px;
   /* the M3 shape scale (desktop keeps 2px) */
   --rr-shape-xs: 4px;
   --rr-shape-s: 8px;

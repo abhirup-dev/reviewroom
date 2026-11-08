@@ -29,7 +29,7 @@
 }
 .is-phone .rr-rail-chip {
   left: auto;
-  right: 10px; /* room for the count on the bubble's corner */
+  right: var(--rr-space-10); /* room for the count on the bubble's corner */
   width: auto;
   padding: 0;
   gap: 0;
@@ -45,12 +45,9 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  margin: 0;
-  padding: 0;
-  color: var(--rr-comment);
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--rr-ink) 25%, transparent);
+  box-shadow: var(--rr-shadow-sm);
 }
 .is-phone .rr-rail-chip .rr-tbadge > :first-child {
   width: 18px;
@@ -58,15 +55,15 @@
 }
 .is-phone .rr-rail-chip .rr-tbadge__n {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: calc(-1 * var(--rr-space-6));
+  right: calc(-1 * var(--rr-space-6));
   min-width: 14px;
   height: 14px;
-  padding: 0 4px;
-  border-radius: 7px;
+  padding: 0 var(--rr-space-4);
+  border-radius: var(--rr-shape-full);
   background: var(--rr-comment);
   color: var(--rr-comment-ink);
-  font: 600 10px/14px var(--rr-font);
+  font: 600 var(--rr-text-2xs)/14px var(--rr-font);
   text-align: center;
   box-shadow: 0 0 0 1.5px var(--rr-panel);
 }
@@ -83,18 +80,18 @@
 }
 .rr-toc-fab {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  right: var(--rr-space-16);
+  bottom: var(--rr-space-16);
   z-index: 6;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
   border: 0;
   border-radius: var(--rr-shape-l);
   background: var(--rr-surface-overlay);
   color: var(--rr-ink);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--rr-ink) 22%, transparent);
+  box-shadow: var(--rr-shadow);
 }
 .rr-toc-sheet > .rr-side {
   flex: 1;
@@ -110,35 +107,30 @@
   counter-reset: rr-toc;
 }
 .rr-toc-sheet .rr-group-label {
-  padding: 16px 16px 4px;
   counter-reset: rr-toc;
 }
 .rr-toc-sheet .rr-toc .rr-toc-item--sub {
-  width: calc(100% - 20px);
-  margin-left: 20px;
-  padding-left: 44px;
+  width: calc(100% - var(--rr-space-16));
+  margin-left: var(--rr-space-16);
+  padding-left: var(--rr-space-48);
   border-left: 0;
 }
 /* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
-.is-phone .rr-code-scroll {
-  background: var(--rr-surface-well);
-}
 .is-phone .rr-file__head {
   background: var(--rr-bg);
-  font-size: 12px;
 }
 .rr-file__pos {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--rr-space-2);
   height: 32px;
-  padding: 0 4px 0 8px;
+  padding: 0 var(--rr-space-4) 0 var(--rr-space-8);
   border: 0;
   border-radius: var(--rr-shape-full);
   background: none;
   color: var(--rr-muted);
-  font: 500 12px / 1 var(--rr-font);
+  font: 500 var(--rr-text-sm) / 1 var(--rr-font);
   white-space: nowrap;
 }
 .is-phone .rr-code-panel {
@@ -149,14 +141,14 @@
   position: absolute;
   right: 0;
   top: var(--rr-bar-h);
-  bottom: 8px;
+  bottom: var(--rr-space-8);
   z-index: 4;
   width: 20px;
-  padding: 4px 4px 0 12px;
+  padding: var(--rr-space-4) var(--rr-space-4) 0 var(--rr-space-12);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: var(--rr-space-4);
   touch-action: none;
 }
 .rr-code-rail__seg {
@@ -185,7 +177,7 @@
   display: none;
 }
 .rr-code-panel:has(> .rr-code-rail:not([hidden])) > .rr-code-scroll {
-  margin-right: 12px;
+  margin-right: var(--rr-space-12);
 }
 .is-peek .rr-code-panel:has(> .rr-code-rail) > .rr-code-scroll {
   margin-right: 0;
@@ -199,8 +191,8 @@
   }
 }
 
-/* Pele's zoom buttons (24px, inline styles) become 44px touch targets, in the phone shell and the phone player. */
+/* Pele's zoom buttons (24px, inline styles) become phone touch targets in the shell and the player. */
 :is(.is-phone, [data-form='phone']) rr-mermaid .pele-zoom > button {
-  width: 44px !important;
-  height: 44px !important;
+  width: var(--rr-touch) !important;
+  height: var(--rr-touch) !important;
 }

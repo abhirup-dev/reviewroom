@@ -409,10 +409,28 @@ The phone is its own presentation of the same features (`src/kernel/phone.ts`, `
 `linear()` easings, touch sizes, and its own dark paper, on this palette. Core CSS never styles the phone; the phone's
 CSS loads last and overrides.
 
+The phone keeps this system's scales (type steps, spacing, mixes, weights 400/500/600) and takes Material 3's size for
+each role, snapped to a step. It names no roles of its own: its CSS uses the steps directly.
+
+| Role | Desktop | Phone (M3) | On the phone |
+|---|---|---|---|
+| Headline | 32 / 23 / 19 | 32 / 23 / 19 | walkthrough headings |
+| Title | 16 | 16 (title-medium) | app bar, drawer, sheet headers |
+| Body | 16 / 14 / 13 | 16 / 14 / 13 | reading and slide text / rows / interface |
+| Label large | 12 | 14 (label-large) | chips, primary tabs, the code sheet's title |
+| Label | 12 / 11 | 12 / 11 | navigation bar labels / group headings |
+| Count | 10 | 10 | badges |
+
+Touch targets are `--rr-touch` (48px); it is the one size token the phone adds.
+
+**The One Layer Rule.** A token that points at another token exists only when it switches value in one place (theme,
+typeface, panel, form) or is a public contract (`--rr-text-prose`). Otherwise use the step itself. A phone rule that
+re-styles a core selector is a layer too: keep it only where the phone genuinely differs.
+
 ## Enforcement
 
 `bun run check` holds most of this file:
-- **stylelint** (`stylelint.config.js`): sizes, spacing, weights, letter-spacing and colours only from tokens; no hex
+- **stylelint** (`stylelint.config.js`): sizes, spacing, weights, letter-spacing and colours only from tokens, on the phone too; no hex
   or `rgb()` outside `tokens.css`; no literal percentage in `color-mix()`; correctness rules (duplicate selectors and
   properties, unknown properties and units); no phone selectors in core CSS.
 - **`scripts/css-usage.ts`**: an `rr-` class nothing writes, a `--rr-*` token set outside `tokens.css` (but the
