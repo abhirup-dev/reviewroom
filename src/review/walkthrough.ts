@@ -18,7 +18,7 @@ import { definePanel, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 
 const BLOCKS =
-  'h1,h2,h3,h4,h5,h6,p,li,pre,table,figure,blockquote,img,svg,canvas,video,details,dl,[data-rr-block],rr-code,rr-embed,rr-callout,rr-flow,rr-checklist,.rr-block';
+  'h1,h2,h3,h4,h5,h6,p,li,pre,table,figure,blockquote,img,svg,canvas,video,details,dl,[data-rr-block],rr-code,rr-embed,rr-callout,rr-mermaid,rr-checklist,.rr-block';
 
 const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
 // one highlight registry for the page: each panel contributes its own ranges

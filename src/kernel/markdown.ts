@@ -67,9 +67,9 @@ export function sanitizeProse(html: string): string {
     // listed here (not only as a custom element's) so `ref` is URL-checked too
     ALLOWED_ATTR: ['href', 'ref', 'title', 'class'],
     // other allowed attributes are checked as URLs: plain words for these, only http(s)/rr: for href and ref
-    ADD_URI_SAFE_ATTR: ['caption', 'kind', 'lang', 'state', 'direction'],
+    ADD_URI_SAFE_ATTR: ['caption', 'kind', 'lang'],
     ALLOWED_URI_REGEXP: /^(?:https?|rr):/i,
-    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|flow|node|callout|mermaid)$/, attributeNameCheck: /^(ref|caption|kind|lang|state|title|direction)$/, allowCustomizedBuiltInElements: false },
+    CUSTOM_ELEMENT_HANDLING: { tagNameCheck: /^rr-(ref|embed|code|callout|mermaid)$/, attributeNameCheck: /^(ref|caption|kind|lang|title)$/, allowCustomizedBuiltInElements: false },
   });
 }
 

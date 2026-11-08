@@ -50,13 +50,13 @@ uses it. The one exception is a PR that is only a dependency change.
 **Pictures.** A slide is a picture with a caption, and the picture is often not code. The context
 chapter's lead is a diagram of the surrounding system with the threads marked; the convergence
 shows the contract as a diagram (who writes it, who reads it) before it shows the lines; a thread
-chapter opens on its flow, then walks it line by line. Slides take `<rr-mermaid>`, `<rr-flow>`, `<rr-code>` and
+chapter opens on its flow, then walks it line by line. Slides take `<rr-mermaid>`, `<rr-code>` and
 `<rr-callout>` directly, and `<rr-embed ref="rr:doc/<id>">` for any richer figure you drew in
 `review.html`, so draw once and show it in both. `visual-formats.md` has the menu. Build every figure for the narrow pane.
 
 **A map that stays while the slides walk it.** A chapter that walks several parts of one system
-draws the whole system once, as the lead's `<rr-mermaid>` (or `<rr-flow>`), with each node linked to
-its code (a `click` statement; `ref` on an `<rr-node>`). The diagram stays put while ← → move through
+draws the whole system once, as the lead's `<rr-mermaid>`, with each node linked to
+its code (a `click` statement). The diagram stays put while ← → move through
 the slides, and the node each slide is about lights up (the rest dim, and in a flowchart the edges
 between lit nodes flow): any node whose link overlaps the code the pane shows does so on its own. A slide's `focus`
 names the nodes outright, by label, when they have no code (a service, a queue, a concept), or to pick

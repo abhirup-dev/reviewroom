@@ -8,7 +8,7 @@ docking panels, contents, a file tree, symbol search, anchored comment threads, 
 ```
 ┌ header: PR · round · ⌘K · pick · layout · theme · Send feedback ──────────────────────────┐
 │ Contents  │ Review (agent's HTML)                       ┊ │ Code (@pierre/diffs)           │
-│ Pinned    │   prose, <rr-flow> diagrams, widgets,       ┊ │   all files, split/unified,    │
+│ Pinned    │   prose, Mermaid diagrams, widgets,       ┊ │   all files, split/unified,    │
 │───────────│   live <rr-code> snippets, rr: links        ┊ │   ws, +/− focus, wrap,         │
 │ Files     │   highlights + thread chips in the margin → ┊ │   inline threads, base/head    │
 │ Threads   │                                             ┊ │   full file, commit ranges     │

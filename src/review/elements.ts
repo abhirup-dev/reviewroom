@@ -6,7 +6,6 @@
 //   <rr-embed ref="rr:doc/request-path"></rr-embed>              mini preview card of anything linkable
 //   <rr-code ref="rr:code/pkg/x.go@head#L40-60"></rr-code>        highlighted snippet pulled live from the repo
 //   <rr-code lang="sql">SELECT ...</rr-code>                        highlighted inline snippet
-//   <rr-flow><rr-node ref="..." state="new">habit.RecentEvents</rr-node>...</rr-flow>   left->right flow, clickable nodes
 //   <rr-callout kind="risk" title="Latency">...</rr-callout>       info | note | risk | question | ok
 //   <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  reviewer sign-off, persisted
 import { File as PierreFile } from '@pierre/diffs';
@@ -144,30 +143,6 @@ class RRCode extends HTMLElement {
       this.replaceChildren(this.dataset.src ?? '');
       delete this.dataset.ready;
     });
-  }
-}
-
-// ------------------------------------------------------------------ rr-flow
-class RRFlow extends HTMLElement {
-  connectedCallback() {
-    this.classList.add('rr-flow');
-    this.setAttribute('role', 'list');
-  }
-}
-class RRNode extends HTMLElement {
-  connectedCallback() {
-    if (this.dataset.ready) return;
-    this.dataset.ready = '1';
-    this.setAttribute('role', 'listitem');
-    const ref = this.getAttribute('ref');
-    const state = this.getAttribute('state');
-    if (state) this.append(h('span', { class: 'rr-node__badge', title: { new: 'Added in this PR', changed: 'Changed in this PR', removed: 'Removed in this PR', baseline: 'Already existed before this PR' }[state] ?? state }, state));
-    if (ref) {
-      this.tabIndex = 0;
-      this.classList.add('is-link');
-      this.addEventListener('click', () => withApp((a) => a.open(ref)));
-      this.addEventListener('keydown', (e) => e.key === 'Enter' && withApp((a) => a.open(ref)));
-    }
   }
 }
 
@@ -315,8 +290,6 @@ export function defineElements() {
   def('rr-ref', RRRef);
   def('rr-embed', RREmbed);
   def('rr-code', RRCode);
-  def('rr-flow', RRFlow);
-  def('rr-node', RRNode);
   def('rr-callout', RRCallout);
   def('rr-check', RRCheck);
   def('rr-markdown', RRMarkdown);

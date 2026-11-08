@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "rev": 3,
   "round": 2,
   "rounds": [
     {
@@ -41,7 +42,7 @@
           "author": "agent",
           "round": 2,
           "at": "2026-10-09T09:57:00Z",
-          "body": "It could. Both calls depend only on `req.UserID`; the author kept them sequential to reuse the error branch at [request_builder.go:47](rr:code/pkg/ranker/request_builder.go#L47-49).\n\n| path | p50 | p99 |\n|---|---|---|\n| Tardis.Fetch | 4 ms | 18 ms |\n| habit.RecentEvents | 3 ms | 12 ms |\n| **sequential** | 7 ms | **30 ms** |\n| **parallel** | 4 ms | **18 ms** |\n\nI added a section with an errgroup sketch instead of repeating it here:\n\n![](rr:doc/parallel-sketch)"
+          "body": "It could. Both calls depend only on `req.UserID`. The diff keeps them [sequential](rr:code/pkg/ranker/request_builder.go#L46-54) and gives no reason, so the habit call's time adds to every request; its context timeout is 30 ms. The diff has no latency measurements.\n\nI added a section with an errgroup sketch instead of repeating it here:\n\n![](rr:doc/parallel-sketch)"
         }
       ]
     },
@@ -94,7 +95,7 @@
           "author": "agent",
           "round": 2,
           "at": "2026-10-09T09:58:00Z",
-          "body": "In `decode`: TFS returns epoch millis in the `ts` column and it's copied straight into `TsMs`.\n\n![](rr:code/pkg/features/habit/fetcher.go#L39-47)\n\nThe SQL table is the offline sink; the online path never reads it."
+          "body": "In `decode`: TFS returns epoch millis in the `ts` column and it's copied straight into `TsMs`.\n\n![](rr:code/pkg/features/habit/fetcher.go#L39-47)\n\nThe SQL table shares the names but nothing in this diff reads or writes it."
         }
       ]
     },
@@ -131,32 +132,33 @@
     "observability": "fail"
   },
   "links": {
+    "rr:code/pkg/ranker/request_builder.go@base#L29-39": "5c5964bdad870daf",
+    "rr:code/pkg/ranker/request_builder.go@base#L26": "36304f3e5a265f59",
     "rr:sym/Fetcher": "definition",
     "rr:code/proto/feed/v2/ranker_request.proto#L25": "8504847cfd2ce830",
     "rr:code/pkg/ranker/request_builder.go#L50-54": "d20e8f481f56b53a",
-    "rr:code/pkg/ranker/request_builder.go#L42": "f5c9e2f758837e8b",
-    "rr:code/pkg/ranker/request_builder.go#L46": "2bdeafa6680e20cb",
     "rr:code/pkg/features/habit/fetcher.go#L20-28": "d2b3bc05808df448",
-    "rr:code/pkg/features/habit/fetcher.go#L24": "a735cab91c12c6b1",
-    "rr:code/pkg/ranker/request_builder.go#L55-59": "29ee14256ccee9a0",
-    "rr:code/pkg/features/habit/fetcher.go#L21": "a85ac09c2fd9a9f2",
+    "rr:code/proto/feed/v2/ranker_request.proto#L15-26": "9bc6acc2f6d31525",
+    "rr:code/pkg/ranker/request_builder.go#L42-61": "330d35524df42d5e",
     "rr:code/pkg/ranker/request_builder.go#L46-49": "b607e2a135f65dbc",
+    "rr:code/pkg/features/habit/fetcher.go#L21": "a85ac09c2fd9a9f2",
+    "rr:code/pkg/features/habit/fetcher.go#L30-37": "bf12fc770991563d",
+    "rr:code/pkg/features/habit/fetcher.go#L39-48": "cc5f8adc08a3a3ee",
+    "rr:code/proto/feed/v2/ranker_request.proto#L15-19": "e4d8717f591adc0d",
+    "rr:code/proto/feed/v2/ranker_request.proto#L21-26": "96c46cd2d4a0b910",
+    "rr:code/pkg/ranker/request_builder.go#L22-33": "1cb9763b633c7556",
     "rr:code/pkg/ranker/request_builder.go#L46-60": "10d31ea440a48faa",
+    "rr:code/pkg/ranker/request_builder.go#L55-59": "29ee14256ccee9a0",
     "rr:code/pkg/ranker/request_builder.go#L32": "8846e78ca8cb1ada",
-    "rr:code/migrations/004_habit_events.sql#L1-9": "aeb12f6db15016bf",
+    "rr:code/migrations/004_habit_events.sql#L1-8": "58520e3d919abdee",
+    "rr:code/pkg/features/habit/fetcher.go#L42": "badd4eef1aac5b77",
     "rr:code/pkg/features/habit/fetcher_test.go#L11-15": "f3a5a874daf7baa4",
     "rr:code/pkg/features/habit/fetcher_test.go#L17-22": "431b59e4ce6f5eb4",
     "rr:code/pkg/ranker/request_builder.go#L50": "0e56848faf4fde2c",
-    "rr:code/pkg/ranker/request_builder.go@base#L29-39": "5c5964bdad870daf",
-    "rr:code/pkg/features/habit/fetcher.go#L19-28": "0a2e5f83de255efa",
-    "rr:code/pkg/features/habit/fetcher.go#L39-48": "cc5f8adc08a3a3ee",
+    "rr:code/pkg/features/habit/fetcher_test.go#L12": "e38553f5ae33551b",
+    "rr:code/pkg/ranker/request_builder.go@base#L33-38": "8d752a650614bbde",
+    "rr:code/proto/feed/v2/ranker_request.proto#L24-25": "85b46b427b847b15",
     "rr:code/pkg/ranker/request_builder.go#L46-54": "2b66ee866588fc64",
-    "rr:code/pkg/features/habit/fetcher.go#L21-22": "d522ea459f99b87a",
-    "rr:code/pkg/ranker/request_builder.go#L50-59": "32f468be42f98bec",
-    "rr:code/pkg/ranker/request_builder.go#L28-34": "5d02ab21dfdbe013",
-    "rr:code/proto/feed/v2/ranker_request.proto#L15-25": "231d6a9b64f10980",
-    "rr:code/migrations/004_habit_events.sql#L1-8": "58520e3d919abdee",
-    "rr:code/pkg/features/habit/fetcher_test.go#L11-22": "725f36192381ffb1"
-  },
-  "rev": 1
+    "rr:code/pkg/ranker/request_builder.go#L47-49": "868b7345ae1b1cef"
+  }
 }
