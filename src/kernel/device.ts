@@ -2,7 +2,7 @@
 // dock on its side, like a computer; it switches on rotation. Tablets keep the dock either way.
 import type { ReviewApp } from '../app';
 import { formFor, type Form } from './presentation';
-import { busy, keepScroll, shouldHoldReload } from './pwa';
+import { dropReload, wantReload } from './pwa';
 import { ensurePanel, frontPanel } from './dock';
 
 const side = () => Math.min(screen.width, screen.height);
@@ -21,26 +21,21 @@ const wantsPhone = () => currentForm() === 'phone';
 export const isTablet = () => touch() && side() <= TABLET_MAX && !wantsPhone();
 
 const KEY = 'reviewroom:shell';
-/** When the screen stops suiting the shell picked at boot (a phone rotated, a foldable opened), reload into the right
+/** When the screen stops suiting the form picked at boot (a phone rotated, a foldable opened), reload into the right
  *  one, keeping the panel in front and the open file (restoreShell; the walkthrough's slide rides in the URL). Over
- *  unsent work, offer the reload instead. */
+ *  unsent work the reload is offered and taken once the work is sent (pwa.ts); the screen turning back drops it. */
 export function watchShell(app: ReviewApp) {
-  const phone = app.presentation.kind === 'phone';
   const check = () => {
-    if (wantsPhone() === phone) return;
-    removeEventListener('resize', check);
-    screen.orientation?.removeEventListener('change', check);
-    const go = () => {
-      sessionStorage.setItem(KEY, JSON.stringify({ front: frontPanel(app), file: app.activeFile }));
-      keepScroll();
-      location.reload();
-    };
-    if (shouldHoldReload(busy(app))) app.toast('This screen suits a different layout.', 'info', { label: 'Switch layout', run: go });
-    else go();
+    const form = currentForm();
+    if (form === app.presentation.form) return dropReload('layout');
+    wantReload('layout', `the screen suits the ${form} form`, {
+      before: () => sessionStorage.setItem(KEY, JSON.stringify({ front: frontPanel(app), file: app.activeFile })),
+    });
   };
-  addEventListener('resize', check);
+  app.listen(window, 'resize', check);
   // a phone may fire resize before its orientation turns: check again when it does
   screen.orientation?.addEventListener('change', check);
+  app.onDispose(() => screen.orientation?.removeEventListener('change', check));
 }
 
 /** After watchShell's reload: the panel that was in front, and the file that was open. */

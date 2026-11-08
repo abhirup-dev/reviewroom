@@ -3,11 +3,14 @@
 // shell), once per build, and never over unsent work. Without a worker the server's build-info.json says when to reload.
 //
 //   check (60 s, tab visible, server restarted) -> reg.update(), build-info.json
-//   new worker installs, skips waiting, claims  -> controllerchange -> reload (held while busy: toast "Update ready")
+//   new worker installs, skips waiting, claims  -> controllerchange -> reload (held while busy: toast "Update ready";
+//                                                 reload.machine.ts, shared with the screen changing form, device.ts)
 //   server newer twice in a row, no worker      -> reload (same hold)
 //   still on the old build 8 s after that       -> delete rr-* caches, unregister, reload (once per build)
 //   a lazy chunk fails to load                  -> reload (at most once a minute)
+import { createActor } from 'xstate';
 import { h } from './dom';
+import { reloadMachine, type Reasons } from './reload.machine';
 import type { StateBackend } from './providers/contracts';
 
 /** What the update flow reads of the review page: its backend's unsent ops and server start (a `ReviewApp` fits). */
@@ -82,47 +85,71 @@ export function busy(app?: UpdatesHost): Busy {
   };
 }
 
+// The page's reloads (reload.machine.ts): a new build and a screen that suits another form (device.ts) share one hold
+// over unsent work and one offer. `before` runs just before the reload, per reason.
+let host: UpdatesHost | undefined;
+let reg: ServiceWorkerRegistration | undefined;
+const before = new Map<string, () => void>();
+const OFFERS: Record<string, [text: string, label: string, title: string]> = {
+  update: ['Update ready', 'Reload', 'Reload into the new version of reviewroom'],
+  layout: ['This screen suits a different layout.', 'Switch layout', 'Reload into the layout for this screen'],
+};
+let toast: { el: HTMLElement; key: string } | null = null;
+const withdraw = () => { toast?.el.remove(); toast = null; };
+const offer = (reasons: Reasons) => {
+  const key = 'update' in reasons ? 'update' : Object.keys(reasons)[0];
+  // outside an open modal dialog the toast is inert (menus.ts does the same): show it in the modal, if one opened since
+  const parent = document.querySelector('dialog:modal') ?? document.body;
+  if (toast?.key === key && toast.el.parentElement?.parentElement === parent) return;
+  withdraw();
+  const [text, label, title] = OFFERS[key] ?? OFFERS.update;
+  const box = parent.querySelector<HTMLElement>(':scope > .rr-toasts') ?? parent.appendChild(h('div', { class: 'rr-toasts', 'aria-live': 'polite', popover: 'manual' }));
+  toast = { key, el: h('div', { class: 'rr-toast' }, text, h('button', { class: 'rr-toast__action', type: 'button', title, onclick: () => reloads.send({ type: 'go' }) }, label)) };
+  box.append(toast.el);
+  box.hidePopover();
+  box.showPopover();
+};
+const reloadNow = async (reasons: Reasons) => {
+  if (Object.values(reasons).some((r) => r.nuke)) {
+    for (const k of await caches.keys()) if (k.startsWith('rr-')) await caches.delete(k);
+    await reg?.unregister();
+  }
+  for (const k of Object.keys(reasons)) before.get(k)?.();
+  keepScroll();
+  location.reload();
+};
+const reloads = createActor(
+  reloadMachine.provide({ actions: { offer: ({ context }) => offer(context.reasons), withdraw, reload: ({ context }) => void reloadNow(context.reasons) } }),
+).start();
+const tick = () => reloads.send({ type: 'tick', held: shouldHoldReload(busy(host)) });
+const wanted = (key: string) => key in reloads.getSnapshot().context.reasons;
+
+/** Ask for a reload, held while it would lose work (offered meanwhile, taken once the work is sent). */
+export function wantReload(key: string, why: string, opts: { nuke?: boolean; before?: () => void } = {}) {
+  if (!wanted(key)) console.info(`[reviewroom] reload due: ${why}`);
+  if (opts.before) before.set(key, opts.before);
+  reloads.send({ type: 'want', key, nuke: opts.nuke });
+  tick();
+}
+/** That reason no longer applies: drop it, and the offer with the last one. */
+export function dropReload(key: string) {
+  before.delete(key);
+  reloads.send({ type: 'drop', key });
+}
 /** A newer build is waiting for a reload (held over unsent work): what to call to take it. Read by the phone's menu. */
-let ready: (() => void) | null = null;
-export const updateReady = () => ready;
+export const updateReady = () => (wanted('update') ? () => reloads.send({ type: 'go' }) : null);
 
 /** Start the update flow. `app` (the review page) adds its unsent ops and server restarts; the hub passes none. */
 export function startUpdates(app?: UpdatesHost) {
+  host = app;
   const entry = import.meta.url;
   const serverBuild = () =>
     fetch(new URL('build-info.json', entry), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((b: { id?: string } | null) => b?.id ?? null)
       .catch(() => null);
+  const want = (why: string, nuke = false) => wantReload('update', why, { nuke });
 
-  let due: { nuke: boolean } | null = null; // a reload is wanted; nuke: drop the worker and its caches first
-  let toast: HTMLElement | null = null;
-  const reload = async () => {
-    if (due?.nuke) {
-      for (const k of await caches.keys()) if (k.startsWith('rr-')) await caches.delete(k);
-      await reg?.unregister();
-    }
-    keepScroll();
-    location.reload();
-  };
-  const tryReload = () => {
-    if (!due) return;
-    if (!shouldHoldReload(busy(app))) return void reload();
-    if (toast) return;
-    const host = document.querySelector<HTMLElement>('.rr-toasts') ?? document.body.appendChild(h('div', { class: 'rr-toasts', 'aria-live': 'polite', popover: 'manual' }));
-    toast = h('div', { class: 'rr-toast' }, 'Update ready', h('button', { class: 'rr-toast__action', type: 'button', title: 'Reload into the new version of reviewroom', onclick: () => void reload() }, 'Reload'));
-    host.append(toast);
-    host.hidePopover();
-    host.showPopover();
-  };
-  const want = (why: string, nuke = false) => {
-    console.info(`[reviewroom] reload due: ${why}`);
-    due = { nuke: nuke || !!due?.nuke };
-    ready = () => void reload();
-    tryReload();
-  };
-
-  let reg: ServiceWorkerRegistration | undefined;
   let newer = 0; // checks in a row that found the server on another build (one could catch a build half-written)
   let hatch: ReturnType<typeof setTimeout> | undefined;
   const check = async () => {
@@ -131,12 +158,12 @@ export function startUpdates(app?: UpdatesHost) {
     if (reg?.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' }); // ours skip waiting themselves; an older one might not
     const id = await serverBuild();
     newer = id && id !== __RR_BUILD__ ? newer + 1 : 0;
-    if (newer < 2 || due) return;
+    if (newer < 2 || wanted('update')) return;
     if (!reg) return void (once('reviewroom:reloaded-for', id!) && want(`server runs build ${id}`));
     // the worker should take over within seconds; if it doesn't, start clean
     hatch ??= setTimeout(async () => {
       const now = await serverBuild();
-      if (!due && now && now !== __RR_BUILD__ && once('reviewroom:nuked-for', now)) want(`still not on build ${now}: dropping the service worker`, true);
+      if (!wanted('update') && now && now !== __RR_BUILD__ && once('reviewroom:nuked-for', now)) want(`still not on build ${now}: dropping the service worker`, true);
     }, 8000);
   };
 
@@ -161,7 +188,7 @@ export function startUpdates(app?: UpdatesHost) {
   setInterval(() => void check(), 60_000);
   let started = app?.backend?.pending?.().started ?? null;
   setInterval(() => {
-    tryReload(); // a held reload goes once the hold clears
+    tick(); // a held reload goes once the hold clears
     const now = app?.backend?.pending?.().started ?? null;
     if (now && started && now !== started) void check(); // the event stream reconnected to a restarted server
     started = now ?? started;
