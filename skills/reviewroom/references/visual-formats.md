@@ -1,9 +1,9 @@
 # Pictures for a walkthrough: which one, and in what
 
 A walkthrough needs pictures (see "Show it, then say it" in `review-craft.md`). This file is the menu:
-first the question the picture answers, then the smallest shape that answers it. Pick one or two
-per walkthrough, not the catalog. Replace every illustrative label with a name from the diff, and give
-each node a link to its code.
+first the question the picture answers, then the smallest shape that answers it. Choose only the
+formats that help explain the change; this catalog is a menu, not a checklist. Replace every
+illustrative label with a name from the diff, and give each node a link to its code.
 
 ## Two ways to draw
 

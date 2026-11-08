@@ -28,6 +28,7 @@ revisions. `"title"` replaces the review's title. `"theme"` overrides colour tok
 | You write | You get |
 |---|---|
 | `<section id="request-path"><h2>Request path</h2>…</section>` | Contents entry, scroll-spy, `rr:doc/request-path` links, section-level comments |
+| `<h3 id="retry-policy">Retry policy</h3>` or `<h4 id>` inside a section | Contents sub-entry, scroll tracking and `rr:doc/retry-policy` links. Without an `id`, the heading is styled but has no navigation entry. |
 | `<section … data-round="2">` | "new in R2" marker (use the round you are writing for) |
 | `data-baseline` on any block | "what already exists" context, set apart visually from the diff |
 | `id` or `data-rr-block` on any element | A stable, linkable block (the reviewer can comment on anything anyway) |
