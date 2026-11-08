@@ -73,7 +73,7 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Colours, fonts, font sizes, spacing, weights (400/500/600) and letter-spacing only through `--rr-*` tokens
   (`src/kernel/styles/tokens.css`), or `em`/`%` relative to their context; controls take `--rr-control-sm/-/-lg` heights.
   stylelint (`stylelint.config.js`, in `bun run lint`) enforces it; a deliberate exception carries a
-  `stylelint-disable` comment saying why. The phone CSS is on its ignore list until its own pass.
+  `stylelint-disable` comment saying why. The phone CSS follows it too (sizes from the role table in `DESIGN.md`, Phone).
 - The design system is `DESIGN.md` (Google's DESIGN.md format: tokens in its front matter, the rules in prose); the phone's
   is `docs/design/phone.md`. Change a token, a shared component or a design rule, and update `DESIGN.md` with it.
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).

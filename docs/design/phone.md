@@ -159,7 +159,7 @@ a mass-1 spring. After a drag, start the settle from the finger's velocity where
 
 ## Touch
 
-48px minimum targets; 8px between adjacent targets. Horizontal swipes start only after 10px of mostly-horizontal
+48px minimum targets (`--rr-touch`); 8px between adjacent targets. Type follows the role table in `DESIGN.md` (Phone). Horizontal swipes start only after 10px of mostly-horizontal
 travel and never inside code, selection, or a long-press. Back (`popstate`) closes the topmost layer first; a dialog (a sheet, the menu, search) is the browser's own close request, before history.
 
 ## Sources

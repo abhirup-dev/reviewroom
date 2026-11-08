@@ -94,9 +94,18 @@
 .rr-palette__item.is-sel kbd {
   color: var(--rr-muted);
 }
-/* headings over each group (.rr-group-label); a phone restyles them (phone.css) */
+/* headings over each group (.rr-group-label): the name centred on a hairline across the list */
 .rr-palette__group {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-8);
   padding: var(--rr-space-12) var(--rr-space-10) var(--rr-space-4);
+}
+.rr-palette__group::before,
+.rr-palette__group::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--rr-line);
 }
 .rr-palette__group:first-child {
   padding-top: var(--rr-space-6);

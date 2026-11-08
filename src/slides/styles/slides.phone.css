@@ -8,6 +8,10 @@
    code rises into the bar's place and fills the screen edge to edge, the card drops to just above the progress row with
    a small Show controls icon in its corner. On its side: see landscape, below. */
 [data-form='phone'] .rr-tour__player {
+  --_card-foot: var(--rr-card-lift);
+  --_tab-h: 0px;
+  --_cover: calc(var(--_card-foot) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) + var(--_tab-h));
+  --_card-room: calc(var(--rr-card-default) + var(--rr-card-lift) + var(--rr-space-12));
   inset: 0;
   border: 0;
   border-radius: 0;
@@ -36,14 +40,14 @@
   grid-area: 1 / 1;
   z-index: 2;
   height: var(--rr-phone-bar);
-  padding: 0 8px 0 4px;
+  padding: 0 var(--rr-space-8) 0 var(--rr-space-4);
   background: var(--rr-bg);
   /* close, then the chapter's title over "Chapter n of N" */
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: var(--rr-touch) minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-content: center;
-  column-gap: 4px;
+  column-gap: var(--rr-space-4);
 }
 [data-form='phone'] .rr-tour__top > .rr-toolbar__spacer {
   display: none;
@@ -56,8 +60,8 @@
 [data-form='phone'] .rr-tour__top > .rr-icon-btn:last-child {
   grid-column: 1;
   grid-row: 1 / span 2;
-  width: 48px;
-  height: 48px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
 }
 [data-form='phone'] .rr-tour__top > .rr-icon-btn:last-child .rr-icon {
   width: 24px;
@@ -67,8 +71,7 @@
   display: block;
   grid-column: 2;
   grid-row: 2;
-  margin: 0 0 0 4px;
-  font-size: var(--rr-text-sm);
+  margin: 0 0 0 var(--rr-space-4);
 }
 [data-form='phone'] .rr-tour__chapter {
   grid-column: 2;
@@ -76,8 +79,8 @@
   justify-self: start;
   max-width: 100%;
   height: 24px;
-  padding: 0 4px;
-  font: 600 16px var(--rr-font);
+  padding: 0 var(--rr-space-4);
+  font: 600 var(--rr-text-lg) var(--rr-font);
 }
 [data-form='phone'] .rr-tour__right {
   /* the whole screen, edge to edge, held under the bar until immersive (its bottom then runs off screen) */
@@ -107,7 +110,6 @@
 /* one chunk at a time, the file tab picks it (player.phone.ts): stacked in place, the others hidden but laid out, so
    their lines are where they landed. The tab replaces the card's chips */
 [data-form='phone'] .rr-tour__pane {
-  position: relative;
   overflow: hidden;
 }
 [data-form='phone'] .rr-tour__layer:not(.is-leaving) {
@@ -130,14 +132,14 @@
    3+ files: the shown one, a count and a sheet. It moves with the card, immersive too */
 [data-form='phone'] .rr-tour__files {
   position: absolute;
-  left: 28px;
+  left: var(--rr-space-24);
   bottom: calc(var(--rr-card-lift) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) - 1px);
   z-index: 2;
   display: flex;
-  gap: 2px;
-  max-width: calc(100% - 56px);
-  padding: 2px 6px 0;
-  border-radius: 12px 12px 0 0;
+  gap: var(--rr-space-2);
+  max-width: calc(100% - 2 * var(--rr-space-24));
+  padding: var(--rr-space-2) var(--rr-space-6) 0;
+  border-radius: var(--rr-shape-m) var(--rr-shape-m) 0 0;
   background: var(--rr-surface-overlay-2);
   box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim);
   clip-path: inset(-2px -2px 0 -2px); /* no rim along the bottom: it runs on into the card */
@@ -152,14 +154,14 @@
 .rr-tour__file {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--rr-space-4);
   min-width: 0;
   height: 30px;
-  padding: 0 8px;
+  padding: 0 var(--rr-space-8);
   border: 0;
   background: none;
   color: var(--rr-ink-2);
-  font: 500 12px var(--rr-mono);
+  font: 500 var(--rr-text-md) var(--rr-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -169,7 +171,7 @@
 .rr-tour__file[aria-pressed='true'] {
   flex-shrink: 0.2;
   color: var(--rr-accent);
-  font-weight: 700;
+  font-weight: 600;
   box-shadow: inset 0 -2px var(--rr-accent);
 }
 .rr-tour__file small {
@@ -180,11 +182,11 @@
 /* on its side the slide is a column: the tab heads it, on its own row */
 [data-form='phone'][data-orient='landscape'] .rr-tour__files {
   position: sticky;
-  top: -12px;
+  top: calc(-1 * var(--rr-space-12));
   bottom: auto;
   max-width: none;
-  margin: -12px -24px 12px;
-  padding: 4px 18px 0;
+  margin: calc(-1 * var(--rr-space-12)) calc(-1 * var(--rr-space-24)) var(--rr-space-12);
+  padding: var(--rr-space-4) var(--rr-space-16) 0;
   border-radius: 0;
   background: var(--rr-surface-doc);
   box-shadow: inset 0 -1px var(--rr-line);
@@ -204,12 +206,6 @@
   inherits: true;
   initial-value: 0px;
 }
-[data-form='phone'] .rr-tour__player {
-  --_card-foot: var(--rr-card-lift);
-  --_tab-h: 0px;
-  --_cover: calc(var(--_card-foot) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) + var(--_tab-h));
-  --_card-room: calc(var(--rr-card-default) + var(--rr-card-lift) + 12px);
-}
 [data-form='phone'] .rr-tour__player.is-immersive {
   --_card-foot: 20px;
 }
@@ -223,10 +219,10 @@
 /* the slide: a 16px card above the toolbar, at most ~40% of the screen, scrolling on its own */
 [data-form='phone'] .rr-tour__left {
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: var(--rr-space-12);
+  right: var(--rr-space-12);
   bottom: calc(var(--rr-card-lift) + env(safe-area-inset-bottom));
-  padding: 0 16px 14px;
+  padding: 0 var(--rr-space-16) var(--rr-space-16);
   border: 0;
   border-radius: var(--rr-shape-l);
   /* a raised sheet: a step lighter than the code, its rim lit along the top */
@@ -243,9 +239,6 @@
     opacity: 0;
   }
 }
-[data-form='phone'] .rr-tour__left .rr-prose {
-  font-size: 15px;
-}
 [data-form='phone'] .is-immersive .rr-tour__left {
   translate: 0 calc(var(--rr-card-lift) - 20px); /* down to just above the progress row */
 }
@@ -255,7 +248,7 @@
   max-height: var(--rr-card-default);
 }
 .rr-tour__left[data-detent='tall'] {
-  max-height: calc(100dvh - var(--rr-phone-bar) - var(--rr-card-lift) - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - var(--rr-phone-bar) - var(--rr-card-lift) - var(--rr-space-48) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 [data-form='phone'] .rr-tour__left.is-settling {
   transition:
@@ -270,9 +263,9 @@
   z-index: 1;
   display: block;
   flex: none;
-  width: calc(100% + 32px);
+  width: calc(100% + 2 * var(--rr-space-16));
   height: 32px;
-  margin: 0 -16px;
+  margin: 0 calc(-1 * var(--rr-space-16));
   padding: 0;
   border: 0;
   background: var(--rr-surface-overlay);
@@ -282,11 +275,11 @@
 .rr-tour__grip::before {
   content: '';
   position: absolute;
-  top: 10px;
-  left: calc(50% - 16px);
+  top: var(--rr-space-10);
+  left: calc(50% - var(--rr-space-16));
   width: 32px;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--rr-shape-xs);
   background: var(--rr-line-strong);
 }
 /* collapsed: the slide text's first two lines, faded; tap or drag up for the rest. Past the chapter's first slide its
@@ -303,13 +296,13 @@
 /* the folded intro: one line, fading out at its end */
 .rr-tour__lead.is-folded {
   max-height: 1.6em;
-  mask-image: linear-gradient(90deg, #000 70%, transparent);
+  mask-image: linear-gradient(90deg, var(--rr-ink) 70%, transparent);
 }
 /* the slide's collapsed card: two lines, fading out at the foot, clear of the Show controls icon */
 .rr-tour__left[data-detent='collapsed'] .rr-tour__text {
   max-height: 3.2em;
-  padding-right: 40px;
-  mask-image: linear-gradient(#000 55%, transparent);
+  padding-right: var(--rr-space-48);
+  mask-image: linear-gradient(var(--rr-ink) 55%, transparent);
 }
 .rr-tour__left[data-detent='collapsed'] .rr-tour__prose > *,
 .rr-tour__lead.is-folded .rr-tour__prose > * {
@@ -327,36 +320,34 @@
    a control (4px targets) */
 [data-form='phone'] .rr-tour__progress {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: calc(6px + env(safe-area-inset-bottom));
+  left: var(--rr-space-16);
+  right: var(--rr-space-16);
+  bottom: calc(var(--rr-space-6) + env(safe-area-inset-bottom));
   z-index: 1;
-  display: flex;
-  gap: 10px; /* between chapters: wider than between slides, so the chapters read */
-  padding-block: 10px; /* a taller tap target than it looks: a tap opens Contents */
-  margin-bottom: -10px;
+  padding-block: var(--rr-space-10); /* a taller tap target than it looks: a tap opens Contents */
+  margin-bottom: calc(-1 * var(--rr-space-10));
   cursor: pointer;
 }
-[data-form='phone'] .rr-tour__tick {
+[data-form='phone'] .rr-tour__progress .rr-tour__tick {
   pointer-events: none;
 }
 /* immersive, a new chapter (player.phone.ts announce): the rail lifts into a band of the card's raised surface naming
    the chapter, the card stepping up out of its way, for 2.5 s */
 [data-form='phone'] .rr-tour__band {
   position: absolute;
-  left: 8px;
-  right: 8px;
+  left: var(--rr-space-8);
+  right: var(--rr-space-8);
   bottom: env(safe-area-inset-bottom);
   z-index: 1;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--rr-space-8);
   height: 20px;
-  padding: 14px 16px 0;
+  padding: var(--rr-space-12) var(--rr-space-16) 0;
   overflow: hidden;
   border-radius: var(--rr-shape-l);
   background: var(--rr-surface-overlay-2);
-  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow-lg);
+  box-shadow: var(--rr-shadow-lg);
   color: var(--rr-ink);
   font-size: var(--rr-text-sm);
   font-weight: 600;
@@ -373,8 +364,8 @@
   flex: none;
   color: var(--rr-accent);
   font-size: var(--rr-text-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
 }
 [data-form='phone'] .rr-tour__band span {
@@ -391,9 +382,7 @@
 [data-form='phone'] .rr-tour__seg-title {
   display: none;
 }
-[data-form='phone'] .rr-tour__ticks {
-  gap: 3px;
-}
+/* the phone's ticks: thinner and rounded (M3 shapes) */
 [data-form='phone'] .rr-tour__tick {
   height: 4px;
   border-radius: var(--rr-shape-xs);
@@ -404,15 +393,13 @@
 [data-form='phone'] .rr-tour__bottom {
   position: absolute;
   left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(var(--rr-space-16) + env(safe-area-inset-bottom));
   translate: -50% 0;
   z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  width: auto;
+  gap: var(--rr-space-4);
   height: 52px;
-  padding: 0 4px;
+  padding: 0 var(--rr-space-4);
   border: 0;
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
@@ -443,7 +430,7 @@
   align-self: flex-end;
   width: 40px;
   height: 40px;
-  margin: -32px -8px -6px 0;
+  margin: calc(-1 * var(--rr-space-32)) calc(-1 * var(--rr-space-8)) calc(-1 * var(--rr-space-6)) 0;
   border: 1px solid var(--rr-line-strong); /* floats over code and prose alike: an edge and a shadow to find it by */
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay);
@@ -453,8 +440,8 @@
 /* a one-line card is shorter than the icon: centred on its right edge instead */
 [data-form='phone'] .is-immersive .rr-tour__left[data-detent='collapsed'] .rr-tour__restore {
   position: absolute;
-  top: calc(50% + 12px); /* the text's middle, under the grip */
-  right: 8px;
+  top: calc(50% + var(--rr-space-12)); /* the text's middle, under the grip */
+  right: var(--rr-space-8);
   translate: 0 -50%;
   margin: 0;
 }
@@ -479,19 +466,19 @@
 }
 [data-form='phone'] .rr-tour__note {
   position: fixed;
-  top: calc(16px + env(safe-area-inset-top));
+  top: calc(var(--rr-space-16) + env(safe-area-inset-top));
   left: 50%;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: calc(100% - 24px);
-  padding: 12px 20px;
+  gap: var(--rr-space-6);
+  max-width: calc(100% - var(--rr-space-24));
+  padding: var(--rr-space-12) var(--rr-space-16);
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-overlay-2);
-  box-shadow: inset 0 1px 0 var(--rr-rim-top), 0 0 0 1px var(--rr-rim), var(--rr-shadow-lg);
+  box-shadow: var(--rr-shadow-lg);
   color: var(--rr-ink);
-  font-size: 15px;
+  font-size: var(--rr-text-lg);
   font-weight: 500;
   white-space: nowrap;
   opacity: 0;
@@ -519,24 +506,25 @@
   left: 0;
   width: 40px;
   height: 40px;
-  margin: -20px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--rr-accent) 60%, transparent); /* reads on light and dark alike */
-  box-shadow: 0 0 0 2px var(--rr-touch-ring), 0 0 0 10px color-mix(in srgb, var(--rr-accent) 20%, transparent), var(--rr-shadow);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- centres the 40px coach dot on its scripted coordinates */
+  margin: calc(40px / -2);
+  border-radius: var(--rr-shape-full);
+  background: color-mix(in srgb, var(--rr-accent) var(--rr-mix-lg), transparent); /* reads on light and dark alike */
+  box-shadow: 0 0 0 2px var(--rr-touch-ring), 0 0 0 10px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent), var(--rr-shadow);
 }
 [data-form='phone'] .rr-tour__cue {
   translate: -50% 0;
-  padding: 4px 12px;
+  padding: var(--rr-space-4) var(--rr-space-12);
   border-radius: var(--rr-shape-full);
   background: var(--rr-ink); /* inverse: reads over light and dark */
   color: var(--rr-surface-doc);
   font-size: var(--rr-text-sm);
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 [data-form='phone'] .rr-tour__restore.is-hinting {
   border-color: var(--rr-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rr-accent) 35%, transparent), 0 0 24px color-mix(in srgb, var(--rr-accent) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent), 0 0 24px color-mix(in srgb, var(--rr-accent) var(--rr-mix-lg), transparent);
   color: var(--rr-accent);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -546,12 +534,12 @@
 }
 @keyframes rr-tour-beckon {
   50% {
-    box-shadow: 0 0 0 8px color-mix(in srgb, var(--rr-accent) 22%, transparent), 0 0 32px color-mix(in srgb, var(--rr-accent) 70%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent), 0 0 32px color-mix(in srgb, var(--rr-accent) var(--rr-mix-lg), transparent);
   }
 }
 /* the last step asks: its two buttons take taps */
 [data-form='phone'] .rr-tour__note.is-ask {
-  gap: 12px;
+  gap: var(--rr-space-12);
   pointer-events: auto;
 }
 [data-form='phone'] .rr-tour__note .rr-link-btn {
@@ -563,8 +551,8 @@
 [data-form='phone'] .rr-tour__bottom button {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
   border: 0;
   border-radius: var(--rr-shape-full);
   background: none;
@@ -578,18 +566,18 @@
 }
 @media (hover: hover) {
   [data-form='phone'] .rr-tour__bottom button:enabled:hover {
-    box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 8%, transparent);
+    box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor var(--rr-mix-xs), transparent);
   }
 }
 [data-form='phone'] .rr-tour__bottom button:enabled:active {
-  box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: inset 0 0 0 99px color-mix(in srgb, currentColor var(--rr-mix-sm), transparent);
 }
 [data-form='phone'] .rr-tour__back svg {
   transform: scaleX(-1);
 }
 .rr-tour__pair {
   display: flex;
-  gap: 4px;
+  gap: var(--rr-space-4);
 }
 [data-form='phone'] .rr-tour__bottom .rr-tour__contents,
 [data-form='phone'] .rr-tour__bottom .rr-tour__full {
@@ -632,7 +620,7 @@
 [data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__left {
   position: static;
   max-height: none;
-  padding: 12px 24px 28px; /* clear of the progress row */
+  padding: var(--rr-space-12) var(--rr-space-24) var(--rr-space-32); /* clear of the progress row */
   border-right: 1px solid var(--rr-line);
   border-radius: 0;
   background: var(--rr-surface-doc);
@@ -657,15 +645,14 @@
 }
 [data-form='phone'][data-orient='landscape'] .rr-tour__bottom {
   left: calc((100% + var(--rr-tour-split, 50%)) / 2); /* the code's middle */
-  bottom: calc(20px + env(safe-area-inset-bottom));
 }
 [data-form='phone'][data-orient='landscape'] .is-solo .rr-tour__bottom {
   left: 50%;
 }
 [data-form='phone'][data-orient='landscape'] .is-immersive .rr-tour__restore {
   position: absolute;
-  top: calc(8px + env(safe-area-inset-top));
-  right: calc(8px + env(safe-area-inset-right));
+  top: calc(var(--rr-space-8) + env(safe-area-inset-top));
+  right: calc(var(--rr-space-8) + env(safe-area-inset-right));
   bottom: auto;
   z-index: 3;
   margin: 0;
@@ -712,21 +699,21 @@
   outline: none;
 }
 .rr-tour-toc__title {
-  margin: 8px 24px 4px;
-  font: 600 16px / 1.3 var(--rr-font);
+  margin: var(--rr-space-8) var(--rr-space-24) var(--rr-space-4);
+  font: 600 var(--rr-text-lg) / 1.3 var(--rr-font);
 }
 .rr-tour-toc__list,
 .rr-toc-sheet .rr-toc {
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 12px 16px;
+  padding: var(--rr-space-4) var(--rr-space-12) var(--rr-space-16);
 }
 .rr-tour-toc__head,
 .rr-tour-toc__slide,
 .rr-toc-sheet .rr-toc-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--rr-space-12);
   width: 100%;
   border: 0;
   border-radius: var(--rr-shape-full);
@@ -738,8 +725,8 @@
 .rr-tour-toc__head,
 .rr-toc-sheet .rr-toc-item:not(.rr-toc-item--sub, .rr-toc-item--pin) {
   min-height: 56px;
-  padding: 0 16px 0 12px;
-  font: 500 14px / 1.3 var(--rr-font);
+  padding: 0 var(--rr-space-16) 0 var(--rr-space-12);
+  font: 500 var(--rr-text-md) / 1.3 var(--rr-font);
 }
 .rr-tour-toc__head > span:not(.rr-tour-toc__num),
 .rr-tour-toc__slide > span:not(.rr-tour-toc__num) {
@@ -760,7 +747,7 @@
   border-radius: var(--rr-shape-full);
   background: var(--rr-surface-nav-2);
   color: var(--rr-ink-2);
-  font: 600 12px var(--rr-font);
+  font: 600 var(--rr-text-sm) var(--rr-font);
 }
 .rr-toc-sheet .rr-toc-item:not(.rr-toc-item--sub, .rr-toc-item--pin)::before {
   counter-increment: rr-toc;
@@ -778,16 +765,16 @@
   color: var(--rr-accent-ink);
 }
 .rr-tour-toc__slides {
-  margin: 4px 0 8px;
-  padding: 0 0 0 20px;
+  margin: var(--rr-space-4) 0 var(--rr-space-8);
+  padding: 0 0 0 var(--rr-space-16);
   list-style: none;
 }
 .rr-tour-toc__slide,
 .rr-toc-sheet .rr-toc-item--sub {
-  min-height: 48px;
-  padding: 6px 16px 6px 8px;
+  min-height: var(--rr-touch);
+  padding: var(--rr-space-6) var(--rr-space-16) var(--rr-space-6) var(--rr-space-8);
   color: var(--rr-ink-2);
-  font: 400 14px / 1.35 var(--rr-font);
+  font: 400 var(--rr-text-md) / 1.35 var(--rr-font);
 }
 .rr-tour-toc__slide > span:not(.rr-tour-toc__num) {
   display: -webkit-box;
@@ -799,7 +786,7 @@
   width: 24px;
   height: 24px;
   background: none;
-  font-size: 11px;
+  font-size: var(--rr-text-xs);
 }
 .rr-tour-toc__slide[aria-current] {
   color: var(--rr-ink);
