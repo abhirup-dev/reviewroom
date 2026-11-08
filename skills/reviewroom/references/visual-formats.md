@@ -5,16 +5,14 @@ first the question the picture answers, then the smallest shape that answers it.
 per walkthrough, not the catalog. Replace every illustrative label with a name from the diff, and give
 each node a link to its code.
 
-## Three ways to draw, all first-class
+## Two ways to draw
 
 | Draw it as | When | Lights up in a guided walkthrough |
 |---|---|---|
 | `<rr-mermaid>` (Mermaid, rendered by Pele) | Anything with nodes and edges: flows, sequences, states, trees, contracts, timelines. Fast to write, themed, clickable | yes, by node label, where the boxes have labels: flowchart, state, class, sequence, treeView, architecture. Not timeline or gitGraph |
-| `<rr-flow>` | A short linear delta against the baseline, with `new` / `changed` / `removed` badges | yes (`focus` by node label) |
-| Your own HTML, SVG or `<table>` | A shape neither of the above has: a byte layout, a grid of cases, a before/after of a data structure, a latency budget, a tiny widget the reviewer can poke | no (embed it with `rr:doc/`) |
+| Your own HTML, SVG or `<table>` | A shape Mermaid has none for: a byte layout, a grid of cases, a before/after of a data structure, a latency budget, a tiny widget the reviewer can poke | no (embed it with `rr:doc/`) |
 
-Mermaid is the default because it is the cheapest, but it is not a rule: when the picture in your
-head is not a graph, draw what it is. A table is a picture when the shape of the data is the point.
+Prefer Mermaid. A table is a picture when the shape of the data is the point.
 Don't force code, diffs or UI layouts into diagram labels: show the code with `<rr-code ref>`, the
 diff in the pane, the UI as HTML.
 
@@ -57,7 +55,6 @@ flowchart TD
 ```
 
 The lines themselves stay in the pane: a `click` on each changed node takes the reviewer there.
-`<rr-flow>` says the same thing for a short linear delta with its `state` badges.
 
 ## Snippets
 

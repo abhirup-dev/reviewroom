@@ -167,7 +167,6 @@ export function mountWalkthrough(app: ReviewApp) {
     leadToggle.setAttribute('aria-expanded', String(leadOpen));
   };
   // the diagram nodes this slide is about light up (the rest dim); a frame later, so the change animates
-  const label = (n: Element) => [...n.childNodes].filter((c) => !(c instanceof Element && c.classList.contains('rr-node__badge'))).map((c) => c.textContent).join('').trim();
   const paintFocus = () => {
     const c = ctx();
     if (!c.doc) return;
@@ -176,10 +175,10 @@ export function mountWalkthrough(app: ReviewApp) {
     const { focus } = current(c).step;
     // Mermaid nodes (rendered later: `rr-mermaid:ready` repaints) take their label from the text, their ref from a `click` link
     requestAnimationFrame(() =>
-      player.querySelectorAll('rr-flow, rr-mermaid').forEach((flow) => {
+      player.querySelectorAll('rr-mermaid').forEach((flow) => {
         let any = false;
-        flow.querySelectorAll('rr-node, .pele-node').forEach((n) => {
-          const node = n.matches('rr-node') ? { label: label(n), ref: n.getAttribute('ref') } : { label: n.querySelector('.pele-label')?.textContent ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
+        flow.querySelectorAll('.pele-node').forEach((n) => {
+          const node = { label: n.querySelector('.pele-label')?.textContent ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
           const on = inFocus(node, focus, refs);
           n.classList.toggle('is-focus', on);
           any ||= on;

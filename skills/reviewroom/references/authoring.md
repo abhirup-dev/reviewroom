@@ -36,7 +36,7 @@ revisions. `"title"` replaces the review's title. `"theme"` overrides colour tok
 ## Links: `rr:` refs
 
 Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref>`, `<rr-embed ref>`,
-`<rr-code ref>`, `<rr-node ref>`, `rr.open()` and in thread replies.
+`<rr-code ref>`, `rr.open()` and in thread replies.
 
 | Ref | Points at |
 |---|---|
@@ -110,10 +110,7 @@ next to your answer. A link covers the whole thread, not a single message.
 
 ## Diagrams and other helpers
 
-Pictures are first-class, in three forms, and you choose by the question (the menu, with snippets per
-question and the presets, is `visual-formats.md`): Mermaid in `<rr-mermaid>` for anything with nodes and
-edges, `<rr-flow>` for a short linear delta with badges, and your own HTML, SVG or table for a shape
-neither has. Mermaid is the cheapest, not mandatory: when the picture isn't a graph, draw what it is.
+Prefer Mermaid in `<rr-mermaid>` for diagrams. `visual-formats.md` has the menu, snippets and presets.
 
 ```html
 <rr-mermaid id="request-path" class="rr-diagram-delta">             <!-- Mermaid source, HTML-escaped (&lt; &gt; &amp;) -->
@@ -132,20 +129,10 @@ are not supported. One class picks a preset (`rr-diagram-delta`, `-baseline`, `-
 Give it an `id` so threads can anchor on it. Pele has no animation; the guided walkthrough lights nodes for you.
 
 ```html
-<rr-flow direction="column">                                                           <!-- top→bottom; omit for left→right -->
-  <rr-node state="baseline">FeedRequest</rr-node>
-  <rr-node state="new" ref="rr:code/pkg/features/habit/fetcher.go#L20-28">habit.RecentEvents</rr-node>
-  <rr-node state="changed">RankerRequest</rr-node>                                     <!-- new changed removed baseline -->
-</rr-flow>
 <rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
 <rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- open questions -->
 <rr-markdown>## Markdown blocks work too</rr-markdown>
 ```
-
-`<rr-flow>` is the hand-built form of the delta diagram every walkthrough has: a short chain of states.
-Give every node a `ref` so it is clickable. The panel is narrow (see "Design for a narrow column" in
-`review-craft.md`): a left-to-right flow of more than three nodes wraps and its arrows stop lining up,
-so use `direction="column"` for it (Mermaid: `flowchart TD`).
 
 Each `<rr-check>` is one **open question**; the reviewer marks it settled or not, and the feedback
 lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
@@ -193,11 +180,11 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
   "title": "Attach recent HABIT events to the ranker request",
   "chapters": [
     {
-      "id": "why",
-      "title": "Why this change",
-      "lead": "<p class=\"rr-lede\">…</p><rr-flow>…</rr-flow>",
+      "id": "build",
+      "title": "Build integration",
+      "lead": "<p class=\"rr-lede\">Recent HABIT events now reach the ranker.</p><rr-mermaid class=\"rr-diagram-delta\">flowchart TD\n  Fetch[habit.RecentEvents]:::added --> Build[Builder.Build]:::changed\n  click Fetch \"rr:code/pkg/features/habit/fetcher.go#L20-28\"\n  click Build \"rr:sym/pkg/ranker/request_builder.go:Build\"</rr-mermaid>",
       "steps": [
-        { "id": "s1", "text": "<p>Before this PR, <a href=\"rr:sym/Build\">Builder.Build</a> …</p>", "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39" },
+        { "id": "s1", "text": "<p>Before this PR, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L29-39\">Builder.Build</a> sends no HABIT events.</p>", "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39" },
         { "id": "s2", "text": "<p>A TFS error comes back wrapped (top); the builder degrades (below).</p>", "ref": ["rr:code/pkg/features/habit/fetcher.go#L23-26", "rr:code/pkg/ranker/request_builder.go#L50-54"] },
         { "id": "s3", "text": "<p>That is the whole path.</p>" }
       ]
@@ -209,15 +196,15 @@ The demo has a full one: `examples/habit-events/walkthrough.json`.
 | Field | |
 |---|---|
 | chapter `id`, step `id` | Lowercase letters, digits, dashes; unique (steps: within their chapter). Threads anchor on them, so keep them when you reorder |
-| `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-mermaid>` or `<rr-flow>` |
+| `lead` | HTML that stays on screen for the whole chapter: a lede, an `<rr-mermaid>` |
 | step `text` | HTML for this slide; it changes from slide to slide, the lead does not |
 | step `ref` | What the right pane shows: one `rr:code/`, `rr:file/`, `rr:sym/` or `rr:doc/` link (its whole file, the lines highlighted), or a list of them (each chunk stacked, across files) |
 | no `ref` | The pane keeps the chapter's last links; with none yet, the previous chapter's. The lead's diagram stays in the lead, next to the slide |
-| step `focus` | Labels of the diagram nodes (`<rr-node>` text, or a Mermaid node's label, in the lead or the slide's text; a timeline's or gitGraph's nodes have none) that light up on this slide, as written; the rest dim, and the edges between lit nodes of a Mermaid flowchart or class diagram flow. Omitted: nodes whose `ref` (a `click` link, for Mermaid) overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
+| step `focus` | Labels of the diagram nodes (a Mermaid node's label, in the lead or the slide's text; a timeline's or gitGraph's nodes have none) that light up on this slide, as written; the rest dim, and the edges between lit nodes of a Mermaid flowchart or class diagram flow. Omitted: nodes whose `ref` (its `click` link) overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
 
-Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` and `<rr-flow>`; a code
+Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-mermaid>`; a code
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
-from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` (with its preset `class`), `<rr-flow>`, `<rr-callout>`,
+from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` (with its preset `class`), `<rr-callout>`,
 `<rr-embed>`; ids, styles, scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). A figure
 that needs more than that (your own HTML or SVG) lives in `review.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
 

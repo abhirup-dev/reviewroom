@@ -4,134 +4,105 @@
   "chapters": [
     {
       "id": "why",
-      "title": "Why this change",
-      "lead": "<p class=\"rr-lede\">The ranker scores candidates with four base features from Tardis and nothing about what the user did this week. This PR reads the last 7 days of HABIT events through TFS v2 and sends them along as a new proto field.</p><rr-flow><rr-node state=\"baseline\">FeedRequest</rr-node><rr-node state=\"baseline\" ref=\"rr:code/pkg/ranker/request_builder.go#L42\">Builder.Build</rr-node><rr-node state=\"baseline\" ref=\"rr:code/pkg/ranker/request_builder.go#L46\">Tardis.Fetch</rr-node><rr-node state=\"new\" ref=\"rr:code/pkg/features/habit/fetcher.go#L20-28\">habit.RecentEvents</rr-node><rr-node state=\"changed\" ref=\"rr:code/pkg/ranker/request_builder.go#L55-59\">RankerRequest</rr-node></rr-flow>",
+      "title": "Today: four Tardis features",
+      "lead": "<p class=\"rr-lede\">Two new threads join in <code>Builder.Build</code>.</p><rr-mermaid class=\"rr-diagram-delta\">flowchart LR\n  F[fetcher]:::added --> B[Build]:::changed\n  P[field 12]:::added --> B\n  click F \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click P \"rr:code/proto/feed/v2/ranker_request.proto#L15-26\" \"the proto\"\n  click B \"rr:code/pkg/ranker/request_builder.go#L42-61\" \"Build\"</rr-mermaid>",
       "steps": [
         {
           "id": "s1",
-          "text": "<p>Before this PR, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L33-38\">Builder.Build</a> fetches four base keys from Tardis and wraps them. No per-user event history reaches the ranker.</p>",
+          "text": "<p>Before, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L29-39\">Builder.Build</a> fetches from Tardis and wraps the result. No event history reaches the ranker.</p>",
           "ref": "rr:code/pkg/ranker/request_builder.go@base#L33-38"
         },
         {
           "id": "s2",
-          "text": "<p>The new <a href=\"rr:code/pkg/features/habit/fetcher.go#L19-28\">habit.Fetcher</a> reads HABIT events from TFS v2: one key per hourly bucket in the window, decoded newest first.</p>",
-          "ref": "rr:code/pkg/features/habit/fetcher.go#L19-28"
+          "text": "<p><a href=\"rr:code/pkg/ranker/request_builder.go@base#L26\">Four keys</a>: language, city, affinity, 7-day watch time. Unchanged.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go@base#L26"
         },
         {
           "id": "s3",
-          "text": "<p>Decoding stops at <a href=\"rr:code/pkg/features/habit/fetcher.go#L39-48\">50 rows</a>, so a heavy user cannot blow up the request size.</p>",
-          "ref": "rr:code/pkg/features/habit/fetcher.go#L39-48"
+          "text": "<p>Next: the fetcher, then the proto, then where <code>Build</code> joins them.</p>"
+        }
+      ]
+    },
+    {
+      "id": "fetcher",
+      "title": "Thread 1: the TFS v2 fetcher",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p><a href=\"rr:code/pkg/features/habit/fetcher.go#L20-28\">RecentEvents</a> gives TFS a <strong>30 ms</strong> deadline derived from the caller's context, and wraps any error, including the deadline.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L20-28"
         },
         {
-          "id": "s4",
-          "text": "<p>That is the whole path. Green is new, blue is changed; the rest of the walkthrough follows the call from left to right.</p>"
+          "id": "s2",
+          "text": "<p><a href=\"rr:code/pkg/features/habit/fetcher.go#L30-37\">habitKeys</a> asks for one key per hour of the window: 168 keys for the 7 days <code>Build</code> passes.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L30-37"
+        },
+        {
+          "id": "s3",
+          "text": "<p><a href=\"rr:code/pkg/features/habit/fetcher.go#L39-48\">decode</a> keeps the first 50 rows in the order TFS returned them. The doc comment promises newest first; nothing here sorts, so that holds only if TFS returns rows newest first.</p>",
+          "ref": "rr:code/pkg/features/habit/fetcher.go#L39-48"
+        }
+      ]
+    },
+    {
+      "id": "proto",
+      "title": "Thread 2: HabitEvent and field 12",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>A new <a href=\"rr:code/proto/feed/v2/ranker_request.proto#L15-19\">HabitEvent</a> message: event, post id and a millisecond timestamp.</p>",
+          "ref": "rr:code/proto/feed/v2/ranker_request.proto#L15-19"
+        },
+        {
+          "id": "s2",
+          "text": "<p><a href=\"rr:code/proto/feed/v2/ranker_request.proto#L24-25\">Field 12</a> is new and repeated. Its comment is the contract: newest first, at most 50, empty when the fetch degrades.</p>",
+          "ref": "rr:code/proto/feed/v2/ranker_request.proto#L21-26"
         }
       ]
     },
     {
       "id": "latency",
-      "title": "Request path & failure mode",
-      "lead": "<p class=\"rr-lede\">The habit call runs after Tardis, not alongside it, so its latency adds straight onto every feed request. On error the feed still serves, without the signal.</p><rr-flow><rr-node state=\"baseline\">Tardis.Fetch · 18 ms</rr-node><rr-node state=\"new\">habit.RecentEvents · 12 ms</rr-node><rr-node state=\"changed\">p99 30 ms of 40</rr-node></rr-flow>",
+      "title": "Builder.Build: the threads meet",
+      "lead": "<rr-mermaid>flowchart TD\n  T[Tardis.Fetch] --> H[habit.RecentEvents]\n  H -- events --> R[field 12]\n  H -- error --> N[log.Warn, nil]\n  click T \"rr:code/pkg/ranker/request_builder.go#L46-49\" \"the Tardis fetch\"\n  click H \"rr:code/pkg/ranker/request_builder.go#L50-54\" \"the habit call\"\n  click R \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"field 12\"</rr-mermaid><p>Full sequence: <a href=\"rr:doc/request-path\">Request path</a>.</p>",
       "steps": [
         {
           "id": "s1",
-          "text": "<p>The new call starts only after <a href=\"rr:code/pkg/ranker/request_builder.go#L46-49\">Tardis.Fetch</a> returns. Both need only the user id, so they could share an errgroup.</p>",
-          "ref": "rr:code/pkg/ranker/request_builder.go#L46-54",
-          "focus": [
-            "Tardis.Fetch · 18 ms",
-            "habit.RecentEvents · 12 ms"
-          ]
+          "text": "<p>The habit call starts only after <a href=\"rr:code/pkg/ranker/request_builder.go#L46-49\">Tardis.Fetch</a> returns, so its time adds to every request. Its 30 ms deadline starts then too.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L46-54"
         },
         {
           "id": "s2",
-          "text": "<p>The fetcher caps itself with a <a href=\"rr:code/pkg/features/habit/fetcher.go#L21-22\">30 ms deadline</a>, which bounds the worst case at roughly 48 ms p99.</p>",
-          "ref": "rr:code/pkg/features/habit/fetcher.go#L21-22",
-          "focus": [
-            "habit.RecentEvents · 12 ms"
-          ]
+          "text": "<p>The fetcher arrives through <a href=\"rr:code/pkg/ranker/request_builder.go#L22-33\">Deps</a>, next to the Tardis client and metrics; its comment says the service wiring in cmd/mfas injects it.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L22-33"
         },
         {
           "id": "s3",
-          "text": "<p>A TFS error comes back from the fetcher wrapped (top); the builder logs it at warn and sends an empty list (below). <code>habit_events</code> is repeated, so the ranker reads nil as \"no signal\".</p><p><strong>Nothing counts degraded requests.</strong></p>",
-          "ref": [
-            "rr:code/pkg/features/habit/fetcher.go#L23-26",
-            "rr:code/pkg/ranker/request_builder.go#L50-54"
-          ]
+          "text": "<p>Happy path: the events go straight onto <a href=\"rr:code/pkg/ranker/request_builder.go#L55-59\">field 12</a>, beside the unchanged Tardis features.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L55-59"
         },
         {
           "id": "s4",
-          "text": "<p>Yet <code>b.metrics</code> is <a href=\"rr:code/pkg/ranker/request_builder.go#L28-34\">already injected</a>: a <code>habit_degraded_total</code> counter is one line.</p>",
-          "ref": "rr:code/pkg/ranker/request_builder.go#L28-34"
+          "text": "<p>On any fetch error the builder <a href=\"rr:code/pkg/ranker/request_builder.go#L50-54\">logs a warning and sends nil</a>; the request still goes out.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L50-54"
+        },
+        {
+          "id": "s5",
+          "text": "<p>A Tardis error still <a href=\"rr:code/pkg/ranker/request_builder.go#L47-49\">fails the whole request</a>, as before. Only the habit signal is best-effort.</p>",
+          "ref": "rr:code/pkg/ranker/request_builder.go#L46-49"
         }
       ]
     },
     {
-      "id": "degrade",
-      "title": "The degraded path, drawn",
-      "steps": [
-        {
-          "id": "happy",
-          "text": "<p>The happy path: <a href=\"rr:code/pkg/features/habit/fetcher.go#L20-28\">RecentEvents</a> answers in time and the events ride on field 12.</p><rr-mermaid class=\"rr-diagram-signal\">flowchart TD\n  RE[habit.RecentEvents] --> DL([rows within 30 ms?])\n  DL -- yes --> Req[RankerRequest]\n  DL -- no --> Warn[log.Warn]\n  Warn -- events = nil --> Req\n  Warn -. not counted .-> M[(habit_degraded_total)]\n  click RE \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click Warn \"rr:code/pkg/ranker/request_builder.go#L51-54\" \"the degrade branch\"\n  click Req \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"\n  click M \"rr:code/pkg/ranker/request_builder.go#L28-34\" \"the metrics, already injected\"</rr-mermaid>",
-          "ref": "rr:code/pkg/features/habit/fetcher.go#L20-28",
-          "focus": [
-            "habit.RecentEvents",
-            "rows within 30 ms?",
-            "RankerRequest"
-          ]
-        },
-        {
-          "id": "degraded",
-          "text": "<p>On an error or the deadline the builder <a href=\"rr:code/pkg/ranker/request_builder.go#L50-54\">logs and sends nil</a>; the request still goes out.</p><rr-mermaid class=\"rr-diagram-signal\">flowchart TD\n  RE[habit.RecentEvents] --> DL([rows within 30 ms?])\n  DL -- yes --> Req[RankerRequest]\n  DL -- no --> Warn[log.Warn]\n  Warn -- events = nil --> Req\n  Warn -. not counted .-> M[(habit_degraded_total)]\n  click RE \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click Warn \"rr:code/pkg/ranker/request_builder.go#L51-54\" \"the degrade branch\"\n  click Req \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"\n  click M \"rr:code/pkg/ranker/request_builder.go#L28-34\" \"the metrics, already injected\"</rr-mermaid>",
-          "ref": "rr:code/pkg/ranker/request_builder.go#L50-54",
-          "focus": [
-            "rows within 30 ms?",
-            "log.Warn",
-            "RankerRequest"
-          ]
-        },
-        {
-          "id": "uncounted",
-          "text": "<p>Nothing counts it: the dotted edge is the line this PR is missing.</p><rr-mermaid class=\"rr-diagram-signal\">flowchart TD\n  RE[habit.RecentEvents] --> DL([rows within 30 ms?])\n  DL -- yes --> Req[RankerRequest]\n  DL -- no --> Warn[log.Warn]\n  Warn -- events = nil --> Req\n  Warn -. not counted .-> M[(habit_degraded_total)]\n  click RE \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click Warn \"rr:code/pkg/ranker/request_builder.go#L51-54\" \"the degrade branch\"\n  click Req \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"\n  click M \"rr:code/pkg/ranker/request_builder.go#L28-34\" \"the metrics, already injected\"</rr-mermaid>",
-          "ref": "rr:code/pkg/ranker/request_builder.go#L28-34",
-          "focus": [
-            "log.Warn",
-            "habit_degraded_total"
-          ]
-        },
-        {
-          "id": "states",
-          "text": "<p>The same request as states: every path ends in <em>Sent</em>, so the feed never fails on habit.</p><rr-mermaid>stateDiagram-v2\n  [*] --> Fetching\n  Fetching --> WithEvents: rows in 30 ms\n  Fetching --> Degraded: TFS error or deadline\n  WithEvents --> Sent\n  Degraded --> Sent: events = nil\n  Sent --> [*]</rr-mermaid>",
-          "ref": "rr:code/pkg/ranker/request_builder.go#L50-60",
-          "focus": [
-            "Degraded",
-            "Sent"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "schema",
-      "title": "Proto, storage & tests",
-      "lead": "<p class=\"rr-lede\">Field 12 is appended, never reused, so older ranker builds ignore it. The table is additive and its index matches the window read.</p>",
+      "id": "together",
+      "title": "Back together",
       "steps": [
         {
           "id": "s1",
-          "text": "<p>A new <code>HabitEvent</code> message and <a href=\"rr:code/proto/feed/v2/ranker_request.proto#L25\">field 12</a> on <code>RankerRequest</code>. Wire compatible in both directions.</p>",
-          "ref": "rr:code/proto/feed/v2/ranker_request.proto#L15-25"
+          "text": "<p>The whole path: field 12 gets the events, or nil on error.</p><rr-mermaid>flowchart LR\n  T[Tardis] --> H[habit]\n  H -- events --> R[field 12]\n  H -- error --> N[nil]\n  N --> R\n  click H \"rr:code/pkg/features/habit/fetcher.go#L20-28\" \"the fetcher\"\n  click N \"rr:code/pkg/ranker/request_builder.go#L50-54\" \"the degrade branch\"\n  click R \"rr:code/pkg/ranker/request_builder.go#L55-59\" \"the request\"</rr-mermaid>"
         },
         {
           "id": "s2",
-          "text": "<p>The offline sink. <code>(user_id, ts DESC)</code> serves \"last N for a user\" without a sort.</p>",
-          "ref": "rr:code/migrations/004_habit_events.sql#L1-8"
-        },
-        {
-          "id": "map",
-          "text": "<p>How a row travels: the table row is decoded into a <code>HabitEvent</code>, and up to 50 ride on field 12.</p><rr-mermaid>erDiagram\n  habit_events ||--|| HabitEvent : decode\n  RankerRequest ||--o{ HabitEvent : \"field 12\"</rr-mermaid>"
-        },
-        {
-          "id": "s3",
-          "text": "<p>Two tests: the deadline fires, and decoding caps at 50. Nothing exercises the degrade branch in <code>Build</code>.</p>",
-          "ref": "rr:code/pkg/features/habit/fetcher_test.go#L11-22"
+          "text": "<p>The written walkthrough carries the review: <a href=\"rr:doc/findings\">findings and open questions</a>, <a href=\"rr:doc/tests\">tests</a>, <a href=\"rr:doc/schema\">the storage table</a> and the <a href=\"rr:doc/sign-off\">risk checklist</a>.</p>"
         }
       ]
     }

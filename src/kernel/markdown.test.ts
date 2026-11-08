@@ -43,12 +43,8 @@ test('walkthrough prose keeps a Mermaid diagram\'s preset class, not handlers', 
   expect(sanitizeProse('<rr-mermaid class="rr-diagram-delta" onclick="x()">flowchart LR\nA --&gt; B</rr-mermaid>')).toBe('<rr-mermaid class="rr-diagram-delta">flowchart LR\nA --&gt; B</rr-mermaid>');
 });
 
-test('walkthrough prose keeps a flow diagram\'s direction', () => {
-  expect(sanitizeProse('<rr-flow direction="column"><rr-node>a</rr-node></rr-flow>')).toBe('<rr-flow direction="column"><rr-node>a</rr-node></rr-flow>');
-});
-
 test('walkthrough prose is display-only: no styles, forms, media, svg or script URLs', () => {
-  const html = '<p style="position:fixed">a <a href="javascript:x()">j</a> <a href="rr:code/a.go#L1">r</a></p><form><input></form><img src="https://e.vil/x.png"><svg><script>1</script></svg><rr-flow><rr-node state="new" ref="data:x">n</rr-node></rr-flow>';
-  expect(sanitizeProse(html)).toBe('<p>a <a target="_blank" rel="noopener">j</a> <a href="rr:code/a.go#L1">r</a></p><rr-flow><rr-node state="new">n</rr-node></rr-flow>');
-  expect(proseRemoved(html)).toEqual(['style on <p>', 'href on <a>', '<form>', '<input>', '<img>', '<svg>', 'ref on <rr-node>']);
+  const html = '<p style="position:fixed">a <a href="javascript:x()">j</a> <a href="rr:code/a.go#L1">r</a></p><form><input></form><img src="https://e.vil/x.png"><svg><script>1</script></svg><rr-code ref="data:x">n</rr-code>';
+  expect(sanitizeProse(html)).toBe('<p>a <a target="_blank" rel="noopener">j</a> <a href="rr:code/a.go#L1">r</a></p><rr-code>n</rr-code>');
+  expect(proseRemoved(html)).toEqual(['style on <p>', 'href on <a>', '<form>', '<input>', '<img>', '<svg>', 'ref on <rr-code>']);
 });
