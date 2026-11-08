@@ -1,45 +1,23 @@
-/* stylelint-disable color-named -- key-cap lighting: pure white and black mixed into a theme colour, not colours of their own */
-/* send buttons (Agent orange, PR neutral, the same everywhere): live ones are key caps, a lit top, a darker
-   bottom edge and a shadow, that press in; ones the review mode leaves out are flat and dashed */
+/* send buttons (where a comment goes), the same everywhere (sendButton, view.ts): Agent filled in the comment colour,
+   PR a plain button. One the review mode leaves out is dimmed, its tooltip saying why. --_cap is the phone's fill. */
 .rr-btn--send {
-  --cap: color-mix(in srgb, var(--rr-panel) 90%, var(--rr-ink));
-  --cap-ink: var(--rr-ink);
-  --cap-edge: color-mix(in srgb, var(--rr-line-strong) 55%, black);
+  --_cap: color-mix(in srgb, var(--rr-panel), var(--rr-ink) var(--rr-mix-sm));
 }
 .rr-btn--agent {
-  --cap: var(--rr-comment);
-  --cap-ink: var(--rr-comment-ink);
-  --cap-edge: color-mix(in srgb, var(--rr-comment) 65%, black);
+  --_cap: var(--rr-comment);
 }
-.rr-btn--send:not([aria-disabled='true']) {
-  background: linear-gradient(color-mix(in srgb, var(--cap) 88%, white), color-mix(in srgb, var(--cap) 94%, black));
-  color: var(--cap-ink);
-  border: 1px solid color-mix(in srgb, var(--cap-edge) 70%, var(--cap));
-  border-bottom: 2px solid var(--cap-edge);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 35%, transparent),
-    0 1px 2px color-mix(in srgb, black 18%, transparent),
-    0 3px 8px color-mix(in srgb, black 12%, transparent);
-  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+.rr-btn--agent:not([aria-disabled='true']) {
+  background: var(--rr-comment);
+  border-color: var(--rr-comment);
+  color: var(--rr-comment-ink);
 }
-.rr-btn--send:not([aria-disabled='true']):hover {
-  transform: translateY(-1px);
-  filter: brightness(1.04);
+.rr-btn--agent:not([aria-disabled='true']):hover {
+  background: color-mix(in srgb, var(--rr-comment), var(--rr-ink) var(--rr-mix-sm));
 }
-.rr-btn--send:not([aria-disabled='true']):active {
-  transform: translateY(1px);
-  border-bottom-width: 1px;
-  box-shadow: inset 0 1px 3px color-mix(in srgb, black 25%, transparent);
-}
-.rr-btn--send[aria-disabled='true'],
-.rr-btn--send[aria-disabled='true']:hover {
-  background: transparent;
-  border: 1px dashed var(--rr-line-strong);
-  color: var(--rr-faint);
+.rr-btn--send[aria-disabled='true'] {
+  opacity: 0.45;
   cursor: not-allowed;
 }
-.rr-btn--agent[aria-disabled='true'],
-.rr-btn--agent[aria-disabled='true']:hover {
-  border-color: color-mix(in srgb, var(--rr-comment) 45%, transparent);
-  color: color-mix(in srgb, var(--rr-comment) 60%, transparent);
+.rr-btn--send[aria-disabled='true']:hover {
+  background: var(--rr-panel);
 }

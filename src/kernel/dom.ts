@@ -109,7 +109,8 @@ export const icon = (name: keyof typeof icons, size = 16) => svg(icons[name], si
 
 const clawd = (resolved: boolean, size: number) => h('img', { class: 'rr-clawd', src: resolved ? CLAWD_RESOLVED : CLAWD, width: size, height: size, alt: '' });
 
-/** A thread's marker: GitHub's mark (on the PR) or Clawd (with the agent), its message count in a corner pill; greyed out once resolved. */
+/** A thread's marker: GitHub's mark (on the PR) or Clawd (with the agent) and its message count, in the chip
+ *  threadCounts uses too, sized by where it sits (markers.css); greyed out once resolved. */
 export function threadBadge(t: { gh?: { conversation?: boolean }; status: string; messages: { gh?: { login: string; avatar?: string } }[] }, agentReplied = false) {
   const resolved = t.status === 'resolved';
   // a GitHub thread shows who started it; the PR conversation (everyone's) keeps GitHub's mark
@@ -119,7 +120,7 @@ export function threadBadge(t: { gh?: { conversation?: boolean }; status: string
     { class: 'rr-tbadge ' + (t.gh ? 'is-gh' : 'is-agent') + (resolved ? ' is-resolved' : agentReplied ? ' has-agent' : '') },
     starter?.avatar
       ? h('img', { class: 'rr-tbadge__avatar', src: avatarUrl(starter.avatar, 40), alt: '', title: starter.login, loading: 'lazy' })
-      : t.gh ? icon('github', 16) : clawd(resolved, 18),
+      : t.gh ? icon('github', 18) : clawd(resolved, 18), // sized by markers.css
     h('span', { class: 'rr-tbadge__n' }, String(t.messages.length)),
   );
 }
@@ -132,8 +133,8 @@ export function threadCounts(ts: { gh?: unknown }[], where: string) {
   const gh = ts.filter((t) => t.gh).length;
   const agent = ts.length - gh;
   return [
-    gh ? h('span', { class: 'rr-count-chip is-gh', title: `${plural(gh, 'open GitHub thread')} ${where}` }, icon('github', 11), String(gh)) : null,
-    agent ? h('span', { class: 'rr-count-chip', title: `${plural(agent, 'open thread')} with the agent ${where}` }, clawd(false, 12), String(agent)) : null,
+    gh ? h('span', { class: 'rr-count-chip is-gh', title: `${plural(gh, 'open GitHub thread')} ${where}` }, icon('github', 18), String(gh)) : null,
+    agent ? h('span', { class: 'rr-count-chip', title: `${plural(agent, 'open thread')} with the agent ${where}` }, clawd(false, 18), String(agent)) : null,
   ];
 }
 

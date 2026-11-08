@@ -2,12 +2,12 @@
   position: absolute;
   pointer-events: none;
   border-radius: var(--rr-radius);
-  background: color-mix(in srgb, var(--rr-accent) 4%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rr-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--rr-accent) var(--rr-mix-xs), transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent);
   z-index: 1;
 }
 .is-picking .rr-block-outline {
-  background: color-mix(in srgb, var(--rr-comment) 8%, transparent);
+  background: color-mix(in srgb, var(--rr-comment) var(--rr-mix-xs), transparent);
   box-shadow: 0 0 0 2px var(--rr-comment);
 }
 .rr-block-outline[data-label]:not([data-label=''])::after {
@@ -32,6 +32,10 @@
   border-radius: var(--rr-radius);
   background: var(--rr-panel);
   box-shadow: var(--rr-shadow-sm);
+}
+/* the block under it is pinned: its pin in the pin colour (walkthrough.ts, paintPin) */
+.rr-block-handle__pin[aria-pressed='true'] {
+  color: var(--rr-pin);
 }
 
 /* CSS Custom Highlight API: passive marks, zero DOM changes to the author's content */

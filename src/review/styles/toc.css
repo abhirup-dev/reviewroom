@@ -1,10 +1,20 @@
-/* contents: section titles wrap to two lines instead of truncating, indented under their group label; sub-sections hang off a guide line */
+/* contents: laid out like the walkthrough's own headings. Each group (Pinned, Walkthrough) is a heading over a faint
+   full-width rule, and its entries start at the heading's edge, as a section's text does under its h2; section titles
+   wrap to two lines instead of truncating, sub-sections hang off a guide line */
 .rr-toc {
   padding-top: var(--rr-space-8);
 }
+.rr-toc .rr-group-label {
+  margin: var(--rr-space-16) 0 var(--rr-space-4);
+  padding-bottom: var(--rr-space-8);
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-toc .rr-group-label:first-child {
+  margin-top: 0;
+}
 .rr-toc-item {
   align-items: flex-start;
-  padding: var(--rr-space-4) var(--rr-space-8) var(--rr-space-4) var(--rr-space-24);
+  padding: var(--rr-space-4) var(--rr-space-8) var(--rr-space-4) var(--rr-space-12);
   font: 400 var(--rr-text)/1.4 var(--rr-font);
 }
 .rr-toc-item__title {
@@ -21,25 +31,53 @@
 .rr-toc-item .rr-round-badge {
   margin-top: 1px;
 }
-.rr-toc-item.is-active {
-  font-weight: 500;
-}
 .rr-toc-item--sub {
-  width: calc(100% - 22px);
-  margin-left: var(--rr-space-24);
+  width: calc(100% - var(--rr-space-12));
+  margin-left: var(--rr-space-12); /* the guide under the section titles' first letter */
   padding: var(--rr-space-4) var(--rr-space-8);
   min-height: var(--rr-control-sm);
   border-left: 1px solid var(--rr-line-strong);
-  border-radius: var(--rr-radius);
+  border-radius: 0 var(--rr-radius) var(--rr-radius) 0; /* square on the guide, so consecutive rows draw one line */
   font-size: var(--rr-text-sm);
   color: var(--rr-muted);
 }
+/* an h4: on the same outer guide as its h3, with its own guide one step in */
+.rr-toc-item--deep {
+  position: relative;
+  padding-left: calc(var(--rr-space-12) + var(--rr-space-12));
+}
+.rr-toc-item--deep::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 var(--rr-space-12);
+  width: 1px;
+  background: var(--rr-line-strong);
+}
+/* where the reader is (contents.ts, mark()): the section's guide firms up, and its h3's for an h4; the headings down to
+   the one being read are bold, that one underlined too (files.css, .is-active) */
+.rr-toc-item--sub.is-in {
+  border-left-color: var(--rr-ink-2);
+}
+.rr-toc-item--deep.is-in-deep::after {
+  background: var(--rr-ink-2);
+}
+.rr-toc-item.is-trail {
+  color: var(--rr-ink);
+  font-weight: 600;
+}
+/* a pinned row holds two buttons (unpin, open): the row takes the hover like every other Contents row, and its title
+   button is the row's text, filling it, with no hover of its own */
 .rr-toc-item--pin {
   cursor: default;
 }
-.rr-toc-item--pin .rr-link-btn {
-  color: var(--rr-ink-2);
+.rr-toc-item--pin .rr-toc-item__title {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   text-align: left;
+  cursor: pointer;
 }
 .rr-pin-btn {
   display: inline-flex;

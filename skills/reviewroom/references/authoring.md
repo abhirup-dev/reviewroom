@@ -228,7 +228,7 @@ that needs more than that (your own HTML or SVG) lives in `review.html` and come
 The tool sets both; don't load fonts or hard-code colours. Headings, lists, tables, code and callouts
 inside `<rr-review>` are already styled: write plain semantic HTML. In your own widgets use the tokens:
 
-- Fonts: `--rr-font-read` (prose), `--rr-font` (labels, legends, table headers), `--rr-mono` (code, identifiers, numbers).
+- Fonts: `--rr-font-read` (prose), `--rr-font-display` (prose headings), `--rr-font` (labels, legends, table headers), `--rr-mono` (code, identifiers, numbers).
 - Sizes, one scale for every voice: `--rr-text-xs` (11px), `--rr-text-sm` (12), `--rr-text` (13), `--rr-text-md` (14),
   `--rr-text-prose` (16, the body), `--rr-text-xl` (19), `--rr-text-2xl` (23), `--rr-text-3xl` (32). Or `em`, relative to the
   text around it.

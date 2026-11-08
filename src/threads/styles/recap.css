@@ -68,20 +68,17 @@
   font-size: var(--rr-text-xs);
   color: var(--rr-faint);
 }
+/* a card grows into a lane with room, so a short lane does not leave the sheet half empty (a phone keeps them at their
+   own size: threads.phone.css) */
 .rr-recap-card {
-  flex: none;
+  flex: 1 0 380px;
   width: 380px;
+  max-width: 560px;
   padding: var(--rr-space-8) var(--rr-space-16) var(--rr-space-4);
   background: var(--rr-surface-doc);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
   box-shadow: var(--rr-shadow-sm);
-}
-/* a card grows into a lane with room, so a short lane does not leave the sheet half empty (a phone keeps them at their
-   own size: threads.phone.css) */
-.rr-recap-card {
-  flex: 1 0 380px;
-  max-width: 560px;
 }
 .rr-recap-card__head {
   display: flex;

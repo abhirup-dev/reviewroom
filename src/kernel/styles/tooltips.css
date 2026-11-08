@@ -19,8 +19,8 @@
   display: none;
 }
 .rr-tooltip kbd {
-  border-color: color-mix(in srgb, var(--rr-bg) 30%, transparent);
-  background: color-mix(in srgb, var(--rr-bg) 14%, transparent);
+  border-color: color-mix(in srgb, var(--rr-bg) var(--rr-mix-md), transparent);
+  background: color-mix(in srgb, var(--rr-bg) var(--rr-mix-sm), transparent);
   color: var(--rr-bg);
 }
 /* no keyboard shortcuts to hint at on touch */

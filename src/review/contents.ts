@@ -25,7 +25,7 @@ class TocPanel implements PanelInstance {
       app.bus.on('prefs', r),
       app.bus.on('active-section', (id) => {
         this.active = id;
-        this.body.querySelectorAll('.rr-toc-item').forEach((el) => el.classList.toggle('is-active', (el as HTMLElement).dataset.id === id));
+        this.mark();
       }),
     );
     this.render();
@@ -54,13 +54,18 @@ class TocPanel implements PanelInstance {
           app,
           { id: s.id },
           title,
-          { class: 'rr-toc-item' + (s.id === this.active ? ' is-active' : ''), 'data-id': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p' },
+          { class: 'rr-toc-item', 'data-id': s.id, 'data-trail': s.id, title: `Jump to “${title}” (double-click to open it big)`, 'data-keys': 'n,p' },
           round && round !== '1' ? h('span', { class: 'rr-round-badge', title: `Added or changed in round ${round}` }, 'R' + round) : null,
           ...threadCounts(n, 'in this section'),
         ),
       );
-      s.querySelectorAll(':scope section[id], :scope h3[id]').forEach((sub) => {
-        items.push(tocItem(app, { id: sub.id }, app.docTitle(sub.id) ?? sub.id, { class: 'rr-toc-item rr-toc-item--sub', 'data-id': sub.id }));
+      // sub-sections and h3s one level in, h4s a level further, each with its trail: the ids from the section down to it
+      let parent = '';
+      s.querySelectorAll(':scope section[id], :scope h3[id], :scope h4[id]').forEach((sub) => {
+        const deep = sub.tagName === 'H4';
+        if (!deep) parent = sub.id;
+        const trail = [s.id, deep && parent ? parent : '', sub.id].filter(Boolean).join(' ');
+        items.push(tocItem(app, { id: sub.id }, app.docTitle(sub.id) ?? sub.id, { class: 'rr-toc-item rr-toc-item--sub' + (deep ? ' rr-toc-item--deep' : ''), 'data-id': sub.id, 'data-trail': trail }));
       });
     });
     if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));
@@ -73,22 +78,37 @@ class TocPanel implements PanelInstance {
     const pins = app.state.pins;
     this.body.replaceChildren(
       ...([
-      heads.length ? h('div', { class: 'rr-group-label' }, 'Description') : null,
-      ...heads,
-      heads.length || pins.length ? h('div', { class: 'rr-group-label' }, 'Walkthrough') : null,
-      ...items,
-      pins.length ? h('div', { class: 'rr-group-label' }, 'Pinned', h('span', null, String(pins.length))) : null,
+      // pinned first, at the top without a heading: what the reviewer chose to keep at hand
       ...pins.map((ref) => {
         return h(
           'div',
           { class: 'rr-toc-item rr-toc-item--pin' },
           // unpins on a double-click (one stray click shouldn't), or Enter/Space from the keyboard (detail 0)
           h('button', { class: 'rr-pin-btn', 'aria-label': 'Unpin', title: 'Double-click to unpin', onclick: (e: MouseEvent) => e.detail === 0 && app.togglePin(ref), ondblclick: () => app.togglePin(ref) }, icon('pin', 12)),
-          h('button', { class: 'rr-toc-item__title rr-link-btn', title: 'Open (double-click to open it big)', onclick: () => app.open(ref), ondblclick: () => openCentered(app, ref) }, app.label(ref)),
+          h('button', { class: 'rr-toc-item__title', title: 'Open (double-click to open it big)', onclick: () => app.open(ref), ondblclick: () => openCentered(app, ref) }, app.label(ref)),
         );
       }),
+      heads.length ? h('div', { class: 'rr-group-label' }, 'Description') : null,
+      ...heads,
+      h('div', { class: 'rr-group-label' }, 'Walkthrough'),
+      ...items,
       ].filter(Boolean) as HTMLElement[]),
     );
+    this.mark();
+  }
+
+  /** Where the reader is: the leaf underlined, it and the headings above it bold, and the guides of its section (and of
+   *  its h3, for an h4) firmer (toc.css). */
+  private mark() {
+    const rows = [...this.body.querySelectorAll<HTMLElement>('.rr-toc-item[data-trail]')];
+    const trail = rows.find((r) => r.dataset.id === this.active)?.dataset.trail?.split(' ') ?? [];
+    for (const r of rows) {
+      const t = r.dataset.trail!.split(' ');
+      r.classList.toggle('is-active', r.dataset.id === this.active);
+      r.classList.toggle('is-trail', trail.includes(r.dataset.id!));
+      r.classList.toggle('is-in', t.length > 1 && t[0] === trail[0]);
+      r.classList.toggle('is-in-deep', t.length > 2 && t[1] === trail[1]);
+    }
   }
   dispose() {
     this.offs.forEach((f) => f());

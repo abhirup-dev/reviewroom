@@ -48,7 +48,7 @@
 [data-form='phone'] .rr-tour__top > .rr-toolbar__spacer {
   display: none;
 }
-/* chapter arrows, open in the workbench and pause: the card and Back do those on a phone */
+/* the chapter arrows: the card and Back do those on a phone */
 [data-form='phone'] .rr-tour__top > .rr-tour__flip,
 [data-form='phone'] .rr-tour__top > .rr-icon-btn:not(:last-child) {
   display: none;
@@ -194,31 +194,31 @@
 /* what covers the code's foot, for its pane to centre lines above (player.phone.ts reads these, review/code.ts lands by
    them): the card where it sits (lower when immersive, see its translate) and, when shown, the file tab on its edge; and
    the room the pane keeps under its last lines for the default card and a gap. Registered: they read back in px */
-@property --rr-cover {
+@property --_cover {
   syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
-@property --rr-card-room {
+@property --_card-room {
   syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
 [data-form='phone'] .rr-tour__player {
-  --rr-card-foot: var(--rr-card-lift);
-  --rr-tab-h: 0px;
-  --rr-cover: calc(var(--rr-card-foot) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) + var(--rr-tab-h));
-  --rr-card-room: calc(var(--rr-card-default) + var(--rr-card-lift) + 12px);
+  --_card-foot: var(--rr-card-lift);
+  --_tab-h: 0px;
+  --_cover: calc(var(--_card-foot) + env(safe-area-inset-bottom) + var(--rr-card-h, 0px) + var(--_tab-h));
+  --_card-room: calc(var(--rr-card-default) + var(--rr-card-lift) + 12px);
 }
 [data-form='phone'] .rr-tour__player.is-immersive {
-  --rr-card-foot: 20px;
+  --_card-foot: 20px;
 }
 /* a chapter's announcement lifts the card clear of its band (below): the cover follows it */
 [data-form='phone'][data-orient='portrait'] .rr-tour__player.is-immersive.is-announcing {
-  --rr-card-foot: calc(20px + 44px);
+  --_card-foot: calc(20px + 44px);
 }
 [data-form='phone'] .rr-tour__player:has(.rr-tour__files:not([hidden])) {
-  --rr-tab-h: 31px; /* .rr-tour__file's 30px and the tab's 2px top, less the 1px it overlaps the card */
+  --_tab-h: 31px; /* .rr-tour__file's 30px and the tab's 2px top, less the 1px it overlaps the card */
 }
 /* the slide: a 16px card above the toolbar, at most ~40% of the screen, scrolling on its own */
 [data-form='phone'] .rr-tour__left {

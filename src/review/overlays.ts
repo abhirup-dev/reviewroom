@@ -23,7 +23,7 @@ export interface PaletteItem {
 }
 type Item = PaletteItem;
 type IconName = Parameters<typeof icon>[0];
-/** Results under a label (none: the flat list), their icon in place of each kind's when given. */
+/** Results under a label (none: no heading), their icon in place of each kind's when given. */
 export type PaletteGroup = [label: string, items: Item[], icon?: IconName];
 
 /** What a variant reaches of the palette: its input, closing it, and painting it afresh (the selection back on the
@@ -34,7 +34,7 @@ export interface PaletteHost {
   refresh: () => void;
 }
 
-/** A presentation's palette (rr-486.12). Without one it is the desktop's ⌘K: the best matches in one flat list. A
+/** A presentation's palette (rr-486.12). Without one it is the desktop's ⌘K: the best matches, grouped by kind. A
  *  variant browses: outside pick and the typed modes (> # /) the palette also searches symbols as you type, and the
  *  variant lays out the results. */
 export interface PaletteVariant {
@@ -42,7 +42,7 @@ export interface PaletteVariant {
   top: HTMLElement[];
   placeholder: string;
   iconSize: number;
-  /** Each paint: the results in groups while browsing; undefined for the flat list. */
+  /** Each paint: the results in groups while browsing; undefined for the default grouping by kind. */
   paint(all: Item[], q: string, browsing: boolean): PaletteGroup[] | undefined;
   /** A result was run (not picked as a link). */
   ran(it: Item): void;
@@ -52,6 +52,17 @@ export interface PaletteVariant {
 }
 
 const KIND_ICON: Record<Item['kind'], IconName> = { command: 'chevron', file: 'files', section: 'section', thread: 'thread', symbol: 'symbol', text: 'search', link: 'link' };
+const KIND_GROUP: Record<Item['kind'], string> = { command: 'Commands', file: 'Files', section: 'Sections', thread: 'Threads', symbol: 'Symbols', text: 'Code', link: 'Link' };
+/** The desktop's list: the best matches under headings (a command's group, else its kind), groups in the order their
+ *  best match ranks. */
+const byHeading = (all: Item[]): PaletteGroup[] => {
+  const groups = new Map<string, Item[]>();
+  for (const it of all.slice(0, 60)) {
+    const g = (it.kind === 'command' && it.detail) || KIND_GROUP[it.kind];
+    groups.set(g, [...(groups.get(g) ?? []), it]);
+  }
+  return [...groups];
+};
 
 // ================================================================ palette
 export function mountPalette(app: ReviewApp, variantFor?: (app: ReviewApp, host: PaletteHost) => PaletteVariant) {
@@ -141,25 +152,27 @@ export function mountPalette(app: ReviewApp, variantFor?: (app: ReviewApp, host:
   /** Browsing a variant's results: outside pick and the typed modes (> # /). */
   const browsing = () => !!variant && !pick && !/^[>#/]/.test(input.value);
   let groups: PaletteGroup[] = [];
+  const plainCommand = (it: Item) => !variant && it.kind === 'command';
 
   const paint = () => {
     const q = input.value;
     const all = [...(/^[#/]/.test(q) || browsing() ? remote : []), ...local(q)].filter((i) => !pick || i.ref).sort((a, b) => b.score - a.score);
-    groups = variant?.paint(all, q, browsing()) ?? [['', all.slice(0, 60)]];
+    groups = variant?.paint(all, q, browsing()) ?? byHeading(all);
     items = groups.flatMap(([, g]) => g);
     sel = Math.min(sel, Math.max(0, items.length - 1));
     let i = 0;
     list.replaceChildren(
       ...groups.flatMap(([label, g, groupIcon]) => [
-        label ? h('div', { class: 'rr-palette__group' }, label) : null,
+        label ? h('div', { class: 'rr-group-label rr-palette__group' }, label) : null,
         ...g.map((it) => {
           const n = i++;
           return h(
             'div',
             { class: 'rr-palette__item' + (n === sel ? ' is-sel' : ''), role: 'option', 'aria-selected': String(n === sel), onmousemove: () => n !== sel && ((sel = n), paint()), onclick: () => choose(n) },
-            h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(groupIcon ?? KIND_ICON[it.kind], variant?.iconSize ?? 12)),
+            // on the desktop a command's heading says what it is: no kind tile, no group beside it
+            plainCommand(it) ? null : h('span', { class: `rr-palette__kind rr-palette__kind--${it.kind}` }, icon(groupIcon ?? KIND_ICON[it.kind], variant?.iconSize ?? 12)),
             h('span', { class: 'rr-palette__label' }, it.label),
-            it.detail ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
+            it.detail && !plainCommand(it) ? h('span', { class: 'rr-palette__detail' }, it.detail) : null,
             it.keys?.length ? h('kbd', null, keyLabel(it.keys[0])) : null,
           );
         }),
@@ -246,11 +259,14 @@ export function mountSelectionRelease(app: ReviewApp) {
 }
 
 // ================================================================ hover previews
+/** The link preview's hover timing (mountHoverCards): open after resting on a link, close after leaving it. */
+const OPEN_MS = 400, CLOSE_MS = 200;
+
 export function mountHoverCards(app: ReviewApp) {
   const card = h('div', { class: 'rr-hovercard', popover: 'manual', role: 'dialog', 'aria-label': 'Preview' });
   document.body.append(card);
   let wrapped = false; // remembered across previews
-  const hide = () => { card.hidePopover(); current = null; clearTimeout(timer); };
+  const hide = () => { card.hidePopover(); current = pending = null; clearTimeout(timer); clearTimeout(hideTimer); };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let current: Element | null = null;
@@ -264,15 +280,22 @@ export function mountHoverCards(app: ReviewApp) {
       return !!t;
     }),
   );
-  app.listen(document, 'pointerover', (e) => {
-    if (e.pointerType === 'touch') return;
-    const t = target(e);
-    if (card.contains(e.target as Node)) return clearTimeout(hideTimer);
-    if (!t) return;
-    if (t === current) return clearTimeout(hideTimer);
+  // Hover intent, one rule for every link: the card opens once the pointer has been on a link for OPEN_MS, counted from
+  // entering it (moving within it, across its icon and text, doesn't restart the count), and closes CLOSE_MS after the
+  // pointer leaves both. Only the reader's hand counts: the hover update a browser sends when content scrolls under a
+  // still pointer moves it by nothing, and scrolling closes the card.
+  let pending: Element | null = null;
+  app.listen(document, 'pointermove', (m) => {
+    if (m.pointerType === 'touch' || (!m.movementX && !m.movementY)) return;
+    if (card.contains(m.target as Node)) return clearTimeout(hideTimer);
+    const t = target(m) ?? null;
+    if (t && t === current) return clearTimeout(hideTimer);
+    if (t === pending) return;
     clearTimeout(timer);
-    timer = setTimeout(() => void show(t), 380);
+    pending = t;
+    if (t) timer = setTimeout(() => void show(t), OPEN_MS);
   });
+  app.listen(document, 'scroll', (e) => !card.contains(e.target as Node) && hide(), true);
   const show = async (t: Element) => {
     clearTimeout(timer);
     current = t;
@@ -305,17 +328,18 @@ export function mountHoverCards(app: ReviewApp) {
     wrapBtn.hidden = !(body.matches('.rr-snippet') || body.querySelector('.rr-snippet'));
     place(t);
   };
-  app.listen(document, 'pointerout', (e) => {
-    if (e.pointerType === 'touch') return;
-    const t = target(e);
-    if (t) clearTimeout(timer);
-    if (!t && !card.contains(e.target as Node)) return;
+  app.listen(document, 'pointerout', (o) => {
+    if (o.pointerType === 'touch') return;
+    const t = target(o), to = o.relatedTarget as Element | null;
+    if (!t && !card.contains(o.target as Node)) return;
+    if (to && (t?.contains(to) || card.contains(to))) return; // still on the same link, or onto the card
+    if (t === pending) { clearTimeout(timer); pending = null; }
+    if (!card.matches(':popover-open')) return;
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
       if (card.matches(':hover') || current?.matches(':hover')) return;
-      card.hidePopover();
-      current = null;
-    }, 220);
+      hide();
+    }, CLOSE_MS);
   });
   app.listen(document, 'mousedown', (e) => !card.contains(e.target as Node) && hide());
   // capture: Esc closes the card before the dialog it may sit over

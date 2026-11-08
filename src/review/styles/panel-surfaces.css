@@ -1,8 +1,10 @@
 /* Panels: generic scroll areas, side panels, code panel, walkthrough. */
 /* Each panel kind sits on its own surface; components inside just use --rr-panel/--rr-panel-2. */
+/* a thread in its own window is the thread panel it docks into, on the same surfaces */
 .rr-panel-host[data-rr-kind='narrative'],
 .rr-panel-host[data-rr-kind='description'],
-.rr-panel-host[data-rr-kind='thread'] {
+.rr-panel-host[data-rr-kind='thread'],
+.rr-modal:has(> .rr-thread) {
   --rr-panel: var(--rr-surface-doc);
   --rr-panel-2: var(--rr-surface-doc-2);
 }

@@ -129,7 +129,7 @@ class RRCode extends HTMLElement {
       );
       const body = h('div', { class: 'rr-code__body' });
       this.append(head, body);
-      this.file = new PierreFile(codeOptions('--rr-panel-2'));
+      this.file = new PierreFile(codeOptions());
       this.file.render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
     });
   }
@@ -200,6 +200,22 @@ class RRCheck extends HTMLElement {
 }
 
 // ------------------------------------------------------------------ rr-mermaid
+/** A linked node's label gets a drawn underline per line (diagrams.css styles it like a link's in the text): SVG text
+ *  takes no underline colour or thickness. A label not laid out (in a closed <details>) has no box and goes without. */
+function underlineLinks(diagram: HTMLElement) {
+  for (const text of diagram.querySelectorAll<SVGTextElement>('svg a > text.pele-label')) {
+    const lines = text.querySelectorAll<SVGTSpanElement>('tspan');
+    for (const line of lines.length ? lines : [text]) {
+      const box = line.getBBox();
+      if (!box.width) continue;
+      const rule = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      rule.classList.add('rr-mermaid__underline');
+      for (const [k, v] of Object.entries({ x1: box.x, x2: box.x + box.width, y1: box.y + box.height, y2: box.y + box.height })) rule.setAttribute(k, String(v));
+      text.after(rule);
+    }
+  }
+}
+
 class RRMermaid extends HTMLElement {
   private generation = 0;
   private mounted?: Awaited<ReturnType<typeof import('./markdown/diagram').mountDiagram>>;
@@ -233,7 +249,7 @@ class RRMermaid extends HTMLElement {
       // where the presentation asks (a phone), the walkthrough's diagrams keep their layout, fit to the width, and zoom:
       // a phone-wide layout wraps every label
       const natural = max || !!this.closest('[data-rr-diagram-fit="width"] rr-review');
-      const mounted = await mountDiagram(diagram, source, () => this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })), natural, max);
+      const mounted = await mountDiagram(diagram, source, () => { underlineLinks(diagram); this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })); }, natural, max);
       if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
       this.mounted = mounted;
       diagram.setAttribute('aria-busy', 'false');

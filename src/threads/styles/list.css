@@ -27,9 +27,17 @@
   color: var(--rr-muted);
   min-width: 0;
 }
-/* one line, cut with an ellipsis: a list item's place (1: thread marker, 2: what it is on, 3: where), a rail chip's
-   text, an inline thread's text */
-.rr-thread-item__anchor > span:nth-child(3),
+/* what the thread is on (the walkthrough's page, code's brackets): the list has no headings, so the icon says it */
+.rr-thread-item__anchor > .rr-chip__icon {
+  color: var(--rr-ink);
+}
+.rr-thread-item__anchor > .rr-chip__icon svg {
+  width: 14px;
+  height: 14px;
+}
+/* one line, cut with an ellipsis: a list item's place (1: what it is on, 2: where, then its round and thread marker at
+   the end), a rail chip's text, an inline thread's text */
+.rr-thread-item__anchor > span:nth-child(2),
 .rr-rail-chip__text,
 .rr-inline-thread__text {
   flex: 1;
@@ -48,15 +56,8 @@
   font-size: var(--rr-text-xs);
   color: var(--rr-faint);
 }
-.rr-agent-tag {
-  color: var(--rr-accent);
-  font-weight: 500;
-}
-.rr-round-foot {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--rr-space-2);
-  padding: var(--rr-space-8) var(--rr-space-6);
-  font-size: var(--rr-text-sm);
+/* the agent answered this round (threads service, unreadAgent) */
+.rr-unread-tag {
+  color: var(--rr-risk);
+  font-weight: 600;
 }

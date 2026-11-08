@@ -34,6 +34,8 @@ export interface Prefs {
   popoutPlacement: 'right' | 'below' | 'float';
   /** Agent: comments to the agent, agent threads listed. Team: code/PR comments to GitHub, GitHub threads listed. All: comments to the agent, every thread listed. */
   reviewMode: 'agent' | 'team' | 'all';
+  /** The type set (tokens.css): Inter with Mona Sans headings and the system mono (GitHub-like), or the classic serif walkthrough. */
+  typeface: 'github' | 'classic';
 }
 
 export const defaultPrefs: Prefs = {
@@ -49,6 +51,7 @@ export const defaultPrefs: Prefs = {
   lineDiff: 'word-alt',
   popoutPlacement: 'right',
   reviewMode: 'agent',
+  typeface: 'github',
 };
 
 
@@ -68,6 +71,7 @@ export interface AppEvents extends Record<string, unknown> {
   'compose-thread': { anchor: Anchor; quote?: string; to?: 'agent' | 'github' };
   selection: Selection;
   'doc-ready': HTMLElement;
+  /** What the reader is in: the deepest section or h3/h4 heading (by id) whose top has passed the reading line. */
   'active-section': string;
   'active-file': string;
   'round-view': number;
@@ -202,7 +206,7 @@ export class ReviewApp {
     this.prefs = { ...this.prefs, [k]: v };
     saveLocal(this.prefsKey, this.prefs);
     this.bus.emit('prefs', this.prefs);
-    if (k === 'theme') this.applyTheme();
+    if (k === 'theme' || k === 'typeface') this.applyTheme();
   }
   resolvedTheme(): 'light' | 'dark' {
     if (this.prefs.theme !== 'system') return this.prefs.theme;
@@ -214,6 +218,7 @@ export class ReviewApp {
     const t = this.resolvedTheme();
     document.documentElement.dataset.rrTheme = t;
     document.documentElement.style.colorScheme = t;
+    document.documentElement.dataset.rrType = this.prefs.typeface;
     this.bus.emit('theme', t);
   }
 

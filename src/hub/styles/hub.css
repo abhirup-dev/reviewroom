@@ -19,6 +19,7 @@
   background: var(--rr-warn-soft);
   color: var(--rr-warn);
   font-size: var(--rr-text-sm);
+  animation: rr-fade 0.16s ease-out;
 }
 .rr-hub__banner--risk {
   background: var(--rr-risk-soft);
@@ -210,10 +211,10 @@
   box-shadow: -1px 0 0 var(--rr-line);
 }
 .rr-hub__table tbody tr:hover td:last-child {
-  background: color-mix(in srgb, var(--rr-surface-nav), var(--rr-ink) 5.5%);
+  background: color-mix(in srgb, var(--rr-surface-nav), var(--rr-ink) var(--rr-mix-xs));
 }
 .rr-hub__table tbody tr.is-selected td:last-child {
-  background: color-mix(in srgb, var(--rr-surface-nav), var(--rr-ink) 9%);
+  background: color-mix(in srgb, var(--rr-surface-nav), var(--rr-ink) var(--rr-mix-sm));
 }
 .rr-hub__mono {
   font-family: var(--rr-mono);
@@ -278,9 +279,6 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
 }
 .rr-hub__actions .rr-icon-btn:hover {
   color: var(--rr-ink);
-}
-.rr-hub__banner {
-  animation: rr-fade 0.16s ease-out;
 }
 .rr-hub__count:not(:empty) {
   animation: rr-fade 0.12s ease-out;

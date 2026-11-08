@@ -50,12 +50,16 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
 }
 .rr-prose :where(h1, h2, h3, h4) {
   color: var(--rr-ink);
-  font-family: var(--rr-font-read);
+  font-family: var(--rr-font-display);
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: var(--rr-tracking-tight);
   text-wrap: balance;
   scroll-margin-top: 24px;
+}
+.rr-prose :where(h1, h2) {
+  padding-bottom: var(--rr-heading-rule-gap);
+  border-bottom: var(--rr-heading-rule);
 }
 .rr-prose :where(h1) {
   font-size: var(--rr-text-3xl);
@@ -84,37 +88,38 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
 .rr-prose :where(li) {
   margin: var(--rr-space-4) 0;
 }
-/* one link treatment everywhere: accent ink + a quiet underline that firms up on hover.
-   Accent is reserved for "you can go there"; nothing else in the walkthrough is blue. */
-.rr-prose :where(a) {
-  color: var(--rr-accent);
+/* one link treatment everywhere: the text's own ink at medium weight over a thick, faint underline that firms up on
+   hover. No colour: nothing in the walkthrough is blue. */
+.rr-prose :where(a[href]) {
+  color: inherit;
+  font-weight: 500;
   text-decoration-line: underline;
-  text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in srgb, var(--rr-accent) 35%, transparent);
-  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+  text-decoration-color: color-mix(in srgb, currentColor var(--rr-mix-md), transparent);
+  text-underline-offset: 4px;
 }
-.rr-prose :where(a:hover) {
+.rr-prose :where(a[href]:hover) {
   text-decoration-color: currentColor;
 }
 /* links that name a symbol (data-rr-symbol, set by the walkthrough panel): the code's own vocabulary,
    in mono with a kind badge — ƒ function, m method, S struct, C class, I interface, T type, E enum, v value */
 .rr-prose a[data-rr-symbol] {
-  --sym: var(--rr-sym-fn);
-  --glyph: 'ƒ';
+  --_sym: var(--rr-sym-fn);
+  --_glyph: 'ƒ';
   font-family: var(--rr-mono);
   font-size: 0.84em;
   text-decoration: none;
   white-space: nowrap;
   padding: 1px var(--rr-space-6) 1px 0;
   border-radius: var(--rr-radius);
-  background: color-mix(in srgb, var(--sym) 9%, transparent);
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--sym) 45%, transparent);
+  background: color-mix(in srgb, var(--_sym) var(--rr-mix-xs), transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--_sym) var(--rr-mix-lg), transparent);
 }
 .rr-prose a[data-rr-symbol]:hover {
-  background: color-mix(in srgb, var(--sym) 18%, transparent);
+  background: color-mix(in srgb, var(--_sym) var(--rr-mix-sm), transparent);
 }
 .rr-prose a[data-rr-symbol]::before {
-  content: var(--glyph);
+  content: var(--_glyph);
   display: inline-block;
   min-width: 1.6em;
   margin-right: var(--rr-space-6);
@@ -122,7 +127,7 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
   font-weight: 600;
   font-size: 0.85em;
   color: var(--rr-surface-doc);
-  background: var(--sym);
+  background: var(--_sym);
   border-radius: var(--rr-radius) 0 0 var(--rr-radius);
 }
 .rr-prose a[data-rr-symbol] :where(code) {
@@ -131,29 +136,29 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
   font-size: inherit;
 }
 .rr-prose a[data-rr-symbol='method'] {
-  --glyph: 'm';
+  --_glyph: 'm';
 }
 .rr-prose a:is([data-rr-symbol='struct'], [data-rr-symbol='class'], [data-rr-symbol='interface'], [data-rr-symbol='type'], [data-rr-symbol='enum']) {
-  --sym: var(--rr-sym-type);
+  --_sym: var(--rr-sym-type);
 }
 .rr-prose a[data-rr-symbol='struct'] {
-  --glyph: 'S';
+  --_glyph: 'S';
 }
 .rr-prose a[data-rr-symbol='class'] {
-  --glyph: 'C';
+  --_glyph: 'C';
 }
 .rr-prose a[data-rr-symbol='interface'] {
-  --glyph: 'I';
+  --_glyph: 'I';
 }
 .rr-prose a[data-rr-symbol='type'] {
-  --glyph: 'T';
+  --_glyph: 'T';
 }
 .rr-prose a[data-rr-symbol='enum'] {
-  --glyph: 'E';
+  --_glyph: 'E';
 }
 .rr-prose a[data-rr-symbol='const'] {
-  --sym: var(--rr-sym-value);
-  --glyph: 'v';
+  --_sym: var(--rr-sym-value);
+  --_glyph: 'v';
 }
 .rr-prose :where(code, kbd, samp) {
   font: 0.84em var(--rr-mono);
@@ -224,8 +229,7 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
 }
 
 /* section round markers: <section data-round="2"> */
-.rr-doc section[data-round]:not([data-round='1']) > :is(h2, h3):first-child::after {
-  content: 'R' attr(data-round);
+.rr-doc section[data-round]:not([data-round='1']) > :is(h2, h3):first-child:not([data-rr-pinned], [data-rr-pinned] > *)::after {
   content: 'new in R' attr(data-round);
   margin-left: var(--rr-space-10);
   vertical-align: 3px;
@@ -234,6 +238,20 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
   border-radius: var(--rr-radius);
   background: var(--rr-active);
   color: var(--rr-ink-2);
+}
+/* pinned to Contents (walkthrough.ts, decorate()): a small pin after it, in its own colour; a pinned section shows it on
+   its heading. On a later round's heading it takes the place of the round marker (Contents shows the round too). */
+.rr-doc :is(h1, h2, h3, h4, h5, h6, p, li)[data-rr-pinned]::after,
+.rr-doc section[data-rr-pinned] > :is(h1, h2, h3, h4):first-child::after {
+  content: '';
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin-left: 0.3em;
+  vertical-align: 0.06em;
+  background: var(--rr-pin);
+  /* the pin icon (kernel/dom.ts) */
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 2.5 13.5 6 11 7.5 9 11.5 4.5 7 8.5 5zM6.5 9.5 3 13'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 /* baseline: [data-baseline] blocks describe what already existed before the change */
 .rr-doc [data-baseline] {
@@ -259,15 +277,15 @@ rr-mermaid { display: block; min-width: 0; margin: var(--rr-space-12) 0 var(--rr
 /* ---------------------------------------------------------------- rr-callout */
 /* callouts share one neutral body; the kind shows only as the edge and label colour */
 rr-callout {
-  --tone: var(--rr-line-strong);
-  --tone-ink: var(--rr-muted);
+  --_tone: var(--rr-line-strong);
+  --_tone-ink: var(--rr-muted);
   display: block;
   margin: 0 0 var(--rr-space-16);
   padding: var(--rr-space-10) var(--rr-space-16) var(--rr-space-12);
   border-radius: var(--rr-radius);
   background: var(--rr-panel-2);
   border: 1px solid var(--rr-line);
-  border-left: 3px solid var(--tone);
+  border-left: 3px solid var(--_tone);
   font-size: var(--rr-text-lg);
 }
 .rr-callout__label {
@@ -276,22 +294,22 @@ rr-callout {
   font: 600 var(--rr-text-xs)/1 var(--rr-font);
   letter-spacing: var(--rr-tracking-caps);
   text-transform: uppercase;
-  color: var(--tone-ink);
+  color: var(--_tone-ink);
 }
 rr-callout > :last-child {
   margin-bottom: 0;
 }
 .rr-callout--risk {
-  --tone: var(--rr-risk);
-  --tone-ink: var(--rr-risk);
+  --_tone: var(--rr-risk);
+  --_tone-ink: var(--rr-risk);
 }
 .rr-callout--question {
-  --tone: var(--rr-comment);
-  --tone-ink: var(--rr-comment);
+  --_tone: var(--rr-comment);
+  --_tone-ink: var(--rr-comment);
 }
 .rr-callout--ok {
-  --tone: var(--rr-ok);
-  --tone-ink: var(--rr-ok);
+  --_tone: var(--rr-ok);
+  --_tone-ink: var(--rr-ok);
 }
 
 /* ---------------------------------------------------------------- rr-checklist */
@@ -365,8 +383,4 @@ rr-code {
 }
 .rr-code__head .rr-link-btn {
   font: 500 var(--rr-text-sm)/1 var(--rr-font);
-}
-.rr-code__body {
-  --diffs-font-family: var(--rr-mono);
-  --diffs-font-size: 12.5px;
 }

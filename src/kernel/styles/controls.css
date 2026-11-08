@@ -217,24 +217,10 @@
     background-position: -200% 0;
   }
 }
-.rr-count-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--rr-space-4);
-  height: 18px;
-  padding: 0 var(--rr-space-6);
-  border-radius: var(--rr-radius);
-  background: var(--rr-comment-soft);
-  color: var(--rr-comment);
-  font: 600 var(--rr-text-2xs)/1 var(--rr-font);
-  flex: none;
-}
+/* the round a thread or section is from (R2): plain semibold text, no fill */
 .rr-round-badge {
-  font: 600 var(--rr-text-2xs)/1 var(--rr-mono);
-  padding: var(--rr-space-4) var(--rr-space-6);
-  border-radius: var(--rr-radius);
-  background: var(--rr-accent-soft);
-  color: var(--rr-accent);
+  font: 600 var(--rr-text-xs)/1 var(--rr-mono);
+  color: var(--rr-ink-2);
   flex: none;
 }
 .rr-delta {
@@ -243,6 +229,24 @@
   gap: var(--rr-space-6);
   font: 500 var(--rr-text-sm) / 1 var(--rr-mono);
   flex: none;
+}
+/* a file's change in five squares, after its line counts */
+.rr-diffstat {
+  display: inline-flex;
+  gap: 1px;
+  align-self: center;
+}
+.rr-diffstat > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--rr-line-strong);
+}
+.rr-diffstat > .is-add {
+  background: var(--rr-add);
+}
+.rr-diffstat > .is-del {
+  background: var(--rr-del);
 }
 .rr-delta--small {
   font-size: var(--rr-text-xs);
@@ -263,18 +267,25 @@
   font: 600 var(--rr-text-2xs)/1 var(--rr-mono);
   flex: none;
 }
+/* a file card's status in a word ("Added") */
+.rr-status--word {
+  width: auto;
+  height: 18px;
+  padding: 0 var(--rr-space-6);
+  font: 500 var(--rr-text-xs) / 1 var(--rr-font);
+}
 .rr-status--added {
   color: var(--rr-add);
-  background: color-mix(in srgb, var(--rr-add) 14%, transparent);
+  background: color-mix(in srgb, var(--rr-add) var(--rr-mix-sm), transparent);
 }
 .rr-status--modified,
 .rr-status--renamed {
   color: var(--rr-warn);
-  background: color-mix(in srgb, var(--rr-warn) 14%, transparent);
+  background: color-mix(in srgb, var(--rr-warn) var(--rr-mix-sm), transparent);
 }
 .rr-status--deleted {
   color: var(--rr-del);
-  background: color-mix(in srgb, var(--rr-del) 14%, transparent);
+  background: color-mix(in srgb, var(--rr-del) var(--rr-mix-sm), transparent);
 }
 
 @media (max-width: 1480px) {

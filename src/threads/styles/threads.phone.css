@@ -31,7 +31,7 @@
 :root:has(.is-phone) .rr-modal .rr-btn {
   border-radius: var(--rr-shape-full);
 }
-/* Send (Agent orange, PR neutral tonal; the threads list and the composer): M3E filled pills, not the desktop key cap.
+/* Send (Agent orange, PR neutral tonal, in the composer): M3E filled pills, as on the desktop but rounded.
    Flat; hover and press are a state layer, not a lift; unavailable is flat and muted, not dashed */
 :root:has(.is-phone) .rr-btn--send,
 :root:has(.is-phone) .rr-btn--send:hover,
@@ -44,7 +44,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 :root:has(.is-phone) .rr-btn--send:not([aria-disabled='true']) {
-  background: var(--cap);
+  background: var(--_cap);
 }
 :root:has(.is-phone) .rr-btn--send[aria-disabled='true'] {
   background: color-mix(in srgb, var(--rr-ink) 10%, transparent);

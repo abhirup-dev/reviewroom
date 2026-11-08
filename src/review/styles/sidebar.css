@@ -33,6 +33,7 @@
   text-decoration: none;
 }
 .rr-progress {
+  display: none; /* the Files tab carries the count; a phone page shows the bar (review.phone.css) */
   position: relative;
   height: 18px;
   border-radius: var(--rr-radius);
@@ -44,7 +45,7 @@
 .rr-progress__bar {
   position: absolute;
   inset: 0 auto 0 0;
-  background: color-mix(in srgb, var(--rr-ok) 20%, transparent);
+  background: color-mix(in srgb, var(--rr-ok) var(--rr-mix-md), transparent);
   transition: width 0.3s;
 }
 .rr-progress span {
@@ -57,17 +58,24 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--rr-space-12) var(--rr-space-12) var(--rr-space-4);
-  font: 600 var(--rr-text-xs)/1 var(--rr-font);
-  letter-spacing: var(--rr-tracking-caps);
-  text-transform: uppercase;
-  color: var(--rr-faint);
+  font: 600 var(--rr-text-sm)/1 var(--rr-font); /* the tab titles' type: sentence case, not tracked caps */
+  color: var(--rr-ink-2);
 }
 .rr-group-label span {
-  letter-spacing: 0;
   font-weight: 500;
+  color: var(--rr-muted);
 }
 .rr-files,
 .rr-toc,
 .rr-thread-list {
   padding: var(--rr-space-4) var(--rr-space-6) var(--rr-space-16);
+}
+/* a compact menu button beside the filter: the diff range, the grouping */
+.rr-files__menu {
+  flex: none;
+  height: var(--rr-control);
+}
+.rr-files__menu[aria-expanded='true'] {
+  background: var(--rr-active);
+  color: var(--rr-ink);
 }

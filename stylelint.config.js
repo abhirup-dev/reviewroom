@@ -19,6 +19,8 @@ export default {
         'font-size': ['/\\d(px|rem|pt)/'],
         font: ['/(?<!\\/\\s*)(^|\\s)\\d+(\\.\\d+)?(px|rem|pt)\\b/'],
         'font-weight': ['/^(100|200|300|700|800|900|bold|bolder|lighter)$/'],
+        // derived colours: a step of var(--rr-mix-*), not a literal percentage
+        '/./': ['/color-mix\\((?:[^()]|\\([^()]*\\))*\\d%/'],
       },
       { message: (prop, value) => `"${prop}: ${value}" is off the design scale: use a token from src/kernel/styles/tokens.css` },
     ],
@@ -28,13 +30,28 @@ export default {
     ],
     // the phone's looks live in its own CSS (phone.css, *.phone.css): no phone selectors in the core's (rr-486)
     'selector-disallowed-list': [[/\.is-phone\b/, /\[data-form=['"]?phone/], { message: (s) => `"${s}" styles the phone: put it in the phone CSS (phone.css, *.phone.css)` }],
+    // correctness: what a typo or a leftover leaves behind
+    'block-no-empty': true,
+    'declaration-block-no-duplicate-properties': [true, { ignore: ['consecutive-duplicates-with-different-syntaxes'] }],
+    'declaration-block-no-duplicate-custom-properties': true,
+    'declaration-block-no-shorthand-property-overrides': true,
+    'no-duplicate-selectors': true,
+    'property-no-unknown': true,
+    'selector-pseudo-class-no-unknown': true,
+    'selector-pseudo-element-no-unknown': true,
+    'selector-type-no-unknown': [true, { ignore: ['custom-elements'] }],
+    'unit-no-unknown': true,
+    'function-no-unknown': true,
+    'custom-property-no-missing-var-function': true,
+    'no-invalid-double-slash-comments': true,
+    'at-rule-no-unknown': true,
     'color-no-hex': true,
     'color-named': 'never',
     'function-disallowed-list': ['rgb', 'rgba', 'hsl', 'hsla'],
   },
   overrides: [
     // the palette itself
-    { files: ['src/kernel/styles/tokens.css'], rules: { 'color-no-hex': null, 'function-disallowed-list': null } },
+    { files: ['src/kernel/styles/tokens.css', 'src/kernel/styles/tokens.phone.css'], rules: { 'color-no-hex': null, 'function-disallowed-list': null } },
     { files: ['src/**/*.phone.css', 'src/kernel/styles/phone.css'], rules: { 'selector-disallowed-list': null } },
   ],
 };

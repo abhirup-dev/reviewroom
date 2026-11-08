@@ -11,12 +11,12 @@
   align-items: center;
   gap: var(--rr-space-6);
 }
-.rr-side-head__row--center {
-  justify-content: center;
-}
 .rr-side-head__row > .rr-seg {
   flex: 1;
   min-width: 0;
+}
+.rr-side-head__row > .rr-seg > button {
+  white-space: nowrap;
 }
 .rr-side-head__count {
   flex: 1;

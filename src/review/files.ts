@@ -1,8 +1,9 @@
 // Changed files panel.
-import { h, icon, plural, seg, threadCounts } from '../kernel/dom';
+import { h, icon, plural, threadCounts } from '../kernel/dom';
+import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 import { openCentered } from './focus';
 import type { ChangedFile } from '../kernel/state/model.shared';
-import { definePanel, type PanelInstance } from '../kernel/dock';
+import { definePanel, setPanelTitle, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 import { codeThreadsOn, defaultSide, fileType, isTestFile, reviewOrder } from './files.shared';
 
@@ -32,18 +33,19 @@ class FilesPanel implements PanelInstance {
     const types = [...new Set(app.files.map((f) => fileType(f.path)))].sort();
     const hasTests = app.files.some((f) => isTestFile(f.path));
     const ranges = app.range ? app.services.code.ranges() : [];
-    const select = h('select', { class: 'rr-select', 'aria-label': 'Diff range', title: 'Review all changes or one commit' });
-    ranges.forEach((r) => select.append(h('option', { value: r.key, selected: r.key === app.range?.key }, r.label)));
-    select.addEventListener('change', () => app.setRange(ranges.find((r) => r.key === select.value)!));
-    const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter files', value: this.q, 'aria-label': 'Filter files' });
+    const search = h('input', { class: 'rr-input', type: 'search', placeholder: 'Filter', value: this.q, 'aria-label': 'Filter files' });
     search.addEventListener('input', () => {
       this.q = search.value;
       this.renderList();
     });
-    const grouping = seg(
-      (['tree', 'type', 'flat'] as const).map((g) => ({ label: { tree: 'Tree', type: 'Type', flat: 'Flat' }[g], title: { tree: 'Group by folder', type: 'Group by file type (tests separate)', flat: 'Plain list of paths' }[g], on: p.fileGroup === g, onclick: () => app.setPref('fileGroup', g) })),
-      { class: 'rr-seg rr-seg--small', 'aria-label': 'Group files' },
-    );
+    // one diff range menu and one grouping menu beside the filter, in place of a select and a segmented row
+    const range = app.range;
+    const scope =
+      ranges.length > 1 && range
+        ? h('button', { class: 'rr-btn rr-btn--small rr-files__menu', 'aria-haspopup': 'menu', title: 'Diff range: ' + range.label, onclick: (e: MouseEvent) => popMenu(e.currentTarget as HTMLElement, (close) => [menuLabel('Diff range'), ...ranges.map((r) => menuItem(r.label, () => { close(); void app.setRange(r); }, { checked: r.key === range.key }))]) }, range.key === 'all' ? 'All' : range.label.split(' · ')[0], icon('chevronDown', 12))
+        : null;
+    const GROUPS = { tree: ['By folder', 'Tree'], type: ['By file type, tests apart', 'Type'], flat: ['Plain list of paths', 'Flat'] } as const;
+    const grouping = h('button', { class: 'rr-icon-btn rr-files__menu', 'aria-haspopup': 'menu', 'aria-label': 'Group files', title: 'Group files: ' + GROUPS[p.fileGroup][0], onclick: (e: MouseEvent) => popMenu(e.currentTarget as HTMLElement, (close) => [menuLabel('Group files'), ...(['tree', 'type', 'flat'] as const).map((g) => menuItem(GROUPS[g][0], () => { close(); app.setPref('fileGroup', g); }, { checked: p.fileGroup === g }))]) }, icon(p.fileGroup === 'tree' ? 'toc' : 'menu', 16));
     const chips = h(
       'div',
       { class: 'rr-chips' },
@@ -54,10 +56,11 @@ class FilesPanel implements PanelInstance {
       hasTests ? h('button', { class: 'rr-filter-chip' + (p.hideTests ? '' : ' is-on'), 'aria-pressed': String(!p.hideTests), title: p.hideTests ? 'Show tests' : 'Hide tests', onclick: () => app.setPref('hideTests', !p.hideTests) }, 'tests') : null,
     );
     const viewed = app.files.filter((f) => app.state.viewed[f.path] !== undefined).length;
+    // the dock tab carries the count; a phone page keeps its name, so the bar stays there (review.phone.css)
+    setPanelTitle(app, 'files', app.files.length ? `Files ${viewed}/${app.files.length}` : 'Files');
     this.head.replaceChildren(
       h('div', { class: 'rr-progress', title: `${viewed} of ${app.files.length} files viewed` }, h('div', { class: 'rr-progress__bar', style: `width:${app.files.length ? (viewed / app.files.length) * 100 : 0}%` }), h('span', null, `${viewed}/${app.files.length} viewed`)),
-      ...(ranges.length > 1 ? [select] : []),
-      h('div', { class: 'rr-side-row' }, search, grouping),
+      h('div', { class: 'rr-side-row' }, search, scope, grouping),
       chips,
     );
     this.renderList();
@@ -73,13 +76,13 @@ class FilesPanel implements PanelInstance {
         class: 'rr-file-row' + (viewed ? ' is-viewed' : '') + (f.status === 'added' || f.status === 'deleted' ? ' is-' + f.status : '') + (f.path === app.activeFile ? ' is-active' : ''),
         role: 'treeitem',
         'data-path': f.path,
-        style: `--depth:${depth}`,
+        style: `--_depth:${depth}`,
         title: f.path + (viewed ? ' · viewed' : '') + ' (double-click to open it big)',
         onclick: () => app.bus.emit('reveal-code', { path: f.path, side: defaultSide(f) }),
         ondblclick: () => openCentered(app, { type: 'file', path: f.path, rev: 'head' }),
       },
-      h('span', { class: 'rr-file-row__threads' }, ...threadCounts(threads, 'in this file')),
       h('span', { class: 'rr-file-row__name' }, label),
+      threads.length ? h('span', { class: 'rr-file-row__threads' }, ...threadCounts(threads, 'in this file')) : null,
       h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
     );
   }
@@ -131,7 +134,7 @@ class FilesPanel implements PanelInstance {
               'button',
               {
                 class: 'rr-dir-row' + (closed ? ' is-closed' : ''),
-                style: `--depth:${depth}`,
+                style: `--_depth:${depth}`,
                 'aria-expanded': String(!closed),
                 title: closed ? 'Expand folder' : 'Collapse folder',
                 onclick: () => {

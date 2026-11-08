@@ -5,8 +5,6 @@ import { plainExcerpt } from '../kernel/markdown';
 import type { ReviewApp } from '../app';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
-/** Shared Pierre styling for both code panels and inline previews. */
-export const PIERRE_CSS = `:host{--rr-diff-mix-light:40%;--rr-diff-mix-dark:10%;--diffs-light-bg:var(--rr-panel)!important;--diffs-dark-bg:var(--rr-panel)!important;--diffs-font-family:var(--rr-mono)!important;--diffs-light-addition-color:var(--rr-add);--diffs-dark-addition-color:var(--rr-add);--diffs-light-deletion-color:var(--rr-del);--diffs-dark-deletion-color:var(--rr-del);--diffs-bg-addition-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-addition-base)));--diffs-bg-deletion-override:light-dark(color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)),color-mix(in lab,var(--diffs-bg) 88%,var(--diffs-deletion-base)));}[data-line],[data-no-newline]{--mix-light:var(--rr-diff-mix-light);--mix-dark:var(--rr-diff-mix-dark)}`;
 
 export type PreviewOptions = { compact?: boolean };
 export type PreviewExtensions = {
@@ -20,15 +18,24 @@ export function registerPreviewExtensions(next: PreviewExtensions) {
 }
 
 // ------------------------------------------------------------------ snippets
-/** @pierre/diffs options for code in the review: our colours on `surface`, light/dark following the page. */
-export function codeOptions(surface = '--rr-panel') {
+/** The code's own colours, in the two rules @pierre/diffs has no variable for (its tokens set their colours inline):
+ *  - every token pushed --rr-code-contrast of the way from the surface, darker in light and lighter in dark, its hue
+ *    and chroma kept (the themes' colours sit close to the paper);
+ *  - the light theme's changed words: text in --_word-ink over their solid highlight (diffs.css), hence !important,
+ *    and left as it is. */
+const DARK_INK = 'oklch(from var(--diffs-token-dark,var(--diffs-dark)) calc(l + (1 - l) * var(--rr-code-contrast)) c h)';
+export const CODE_CSS =
+  `[data-line] span,[data-edit-prediction-suffix] span{color:light-dark(oklch(from var(--diffs-token-light,var(--diffs-light)) calc(l * (1 - var(--rr-code-contrast))) c h),${DARK_INK})}` +
+  `[data-diff-span] span{--diffs-token-light:var(--_word-ink)!important;color:light-dark(var(--diffs-token-light),${DARK_INK})}`;
+/** @pierre/diffs options for code in the review: our colours and surface from diffs.css, light/dark following the page. */
+export function codeOptions() {
   return {
     theme: { dark: 'pierre-dark', light: 'pierre-light' },
     themeType: 'system' as const,
     disableFileHeader: true,
     overflow: 'scroll' as const,
-    // inherit the page's color-scheme (tokens.css) so pierre's light-dark() colours follow the review theme; --rr-wrap: hover card's wrap toggle
-    unsafeCSS: PIERRE_CSS.replace(/var\(--rr-panel\)/g, `var(${surface})`) + ':host{color-scheme:inherit}[data-line]{white-space:var(--rr-wrap,pre);word-break:break-word}',
+    // inherit the page's color-scheme (tokens.css) so pierre's light-dark() colours follow the review theme; --_wrap: hover card's wrap toggle
+    unsafeCSS: CODE_CSS + ':host{color-scheme:inherit}[data-line]{white-space:var(--_wrap,pre);word-break:break-word}',
   };
 }
 // pierre holds every instance in a static resize map until cleanUp(): release the previews that have left the page

@@ -288,6 +288,8 @@ function registerCommands(app: ReviewApp) {
     { id: 'theme.toggle', title: 'Toggle light / dark', group: 'View', run: () => app.setPref('theme', app.resolvedTheme() === 'dark' ? 'light' : 'dark') },
     { id: 'app.install', title: 'Install app', group: 'View', hint: 'Its own window; on a phone, an icon on the home screen', when: canInstall, run: () => void install() },
     { id: 'theme.system', title: 'Theme: follow system', group: 'View', run: () => app.setPref('theme', 'system') },
+    { id: 'type.github', title: 'Typography: default', group: 'View', hint: 'Inter text, Mona Sans headings, code in the system monospace', when: () => app.prefs.typeface !== 'github', run: () => app.setPref('typeface', 'github') },
+    { id: 'type.classic', title: 'Typography: classic serif', group: 'View', hint: 'A Source Serif walkthrough between Inter and JetBrains Mono', when: () => app.prefs.typeface !== 'classic', run: () => app.setPref('typeface', 'classic') },
     { id: 'diff.split', title: 'Toggle split / unified diff', group: 'Code', keys: ['s'], scope: 'code', run: () => app.setPref('diffStyle', app.prefs.diffStyle === 'split' ? 'unified' : 'split') },
     { id: 'diff.wrap', title: 'Toggle line wrap', group: 'Code', keys: ['w'], scope: 'code', run: () => app.setPref('wrap', !app.prefs.wrap) },
     { id: 'diff.ws', title: 'Toggle ignore whitespace', group: 'Code', keys: ['i'], scope: 'code', run: () => app.setPref('ignoreWhitespace', !app.prefs.ignoreWhitespace) },
