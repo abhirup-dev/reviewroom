@@ -1,7 +1,7 @@
-// Back (Android's button, the browser's): each layer opened (a dialog such as the menu, search or a thread; the code
-// peek; a sheet) and each area visited is a history entry, and Back closes the newest. A layer closed some other way
-// takes its entry back out. Chrome on Android closes a modal dialog on Back by itself (a close watcher), without
-// traversing history: its close then drops the entry like any other.
+// Back (Android's button, the browser's): each layer opened that isn't a dialog (the code peek, a sheet, the guided
+// walkthrough's player) and each area visited is a history entry, and Back closes the newest. A layer closed some other
+// way takes its entry back out. A modal dialog (the menu, search, a thread) is the browser's: it closes it on Back and
+// Esc by itself (a close request) where it has CloseWatcher; elsewhere (Chrome before 126) it takes an entry too.
 import type { ReviewApp } from '../app';
 
 type Entry = { close: () => void; pushed: boolean };
@@ -23,11 +23,35 @@ export function onBack(close: () => void) {
     history.back();
   };
 }
-/** Back closes onBack's layers: the phone shell listens, and the phone player under the dock (a turned phone). */
-export const watchBack = (app: ReviewApp) =>
+/** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
+const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
+
+/** Back closes onBack's layers (and, without close requests, open dialogs): once per page, by the presentation (the
+ *  phone shell, or src/phone.ts's turned). */
+export function watchBack(app: ReviewApp) {
   app.listen(window, 'popstate', (e: PopStateEvent) => {
     if (skip) return void (--skip || flush());
     // as deep as the entry Back (or the browser's history menu) went to
     const depth = (e.state as { rrBack?: number } | null)?.rrBack ?? 0;
     while (backs.length > depth) backs.pop()!.close();
   });
+  // shortcut: a history entry per dialog where Back doesn't close it natively; drop once Chrome < 126 doesn't matter
+  if ('CloseWatcher' in window) return;
+  const drops = new Map<HTMLDialogElement, () => void>();
+  const dialogs = new MutationObserver((ms) => {
+    for (const { target: d } of ms) {
+      if (!(d instanceof HTMLDialogElement)) continue;
+      if (d.open && !drops.has(d))
+        drops.set(d, onBack(() => {
+          drops.delete(d);
+          dismiss(d);
+        }));
+      else if (!d.open) {
+        drops.get(d)?.();
+        drops.delete(d);
+      }
+    }
+  });
+  dialogs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+  app.onDispose(() => dialogs.disconnect());
+}

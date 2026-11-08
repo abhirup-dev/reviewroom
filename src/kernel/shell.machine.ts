@@ -3,8 +3,8 @@
 //   area      one of the areas (layouts/phone.json), each with its pages and the one its pager shows
 //   sheets    on-demand panels (a thread, a code pop-out) over the area, the front one last
 //   code      the code sheet (codesheet.machine.ts), invoked: a code link outside the Code area peeks
-//   stack     what Back undoes, oldest first: each layer opened (a dialog such as the menu or search, the peek, a
-//             sheet) and each area left. The view gives every entry a browser history entry; Back pops the newest
+//   stack     what Back undoes, oldest first: each layer opened (the peek, a sheet) and each area left (a dialog
+//             is the browser's: Back and Esc close it natively, a close request). The view gives every entry a browser history entry; Back pops the newest
 //             (`back`), and an entry closed some other way leaves the stack (the view takes its history entry out).
 //
 // In front: the peek, else the newest sheet, else the area's page (dialogs aside). Esc closes the same way.
@@ -12,7 +12,7 @@ import { assign, enqueueActions, sendParent, sendTo, setup } from 'xstate';
 import { codeSheetMachine } from './codesheet.machine';
 
 export type AreaId = 'read' | 'code' | 'threads' | 'files';
-type NewEntry = { kind: 'area'; prev: AreaId } | { kind: 'sheet'; id: string } | { kind: 'peek' } | { kind: 'dialog'; id: number };
+type NewEntry = { kind: 'area'; prev: AreaId } | { kind: 'sheet'; id: string } | { kind: 'peek' };
 export type ShellEntry = NewEntry & { key: number };
 export type ShellContext = {
   area: AreaId;
@@ -40,7 +40,6 @@ export type ShellEvent =
   /** a link to code: `lines` when it shows some lines in the whole Code view (a peek, outside the Code area) */
   | { type: 'reveal'; lines: boolean }
   | { type: 'selection'; on: boolean }
-  | { type: 'dialog'; id: number; open: boolean }
   /** Back popped this entry's history entry */
   | { type: 'back'; key: number }
   /** Esc: the peek, else the newest sheet */
@@ -86,7 +85,6 @@ export const shellMachine = setup({
     page: { actions: assign(({ context: c, event: e }) => ({ page: { ...c.page, [e.area]: e.id } })) },
     reveal: { actions: assign(({ context: c, event: e }) => ({ peekNext: e.lines && c.area !== 'code' })) },
     selection: { actions: assign(({ context: c, event: e }) => ({ selectedIn: e.on ? front(c) : '' })) },
-    dialog: { actions: assign(({ context: c, event: e }) => (e.open ? push(c, { kind: 'dialog', id: e.id }) : { stack: c.stack.filter((x) => !(x.kind === 'dialog' && x.id === e.id)) })) },
     close: { actions: assign(({ context: c, event: e }) => without(c, [e.id])) },
     'code.opened': { actions: assign(({ context: c }) => (peeking(c) ? {} : push(c, { kind: 'peek' }))) },
     'code.shut': { actions: assign(({ context: c }) => ({ stack: c.stack.filter((e) => e.kind !== 'peek') })) },
@@ -116,10 +114,10 @@ export const shellMachine = setup({
         const rest = { ...c, stack: c.stack.filter((x) => x !== entry) };
         if (entry.kind === 'peek') enqueue.sendTo('code', { type: 'close' });
         else if (entry.kind === 'sheet') enqueue.assign(without(rest, [entry.id]));
-        else if (entry.kind === 'area') {
+        else {
           enqueue.sendTo('code', { type: 'close' });
           enqueue.assign({ stack: rest.stack, ...toArea(rest, entry.prev, true) });
-        } else enqueue.assign({ stack: rest.stack });
+        }
       }),
     },
     escape: {

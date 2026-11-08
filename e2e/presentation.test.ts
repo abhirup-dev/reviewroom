@@ -14,7 +14,7 @@ const FACTS = `JSON.stringify({
   phoneBar: !!document.querySelector('.rr-phonebar'),
   dock: !!document.querySelector('.dv-dockview'),
 })`;
-// the guided walkthrough's player form, once it has opened: main.ts hands the phone's in by presentation.phonePlayer
+// the guided walkthrough's player form, once it has opened: the presentation module's player (src/phone.ts)
 const PLAYER = `new Promise((done) => {
   rr.app.commands.run('walkthrough.play');
   const t0 = Date.now();

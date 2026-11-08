@@ -7,11 +7,11 @@ import { githubPanelAvailability, recapAvailable } from './threads/docking';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
 import { contentsButton } from './review/walkthrough.phone';
 import { phonePalette } from './review/overlays.phone';
-import type { PresentationModule } from './presentation';
+import { desktop, type PresentationModule } from './presentation';
+import { phonePlayer } from './slides/player.phone';
+import { watchBack } from './kernel/history';
 import type { ReviewApp } from './app';
 
-/** The phone's guided walkthrough player: main.ts hands it to the player on any phone (app.presentation.phonePlayer). */
-export { phonePlayer } from './slides/player.phone';
 
 export const phone: PresentationModule = {
   header: (app) => buildPhoneBar(app, phoneBar(app)),
@@ -25,6 +25,18 @@ export const phone: PresentationModule = {
     }),
   walkthrough: contentsButton,
   palette: phonePalette,
+  player: phonePlayer,
+};
+
+/** A phone on its side: the desktop's dock and header with the phone's player, whose Back the dock doesn't hear. It
+ *  starts from the tablet layout and never saves over the reviewer's last one. */
+export const turned: PresentationModule = {
+  ...desktop,
+  mountSurface: (app, host) => {
+    watchBack(app);
+    app.layout.mount(host, null, { panelAvailability: githubPanelAvailability(app), save: false });
+  },
+  player: phonePlayer,
 };
 
 /** Open threads the Threads list shows by default in this review mode: the phone's Threads badge. */

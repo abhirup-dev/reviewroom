@@ -15,7 +15,7 @@ test('formFor: a phone upright gets the phone shell, on its side the dock; ?phon
 });
 
 test('presentationFor: the turned phone keeps the dock but plays the phone player', () => {
-  expect(presentationFor('desktop')).toMatchObject({ kind: 'dock', canArrange: true, phonePlayer: false, threadPopup: 'dialog', prefs: { key: 'reviewroom:prefs' } });
-  expect(presentationFor('turned')).toMatchObject({ kind: 'dock', canArrange: true, phonePlayer: true, threadPopup: 'dialog', prefs: { key: 'reviewroom:prefs' } });
-  expect(presentationFor('phone')).toMatchObject({ kind: 'phone', canArrange: false, phonePlayer: true, threadPopup: 'sheet', prefs: { key: 'reviewroom:prefs:phone', defaults: { diffStyle: 'unified' } } });
+  expect(presentationFor('desktop')).toMatchObject({ kind: 'dock', canArrange: true, threadPopup: 'dialog', prefs: { key: 'reviewroom:prefs' } });
+  expect(presentationFor('turned')).toMatchObject({ kind: 'dock', canArrange: true, threadPopup: 'dialog', prefs: { key: 'reviewroom:prefs' } });
+  expect(presentationFor('phone')).toMatchObject({ kind: 'phone', canArrange: false, threadPopup: 'sheet', prefs: { key: 'reviewroom:prefs:phone', defaults: { diffStyle: 'unified' } } });
 });

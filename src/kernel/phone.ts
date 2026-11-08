@@ -43,9 +43,6 @@ const AREAS = phoneLayout.areas as { id: AreaId; title: string; icon: Parameters
 // the machine keeps its own list (it imports nothing): the two must agree
 if (AREAS.map((a) => a.id).join() !== AREA_IDS.join()) throw new Error('reviewroom: layouts/phone.json areas differ from shell.machine.ts');
 
-/** Close a dialog as Esc would (its cancel handlers run), where the browser can. */
-const dismiss = (d: HTMLDialogElement & { requestClose?(): void }) => (d.requestClose ? d.requestClose() : d.close());
-
 class PhoneShell implements PanelSurface {
   private open = new Map<string, Open>();
   private sheetIds = new Set<string>(); // mounted on-demand panels
@@ -61,7 +58,6 @@ class PhoneShell implements PanelSurface {
   private peekLines = h('span', { class: 'rr-phone-peek-lines' });
   /** history entries (see onBack) for the machine's stack, by key */
   private backs = new Map<number, () => void>();
-  private dialogs = new Map<number, HTMLDialogElement>();
 
   constructor(
     private app: ReviewApp,
@@ -75,7 +71,6 @@ class PhoneShell implements PanelSurface {
     this.shell.subscribe(() => this.render());
     this.code.subscribe(() => this.render());
     app.onDispose(() => this.shell.stop());
-    this.watchDialogs();
     // no c key on a phone: a selection (text in the narrative, lines in code) gets a button instead
     const comment = this.comment;
     comment.onclick = () => { app.commands.run('comment.selection'); comment.hidden = true; };
@@ -114,29 +109,6 @@ class PhoneShell implements PanelSurface {
   }
 
   private ctx = () => this.shell.getSnapshot().context;
-
-  /** Every open dialog (the menu, search, a thread) is a layer Back closes. */
-  private watchDialogs() {
-    const ids = new Map<HTMLDialogElement, number>();
-    let n = 0;
-    const dialogs = new MutationObserver((ms) => {
-      for (const { target: d } of ms) {
-        if (!(d instanceof HTMLDialogElement)) continue;
-        if (d.open && !ids.has(d)) {
-          ids.set(d, ++n);
-          this.dialogs.set(n, d);
-          this.shell.send({ type: 'dialog', id: n, open: true });
-        } else if (!d.open && ids.has(d)) {
-          const id = ids.get(d)!;
-          ids.delete(d);
-          this.dialogs.delete(id);
-          this.shell.send({ type: 'dialog', id, open: false });
-        }
-      }
-    });
-    dialogs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
-    this.app.onDispose(() => dialogs.disconnect());
-  }
 
   /** The peek's handle: drag it up past 70% of the screen for the Code area, down to close; or its two buttons. */
   private peekHead(code: HTMLElement) {
@@ -391,11 +363,7 @@ class PhoneShell implements PanelSurface {
         if (!this.backs.has(e.key))
           this.backs.set(
             e.key,
-            onBack(() => {
-              const d = e.kind === 'dialog' && this.dialogs.get(e.id);
-              if (d) dismiss(d);
-              this.shell.send({ type: 'back', key: e.key });
-            }),
+            onBack(() => this.shell.send({ type: 'back', key: e.key })),
           );
     });
   }

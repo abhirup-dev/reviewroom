@@ -7,6 +7,7 @@ import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
 import type { PaletteHost, PaletteVariant } from './review/overlays';
+import type { PhoneFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
 
 export interface PresentationModule {
@@ -20,8 +21,8 @@ export interface PresentationModule {
   walkthrough?: WalkthroughExtension;
   /** The palette's variant; none is the desktop's ⌘K. */
   palette?: (app: ReviewApp, host: PaletteHost) => PaletteVariant;
-  // The guided walkthrough's player is no member: a turned phone has the dock but the phone player, so main.ts hands
-  // src/phone.ts's phonePlayer in by app.presentation.phonePlayer.
+  /** The guided walkthrough player's form; none is the desktop's. */
+  player?: PhoneFormFactory;
 }
 
 export const desktop: PresentationModule = {
@@ -38,9 +39,5 @@ export const desktop: PresentationModule = {
       afterTheme: () => [feedbackButton(app)],
       subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); },
     }),
-  mountSurface: (app, host, { lastLayout }) => {
-    // a turned phone starts from the tablet layout and never saves over the reviewer's last one
-    const turned = app.presentation.form === 'turned';
-    app.layout.mount(host, turned ? null : lastLayout, { panelAvailability: githubPanelAvailability(app), save: !turned });
-  },
+  mountSurface: (app, host, { lastLayout }) => app.layout.mount(host, lastLayout, { panelAvailability: githubPanelAvailability(app) }),
 };

@@ -22,7 +22,7 @@ import { definePanel, ensurePanel, type PanelDef } from './kernel/dock';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { hubHref, saveLayoutDialog } from './kernel/header';
 import { desktop } from './presentation';
-import { phone, phonePlayer } from './phone';
+import { phone, turned } from './phone';
 import { currentForm, restoreShell, watchShell } from './kernel/device';
 import { presentationFor } from './kernel/presentation';
 import { keepScroll, restoreScroll, startUpdates } from './kernel/pwa';
@@ -168,7 +168,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   provideFocusCode(app, { openFile: (path, view, at) => openInNewPanel(app, path, view, 'center', undefined, at) });
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
-  const ui = app.presentation.kind === 'phone' ? phone : desktop;
+  const ui = { desktop, turned, phone }[app.presentation.form];
   root.replaceChildren(ui.header(app), dockHost);
   registerWalkthroughExtension(ui.walkthrough); // before the surface creates the panel
   root.classList.add('rr-root');
@@ -178,7 +178,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountSelectionRelease(app);
   mountHoverCards(app);
   mountThreadPopup(app);
-  const tour = mountWalkthrough(app, { phoneForm: app.presentation.phonePlayer ? phonePlayer : undefined });
+  const tour = mountWalkthrough(app, { phoneForm: ui.player });
   ui.mountSurface(app, dockHost, { lastLayout });
   watchShell(app);
   registerCommands(app);

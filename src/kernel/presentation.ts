@@ -1,6 +1,6 @@
 // How the workbench is presented, picked once per page load (Refactor 3.0, rr-486). The core reads only this data;
 // what a presentation draws (header, panel surface, its seams) is a PresentationModule at the composition root
-// (src/presentation.ts for the desktop, src/phone.ts for the phone). Pure: no DOM, so the choice is unit-tested.
+// (src/presentation.ts for the desktop, src/phone.ts for the phone either way up). Pure: no DOM, so the choice is unit-tested.
 import type { Prefs } from '../app';
 
 /** The device's form: a computer or tablet; a phone on its side (the dock, with the phone player); a phone upright
@@ -13,8 +13,6 @@ export interface Presentation {
   kind: 'dock' | 'phone';
   /** Layouts, windows and docking: the dock's. A phone shows one panel at a time. */
   canArrange: boolean;
-  /** The guided walkthrough's player: the phone's on any phone, either way up. */
-  phonePlayer: boolean;
   /** A thread opens as a bottom sheet (over the on-screen keyboard), or as a dialog by what it's about. */
   threadPopup: 'sheet' | 'dialog';
   /** Where the prefs live and their defaults: a phone keeps its own (split diffs don't fit it), so trying ?phone
@@ -35,7 +33,6 @@ export function presentationFor(form: Form): Presentation {
     form,
     kind: phone ? 'phone' : 'dock',
     canArrange: !phone,
-    phonePlayer: form !== 'desktop',
     threadPopup: phone ? 'sheet' : 'dialog',
     prefs: phone ? { key: 'reviewroom:prefs:phone', defaults: { diffStyle: 'unified' } } : { key: 'reviewroom:prefs', defaults: {} },
   };

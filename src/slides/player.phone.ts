@@ -2,7 +2,7 @@
 // (player.ts) into a full-screen player and wires the card, the gestures, the chrome and full screen.
 import { createActor, fromPromise, type Actor, type SnapshotFrom } from 'xstate';
 import { h, icon, plural } from '../kernel/dom';
-import { onBack, watchBack } from '../kernel/history';
+import { onBack } from '../kernel/history';
 import { sanitizeProse } from '../kernel/markdown';
 import { openSheet, sheetDialog } from '../kernel/sheet';
 import { gestureMachine } from '../kernel/gesture.machine';
@@ -24,7 +24,6 @@ const SWIPE_PX = 60;
 export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts): PlayerForm {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
-  if (app.presentation.kind !== 'phone') watchBack(app); // a turned phone has the dock: no phone shell to hear Back
   // the floating toolbar: Back, Contents, Comment, Full screen and Next, plain icon buttons on one pill
   prev.replaceChildren(icon('chevron', 20));
   prev.className = 'rr-icon-btn rr-tour__back';
@@ -70,8 +69,6 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
           : null,
       ),
     );
-    // under the dock no PhoneShell gives the sheet a history entry: without one, Back would close the player under it
-    if (!sheet.open && app.presentation.kind !== 'phone') sheet.addEventListener('close', onBack(() => sheet.close()), { once: true });
     openSheet(sheet, h('h2', { class: 'rr-tour-toc__title' }, 'Contents'), h('nav', { class: 'rr-tour-toc__list' }, ...chapters));
     sheet.focus(); // the sheet, not its first chapter: no ring on open
     sheet.querySelector('[aria-current="step"]')?.scrollIntoView({ block: all ? 'center' : 'nearest' });
@@ -211,7 +208,6 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
     );
   };
   const openFiles = () => {
-    if (!filesSheet.open && app.presentation.kind !== 'phone') filesSheet.addEventListener('close', onBack(() => filesSheet.close()), { once: true });
     const list = (slots ?? []).map((s, i) => h('button', { class: 'rr-tour-toc__slide', 'aria-current': i === active ? 'step' : undefined, onclick: () => pick(i) }, h('span', { class: 'rr-tour-toc__num' }, String(i + 1)), h('span', null, app.label(s.ref))));
     openSheet(filesSheet, h('h2', { class: 'rr-tour-toc__title' }, 'Files'), h('nav', { class: 'rr-tour-toc__list' }, ...list));
     filesSheet.focus();
