@@ -344,16 +344,16 @@
   align-self: center;
   width: 32px;
   height: 4px;
-  margin: 10px 0;
-  border-radius: 2px;
+  margin: var(--rr-space-10) 0;
+  border-radius: var(--rr-shape-xs);
   background: var(--rr-line-strong);
 }
 .rr-phone-peek-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 48px;
-  padding: 0 4px 0 16px;
+  gap: var(--rr-space-8);
+  height: var(--rr-touch);
+  padding: 0 var(--rr-space-4) 0 var(--rr-space-16);
   border-bottom: 1px solid var(--rr-line);
 }
 .rr-phone-peek-title {
@@ -361,19 +361,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 600 13px / 1 var(--rr-mono);
+  font: 600 var(--rr-text-md) / 1 var(--rr-mono);
 }
 .rr-phone-peek-lines {
   flex: none;
-  padding: 3px 8px;
+  padding: var(--rr-space-4) var(--rr-space-8);
   border-radius: var(--rr-shape-s);
   background: var(--rr-surface-nav-2);
   color: var(--rr-muted);
-  font: 500 12px / 1 var(--rr-mono);
+  font: 500 var(--rr-text-sm) / 1 var(--rr-mono);
 }
 .rr-phone-peek-row .rr-icon-btn {
-  width: 48px;
-  height: 48px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
 }
 /* peeking, the lines are all there is room for */
 .is-peek .rr-code-panel > .rr-toolbar {
@@ -383,11 +383,11 @@
 /* menus (the file list, rounds): medium radius, 48px rows */
 :root:has(.is-phone) .rr-menu {
   border-radius: var(--rr-shape-m);
-  padding: 6px 0;
+  padding: var(--rr-space-6) 0;
 }
 :root:has(.is-phone) .rr-menu__item {
-  height: 48px;
-  padding: 0 16px;
+  height: var(--rr-touch);
+  padding: 0 var(--rr-space-16);
   border-radius: 0;
 }
 
