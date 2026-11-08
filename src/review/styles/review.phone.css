@@ -83,18 +83,18 @@
 }
 .rr-toc-fab {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  right: var(--rr-space-16);
+  bottom: var(--rr-space-16);
   z-index: 6;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
   border: 0;
   border-radius: var(--rr-shape-l);
   background: var(--rr-surface-overlay);
   color: var(--rr-ink);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--rr-ink) 22%, transparent);
+  box-shadow: var(--rr-shadow);
 }
 .rr-toc-sheet > .rr-side {
   flex: 1;
@@ -110,13 +110,12 @@
   counter-reset: rr-toc;
 }
 .rr-toc-sheet .rr-group-label {
-  padding: 16px 16px 4px;
   counter-reset: rr-toc;
 }
 .rr-toc-sheet .rr-toc .rr-toc-item--sub {
-  width: calc(100% - 20px);
-  margin-left: 20px;
-  padding-left: 44px;
+  width: calc(100% - var(--rr-space-16));
+  margin-left: var(--rr-space-16);
+  padding-left: var(--rr-space-48);
   border-left: 0;
 }
 /* ---------------------------------------------------------------- code area: file cards, sticky header, rail */
