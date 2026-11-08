@@ -21,6 +21,20 @@ div.rr-composer__input .cm-content {
   padding: var(--rr-space-8) var(--rr-space-10);
   caret-color: var(--rr-ink);
 }
+/* the stand-in until the editor's chunk arrives (view.ts composer), drawn like .cm-content */
+div.rr-composer__input .rr-composer__stand {
+  display: block;
+  width: 100%;
+  min-height: 70px;
+  padding: var(--rr-space-8) var(--rr-space-10);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  resize: none;
+}
 div.rr-composer__input .cm-line {
   padding: 0;
 }

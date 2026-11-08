@@ -13,6 +13,9 @@ const FACTS = `JSON.stringify({
   phone: document.documentElement.classList.contains('is-phone') || !!document.querySelector('.is-phone'),
   phoneBar: !!document.querySelector('.rr-phonebar'),
   dock: !!document.querySelector('.dv-dockview'),
+  // each presentation is a lazy chunk (src/main.ts): the desktop never fetches the phone's, the phone never the desktop's (dockview)
+  phoneChunk: performance.getEntriesByType('resource').some((r) => r.name.includes('/chunks/phone-')),
+  deskChunk: performance.getEntriesByType('resource').some((r) => r.name.includes('/chunks/presentation-')),
 })`;
 // the guided walkthrough's player form, once it has opened: the presentation module's player (src/phone.ts)
 const PLAYER = `new Promise((done) => {
@@ -26,6 +29,8 @@ const PLAYER = `new Promise((done) => {
   look();
 })`;
 
+const WORKER = `navigator.serviceWorker.getRegistration().then((r) => r ? (r.installing ?? r.waiting ?? r.active)?.scriptURL : 'none')`;
+
 describe('presentations boot', () => {
   const { serve, dir } = setup();
   fs.copyFileSync(path.join(import.meta.dir, '../examples/habit-events/walkthrough.json'), path.join(dir, 'walkthrough.json'));
@@ -33,13 +38,15 @@ describe('presentations boot', () => {
   test.skipIf(!browser)('a computer gets the dock and its player, ?phone the phone shell and the phone player', async () => {
     const url = await serve();
     for (const [query, vp, want, player] of [
-      ['', { width: 1280, height: 800 }, { kind: 'dock', phone: false, phoneBar: false, dock: true }, 'desktop'],
-      ['?phone', { width: 390, height: 844 }, { kind: 'phone', phone: true, phoneBar: true, dock: false }, 'phone'],
+      ['', { width: 1280, height: 800 }, { kind: 'dock', phone: false, phoneBar: false, dock: true, phoneChunk: false, deskChunk: true }, 'desktop'],
+      ['?phone', { width: 390, height: 844 }, { kind: 'phone', phone: true, phoneBar: true, dock: false, phoneChunk: true, deskChunk: false }, 'phone'],
     ] as const) {
       const page = await openPage(url + query, vp);
       try {
         expect(JSON.parse(await page.evaluate<string>(FACTS))).toEqual(want);
         expect(await page.evaluate<string>(PLAYER)).toBe(player);
+        // the worker sits beside the entry, whichever chunk the update code ended up in
+        expect(await page.evaluate<string>(WORKER)).toBe(new URL('sw.js', url).href);
         expect(page.errors()).toEqual([]);
       } finally {
         await page.close();

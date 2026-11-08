@@ -2,6 +2,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { reviewId } from '../cli/hub/hub.ts';
 import { expectClientHeaders, op, setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
@@ -69,12 +70,15 @@ describe('hub', () => {
 
     test("passes the review's cache and build headers through unchanged", () => expectClientHeaders(r, 'api/state'));
 
-    test('gzips the entry once, and an unchanged entry revalidates as a 304', async () => {
-      const res = await fetch(r + '_rr/reviewroom.js', { headers: { 'accept-encoding': 'gzip' }, decompress: false });
-      expect(res.headers.get('content-encoding')).toBe('gzip');
-      const zipped = new Uint8Array(await res.arrayBuffer());
-      expect(Bun.gunzipSync(zipped).length).toBeGreaterThan(zipped.length * 2); // valid gzip, encoded once
-      const again = await fetch(r + '_rr/reviewroom.js', { headers: { 'if-none-match': res.headers.get('etag')! } });
+    test('sends the entry as its Brotli file, gzip to a client without br, and revalidates it as a 304', async () => {
+      const plain = await (await fetch(r + '_rr/reviewroom.js', { headers: { 'accept-encoding': 'identity' } })).text();
+      const br = await fetch(r + '_rr/reviewroom.js', { headers: { 'accept-encoding': 'gzip, br' }, decompress: false });
+      expect([br.headers.get('content-encoding'), br.headers.get('vary')]).toEqual(['br', 'Accept-Encoding']);
+      expect(zlib.brotliDecompressSync(new Uint8Array(await br.arrayBuffer())).toString()).toBe(plain); // encoded once, current
+      const gz = await fetch(r + '_rr/reviewroom.js', { headers: { 'accept-encoding': 'gzip' }, decompress: false });
+      expect(gz.headers.get('content-encoding')).toBe('gzip');
+      expect(new TextDecoder().decode(Bun.gunzipSync(new Uint8Array(await gz.arrayBuffer())))).toBe(plain);
+      const again = await fetch(r + '_rr/reviewroom.js', { headers: { 'accept-encoding': 'gzip, br', 'if-none-match': br.headers.get('etag')! } });
       expect(again.status).toBe(304);
     });
 
