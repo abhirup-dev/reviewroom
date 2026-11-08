@@ -382,6 +382,11 @@
 [data-form='phone'] .rr-tour__seg-title {
   display: none;
 }
+/* the phone's ticks: thinner and rounded (M3 shapes) */
+[data-form='phone'] .rr-tour__tick {
+  height: 4px;
+  border-radius: var(--rr-shape-xs);
+}
 [data-form='phone'] .rr-tour__tick.is-on {
   box-shadow: none;
 }
