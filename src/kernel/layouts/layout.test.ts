@@ -2,7 +2,7 @@ import { afterAll, afterEach, expect, test } from 'bun:test';
 import { installDOM } from '../../testing/dom';
 import { memoryBackend } from '../../testing/mount-review';
 import { tick } from '../../testing/wait';
-import type { LastLayout } from './layout.shared';
+import type { LastLayout, LayoutScope } from './layout.shared';
 
 // The layout client against a real dockview in JSDOM. Panels are stand-ins under reviewroom's ids: what's under test
 // is where they go, not what they draw.
@@ -33,7 +33,11 @@ function mount(o: Opts = {}) {
   document.body.append(root);
   app = new ReviewApp(root);
   const lastSaved: LastLayout[] = [];
-  app.backend = { ...memoryBackend().backend, saveLastLayout: async (l) => void lastSaved.push(l) };
+  const base = memoryBackend().backend;
+  app.backend = { ...base, layouts: { ...base.layouts, put: async (scope: LayoutScope, v?: unknown) => {
+    if (scope === 'last') lastSaved.push(v as LastLayout);
+    return true;
+  } } };
   const toasts: string[] = [];
   app.bus.on('toast', (t) => toasts.push(`${t.kind}: ${t.text}`));
   const host = document.createElement('div');
@@ -116,7 +120,7 @@ test('saving a layout: a usable new name is stored and becomes a command; anythi
   expect(Object.keys(app.layout.all()).at(-1)).toBe('my-desk');
   app.layout.apply('my-desk');
   expect(docked(app)).toEqual(READING);
-  app.backend.saveLayout = async () => false;
+  app.backend.layouts.put = async () => false;
   expect(await app.layout.save('Other')).toBe(false);
   expect(toasts.at(-1)).toBe('error: Could not save the layout');
   app.dock!.clear();
@@ -133,7 +137,7 @@ test('the default layout: set when saving as default, cleared when forgotten or 
   await app.layout.setDefault('desk');
   await app.layout.delete('desk');
   expect([app.layout.saved.desk, app.layout.defaultId, toasts.at(-1)]).toEqual([undefined, null, 'info: Deleted layout “Desk”']);
-  app.backend.setDefaultLayout = async () => false;
+  app.backend.layouts.put = async () => false;
   expect(await app.layout.setDefault(null)).toBe(false);
   expect(toasts.at(-1)).toBe('error: Could not change the default layout');
 });

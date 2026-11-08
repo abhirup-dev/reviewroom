@@ -1,6 +1,6 @@
 import type { ReviewState } from '../state/model.shared';
 import { loadJSON, saveLocal } from '../store';
-import type { LastLayout, Layout, SavedLayouts } from '../layouts/layout.shared';
+import { builtinLayouts, type LastLayout, type Layout, type LayoutScope, type LayoutsOf, type LayoutStore, type SavedLayouts } from '../layouts/layout.shared';
 import { StoredState, type Op } from '../state/schema.shared';
 import type { StateBackend } from './contracts';
 
@@ -21,29 +21,38 @@ export class BrowserState implements StateBackend {
   apply(_op: Op, next: ReviewState) {
     saveLocal(LS_KEY(this.id), next);
   }
-  async layouts(): Promise<SavedLayouts> {
+  private savedLayouts() {
     const v = loadJSON(LAYOUTS_KEY) as SavedLayouts | null; // a corrupt entry reads as none
     return v?.layouts ? v : { layouts: {}, default: null };
   }
-  async saveLayout(id: string, layout: Layout | null) {
-    const all = await this.layouts();
-    if (layout && all.layouts[id]) return false;
-    if (layout) all.layouts[id] = layout;
-    else delete all.layouts[id];
-    if (!layout && all.default === id) all.default = null;
-    saveLocal(LAYOUTS_KEY, all);
-    return true;
-  }
-  async setDefaultLayout(id: string | null) {
-    saveLocal(LAYOUTS_KEY, { ...(await this.layouts()), default: id });
-    return true;
-  }
-  async lastLayout() {
-    const v = loadJSON(`reviewroom:layout:${this.id}`) as LastLayout | null;
-    return v?.dock ? v : null; // an older build kept the bare dock here
-  }
-  async saveLastLayout(layout: LastLayout) {
-    saveLocal(`reviewroom:layout:${this.id}`, layout);
-  }
+  readonly layouts: LayoutStore = {
+    get: async <S extends LayoutScope>(scope: S): Promise<LayoutsOf<S>> => {
+      if (scope === 'shipped') return builtinLayouts as LayoutsOf<S>;
+      if (scope === 'last') {
+        const v = loadJSON(`reviewroom:layout:${this.id}`) as LastLayout | null;
+        return (v?.dock ? v : null) as LayoutsOf<S>; // an older build kept the bare dock here
+      }
+      const all = this.savedLayouts();
+      return (scope === 'saved' ? all.layouts : all.default) as LayoutsOf<S>;
+    },
+    put: async (scope: Exclude<LayoutScope, 'shipped'>, key: string | LastLayout | null, layout?: Layout | null) => {
+      const id = key as string | null;
+      if (scope === 'last') {
+        saveLocal(`reviewroom:layout:${this.id}`, key);
+        return true;
+      }
+      const all = this.savedLayouts();
+      if (scope === 'default') {
+        saveLocal(LAYOUTS_KEY, { ...all, default: id });
+        return true;
+      }
+      if (layout && ((id as string) in builtinLayouts || all.layouts[id!])) return false; // saving never replaces a layout
+      if (layout) all.layouts[id!] = layout;
+      else delete all.layouts[id!];
+      if (!layout && all.default === id) all.default = null;
+      saveLocal(LAYOUTS_KEY, all);
+      return true;
+    },
+  };
 }
 const LAYOUTS_KEY = 'reviewroom:layouts';

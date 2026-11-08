@@ -18,3 +18,8 @@
   flex: 1;
   min-width: 0;
 }
+.rr-side-head__count {
+  flex: 1;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}

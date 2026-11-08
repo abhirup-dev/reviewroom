@@ -59,9 +59,11 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Domain services take narrow typed capabilities and live getters, never `ReviewApp` or DOM dependencies.
   `src/services.ts` composes code, thread and GitHub services; boot supplies the factory to the app; callers use
   `app.services.*`. `rr.app` is internal and may change; review pages use only the documented `window.rr` API. Provider contracts live in `src/kernel/providers/contracts.ts`, separate from implementations.
-- The presentation is chosen once (`app.presentation`: the dock or the phone shell). Features expose panels, commands
-  and events and don't branch on phone vs desktop; phone-only or desktop-only UI lives in its presentation's files
-  (`src/kernel/phone.ts`, `*.phone.ts`, `*.desktop.ts`, `*.phone.css`). Checks on input modality (touch, `hover: none`)
+- The presentation is chosen once (`app.presentation`, `src/kernel/presentation.ts`: the dock or the phone shell).
+  Features expose panels, commands and events and don't branch on phone vs desktop: they read the presentation's data
+  or take what composition hands them (`src/presentation.ts` for the desktop, `src/phone.ts` for the phone). Phone-only
+  or desktop-only UI lives in its presentation's files (`src/kernel/phone.ts`, `*.phone.ts`, `*.desktop.ts`,
+  `*.phone.css`); core never imports them (`scripts/features.ts`). Checks on input modality (touch, `hover: none`)
   are fine anywhere.
 - Colours, fonts, font sizes, spacing, weights (400/500/600) and letter-spacing only through `--rr-*` tokens
   (`src/kernel/styles/tokens.css`), or `em`/`%` relative to their context; controls take `--rr-control-sm/-/-lg` heights.
@@ -92,6 +94,10 @@ bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ sourc
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
 ```
+
+A refactor that must not change how anything looks: `bun scripts/snapshot.ts before.json` on the old build, again on
+the new one, then `bun scripts/snapshot.ts --diff before.json after.json` (computed styles of the demo on a phone and
+a computer, light and dark).
 
 Lint is oxlint (`.oxlintrc.json`), stylelint (`stylelint.config.js`: the design tokens) plus `ast-grep scan` (`rules/*.yml`: structural checks oxlint has no rule for, such as
 raw `innerHTML` and global listeners outside the kernel). The `overrides` lists in `.oxlintrc.json` are ratchets: each names

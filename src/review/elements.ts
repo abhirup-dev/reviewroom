@@ -230,8 +230,9 @@ class RRMermaid extends HTMLElement {
     void import('./markdown/diagram').then(async ({ mountDiagram }) => {
       if (generation !== this.generation || !this.isConnected) return;
       // every render, redraws for a new width too (they replace the nodes): the guided walkthrough relights them
-      // on a phone the walkthrough's diagrams keep their layout, fit to the width, and zoom: a phone-wide layout wraps every label
-      const natural = max || !!this.closest('.is-phone rr-review');
+      // where the presentation asks (a phone), the walkthrough's diagrams keep their layout, fit to the width, and zoom:
+      // a phone-wide layout wraps every label
+      const natural = max || !!this.closest('[data-rr-diagram-fit="width"] rr-review');
       const mounted = await mountDiagram(diagram, source, () => this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })), natural, max);
       if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
       this.mounted = mounted;

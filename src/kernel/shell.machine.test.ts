@@ -26,10 +26,9 @@ test('Back closes the newest layer, then returns to earlier areas', () => {
   s.send({ type: 'show', id: 'narrative' });
   expect(s.stack()).toEqual([]);
   s.send({ type: 'nav', area: 'threads' }, { type: 'nav', area: 'files' });
-  s.send({ type: 'show', id: 'thread:t1' }, { type: 'dialog', id: 1, open: true });
-  expect(s.stack()).toEqual(['area:read', 'area:threads', 'sheet:thread:t1', 'dialog']);
+  s.send({ type: 'show', id: 'thread:t1' });
+  expect(s.stack()).toEqual(['area:read', 'area:threads', 'sheet:thread:t1']);
   expect(front(s.c())).toBe('thread:t1');
-  s.back(); // the dialog's entry (the view dismisses it)
   s.back();
   expect(s.c().sheets).toEqual([]);
   expect(front(s.c())).toBe('files');

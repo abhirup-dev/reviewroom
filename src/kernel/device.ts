@@ -1,7 +1,8 @@
 // Which shell a device gets. A phone (touch, shorter screen side at most 720px) gets the phone shell upright and the
 // dock on its side, like a computer; it switches on rotation. Tablets keep the dock either way.
 import type { ReviewApp } from '../app';
-import { busy, keepScroll, shouldHoldReload } from './pwa';
+import { formFor, type Form } from './presentation';
+import { dropReload, wantReload } from './pwa';
 import { ensurePanel, frontPanel } from './dock';
 
 const side = () => Math.min(screen.width, screen.height);
@@ -12,37 +13,29 @@ const PHONE_MAX = 720, TABLET_MAX = 1024;
 const small = () => touch() && side() <= PHONE_MAX;
 const landscape = () => screen.orientation?.type.startsWith('landscape') ?? matchMedia('(orientation: landscape)').matches;
 const forced = () => new URLSearchParams(globalThis.location?.search).has('phone');
-/** The phone shell: a phone held upright, or `?phone` to try it on any device. */
-export const wantsPhone = () => (small() && !landscape()) || forced();
-/** A phone on its side: the dock, from the `tablet` layout, never saved over the reviewer's last layout. */
-export const turnedPhone = () => small() && !wantsPhone();
-/** The guided review's phone player: a phone either way up, under either shell (or `?phone`); tablets and computers
- *  get the desktop player. Its portrait or landscape variant follows the viewport (slides/player.phone.ts). */
-export const usesPhonePlayer = () => small() || forced();
+/** This screen's form (kernel/presentation.ts): a phone upright or `?phone` gets the phone shell; a phone on its side,
+ *  the dock from the `tablet` layout, never saved over the reviewer's last layout. */
+export const currentForm = (): Form => formFor({ small: small(), landscape: landscape(), forced: forced() });
+const wantsPhone = () => currentForm() === 'phone';
 /** A tablet (touch, shorter side 721–1024px) or a turned phone: the dock, starting from the `tablet` layout. */
 export const isTablet = () => touch() && side() <= TABLET_MAX && !wantsPhone();
 
 const KEY = 'reviewroom:shell';
-/** When the screen stops suiting the shell picked at boot (a phone rotated, a foldable opened), reload into the right
+/** When the screen stops suiting the form picked at boot (a phone rotated, a foldable opened), reload into the right
  *  one, keeping the panel in front and the open file (restoreShell; the walkthrough's slide rides in the URL). Over
- *  unsent work, offer the reload instead. */
+ *  unsent work the reload is offered and taken once the work is sent (pwa.ts); the screen turning back drops it. */
 export function watchShell(app: ReviewApp) {
-  const phone = app.presentation.kind === 'phone';
   const check = () => {
-    if (wantsPhone() === phone) return;
-    removeEventListener('resize', check);
-    screen.orientation?.removeEventListener('change', check);
-    const go = () => {
-      sessionStorage.setItem(KEY, JSON.stringify({ front: frontPanel(app), file: app.activeFile }));
-      keepScroll();
-      location.reload();
-    };
-    if (shouldHoldReload(busy(app))) app.toast('This screen suits a different layout.', 'info', { label: 'Switch layout', run: go });
-    else go();
+    const form = currentForm();
+    if (form === app.presentation.form) return dropReload('layout');
+    wantReload('layout', `the screen suits the ${form} form`, {
+      before: () => sessionStorage.setItem(KEY, JSON.stringify({ front: frontPanel(app), file: app.activeFile })),
+    });
   };
-  addEventListener('resize', check);
+  app.listen(window, 'resize', check);
   // a phone may fire resize before its orientation turns: check again when it does
   screen.orientation?.addEventListener('change', check);
+  app.onDispose(() => screen.orientation?.removeEventListener('change', check));
 }
 
 /** After watchShell's reload: the panel that was in front, and the file that was open. */

@@ -16,7 +16,7 @@ export function tip(el: HTMLElement, text: string, keys?: string) {
 }
 
 /** `app` is optional: the hub page (src/hub/) has tooltips but no ReviewApp. */
-export function mountTooltips(app?: Pick<ReviewApp, 'escapers' | 'onDispose'>) {
+export function mountTooltips(app?: Pick<ReviewApp, 'registerEscape' | 'onDispose'>) {
   const cleanups: (() => void)[] = [];
   const listen = <K extends keyof DocumentEventMap>(target: Document, type: K, handler: (event: DocumentEventMap[K]) => void, options?: boolean | AddEventListenerOptions) => {
     target.addEventListener(type, handler, options);
@@ -92,7 +92,7 @@ export function mountTooltips(app?: Pick<ReviewApp, 'escapers' | 'onDispose'>) {
   listen(document, 'pointerdown', hide, true);
   listen(document, 'scroll', hide, true);
   listen(document, 'keydown', (e) => e.key === 'Escape' && hide(), true);
-  app?.escapers.push(() => (shown() ? (hide(), true) : false));
+  app?.registerEscape(() => (shown() ? (hide(), true) : false));
   const dispose = () => { clearTimeout(timer); cleanups.forEach((fn) => fn()); box.remove(); };
   app?.onDispose(dispose);
   return dispose;

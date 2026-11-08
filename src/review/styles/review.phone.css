@@ -172,3 +172,9 @@
     transition: none;
   }
 }
+
+/* Pele's zoom buttons (24px, inline styles) become 44px touch targets, in the phone shell and the phone player. */
+:is(.is-phone, [data-form='phone']) rr-mermaid .pele-zoom > button {
+  width: 44px !important;
+  height: 44px !important;
+}
