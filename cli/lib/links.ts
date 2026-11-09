@@ -32,10 +32,11 @@ export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 /**
  * Check every link in `html`, and in `extra` (walkthrough.json's prose and refs: tourText), against the code. `known` is the ref -> hash map from the last check
  * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the walkthrough drop out).
+ * An array in `extra` checks only those refs; the full HTML and tour still resolve doc/tour targets.
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
-export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '', tour: Walkthrough | null = null) {
+export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra: string | readonly string[] = '', tour: Walkthrough | null = null) {
   const visible = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
@@ -50,7 +51,9 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     return files.get(sha + ':' + p);
   };
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
-  for (const ref of extractLinks(visible + '\n' + uncomment(extra))) {
+  // An explicit ref list scopes validation, while the full HTML remains available to resolve rr:doc targets.
+  const refs = typeof extra === 'string' ? extractLinks(visible + '\n' + uncomment(extra)) : [...new Set(extra)];
+  for (const ref of refs) {
     const r = parseRef(ref);
     if (!r || r.type === 'thread' || r.type === 'round') {
       out(ref, 'broken', 'not a valid link');

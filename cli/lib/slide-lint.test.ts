@@ -16,6 +16,11 @@ const w: Walkthrough = {
 };
 const checks = (o = {}) => lintTour(w, changed, (n) => (n === 'Thing' ? 'pkg/sym.go' : undefined), o);
 
+test('partial static checks skip global coverage, pacing and unrelated symbol lookups', () => {
+  const fs = lintTour(w, changed, () => { throw new Error('unrelated symbol search'); }, { selected: new Set(['one/s2']) });
+  expect(fs.map((f) => `${f.where} ${f.check}`)).toEqual(['one/s2 long-text', 'one/s2 wide-range']);
+});
+
 test('unshown files: big source warns (largest first), small and tests are mentioned; symbols, binaries count as shown or skip', () => {
   const [big, rest] = checks().filter((f) => f.check === 'unshown-file');
   expect(big).toMatchObject({ level: 'warn', message: '1 changed file(s) no slide shows: pkg/b.go (+30 -0)' });

@@ -155,6 +155,8 @@ export const walkthroughJsonSchema = () => ({
 /** One chunk of the code pane: `lines` highlighted, of which `hidden` are off screen when it lands; `visible`: lines
  *  the chunk shows at once. No code (a preview card: a section, an unknown symbol): `code: false`. */
 export type ChunkAudit = { ref: string; code: boolean; lines: number; visible: number; hidden: number };
+/** Prose captures keep the normal split but do not resolve or render the right-hand code pane. */
+export type SlideAuditOptions = { proseOnly?: boolean };
 export type StepAudit = {
   /** the narration's visible and full height, and the chapter lead's height */
   left: { visible: number; content: number; lead: number };

@@ -16,7 +16,7 @@ import { desktopPlayer } from './player.desktop';
 import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
 import { displayTools, type CodePanelOptions } from '../review/code';
-import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type StepAudit, type Walkthrough } from './model.shared';
+import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type SlideAuditOptions, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
 
@@ -76,6 +76,8 @@ export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null
 
 export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: PhoneFormFactory } = {}) {
   let disposed = false;
+  let proseAudit = false;
+  let audits = 0; // headless audits avoid speculative work and deferred focus painting
   const btn = (ic: Parameters<typeof icon>[0], title: string, onclick: () => void, keys?: string) =>
     h('button', { class: 'rr-icon-btn', title, 'aria-label': title, 'data-keys': keys, onclick }, icon(ic, 14));
 
@@ -103,6 +105,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     const o = old;
     if (!o) return;
     old = null;
+    if (proseAudit) return drop(o);
     o.el.classList.add('is-gone');
     setTimeout(() => drop(o), 250);
   };
@@ -138,12 +141,12 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     tools.hidden = !code.length;
     toolsMode = code.some((c) => c.view === 'diff') ? 'diff' : 'file';
     paintTools();
-    if (s.kind === 'refs') layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
+    if (s.kind === 'refs' && !proseAudit) layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
     // no code: the narration takes the whole player, centred
     split.classList.toggle('is-solo', s.kind === 'empty');
   };
   const pane$ = paneMachine.provide({
-    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: await codeAt(app, ref) }))) } : input)) },
+    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: proseAudit ? null : await codeAt(app, ref) }))) } : input)) },
     actions: {
       mount: ({ context }) => mount(context.next!),
       // same files: each view's highlight moves to its new lines
@@ -194,8 +197,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     const refs = want.kind === 'refs' ? want.refs : [];
     const { focus } = current(c).step;
     // Mermaid nodes (rendered later: `rr-mermaid:ready` repaints) take their label from the text, their ref from a `click` link
-    requestAnimationFrame(() =>
-      player.querySelectorAll('rr-mermaid').forEach((flow) => {
+    const paint = () => player.querySelectorAll('rr-mermaid').forEach((flow) => {
         let any = false;
         flow.querySelectorAll('.pele-node').forEach((n) => {
           const node = { label: n.querySelector('.pele-label')?.textContent ?? '', ref: n.querySelector('a')?.getAttribute('href') ?? null };
@@ -207,8 +209,9 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
         // a Mermaid edge between two lit nodes flows
         const lit = [...flow.querySelectorAll('.pele-node.is-focus')].map((n) => n.getAttribute('data-id') ?? '');
         flow.querySelectorAll('.pele-edge').forEach((e) => e.classList.toggle('is-focus', edgeBetween(e.getAttribute('data-id') ?? '', lit)));
-      }),
-    );
+      });
+    if (audits) paint();
+    else requestAnimationFrame(paint);
   };
   const stepText = h('div', { class: 'rr-tour__text rr-prose' });
   const chips = h('div', { class: 'rr-tour__refs' });
@@ -337,7 +340,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   let preloading = false;
   const preload = () => {
     const { doc: d, chapter: at, step: on } = ctx();
-    if (preloading || !d) return;
+    if (audits || preloading || !d) return;
     stash.style.width = `${stepText.clientWidth || 360}px`;
     const here = d.chapters.slice(0, at).reduce((a, c) => a + c.steps.length, 0) + on;
     let i = 0;
@@ -347,7 +350,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     preloading = true;
     const one = () => {
       const next = todo.shift();
-      if (!next || ctx().doc !== d || !actor.getSnapshot().matches('open')) return void (preloading = false);
+      if (audits || !next || ctx().doc !== d || !actor.getSnapshot().matches('open')) return void (preloading = false);
       proseFor(next.key, next.html);
       idle(one);
     };
@@ -498,23 +501,31 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
 
   /** For `reviewroom slide-lint`: open a step in a theme, wait until the pane shows it and its code has
    *  landed, measure what is on screen. */
-  async function audit(chapter: string, step: string, theme?: 'light' | 'dark'): Promise<StepAudit> {
+  async function audit(chapter: string, step: string, theme?: 'light' | 'dark', options: SlideAuditOptions = {}): Promise<StepAudit> {
     await loaded;
     if (!ctx().doc) throw new Error(app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'no walkthrough.json');
-    if (theme) {
-      app.prefs = { ...app.prefs, theme }; // for this page only: not saved, the reviewer's pref stays as it is
-      app.applyTheme();
+    const priorProse = proseAudit;
+    proseAudit = !!options.proseOnly;
+    audits++;
+    try {
+      if (theme) {
+        app.prefs = { ...app.prefs, theme }; // for this page only: not saved, the reviewer's pref stays as it is
+        app.applyTheme();
+      }
+      actor.send({ type: 'open', chapter, step });
+      const want = JSON.stringify(target(ctx()));
+      // showing: the code has landed (or landing gave up: late)
+      const { shown, late } = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context;
+      // Normal pages retain their animation-aware audit; the headless renderer disables CSS motion before opening slides.
+      await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1000))]);
+      const settled = (await settle(left)) && !late;
+      paintFocus(); // settle may have refreshed and replaced Pele nodes
+      const { chapter: ch, step: st } = current(ctx());
+      return measure({ left, lead, pane: layer }, proseAudit ? null : shown, { lead: proseRemoved(ch.lead ?? ''), text: proseRemoved(st.text) }, settled);
+    } finally {
+      audits--;
+      proseAudit = priorProse;
     }
-    actor.send({ type: 'open', chapter, step });
-    const want = JSON.stringify(target(ctx()));
-    // showing: the code has landed (or landing gave up: late)
-    const { shown, late } = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context;
-    // the entrance (the old text's fade is cancelled when it leaves: done too); an author's endless or paused animation
-    // would never finish
-    await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1000))]);
-    const settled = (await settle(left)) && !late;
-    const { chapter: ch, step: st } = current(ctx());
-    return measure({ left, lead, pane: layer }, shown, { lead: proseRemoved(ch.lead ?? ''), text: proseRemoved(st.text) }, settled);
   }
   app.onDispose(() => { disposed = true; actor.stop(); dispose(); if (old) drop(old); root.remove(); });
   return { actor, audit };

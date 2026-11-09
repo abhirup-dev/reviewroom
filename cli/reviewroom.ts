@@ -98,10 +98,17 @@ cli
   .action(run(cmdCheck));
 
 cli
-  .command('slide-lint', 'Check the guided walkthrough (walkthrough.json), then measure every slide on screen in a headless browser')
+  .command('slide-lint', 'Check the guided walkthrough (walkthrough.json), then measure all or selected slides in a headless browser')
+  .option('--jobs <n>', 'Concurrent isolated audit pages (1-8, default 1); share one read-only server')
+  .option('--chapter <id>', 'Check one chapter by its id (mutually exclusive with --slide)')
+  .option('--slide <chapter/step>', 'Check one slide by its ids (mutually exclusive with --chapter)')
   .option('--viewport <WxH,...>', 'Viewports to measure at (default 1280x800,1440x900)')
-  .option('--json', 'Print { engine, viewports, links, findings } as JSON')
+  .option('--native', 'Use native raster resolution instead of capping height at 480 pixels; CSS viewports stay unchanged')
+  .option('--json', 'Print { engine, jobs, viewports, rasterHeight, selection, coverage, links, findings } as JSON')
   .example('  reviewroom slide-lint')
+  .example('  reviewroom slide-lint --jobs 2')
+  .example('  reviewroom slide-lint --chapter latency')
+  .example('  reviewroom slide-lint --slide latency/s2')
   .action(run(cmdSlideLint));
 
 cli
@@ -116,11 +123,14 @@ cli
   .option('--theme <light|dark>', 'The theme (default light)')
   .option('--mobile', 'As on a phone: the panel 390 CSS px wide')
   .option('--viewport <WxH>', 'A slide: the screen (default 1280x800)')
+  .option('--native', 'Use native raster resolution instead of the default 480-pixel height cap')
+  .option('--prose-only', 'A guided slide: capture only the narration pane at its full-slide proportions; skip the code pane')
   .option('--out <dir>', 'Where to write the PNGs (default: a temp dir, emptied first for the review; the paths are printed)')
   .example('  reviewroom shot')
   .example('  reviewroom shot request-path --theme dark')
   .example('  reviewroom shot --mobile')
   .example('  reviewroom shot latency/s3 --theme dark')
+  .example('  reviewroom shot latency/s3 --prose-only --native')
   .action(run(cmdShot));
 
 cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
@@ -138,11 +148,22 @@ cli
 const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
   'slide-lint': [
-    '  Runs `check` (schema, links, what the guided walkthrough leaves out, its pacing), then plays every slide in a headless',
+    '  By default runs `check` (schema, links, what the guided walkthrough leaves out, its pacing), then plays every slide in a headless',
     '  browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) on the review as built now, and reports',
     '  what the reviewer would hit: narration that needs scrolling, highlighted lines off screen, stacked chunks too',
     '  short to read, content wider than its box, prose the sanitizer strips, page errors. Each finding names the',
     '  slide (chapter/step) and how to fix it; exit 1 while any warning is left. Nothing is written.',
+    '  --chapter and --slide use walkthrough.json ids, never titles or slide numbers. Unknown ids are errors.',
+    '  A partial check validates the whole schema, but links, focus and layout only for selected slides, their chapter',
+    '  leads and inherited code targets. review.html remains available for rr:doc targets. Page startup errors still',
+    '  count; whole-tour coverage and pacing checks are skipped. The report lists partial coverage explicitly.',
+    '  Keep the full walkthrough loaded: a slide can inherit code from an earlier chapter. Run without selectors',
+    '  for the final full check. --slide also accepts an existing rr:tour/<chapter>/<step> link.',
+    '  --jobs 2 runs isolated pages concurrently, sharing one read-only server. Each page audits its slides sequentially.',
+    '  Extra workers split neighbouring slides into batches; reports keep viewport and slide order. Static checks run once.',
+    '  The default is one worker. Worker count is bounded by available viewport/slide batches; each worker uses a fresh browser.',
+    '  Raster height is capped at 480 pixels by default, without changing CSS viewport sizes or fit checks.',
+    '  --native opts out. Chrome caps the render scale; WebKit preserves layout and scales screenshot output.',
   ].join('\n'),
   'publish-slides': [
     '  Runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
@@ -161,6 +182,11 @@ const notes: Record<string, string> = {
     '  Nothing in the review is written.',
     '  shot <chapter>/<step> renders one guided-walkthrough slide instead (after it settles) and prints the PNG\'s',
     '  path, then that slide\'s slide-lint findings.',
+    '  PNGs are capped at 480 pixels high by default (short captures are never enlarged). --native keeps native',
+    '  resolution. The CSS viewport and panel widths stay unchanged; output sizes are physical pixels.',
+    '  For a guided slide, --prose-only crops the existing narration pane: it does not widen, reflow or scroll it.',
+    '  Code-pane resolution/rendering is skipped; code embedded in the prose still renders. This is a prose check,',
+    '  not a full slide audit. Add --native for a sharper crop. Native and prose captures have distinct filenames.',
   ].join('\n'),
   pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `publish-slides`) gets it as walkthrough.json when the review has none. Newest wins.',
   reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,

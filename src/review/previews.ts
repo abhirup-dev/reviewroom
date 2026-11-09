@@ -54,17 +54,18 @@ async function snippet(app: ReviewApp, r: Extract<Ref, { type: 'code' | 'file' }
   const rev = app.services.code.revOf(r.rev);
   const text = await app.services.code.read(r.path, rev);
   if (text === null) return h('div', { class: 'rr-empty' }, `${r.path.split('/').pop()} isn't in this version`);
-  const box = h('div', { class: 'rr-snippet' });
+  const box = h('div', { class: 'rr-snippet', 'aria-busy': 'true' });
+  const onPostRender = () => box.setAttribute('aria-busy', 'false');
   // a changed file without lines: its hunks
   const diff = !r.start && r.type === 'code' && r.rev === 'head' ? await changedDiff(app, r.path, text) : null;
   if (diff?.hunks.length) {
-    const fd = new FileDiff({ ...codeOptions(), diffStyle: 'unified', hunkSeparators: 'simple' });
+    const fd = new FileDiff({ ...codeOptions(), diffStyle: 'unified', hunkSeparators: 'simple', onPostRender });
     fd.render({ fileDiff: diff, containerWrapper: box });
     track(box, fd);
     return box;
   }
   const lines = text.split('\n').length;
-  const file = new PierreFile(codeOptions());
+  const file = new PierreFile({ ...codeOptions(), onPostRender });
   const [s, e] = r.start ? [Math.max(1, r.start - context), Math.min(lines, (opts.endAt ?? r.end ?? r.start) + context)] : [1, Math.min(lines, 25)];
   file.render({ file: { name: r.path, contents: text }, containerWrapper: box, renderRange: range(s, e) });
   track(box, file);
