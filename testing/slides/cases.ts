@@ -1,6 +1,8 @@
 // One adversarial walkthrough over the demo repo, shared by browser regressions and the benchmark.
 // Deliberate defects stay here rather than making the teaching demo a broken review.
-import type { Walkthrough } from '../../src/slides/model.shared';
+import fs from 'node:fs';
+import path from 'node:path';
+import { Walkthrough } from '../../src/slides/model.shared';
 
 const builder = 'rr:code/pkg/ranker/request_builder.go#L46-54';
 const fetcher = 'rr:code/pkg/features/habit/fetcher.go#L20-28';
@@ -46,3 +48,14 @@ export const auditReview = `<!doctype html>
 <rr-flow><rr-node ref="${builder}">Legacy element: check currently misses this (rr-4mt).</rr-node></rr-flow>
 <script>throw new Error('audit fixture page error')</script>
 </rr-review></rr-app></body></html>`;
+
+const demo = path.join(import.meta.dir, '../../examples/habit-events');
+export const slideCases = {
+  demo: { tour: Walkthrough.parse(JSON.parse(fs.readFileSync(path.join(demo, 'walkthrough.json'), 'utf8'))), html: fs.readFileSync(path.join(demo, 'review.html'), 'utf8') },
+  audit: { tour: Walkthrough.parse(auditWalkthrough), html: auditReview },
+};
+export function writeSlideCase(dir: string, fixture: { tour: Walkthrough; html: string }) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify(fixture.tour));
+  fs.writeFileSync(path.join(dir, 'review.html'), fixture.html);
+}

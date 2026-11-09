@@ -3,21 +3,19 @@
 // checks compare against the current code.
 // Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
+import { z } from 'zod';
 import type { Provider } from './git.ts';
 import { regex } from 'regex';
 import { LINK_IN_TEXT, lineSpanOf, parseRef, symbolHits, symbolQuery, trimLink, withLineSpan } from '../../src/kernel/refs/refs.shared.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
-export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
-export interface LinkResult {
-  ref: string;
-  status: LinkStatus;
-  why?: string;
-  /** where it is in walkthrough.json (`<chapter>/<step>`, or `<chapter>` for a lead) */
-  where?: string[];
-  /** for `moved`: the fixed link */
-  to?: string;
-}
+const LinkStatus = z.enum(['ok', 'new', 'moved', 'changed', 'broken']);
+export type LinkStatus = z.infer<typeof LinkStatus>;
+export const LinkResult = z.object({
+  ref: z.string(), status: LinkStatus, why: z.string().optional(),
+  where: z.array(z.string()).optional(), to: z.string().optional(),
+});
+export type LinkResult = z.infer<typeof LinkResult>;
 /** ref -> fingerprint (a line-range hash, or 'definition' for a symbol): state.json `links`. */
 export type Links = Record<string, string>;
 

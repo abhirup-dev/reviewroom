@@ -1,6 +1,6 @@
 // Each batch has isolated slide DOM state; workers share one read-only server.
 import { fail } from './args.ts';
-import { openPage, vpName, type Viewport } from './render.ts';
+import { openPage, vpName, withPage, type Viewport } from './render.ts';
 import type { Finding, Measured } from './slide-lint.ts';
 
 export type AuditSlide = { chapter: string; step: string; ownRef: boolean };
@@ -30,16 +30,19 @@ export async function auditSlides(url: string, options: Options, createPage = op
   const batches = auditBatches(options), jobs = Math.min(options.jobs, batches.length);
   const measurements: Measured[] = [];
   const starts: { engine: string; errors: string[] }[] = [];
-  let next = 0, failed = false;
+  let next = 0, failed = false, bootMs = 0, auditMs = 0;
   const worker = async () => {
     while (!failed && next < batches.length) {
       const index = next++, batch = batches[index];
       try {
-        const page = await createPage(url, batch.viewport, 1, { animations: false, rasterHeight: options.native ? undefined : 480 });
-        try {
+        let started = performance.now();
+        await withPage(url, batch.viewport, async (page) => {
+          bootMs += performance.now() - started;
           starts[index] = { engine: page.engine, errors: page.errors() };
+          started = performance.now();
           for (const { index: at, ...slide } of batch.slides) measurements[at] = { viewport: vpName(batch.viewport), ...slide, audit: await page.audit(slide.chapter, slide.step), errors: page.errors() };
-        } finally { await page.close(); }
+          auditMs += performance.now() - started;
+        }, 1, { animations: false, rasterHeight: options.native ? undefined : 480, createPage });
       } catch (e) { failed = true; throw e; }
     }
   };
@@ -48,7 +51,7 @@ export async function auditSlides(url: string, options: Options, createPage = op
   const rejected = settled.find((r) => r.status === 'rejected');
   if (rejected?.status === 'rejected') throw rejected.reason;
   const boot = startupFindings(batches, starts);
-  return { measurements, boot, jobs, engine: [...new Set(starts.map((s) => s.engine))].join(', ') };
+  return { measurements, boot, jobs, timings: { bootMs, auditMs }, engine: [...new Set(starts.map((s) => s.engine))].join(', ') };
 }
 
 function startupFindings(batches: Batch[], starts: { errors: string[] }[]): Finding[] {

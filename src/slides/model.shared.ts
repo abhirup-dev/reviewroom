@@ -154,20 +154,20 @@ export const walkthroughJsonSchema = () => ({
 
 /** One chunk of the code pane: `lines` highlighted, of which `hidden` are off screen when it lands; `visible`: lines
  *  the chunk shows at once. No code (a preview card: a section, an unknown symbol): `code: false`. */
-export type ChunkAudit = { ref: string; code: boolean; lines: number; visible: number; hidden: number };
+const size = z.number().nonnegative();
+export const ChunkAudit = z.object({ ref: z.string(), code: z.boolean(), lines: size, visible: size, hidden: size });
+export type ChunkAudit = z.infer<typeof ChunkAudit>;
 /** Prose captures keep the normal split but do not resolve or render the right-hand code pane. */
 export type SlideAuditOptions = { proseOnly?: boolean };
-export type StepAudit = {
-  /** the narration's visible and full height, and the chapter lead's height */
-  left: { visible: number; content: number; lead: number };
-  chunks: ChunkAudit[];
-  /** content wider than its box (sideways scrolling): 'narration' or a tag inside the narration */
-  wide: string[];
-  /** what the sanitizer took out of the chapter lead and the step's text */
-  stripped: { lead: string[]; text: string[] };
-  /** false: the code had not settled when the page gave up waiting (the numbers may be off) */
-  settled: boolean;
-};
+export const StepAudit = z.object({
+  /** Narration visible/full heights and chapter lead height, in CSS pixels. */
+  left: z.object({ visible: size, content: size, lead: size }),
+  chunks: z.array(ChunkAudit),
+  wide: z.array(z.string()),
+  stripped: z.object({ lead: z.array(z.string()), text: z.array(z.string()) }),
+  settled: z.boolean(),
+});
+export type StepAudit = z.infer<typeof StepAudit>;
 
 // ------------------------------------------------------------------ the PR block
 // A walkthrough travels in a PR comment or description as a fenced ```reviewroom-walkthrough block

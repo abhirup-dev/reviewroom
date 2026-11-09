@@ -4,7 +4,7 @@
 import { fail } from './args.ts';
 import { loadConfig } from './config.ts';
 import { listen, startServer } from './server.ts';
-import type { SlideAuditOptions, StepAudit } from '../../src/slides/model.shared.ts';
+import { StepAudit, type SlideAuditOptions } from '../../src/slides/model.shared.ts';
 
 export type Viewport = { width: number; height: number };
 /** Static headless renders skip CSS motion (Pele's SVG animations and the player's fades), never layout readiness. */
@@ -61,8 +61,8 @@ const within = <T>(p: Promise<T>, ms: number, what: string) => {
 export type Page = { engine: 'chrome' | 'webkit'; audit(chapter: string, step: string, theme?: 'light' | 'dark', options?: SlideAuditOptions): Promise<StepAudit>; errors(): string[]; screenshot(selector?: string): Promise<Blob>; evaluate<T>(js: string): Promise<T>; resize(width: number, height: number): Promise<void>; close(): Promise<void> };
 
 /** `fn` with the review page open (see openPage), closing it however `fn` ends. */
-export async function withPage<T>(url: string, vp: Viewport, fn: (page: Page) => Promise<T>, scale = 1, options: RenderOptions = {}): Promise<T> {
-  const page = await openPage(url, vp, scale, options);
+export async function withPage<T>(url: string, vp: Viewport, fn: (page: Page) => Promise<T>, scale = 1, options: RenderOptions & { createPage?: typeof openPage } = {}): Promise<T> {
+  const page = await (options.createPage ?? openPage)(url, vp, scale, options);
   try {
     return await fn(page);
   } finally {
@@ -108,7 +108,7 @@ export async function openPage(url: string, vp: Viewport, scale = 1, options: Re
   }
   return {
     engine,
-    audit: (...at) => within(view.evaluate(`window.rr.auditWalkthrough(...${JSON.stringify(at)})`), 30_000, 'measuring the slide') as Promise<StepAudit>,
+    audit: (...at) => within(view.evaluate(`window.rr.auditWalkthrough(...${JSON.stringify(at)})`), 30_000, 'measuring the slide').then((result) => StepAudit.parse(result)),
     errors: () => errors.splice(0),
     screenshot: (selector) => within(captureScreenshot(view, engine, { vp: viewport, scale: pixels, cap: options.rasterHeight }, selector), 30_000, 'the screenshot'),
     evaluate: (js) => within(view.evaluate(js), 30_000, 'the page') as Promise<never>,

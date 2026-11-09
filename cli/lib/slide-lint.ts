@@ -1,14 +1,16 @@
 // Whether a walkthrough works as a walkthrough, beyond the schema and its links: what it leaves out, its pacing, and
 // (rendered, `slide-lint`) whether each step fits the screen. Findings name the step and say how to fix it.
+import { z } from 'zod';
 import type { ChangedFile } from '../../src/kernel/state/model.shared.ts';
 import { plain } from '../../src/threads/feedback.shared.ts';
 import { parseRef } from '../../src/kernel/refs/refs.shared.ts';
-import { nodeLabel, stepRefs, type StepAudit, type Walkthrough } from '../../src/slides/model.shared.ts';
+import { nodeLabel, stepRefs, StepAudit, type Walkthrough } from '../../src/slides/model.shared.ts';
 import { extractLinks, uncomment } from './links.ts';
 import { tourText } from './slides-file.ts';
 import { render } from 'pele';
 
-export type Finding = { check: string; level: 'warn' | 'info'; where?: string; message: string; fix: string };
+export const Finding = z.object({ check: z.string(), level: z.enum(['warn', 'info']), where: z.string().optional(), message: z.string(), fix: z.string() });
+export type Finding = z.infer<typeof Finding>;
 
 const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
 /** Markup's text as the page's textContent reads it: tags dropped, entities decoded, newlines kept. */
@@ -93,7 +95,8 @@ const MIN_VISIBLE = 8; // code lines a stacked chunk should show at once
 const LEAD_SHARE = 0.4; // of the narration's height, past which the lead is named as the cause of an overflow
 
 /** One step measured at one viewport (`slide-lint`). */
-export type Measured = { viewport: string; chapter: string; step: string; audit: StepAudit; errors: string[]; ownRef?: boolean };
+export const Measured = z.object({ viewport: z.string(), chapter: z.string(), step: z.string(), audit: StepAudit, errors: z.array(z.string()), ownRef: z.boolean().optional() });
+export type Measured = z.infer<typeof Measured>;
 
 /** The rendered checks: what each step looks like on screen. The same problem at several viewports is one finding. */
 export function judge(ms: Measured[]): Finding[] {
