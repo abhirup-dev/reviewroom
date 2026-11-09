@@ -6,10 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit } from '../lib/config.ts';
-import { withPage, withServer } from '../lib/render.ts';
+import { pngSize, withPage, withServer } from '../lib/render.ts';
 import { shotSlide } from './slides.ts';
 
-type ShotOpts = Global & { theme?: string; out?: string; mobile?: boolean; viewport?: string };
+type ShotOpts = Global & { theme?: string; out?: string; mobile?: boolean; viewport?: string; native?: boolean; proseOnly?: boolean };
 type Part = { name: string; top: number; height: number };
 type Plan = { error?: string; width?: number; parts?: Part[]; wide?: string[] };
 
@@ -64,9 +64,10 @@ const PLAN = (only: string | undefined, max: number, width?: number) => `(async 
 export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]) {
   if (o.theme && o.theme !== 'light' && o.theme !== 'dark') fail('--theme: light or dark', 2);
   if (only?.includes('/')) return shotSlide(repo, o, only); // section ids have no '/'
+  if (o.proseOnly) fail('--prose-only requires a guided slide: shot <chapter>/<step>; normal shots already capture review prose');
   const dir = dirForEdit(repo, o.dir, 'review.html');
   const theme = o.theme ?? 'light';
-  const tmp = path.join(os.tmpdir(), 'reviewroom-shots', `${path.basename(dir)}-${theme}${o.mobile ? '-mobile' : ''}`);
+  const tmp = path.join(os.tmpdir(), 'reviewroom-shots', `${path.basename(dir)}-${theme}${o.mobile ? '-mobile' : ''}${o.native ? '-native' : ''}`);
   const out = path.resolve(o.out ?? tmp);
   if (!o.out) fs.rmSync(tmp, { recursive: true, force: true }); // last run's pictures would read as this one's
   fs.mkdirSync(out, { recursive: true });
@@ -81,13 +82,14 @@ export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]
       for (const [i, p] of plan.parts!.entries()) {
         await page.resize(plan.width!, p.height);
         await page.evaluate(`new Promise((ok) => { document.querySelector('.rr-narrative-scroll:not(.rr-description)').style.top = '${-p.top}px'; requestAnimationFrame(() => requestAnimationFrame(ok)); })`);
-        const file = path.join(out, `${String(i + 1).padStart(2, '0')}-${p.name}.png`);
-        await Bun.write(file, await page.screenshot());
-        console.log(`${file}  (${plan.width}x${p.height})`);
+        const file = path.join(out, `${String(i + 1).padStart(2, '0')}-${p.name}${o.native ? '-native' : ''}.png`);
+        const png = await page.screenshot(), size = await pngSize(png);
+        await Bun.write(file, png);
+        console.log(`${file}  (${size.width}x${size.height} pixels; ${plan.width}x${p.height} CSS)`);
       }
       if (plan.wide!.length) console.log(`\nwider than the panel (cut off, or the page scrolls sideways):\n  ${plan.wide!.join('\n  ')}`);
       const errors = page.errors();
       if (errors.length) console.log(`\npage errors (the reviewer sees the same):\n  ${errors.join('\n  ')}`);
-    }),
+    }, 1, { animations: false, rasterHeight: o.native ? undefined : 480 }),
   );
 }

@@ -3,7 +3,8 @@
     "src",
     "cli",
     "scripts",
-    "e2e"
+    "e2e",
+    "testing"
   ],
   "ignore": [
     "**/*.test.*"

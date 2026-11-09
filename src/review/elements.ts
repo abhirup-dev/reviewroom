@@ -24,6 +24,7 @@ export function provideApp(app: ReviewApp) {
   waiters.splice(0).forEach((w) => w(app));
 }
 const withApp = (fn: (a: ReviewApp) => void) => (APP ? fn(APP) : waiters.push(fn));
+const previewFailed = (el: HTMLElement, error: unknown) => console.error(`${el.localName}: the preview could not be rendered: ${error instanceof Error ? error.message : String(error)}`);
 
 // ------------------------------------------------------------------ rr-ref
 class RRRef extends HTMLElement {
@@ -78,9 +79,19 @@ class RREmbed extends HTMLElement {
     );
     this.replaceChildren(head, body);
     this.classList.add('rr-embed');
+    this.setAttribute('aria-busy', 'true');
+    let pending = 0;
     const paint = async (app: ReviewApp) => {
-      if (!caption && r) head.querySelector('.rr-embed__title')!.textContent = app.label(ref);
-      body.replaceChildren(await renderPreview(app, ref));
+      pending++;
+      this.setAttribute('aria-busy', 'true');
+      try {
+        if (!caption && r) head.querySelector('.rr-embed__title')!.textContent = app.label(ref);
+        body.replaceChildren(await renderPreview(app, ref));
+      } catch (e) {
+        previewFailed(this, e); // report before readiness clears; the audit must not miss a deferred rejection event
+      } finally {
+        if (--pending === 0) this.setAttribute('aria-busy', 'false');
+      }
     };
     if (r?.type === 'thread') this.follow = (app) => { this.off?.(); this.off = app.bus.on('state', () => paint(app)); };
     withApp((app) => { void paint(app); this.follow?.(app); });
@@ -106,31 +117,40 @@ class RRCode extends HTMLElement {
     this.replaceChildren();
     this.classList.add('rr-code');
     const gen = ++this.gen;
+    this.setAttribute('aria-busy', 'true');
     withApp(async (app) => {
-      if (gen !== this.gen) return; // left the page before the app was ready (boot detaches the walkthrough)
-      let contents = inline.replace(/^\n/, '').replace(/\s+$/, '');
-      let name = `snippet.${lang || 'txt'}`;
-      let headLabel = title || lang || '';
-      let renderRange;
-      const r = ref ? parseRef(ref) : null;
-      if (r && (r.type === 'code' || r.type === 'file')) {
-        contents = (await app.services.code.read(r.path, app.services.code.revOf(r.rev))) ?? '';
-        if (gen !== this.gen) return; // left the page while reading
-        name = r.path;
-        // the whole file, drawn from start to end with its real line numbers
-        if (r.start) renderRange = range(r.start, r.end ?? contents.split('\n').length);
-        headLabel = (title ? title + ' · ' : '') + refLabel(r);
+      try {
+        if (gen !== this.gen) return; // left the page before the app was ready (boot detaches the walkthrough)
+        let contents = inline.replace(/^\n/, '').replace(/\s+$/, '');
+        let name = `snippet.${lang || 'txt'}`;
+        let headLabel = title || lang || '';
+        let renderRange: ReturnType<typeof range> | undefined;
+        const r = ref ? parseRef(ref) : null;
+        if (r && (r.type === 'code' || r.type === 'file')) {
+          contents = (await app.services.code.read(r.path, app.services.code.revOf(r.rev))) ?? '';
+          if (gen !== this.gen) return; // left the page while reading
+          name = r.path;
+          // the whole file, drawn from start to end with its real line numbers
+          if (r.start) renderRange = range(r.start, r.end ?? contents.split('\n').length);
+          headLabel = (title ? title + ' · ' : '') + refLabel(r);
+        }
+        const head = h(
+          'div',
+          { class: 'rr-code__head' },
+          h('span', null, headLabel),
+          ref ? h('button', { class: 'rr-icon-btn', title: 'Open in the code panel', 'aria-label': 'Open in the code panel', onclick: () => app.open(ref) }, icon('popout', 14)) : null,
+        );
+        const body = h('div', { class: 'rr-code__body' });
+        this.append(head, body);
+        await new Promise<void>((resolve) => {
+          this.file = new PierreFile({ ...codeOptions(), onPostRender: (_node, _file, phase) => { if (phase !== 'unmount') resolve(); } });
+          this.file.render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
+        });
+      } catch (e) {
+        if (gen === this.gen) previewFailed(this, e);
+      } finally {
+        if (gen === this.gen) this.setAttribute('aria-busy', 'false');
       }
-      const head = h(
-        'div',
-        { class: 'rr-code__head' },
-        h('span', null, headLabel),
-        ref ? h('button', { class: 'rr-icon-btn', title: 'Open in the code panel', 'aria-label': 'Open in the code panel', onclick: () => app.open(ref) }, icon('popout', 14)) : null,
-      );
-      const body = h('div', { class: 'rr-code__body' });
-      this.append(head, body);
-      this.file = new PierreFile(codeOptions());
-      this.file.render({ file: { name, contents, lang }, containerWrapper: body, renderRange });
     });
   }
   disconnectedCallback() {
@@ -265,6 +285,10 @@ class RRMermaid extends HTMLElement {
   private failed(e: unknown) {
     console.error(`rr-mermaid${this.id ? '#' + this.id : ''}: the diagram could not be rendered: ${e instanceof Error ? e.message : String(e)}`);
   }
+  /** Audit at the current width without waiting for Pele's ResizeObserver -> animation-frame redraw. */
+  refreshForAudit() {
+    this.mounted?.refresh();
+  }
   disconnectedCallback() {
     queueMicrotask(() => {
       if (this.isConnected) return;
@@ -273,6 +297,11 @@ class RRMermaid extends HTMLElement {
       this.mounted = undefined;
     });
   }
+}
+
+/** Ready diagrams may have moved from the player's hidden preload stash to its visible narration. */
+export function refreshDiagrams(root: HTMLElement) {
+  for (const el of root.querySelectorAll('rr-mermaid')) if (el instanceof RRMermaid) el.refreshForAudit();
 }
 
 /** The diagram alone in a full-screen dialog, at its own layout, zoomable. Escape, Close or (phone) Back closes it; so does
