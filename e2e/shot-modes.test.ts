@@ -43,7 +43,11 @@ test.skipIf(!browser)('shot defaults to a 480-high raster and native opts out wi
   const native = await shot(['latency/s2', '--viewport', '1440x900', '--native']);
   expect([capped.code, native.code]).toEqual([0, 0]);
   expect(await pngSize(image(capped.stdout))).toEqual({ width: 768, height: 480 });
-  expect(await pngSize(image(native.stdout))).toEqual({ width: 1440, height: 900 });
+  const nativeSize = await pngSize(image(native.stdout));
+  // Chrome pins 1x; WebKit keeps the display's native density (2x on Retina).
+  expect(nativeSize.width).toBeGreaterThanOrEqual(1440);
+  expect(nativeSize.height).toBeGreaterThanOrEqual(900);
+  expect(nativeSize.width / 1440).toBe(nativeSize.height / 900);
   expect(capped.stdout).toContain('1440x900 CSS viewport');
   expect(native.stdout).toContain('-native.png');
   const prose = await shot(['latency/s2', '--viewport', '1440x900', '--prose-only']);
