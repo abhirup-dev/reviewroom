@@ -30,7 +30,7 @@ export function buildPhoneBar(app: ReviewApp, features: PhoneBarContributions): 
   const m = app.meta;
   const bar = h('header', { class: 'rr-header rr-phonebar' });
   const paint = () => {
-    const picking = app.root.classList.contains('is-picking');
+    const picking = app.picking;
     const menuBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', 'aria-label': 'Menu', title: 'Menu: all reviews, theme, install, pick an element to comment on', onclick: () => openDrawer(app, features) }, icon('menu', 24));
     const menu = features.titleMenu();
     const sub = [m.repo?.split('/').pop(), features.sub()].filter(Boolean).join(' · ');

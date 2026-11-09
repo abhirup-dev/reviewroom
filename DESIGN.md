@@ -402,6 +402,7 @@ once on any scroll. A scroll moving content under a still pointer doesn't count 
 Either margin, or a 500ms block dwell, reveals Comment, Copy reference and Pin through a plus. The right shares the
 thread rail and yields to its markers. Right-click offers Comment and Copy reference, preserving native menus.
 Saved quotes stay highlighted; selecting text offers Comment. Only Pick/Alt outlines whole blocks; menus use a bracket.
+Pick and Alt share one targeting state; headers and tools reflect it. Composing, opening a thread or changing rounds exits picking.
 
 ### Floating layers
 Menus, the palette and dialogs: `surface-overlay`, hairline border, 4px radius, a shadow from the vocabulary above,

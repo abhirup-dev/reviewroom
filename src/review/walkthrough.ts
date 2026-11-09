@@ -10,7 +10,7 @@ import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '..
 import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
 import { plainExcerpt } from '../kernel/markdown';
-import { WALKTHROUGH_BLOCKS as BLOCKS, resolveWalkthroughBlock } from './walkthrough-blocks';
+import { resolveWalkthroughBlock, resolveWalkthroughQuote } from './walkthrough-blocks';
 import { WalkthroughTools } from './walkthrough-tools';
 import type { Thread } from '../kernel/state/model.shared';
 
@@ -110,12 +110,11 @@ class WalkthroughPanel implements PanelInstance {
         app.togglePin(block.pinReference);
         app.toast(`${app.label(block.pinReference)} ${app.state.pins.includes(block.pinReference) ? 'pinned to' : 'unpinned from'} Contents`);
       },
-      picked: () => app.bus.emit('picker', false),
-      isPicking: () => app.root.classList.contains('is-picking'),
+      stopPicking: () => app.bus.emit('picker', false),
+      isPicking: () => !!app.picking,
+      alt: (on) => app.setAnnotationAlt(on),
     });
     app.listen(window, 'resize', () => this.tools.dismiss());
-    app.listen(window, 'keyup', (e) => { if (e.key === 'Alt') this.tools.releaseAlt(); });
-    app.listen(window, 'blur', () => this.tools.releaseAlt());
     this.wrap.addEventListener('click', (e) => this.onClick(e));
     this.wrap.addEventListener('mouseup', (e) => setTimeout(() => this.onMouseUp(e), 0));
     // a touch selection ends with no mouseup: offer the comment once its handles settle, under the selection
@@ -133,11 +132,9 @@ class WalkthroughPanel implements PanelInstance {
     this.ro = new ResizeObserver(debounce(() => { this.tools.dismiss(); this.layoutRail(); }, 60));
     this.ro.observe(this.current);
     this.offs.push(
+      app.bus.on('picker', () => this.tools.dismiss()),
       app.bus.on('state', () => { this.renderHead(); this.decorate(); }),
       app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
-      app.bus.on('picker', (on: boolean) => this.tools.setPicking(on)),
-      app.bus.on('compose-thread', () => this.tools.dismiss()),
-      app.bus.on('open-thread', () => this.tools.dismiss()),
     );
     if (!isDesc) {
       this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)));
@@ -241,23 +238,9 @@ class WalkthroughPanel implements PanelInstance {
     const sel = document.getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
-    if (!this.current.contains(range.commonAncestorContainer)) return;
-    const exact = sel.toString().trim();
-    if (exact.length < 2) return;
-    let container: Node | null = range.commonAncestorContainer;
-    if (container.nodeType === 3) container = container.parentElement;
-    const block = (container as Element).closest(BLOCKS) ?? (container as Element);
-    const found = block.id ? block : block.closest('[id]');
-    const owner = found && this.current.contains(found) ? found : this.current; // not the dock's wrapper around the review
-    const ownerText = owner.textContent || '';
-    const idx = ownerText.indexOf(range.toString());
-    const quote: TextQuote = {
-      exact,
-      prefix: idx > 0 ? ownerText.slice(Math.max(0, idx - 32), idx) : undefined,
-      suffix: idx >= 0 ? ownerText.slice(idx + range.toString().length, idx + range.toString().length + 32) : undefined,
-    };
-    const a = { target: owner === this.current ? this.rootId : owner.id };
-    this.app.selection = { kind: 'doc', anchor: { kind: 'doc', ...a, quote }, x: e.clientX, y: e.clientY, label: exact };
+    const block = resolveWalkthroughQuote(this.current, this.rootId, range);
+    if (!block) return;
+    this.app.selection = { kind: 'doc', anchor: block.anchor, x: e.clientX, y: e.clientY, label: block.excerpt };
     this.app.bus.emit('selection', this.app.selection);
   }
 

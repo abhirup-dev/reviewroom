@@ -177,12 +177,18 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
   app.bus.on('picker', (on) => {
-    root.classList.toggle('is-picking', on);
+    app.picking = on;
+    root.classList.toggle('is-picking', !!on);
     if (!on) return;
     app.selection = null;
     document.getSelection()?.removeAllRanges();
     app.bus.emit('selection', null);
   });
+  for (const event of ['compose-thread', 'open-thread', 'round-view'] as const)
+    app.bus.on(event, () => app.bus.emit('picker', false));
+  app.bus.on('selection', (s) => { if (s && app.picking) app.bus.emit('picker', false); });
+  app.listen(window, 'keyup', (e) => { if (e.key === 'Alt') app.setAnnotationAlt(false); });
+  app.listen(window, 'blur', () => app.setAnnotationAlt(false));
   root.replaceChildren(ui.header(app), dockHost);
   registerWalkthroughExtension(ui.walkthrough); // before the surface creates the panel
   root.classList.add('rr-root');
@@ -321,7 +327,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'files.tests', title: 'Toggle test files', group: 'Files', run: () => app.setPref('hideTests', !app.prefs.hideTests) },
     { id: 'doc.next', title: 'Next section', group: 'Narrative', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
     { id: 'doc.prev', title: 'Previous section', group: 'Narrative', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },
-    { id: 'pick', title: 'Pick an element to comment on', group: 'Comments', keys: ['x'], run: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) },
+    { id: 'pick', title: 'Pick an element to comment on', group: 'Comments', keys: ['x'], run: () => app.bus.emit('picker', !app.picking) },
     { id: 'comment.selection', title: 'Comment on selection', group: 'Comments', keys: ['c'], when: () => !!app.selection, run: () => {
       const s = app.selection!;
       app.compose(s.kind === 'code' ? { kind: 'code', path: s.path, rev: s.side, start: s.start, end: s.end } : s.anchor, s.kind === 'doc' ? s.label : undefined);
@@ -333,7 +339,7 @@ function registerCommands(app: ReviewApp) {
     { id: 'escape', title: 'Close / clear selection', group: 'View', keys: ['escape'], run: () => {
       // innermost first: overlays (newest first), then the selection, then pick mode
       if (app.escape()) return;
-      if (app.root.classList.contains('is-picking')) return app.bus.emit('picker', false);
+      if (app.picking) return app.bus.emit('picker', false);
       app.selection = null;
       document.getSelection()?.removeAllRanges();
       app.bus.emit('selection', null);

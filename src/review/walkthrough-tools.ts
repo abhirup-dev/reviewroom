@@ -14,7 +14,8 @@ interface Capabilities {
   pin: (block: WalkthroughBlock) => void;
   pinned(block: WalkthroughBlock): boolean;
   isPicking(): boolean;
-  picked(): void;
+  stopPicking(): void;
+  alt(on: boolean): void;
 }
 
 export class WalkthroughTools {
@@ -24,7 +25,6 @@ export class WalkthroughTools {
   }, icon('plus', 14));
   private outline = h('div', { class: 'rr-block-outline', hidden: true });
   private hovered: Element | null = null;
-  private picking = false;
   private side: 'left' | 'right' = 'left';
   private closeMenu?: () => void;
   private hideTimer?: ReturnType<typeof setTimeout>;
@@ -34,7 +34,6 @@ export class WalkthroughTools {
 
   constructor(private wrap: HTMLElement, private scroller: HTMLElement, private rail: HTMLElement, private caps: Capabilities) {
     wrap.append(this.outline, this.handle);
-    this.setPicking(caps.isPicking());
     this.listen(wrap, 'pointermove', (e) => this.move(e as PointerEvent));
     this.listen(wrap, 'pointerleave', () => { this.cancelDwell(); this.scheduleHide(); });
     this.listen(wrap, 'contextmenu', (e) => this.context(e as MouseEvent));
@@ -49,20 +48,6 @@ export class WalkthroughTools {
     this.offs.push(() => target.removeEventListener(type, listener, capture));
   }
 
-  setPicking(on: boolean) {
-    this.dismiss();
-    this.picking = on;
-    this.wrap.classList.toggle('is-picking', on);
-  }
-
-  releaseAlt() {
-    if (this.picking && !this.caps.isPicking()) {
-      this.picking = false;
-      this.wrap.classList.remove('is-picking');
-      this.hide();
-    }
-  }
-
   private selected() {
     const selection = document.getSelection();
     return !!selection && !selection.isCollapsed;
@@ -72,10 +57,8 @@ export class WalkthroughTools {
     if (e.pointerType === 'touch' || this.closeMenu || this.selected()) return;
     if (e.buttons) { this.cancelDwell(); this.hide(); return; }
     if ((e.target as Element).closest('.rr-block-handle')) return clearTimeout(this.hideTimer);
-    this.picking = this.caps.isPicking() || e.altKey;
-    this.wrap.classList.toggle('is-picking', this.picking);
-    if (this.picking) {
-      this.cancelDwell();
+    this.caps.alt(e.altKey);
+    if (this.caps.isPicking()) {
       const el = walkthroughBlock(this.caps.doc(), e.target, true);
       if (el) this.show(el, 'left', e.clientY);
       else this.hide();
@@ -149,14 +132,14 @@ export class WalkthroughTools {
       const c = node.getBoundingClientRect();
       return x < c.right && x + size > c.left && y < c.bottom && y + size > c.top;
     });
-    if (occupied && !this.picking) return this.hide();
+    if (occupied && !this.caps.isPicking()) return this.hide();
     this.hovered = el;
     this.side = side;
-    this.handle.hidden = this.picking;
+    this.handle.hidden = this.caps.isPicking();
     Object.assign(this.handle.style, { top: y - wr.top + 'px', left: x - wr.left + 'px' });
     this.handle.setAttribute('aria-label', `Actions for ${describeElement(el)}`);
-    if (this.picking) this.paintOutline(el);
-    this.outline.hidden = !this.picking;
+    if (this.caps.isPicking()) this.paintOutline(el);
+    this.outline.hidden = !this.caps.isPicking();
   }
 
   private paintOutline(el: Element) {
@@ -164,7 +147,7 @@ export class WalkthroughTools {
     const r = el.getBoundingClientRect();
     Object.assign(this.outline.style, { top: r.top - wr.top - 3 + 'px', left: r.left - wr.left - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 6 + 'px' });
     this.outline.classList.toggle('is-right', this.side === 'right');
-    this.outline.dataset.label = this.picking ? describeElement(el) : '';
+    this.outline.dataset.label = this.caps.isPicking() ? describeElement(el) : '';
   }
 
   private openMenu(point?: { x: number; y: number }) {
@@ -197,29 +180,20 @@ export class WalkthroughTools {
     const el = this.contextBlock(e.target);
     if (!el) return;
     e.preventDefault();
-    this.dismiss();
-    this.endPicking();
+    this.caps.stopPicking();
     this.hovered = el;
     this.side = 'left';
     this.openMenu({ x: e.clientX, y: e.clientY });
   }
 
-  private endPicking() {
-    if (this.caps.isPicking()) this.caps.picked();
-    this.picking = false;
-    this.wrap.classList.remove('is-picking');
-  }
-
   private click(e: PointerEvent) {
     if (!(e.target instanceof Element) || e.target.closest('a,rr-ref,.rr-block-handle,.rr-rail')) return;
-    if (this.picking && !this.caps.readOnly()) {
+    if (this.caps.isPicking() && !this.caps.readOnly()) {
       const el = walkthroughBlock(this.caps.doc(), e.target, true);
       if (!el) return;
       e.preventDefault();
       e.stopPropagation();
       this.caps.comment(this.caps.resolve(el));
-      this.dismiss();
-      if (this.caps.isPicking()) this.caps.picked();
     } else if (e.pointerType === 'touch' && !this.selected() && !e.target.closest('button,input,textarea,select')) {
       const dr = this.caps.doc().getBoundingClientRect();
       const el = walkthroughBlock(this.caps.doc(), e.target) ?? this.blockAtY(e.clientY);
@@ -237,8 +211,7 @@ export class WalkthroughTools {
       : this.contextBlock(e.target);
     if (!el) return;
     e.preventDefault();
-    this.dismiss();
-    this.endPicking();
+    this.caps.stopPicking();
     this.show(el, 'left', el.getBoundingClientRect().top);
     this.openMenu();
   }

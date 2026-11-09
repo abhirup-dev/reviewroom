@@ -8,7 +8,7 @@
   border-left: 0;
   border-right: 1px solid var(--rr-comment);
 }
-.is-picking .rr-block-outline {
+.rr-root.is-picking .rr-block-outline {
   border: 0;
   border-radius: var(--rr-radius);
   background: color-mix(in srgb, var(--rr-comment) var(--rr-mix-xs), transparent);

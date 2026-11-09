@@ -15,6 +15,7 @@ export function walkthroughBlock(doc: HTMLElement, target: EventTarget | null, p
 }
 
 function anchorFor(doc: HTMLElement, el: Element) {
+  if (el === doc) return { target: '' };
   if (el.id) return { target: el.id };
   const owner = el.parentElement?.closest('[id]');
   const root = owner && doc.contains(owner) ? owner : doc;
@@ -40,4 +41,25 @@ export function resolveWalkthroughBlock(doc: HTMLElement, rootId: string, el: El
     pinReference: sectionHeading && section ? formatRef({ type: 'doc', id: section.id }) : reference,
     excerpt: plainExcerpt(el.textContent || '', 140),
   };
+}
+
+/** Quotes keep an ID-bearing owner so their text context survives changes to inner markup. */
+export function resolveWalkthroughQuote(doc: HTMLElement, rootId: string, range: Range): WalkthroughBlock | null {
+  if (!doc.contains(range.commonAncestorContainer)) return null;
+  const raw = range.toString();
+  const exact = raw.trim();
+  if (exact.length < 2) return null;
+  const container = range.commonAncestorContainer;
+  const element = container instanceof Element ? container : container.parentElement!;
+  const block = element.closest(WALKTHROUGH_BLOCKS) ?? element;
+  const found = block.closest('[id]');
+  const owner = found && doc.contains(found) ? found : doc;
+  const resolved = resolveWalkthroughBlock(doc, rootId, owner);
+  const text = owner.textContent || '';
+  const idx = text.indexOf(raw);
+  return { ...resolved, excerpt: exact, anchor: { ...resolved.anchor, quote: {
+    exact,
+    prefix: idx > 0 ? text.slice(Math.max(0, idx - 32), idx) : undefined,
+    suffix: idx >= 0 ? text.slice(idx + raw.length, idx + raw.length + 32) : undefined,
+  } } };
 }

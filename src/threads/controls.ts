@@ -137,7 +137,7 @@ export function threadHeaderControls(app: ReviewApp): (HTMLElement | null)[] {
   roundBtn.onclick = () => roundMenu(app, roundBtn);
   return [
     app.services.threads.teamMode ? null : roundBtn,
-    h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.root.classList.contains('is-picking') ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.root.classList.contains('is-picking')) }, icon('target', 16)),
+    h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.picking ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.picking) }, icon('target', 16)),
   ];
 }
 
