@@ -176,6 +176,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   provideFocusCode(app, { openFile: (path, view, at) => openInNewPanel(app, path, view, 'center', undefined, at) });
   provideApp(app);
   const dockHost = h('div', { class: 'rr-dock' });
+  app.bus.on('picker', (on) => {
+    root.classList.toggle('is-picking', on);
+    if (!on) return;
+    app.selection = null;
+    document.getSelection()?.removeAllRanges();
+    app.bus.emit('selection', null);
+  });
   root.replaceChildren(ui.header(app), dockHost);
   registerWalkthroughExtension(ui.walkthrough); // before the surface creates the panel
   root.classList.add('rr-root');
@@ -183,6 +190,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountTooltips(app);
   mountPalette(app, ui.palette);
   mountSelectionRelease(app);
+  ui.selection?.(app);
   mountHoverCards(app);
   mountThreadPopup(app);
   const tour = mountWalkthrough(app, { phoneForm: ui.player });

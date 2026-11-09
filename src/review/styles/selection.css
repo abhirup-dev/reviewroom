@@ -1,12 +1,16 @@
 .rr-block-outline {
   position: absolute;
   pointer-events: none;
-  border-radius: var(--rr-radius);
-  background: color-mix(in srgb, var(--rr-accent) var(--rr-mix-xs), transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rr-accent) var(--rr-mix-md), transparent);
+  border-left: 1px solid var(--rr-comment);
   z-index: 1;
 }
+.rr-block-outline.is-right {
+  border-left: 0;
+  border-right: 1px solid var(--rr-comment);
+}
 .is-picking .rr-block-outline {
+  border: 0;
+  border-radius: var(--rr-radius);
   background: color-mix(in srgb, var(--rr-comment) var(--rr-mix-xs), transparent);
   box-shadow: 0 0 0 2px var(--rr-comment);
 }
@@ -24,18 +28,9 @@
 .rr-block-handle {
   position: absolute;
   z-index: 4;
-  display: flex;
-  flex-direction: column;
-  gap: var(--rr-space-2);
-  padding: var(--rr-space-2);
-  border: 1px solid var(--rr-line);
-  border-radius: var(--rr-radius);
+  width: var(--rr-control);
+  height: var(--rr-control);
   background: var(--rr-panel);
-  box-shadow: var(--rr-shadow-sm);
-}
-/* the block under it is pinned: its pin in the pin colour (walkthrough.ts, paintPin) */
-.rr-block-handle__pin[aria-pressed='true'] {
-  color: var(--rr-pin);
 }
 
 /* CSS Custom Highlight API: passive marks, zero DOM changes to the author's content */

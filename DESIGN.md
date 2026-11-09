@@ -392,15 +392,21 @@ headings. "unread" (dark red, semibold) marks a thread the agent answered this r
 
 ### Pins
 A block pinned to Contents shows a small magenta pin after its text; a pinned section shows it after its heading.
-Pinning a heading that opens a section pins the section. The block handle's pin turns magenta when its block is pinned.
+Pinning a heading that opens a section pins the section.
 
 ### Link previews
 Hovering a link for 400ms opens its preview; it closes 200ms after the pointer leaves the link and the card, and at
 once on any scroll. A scroll moving content under a still pointer doesn't count as hovering.
 
+### Walkthrough block actions
+Either margin, or a 500ms block dwell, reveals Comment, Copy reference and Pin through a plus. The right shares the
+thread rail and yields to its markers. Right-click offers Comment and Copy reference, preserving native menus.
+Saved quotes stay highlighted; selecting text offers Comment. Only Pick/Alt outlines whole blocks; menus use a bracket.
+
 ### Floating layers
 Menus, the palette and dialogs: `surface-overlay`, hairline border, 4px radius, a shadow from the vocabulary above,
 entering with a short fade (0.12 to 0.14s ease-out).
+Action popups use the shared menu surface: hover fills sit over an opaque background, and clear labels need no repeated tooltip.
 
 ## Phone
 
