@@ -103,6 +103,10 @@ export const icons = {
     '<path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>',
   install: P('M8 2.5v7M5 6.5l3 3 3-3M3 11v2.5h10V11'),
   share: P('M8 9.5V2M5.5 4.5 8 2l2.5 2.5M5.5 7H3.5v6.5h9V7h-2'),
+  // copy something to the clipboard: a clipboard
+  copy: P('M6 2h4v2.5H6zM6 3.25H4v10.25h8V3.25h-2'),
+  // the web: a globe (All reviews, the hub's page)
+  globe: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM2.5 8h11M8 2.5c-1.5 1.5-2.3 3.3-2.3 5.5s.8 4 2.3 5.5c1.5-1.5 2.3-3.3 2.3-5.5S9.5 4 8 2.5z'),
   maximize: P('M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'),
 };
 
@@ -125,6 +129,14 @@ export function threadBadge(t: { gh?: { conversation?: boolean }; status: string
     h('span', { class: 'rr-tbadge__n' }, String(t.messages.length)),
   );
 }
+
+/** Five squares split between added and removed lines, as their share of the change. */
+export const diffstat = (adds: number, dels: number) => {
+  const total = adds + dels;
+  const add = total ? Math.round((adds / total) * 5) : 0;
+  const del = total ? Math.min(5 - add, Math.round((dels / total) * 5)) : 0;
+  return h('span', { class: 'rr-diffstat', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: i < add ? 'is-add' : i < add + del ? 'is-del' : '' })));
+};
 
 /** `1 file`, `3 files`. */
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;

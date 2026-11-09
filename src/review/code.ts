@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { copyText, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, diffstat, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
@@ -38,13 +38,6 @@ const HEADER_HEIGHT = 38;
 const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hunks: [], splitLineCount: 0, unifiedLineCount: 0, isPartial: false, deletionLines: [], additionLines: [] });
 
 const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
-/** Five squares split between added and removed lines, as their share of the file's change. */
-const diffstat = (adds: number, dels: number) => {
-  const total = adds + dels;
-  const add = total ? Math.round((adds / total) * 5) : 0;
-  const del = total ? Math.min(5 - add, Math.round((dels / total) * 5)) : 0;
-  return h('span', { class: 'rr-diffstat', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: i < add ? 'is-add' : i < add + del ? 'is-del' : '' })));
-};
 /** A file card names its change in a word; a modified file (most of them) says nothing. */
 const STATUS_WORD: Record<string, string | undefined> = { added: 'Added', deleted: 'Deleted', renamed: 'Renamed' };
 

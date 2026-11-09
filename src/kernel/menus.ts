@@ -44,7 +44,11 @@ function arrows(e: KeyboardEvent) {
   e.preventDefault();
   items.at(to % items.length)?.focus();
 }
-export const menuItem = (label: string | Node, fn: () => void, opts: { hint?: string; checked?: boolean; icon?: Parameters<typeof icon>[0] } = {}) =>
-  h('button', { class: 'rr-menu__item', role: 'menuitem', onclick: fn }, h('span', { class: 'rr-menu__check' }, opts.checked ? icon('check', 12) : opts.icon ? icon(opts.icon, 14) : ''), h('span', { class: 'rr-menu__label' }, label), opts.hint ? h('span', { class: 'rr-menu__hint' }, opts.hint) : null);
+/** A menu row: its icon or check, the label, a hint after it. With `field`, a value shown under its name instead: the
+ *  name on the left, the value (cut short, mono for refs and paths), the icon on the right, as the row's action. */
+export const menuItem = (label: string | Node, fn: () => void, opts: { hint?: string; checked?: boolean; icon?: Parameters<typeof icon>[0]; field?: string; mono?: boolean; title?: string } = {}) =>
+  opts.field
+    ? h('button', { class: 'rr-menu__item rr-menu__item--field', role: 'menuitem', title: opts.title, onclick: fn }, h('span', { class: 'rr-menu__field' }, opts.field), h('span', { class: 'rr-menu__value' + (opts.mono ? ' rr-menu__value--mono' : '') }, label), opts.icon ? icon(opts.icon, 14) : null)
+    : h('button', { class: 'rr-menu__item', role: 'menuitem', title: opts.title, onclick: fn }, h('span', { class: 'rr-menu__check' }, opts.checked ? icon('check', 12) : opts.icon ? icon(opts.icon, 14) : ''), h('span', { class: 'rr-menu__label' }, label), opts.hint ? h('span', { class: 'rr-menu__hint' }, opts.hint) : null);
 export const menuLabel = (t: string) => h('div', { class: 'rr-menu__label-row' }, t);
 

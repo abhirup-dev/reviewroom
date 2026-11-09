@@ -119,6 +119,7 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
       return {
         title: cfg.title || subject,
         repo: cfg.repo || remoteName(repo),
+        path: realRepo,
         number: cfg.number,
         author: cfg.author || (!isWT(head) ? git(['log', '-1', '--format=%an', head], repo).trim() : undefined),
         url: cfg.url,
