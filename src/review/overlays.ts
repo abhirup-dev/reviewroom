@@ -9,6 +9,7 @@ import type { ReviewApp } from '../app';
 import { renderPreview } from './previews';
 import { defaultSide } from './files.shared';
 import { formatRef, parseRef } from '../kernel/refs/refs.shared';
+import { menuItem, popMenu } from '../kernel/menus';
 
 export interface PaletteItem {
   kind: 'command' | 'file' | 'section' | 'thread' | 'symbol' | 'text' | 'link';
@@ -241,6 +242,27 @@ export function mountPalette(app: ReviewApp, variantFor?: (app: ReviewApp, host:
 }
 
 // ================================================================ selection release
+/** A visible route to the same quote-comment command as `c`; the phone supplies its own selection action. */
+export function mountQuoteComment(app: ReviewApp) {
+  let close: (() => void) | undefined;
+  const hide = () => { close?.(); close = undefined; };
+  const offs = [
+    app.bus.on('selection', (s) => {
+      hide();
+      if (s?.kind !== 'doc' || !s.anchor.quote) return;
+      const button = menuItem('Comment', () => { hide(); app.commands.run('comment.selection'); }, { icon: 'thread', hint: keyLabel('c') });
+      button.setAttribute('aria-label', 'Comment on selected text');
+      button.onpointerdown = (e) => e.preventDefault(); // keep the native quote while approaching its action
+      close = popMenu(app.root, () => [button], { point: { x: s.x, y: s.y }, placement: 'top-start', focus: false });
+    }),
+    app.bus.on('compose-thread', hide),
+    app.bus.on('open-thread', hide),
+  ];
+  app.listen(document, 'scroll', hide, { capture: true, passive: true });
+  app.listen(window, 'resize', hide);
+  app.onDispose(() => { hide(); offs.forEach((off) => off()); });
+}
+
 export function mountSelectionRelease(app: ReviewApp) {
   // a click anywhere else lets go of the selection, as Esc does; clicks on line numbers or the gutter + make
   // (or extend) a new one, and clicks inside popups and menus belong to them

@@ -27,6 +27,10 @@
 .is-phone .rr-rail {
   width: 0;
 }
+.is-phone .rr-block-handle {
+  width: var(--rr-touch);
+  height: var(--rr-touch);
+}
 .is-phone .rr-rail-chip {
   left: auto;
   right: var(--rr-space-10); /* room for the count on the bubble's corner */
