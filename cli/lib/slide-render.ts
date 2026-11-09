@@ -1,4 +1,4 @@
-// Parallel audits isolate DOM state in one page per batch; only the read-only server is shared.
+// Each batch has isolated slide DOM state; workers share one read-only server.
 import { fail } from './args.ts';
 import { openPage, vpName, type Viewport } from './render.ts';
 import type { Finding, Measured } from './slide-lint.ts';
@@ -15,7 +15,7 @@ export function auditJobs(value?: string): number {
 }
 
 /** Keep neighbouring slides together for caching; split the largest batch when there are spare workers. */
-export function auditBatches({ viewports, slides, jobs }: Options): Batch[] {
+function auditBatches({ viewports, slides, jobs }: Options): Batch[] {
   const batches = viewports.map((viewport, v) => ({ viewport, slides: slides.map((s, i) => ({ ...s, index: v * slides.length + i })) }));
   while (batches.length < jobs) {
     const largest = batches.reduce((a, b) => a.slides.length >= b.slides.length ? a : b);

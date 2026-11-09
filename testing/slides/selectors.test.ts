@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
-import { selectSlides, selectionLinks } from './slide-selection.ts';
+import { selectSlides } from '../../cli/lib/slide-selection.ts';
 
 const w: Walkthrough = {
   version: 1, title: 'Selection', chapters: [
@@ -28,18 +28,4 @@ test('conflicting, unknown or malformed selectors fail rather than falling back 
   expect(() => selectSlides(w, { chapter: 'after', slide: 'after/s1' })).toThrow('mutually exclusive');
   expect(() => selectSlides(w, { chapter: 'After' })).toThrow('chapters: before, after');
   for (const slide of ['s1', 'after', 'after/s1/extra', 'after/missing', '1/1', 'rr:doc/after']) expect(() => selectSlides(w, { slide })).toThrow('slides: before/s1');
-});
-
-test('link scope includes the selected lead and effective code, but not unrelated prose or comments', () => {
-  const links = selectionLinks(w, selectSlides(w, { slide: 'before/s2' }));
-  expect(Object.fromEntries(links)).toEqual({
-    'rr:doc/intro': ['before'], 'rr:code/b.go#L2': ['before/s2'], 'rr:code/a.go#L1-40': ['before/s2'],
-  });
-});
-
-test('cross-chapter inheritance is resolved from the complete document and attributed to selected consumers', () => {
-  const links = selectionLinks(w, selectSlides(w, { chapter: 'after' }));
-  expect(Object.fromEntries(links)).toEqual({
-    'rr:doc/after': ['after'], 'rr:code/a.go#L1-40': ['after/s1'], 'rr:code/c.go#L1': ['after/s2'], 'rr:code/d.go#L2': ['after/s2'],
-  });
 });

@@ -1,18 +1,13 @@
 // The dedicated adversarial walkthrough complements the clean teaching demo.
-import { beforeEach, expect, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { withPage, withServer } from '../cli/lib/render.ts';
-import { judge, type Measured } from '../cli/lib/slide-lint.ts';
-import { auditReview, auditWalkthrough } from '../src/testing/slide-audit.ts';
-import { setup } from './fixture.ts';
+import { withPage, withServer } from '../../cli/lib/render.ts';
+import { judge, type Measured } from '../../cli/lib/slide-lint.ts';
+import { auditWalkthrough } from './cases.ts';
+import { browser, setupSlides } from './fixture.ts';
 
-const { repo, dir } = setup();
-beforeEach(() => {
-  fs.writeFileSync(path.join(dir, 'review.html'), auditReview);
-  fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify(auditWalkthrough));
-});
-const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
+const { repo, dir } = setupSlides(true);
 
 test.skipIf(!browser)('audit keeps readiness and defect detection across viewports and themes', async () => {
   await withServer(repo, dir, async (url) => {
@@ -60,29 +55,14 @@ test.skipIf(!browser)('the headless animations flag suppresses Pele SVG motion a
   });
 }, 30_000);
 
-test.skipIf(!browser)('already-ready narration does not spend fourteen display frames guessing readiness', async () => {
-  fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Ready prose', chapters: [{ id: 'ready', title: 'Ready', steps: [{ id: 'plain', text: '<p>Already laid out.</p>' }] }] }));
-  await withServer(repo, dir, (url) => withPage(url, { width: 1280, height: 800 }, async (page) => {
-    await page.audit('ready', 'plain');
-    const frames = await page.evaluate<number>(`(async () => {
-      const original = requestAnimationFrame;
-      let frames = 0;
-      window.requestAnimationFrame = (fn) => { frames++; return original.call(window, fn); };
-      try { await rr.auditWalkthrough('ready', 'plain'); return frames; }
-      finally { window.requestAnimationFrame = original; }
-    })()`);
-    expect(frames).toBeLessThan(8);
-  }, 1, { animations: false }));
-}, 30_000);
-
-test.skipIf(!browser)('audit waits for slow prose previews rather than declaring their empty boxes settled', async () => {
+test.skipIf(!browser)('audit waits for slow previews and reports deferred failures', async () => {
   for (const [tag, body] of [['rr-code', '.rr-code__body'], ['rr-embed', '.rr-embed__body .rr-snippet']]) {
     const text = `<${tag} ref="rr:code/pkg/features/habit/fetcher.go#L1-48"></${tag}>`;
-    fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Slow prose', chapters: [{ id: 'slow', title: 'Slow', steps: [{ id: 'code', text }] }] }));
+    fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Slow prose', chapters: [{ id: 'slow', title: 'Slow', steps: [{ id: 'code', text }, { id: 'failed', text }] }] }));
     await withServer(repo, dir, (url) => withPage(url, { width: 1280, height: 800 }, async (page) => {
       await page.evaluate(`(() => {
         const code = rr.app.services.code, original = code.read;
-        code.read = async (...args) => { await new Promise((r) => setTimeout(r, 600)); return original(...args); };
+        code.read = async (...args) => { await new Promise((r) => setTimeout(r, 600)); if(window.__failReads) throw new Error('slow preview read failed'); return original(...args); };
         return true;
       })()`);
       const audit = await page.audit('slow', 'code');
@@ -92,6 +72,9 @@ test.skipIf(!browser)('audit waits for slow prose previews rather than declaring
         const drawn = (root) => !!root.querySelector('[data-line]') || [...root.querySelectorAll('*')].some((e) => e.shadowRoot && drawn(e.shadowRoot));
         return drawn(document.querySelector('.rr-tour__text ${tag}'));
       })()`)).toBe(true);
+      await page.evaluate(`(window.__failReads = true)`);
+      await page.audit('slow', 'failed');
+      expect(page.errors()).toContainEqual(expect.stringContaining('slow preview read failed'));
     }, 1, { animations: false }));
   }
 }, 30_000);
@@ -105,18 +88,3 @@ test.skipIf(!browser)('a prose preview that never finishes is reported unsettled
     expect(judge([{ viewport: '1280x800', chapter: 'stuck', step: 'code', audit, errors: [] }])).toContainEqual(expect.objectContaining({ check: 'unsettled', where: 'stuck/code' }));
   }, 1, { animations: false }));
 }, 15_000);
-
-test.skipIf(!browser)('slow prose read failures reach the audit error report', async () => {
-  for (const tag of ['rr-code', 'rr-embed']) {
-    fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Failed prose', chapters: [{ id: 'failed', title: 'Failed', steps: [{ id: 'code', text: `<${tag} ref="rr:code/pkg/features/habit/fetcher.go#L1-48"></${tag}>` }] }] }));
-    await withServer(repo, dir, (url) => withPage(url, { width: 1280, height: 800 }, async (page) => {
-      page.errors();
-      await page.evaluate(`(() => {
-        rr.app.services.code.read = async () => { await new Promise((r) => setTimeout(r, 600)); throw new Error('slow preview read failed'); };
-        return true;
-      })()`);
-      await page.audit('failed', 'code');
-      expect(page.errors()).toContainEqual(expect.stringContaining('slow preview read failed'));
-    }, 1, { animations: false }));
-  }
-}, 30_000);

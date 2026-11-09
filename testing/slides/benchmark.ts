@@ -1,18 +1,18 @@
 // Repeatable worktree-local baseline; build first. Run before and after each lint optimization:
-// bun scripts/benchmark-slides.ts .demo/slides-before.json [--runs 3]
-// bun scripts/benchmark-slides.ts --diff .demo/slides-before.json .demo/slides-after.json
+// bun testing/slides/benchmark.ts .demo/slides-before.json [--runs 3]
+// bun testing/slides/benchmark.ts --diff .demo/slides-before.json .demo/slides-after.json
 // The demo is representative; the single adversarial fixture exercises known audit failures.
 import { $ } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runCheck } from '../cli/commands/check.ts';
-import { openPage, vpName, withServer } from '../cli/lib/render.ts';
-import { judge, type Measured } from '../cli/lib/slide-lint.ts';
-import { auditReview, auditWalkthrough } from '../src/testing/slide-audit.ts';
-import type { Walkthrough } from '../src/slides/model.shared.ts';
+import { runCheck } from '../../cli/commands/check.ts';
+import { openPage, vpName, withServer } from '../../cli/lib/render.ts';
+import { judge, type Measured } from '../../cli/lib/slide-lint.ts';
+import { auditReview, auditWalkthrough } from './cases.ts';
+import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
-const root = path.resolve(import.meta.dir, '..');
+const root = path.resolve(import.meta.dir, '../..');
 const entry = path.join(root, 'dist/cli/reviewroom.js');
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];
 type Sample = { checkMs: number; renderMs: number; bootMs: number; auditMs: number; cliMs: number; cliCode: number; engine: string; measurements: Measured[]; findings: unknown };
@@ -133,4 +133,4 @@ else if (first && !first.startsWith('-') && (!second || second === '--runs')) {
   const runs = third === undefined ? 3 : Number(third);
   if (!Number.isInteger(runs) || runs < 1) throw new Error('--runs must be a positive integer');
   await capture(first, runs);
-} else throw new Error('usage: bun scripts/benchmark-slides.ts <out.json> [--runs 3] | --diff <before.json> <after.json>');
+} else throw new Error('usage: bun testing/slides/benchmark.ts <out.json> [--runs 3] | --diff <before.json> <after.json>');

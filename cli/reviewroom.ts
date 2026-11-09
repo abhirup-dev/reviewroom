@@ -27,10 +27,10 @@ import { ReviewroomError } from '../src/kernel/state/ops.shared.ts';
 
 const cli = cac('reviewroom');
 cli
-  .option('--repo <path>', 'Git repo to review (default: the repo of the cwd)')
-  .option('--dir <path>', 'Review dir (default: ~/.reviewroom/reviews/<owner>-<repo>/<branch>; `status --json` prints it)');
+  .option('--repo <path>', 'Git repository; defaults to current repository')
+  .option('--dir <path>', 'Review directory; see status --json');
 
-// cac's options, except that text stays text (cac turns "42" into 42) and a repeated flag keeps its last value
+// cac's options, except that text stays text (cac turns '42' into 42) and a repeated flag keeps its last value
 const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => async (...args: unknown[]) => {
   const o = args.pop() as Record<string, unknown>;
   for (const [k, v] of Object.entries(o)) {
@@ -45,66 +45,66 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
 };
 
 cli
-  .command('pr [target]', 'Create the review (fetching a PR if given one) and serve it')
-  .usage('pr [<number> | <PR url> | <branch>] [options]\n\n  No target: review the current branch (or --base/--head) without fetching.\n  Review dir (unless --dir): ~/.reviewroom/reviews/<owner>-<repo>/<branch> (for a PR, its head branch).')
-  .option('--base <ref>', 'Base to diff against (default: the PR base, else the default branch)')
-  .option('--head <ref>', 'Head when no target is given; `worktree` = uncommitted changes')
+  .command('pr [target]', 'Create and serve a review')
+  .usage('pr [number|URL|branch] [options]')
+  .option('--base <ref>', 'Base: PR base or default branch')
+  .option('--head <ref>', 'Head revision; worktree includes uncommitted changes')
   .option('--title <text>', 'Review title')
-  .option('--remote <name>', 'Remote to fetch from', { default: 'origin' })
-  .option('--force', 'Overwrite an existing review.html with the scaffold (and walkthrough.json with the PR\'s guided walkthrough)')
-  .option('--detach', 'Serve in the background, print the URL and return')
-  .option('--wait', 'Then block like `review` until the round ends')
+  .option('--remote <name>', 'Git remote', { default: 'origin' })
+  .option('--force', 'Replace review.html and PR walkthrough')
+  .option('--detach', 'Serve in background; print URL')
+  .option('--wait', 'Wait for the first feedback round')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
-  .option('--browser', 'Open in the browser even when the macOS app is installed')
+  .option('--browser', 'Open browser instead of macOS app')
   .example('  reviewroom pr 4821 --wait')
   .example('  reviewroom pr --head worktree --wait')
   .action(run<PrOpts>((repo, o, pos) => cmdPr(repo, o, pos[0])));
 
 cli
-  .command('review', 'Serve and block until the reviewer sends feedback or approves; print it')
-  .option('--forever', 'Keep serving; never wait for a round (for a long-running session)')
+  .command('review', 'Serve until feedback arrives')
+  .option('--forever', 'Serve continuously without waiting for feedback')
   .option('--port <n>', 'Port (default: the previous one, else 4848)')
   .option('--no-open', 'Do not open the browser')
-  .option('--browser', 'Open in the browser even when the macOS app is installed')
+  .option('--browser', 'Open browser instead of macOS app')
   .action(run<ServeOpts>((repo, o) => cmdServe(repo, o, !o.forever)));
 
 cli
-  .command('status', 'Round, threads, threads awaiting your reply')
-  .option('--threads', 'List the open threads with their messages')
-  .option('--all', 'With --threads: include resolved threads')
-  .option('--json', 'Machine-readable: paths, URL, shas (and threads with --threads)')
+  .command('status', 'Show review status and threads')
+  .option('--threads', 'Include open threads and messages')
+  .option('--all', 'Include resolved threads')
+  .option('--json', 'Print JSON')
   .action(run<StatusOpts & { threads?: boolean }>((repo, o) => (o.threads ? cmdThreads(repo, o) : cmdStatus(repo, o))));
 
 cli
-  .command('reply [thread] [body]', 'Answer a thread as the agent ("-" = body from stdin)')
-  .option('--resolve', 'Resolve the thread; without a body, only resolve it')
-  .option('--file <path>', 'Read the body from a file')
-  .option('--json [file]', 'Bulk: [{"thread": id, "body": md, "resolve": bool}] from a file or "-"; all or nothing')
+  .command('reply [thread] [body]', 'Reply to a thread')
+  .option('--resolve', 'Resolve only when the user requests it')
+  .option('--file <path>', 'Read input from a file')
+  .option('--json [file]', 'Reply atomically from JSON file or stdin')
   .example('  reviewroom reply t_ab12 "Fixed in 3f2c1e"')
   .example('  reviewroom reply --json replies.json')
   .action(run(cmdReply));
 
 cli
-  .command('comment <ref> [body]', 'Start a thread as the agent on an rr: link, or "general"')
-  .option('--file <path>', 'Read the body from a file')
+  .command('comment <ref> [body]', 'Start a thread on a reference')
+  .option('--file <path>', 'Read input from a file')
   .action(run(cmdComment));
 
 cli
-  .command('check', 'Check rr: links in review.html and walkthrough.json against the code (exit 1 while any need attention, or walkthrough.json breaks its schema)')
-  .option('--fix', 'Rewrite links whose code moved a few lines')
-  .option('--accept', 'Take every link as it is now')
-  .option('--json', 'Print problems as JSON: { links, walkthrough }, plus schema (the issues) when walkthrough.json breaks its schema')
+  .command('check', 'Validate references and walkthrough schema')
+  .option('--fix', 'Update links moved within five lines')
+  .option('--accept', 'Refresh link fingerprints')
+  .option('--json', 'Print JSON')
   .action(run(cmdCheck));
 
 cli
-  .command('slide-lint', 'Check the guided walkthrough (walkthrough.json), then measure all or selected slides in a headless browser')
-  .option('--jobs <n>', 'Concurrent isolated audit pages (1-8, default 1); share one read-only server')
-  .option('--chapter <id>', 'Check one chapter by its id (mutually exclusive with --slide)')
-  .option('--slide <chapter/step>', 'Check one slide by its ids (mutually exclusive with --chapter)')
-  .option('--viewport <WxH,...>', 'Viewports to measure at (default 1280x800,1440x900)')
-  .option('--native', 'Use native raster resolution instead of capping height at 480 pixels; CSS viewports stay unchanged')
-  .option('--json', 'Print { engine, jobs, viewports, rasterHeight, selection, coverage, links, findings } as JSON')
+  .command('slide-lint', 'Audit all or selected guided slides')
+  .option('--jobs <n>', 'Concurrent pages: 1-8, default 1')
+  .option('--chapter <id>', 'Chapter ID; excludes --slide')
+  .option('--slide <chapter/step>', 'Slide IDs; excludes --chapter')
+  .option('--viewport <WxH,...>', 'CSS viewports; default 1280x800,1440x900')
+  .option('--native', 'Use native pixels instead of the 480-height cap')
+  .option('--json', 'Print JSON')
   .example('  reviewroom slide-lint')
   .example('  reviewroom slide-lint --jobs 2')
   .example('  reviewroom slide-lint --chapter latency')
@@ -112,20 +112,20 @@ cli
   .action(run(cmdSlideLint));
 
 cli
-  .command('publish-slides', 'Post the guided walkthrough (walkthrough.json) to the PR, where `reviewroom pr <n>` picks it up')
-  .option('--dry-run', 'Print the comment instead of posting it')
-  .option('--allow-stale', 'Post even if some links need attention (never with schema errors)')
+  .command('publish-slides', 'Publish guided slides to the PR')
+  .option('--dry-run', 'Print without posting')
+  .option('--allow-stale', 'Allow stale links; schema must pass')
   .example('  reviewroom publish-slides')
   .action(run(cmdPublishSlides));
 
 cli
-  .command('shot [section]', 'The review as the reviewer reads it, as PNGs (one picture if short, else one per section; a tall section in parts), to look at without a browser. <chapter>/<step>: one guided-walkthrough slide instead, with what slide-lint finds on it')
-  .option('--theme <light|dark>', 'The theme (default light)')
-  .option('--mobile', 'As on a phone: the panel 390 CSS px wide')
-  .option('--viewport <WxH>', 'A slide: the screen (default 1280x800)')
-  .option('--native', 'Use native raster resolution instead of the default 480-pixel height cap')
-  .option('--prose-only', 'A guided slide: capture only the narration pane at its full-slide proportions; skip the code pane')
-  .option('--out <dir>', 'Where to write the PNGs (default: a temp dir, emptied first for the review; the paths are printed)')
+  .command('shot [section]', 'Capture review sections or chapter/step slides')
+  .option('--theme <light|dark>', 'Theme; default light')
+  .option('--mobile', 'Review panel width: 390 CSS pixels')
+  .option('--viewport <WxH>', 'Slide viewport; default 1280x800')
+  .option('--native', 'Use native pixels instead of the 480-height cap')
+  .option('--prose-only', 'Crop narration unchanged; skip right-hand code')
+  .option('--out <dir>', 'PNG directory; defaults to temporary storage')
   .example('  reviewroom shot')
   .example('  reviewroom shot request-path --theme dark')
   .example('  reviewroom shot --mobile')
@@ -133,92 +133,74 @@ cli
   .example('  reviewroom shot latency/s3 --prose-only --native')
   .action(run(cmdShot));
 
-cli.command('stop', 'Stop a server started with --detach').action(run(cmdStop));
+cli.command('stop', 'Stop a detached review server').action(run(cmdStop));
 
 cli
-  .command('hub', 'Every review running on this machine (reviewroom, Crit, Plannotator) on one page')
-  .option('--detach', 'Run in the background, print the URL and return')
+  .command('hub', 'List local review sessions')
+  .option('--detach', 'Serve in background; print URL')
   .option('--stop', 'Stop the running hub')
   .option('--port <n>', 'Port (default: 4847)')
-  .option('--public-origin <url>', 'Save the HTTPS origin a front serves the hub at (`none` clears it); see below')
+  .option('--public-origin <url>', 'Save public HTTPS origin; none clears it')
   .option('--no-open', 'Do not open the browser')
   .action(run<HubOpts>((_repo, o) => cmdHub(o)));
 
 // What an agent needs beyond the flags, shown under the command's --help.
-const ghThreads = '  gh_<n> threads are the PR\'s own GitHub threads (gh_conversation = its conversation tab): colleagues\'\n  threads, not feedback for you. You cannot reply to them; link one with rr:thread/gh_<n>.';
 const notes: Record<string, string> = {
-  'slide-lint': [
-    '  By default runs `check` (schema, links, what the guided walkthrough leaves out, its pacing), then plays every slide in a headless',
-    '  browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) on the review as built now, and reports',
-    '  what the reviewer would hit: narration that needs scrolling, highlighted lines off screen, stacked chunks too',
-    '  short to read, content wider than its box, prose the sanitizer strips, page errors. Each finding names the',
-    '  slide (chapter/step) and how to fix it; exit 1 while any warning is left. Nothing is written.',
-    '  --chapter and --slide use walkthrough.json ids, never titles or slide numbers. Unknown ids are errors.',
-    '  A partial check validates the whole schema, but links, focus and layout only for selected slides, their chapter',
-    '  leads and inherited code targets. review.html remains available for rr:doc targets. Page startup errors still',
-    '  count; whole-tour coverage and pacing checks are skipped. The report lists partial coverage explicitly.',
-    '  Keep the full walkthrough loaded: a slide can inherit code from an earlier chapter. Run without selectors',
-    '  for the final full check. --slide also accepts an existing rr:tour/<chapter>/<step> link.',
-    '  --jobs 2 runs isolated pages concurrently, sharing one read-only server. Each page audits its slides sequentially.',
-    '  Extra workers split neighbouring slides into batches; reports keep viewport and slide order. Static checks run once.',
-    '  The default is one worker. Worker count is bounded by available viewport/slide batches; each worker uses a fresh browser.',
-    '  Raster height is capped at 480 pixels by default, without changing CSS viewport sizes or fit checks.',
-    '  --native opts out. Chrome caps the render scale; WebKit preserves layout and scales screenshot output.',
-  ].join('\n'),
-  'publish-slides': [
-    '  Runs `check` on walkthrough.json first, then posts it as a PR conversation comment holding a',
-    '  ```reviewroom-walkthrough block (as gh\'s user); publishing again updates that comment. `reviewroom pr <n>`',
-    '  on another machine pulls it. A comment over GitHub\'s 65,536 characters is refused.',
-  ].join('\n'),
-  shot: [
-    '  Renders review.html in a headless browser (a fresh Chrome; on macOS without Chrome, Safari\'s engine) as the',
-    '  Review panel shows it, alone, as wide as in the default layout on a 1280x800 screen. A review up to 1400 px',
-    '  tall is one picture; a longer one gets a picture per section (the Contents\' sections: top-level <section id>),',
-    '  the title and lead going with the first. A section over 1400 px is cut between its blocks into parts',
-    '  (<n>-<id>-1.png, -2, ...). [section] renders that section only. --mobile renders it 390 px wide, as on a',
-    '  phone (the review is also read there). Prints each PNG\'s path and size, then what sticks out past the',
-    '  panel\'s edge (by section and element; a box that scrolls or clips its content counts as fitting), then the',
-    '  page\'s script errors. Optional: for checking your own HTML, or a layout problem the reviewer reports.',
-    '  Nothing in the review is written.',
-    '  shot <chapter>/<step> renders one guided-walkthrough slide instead (after it settles) and prints the PNG\'s',
-    '  path, then that slide\'s slide-lint findings.',
-    '  PNGs are capped at 480 pixels high by default (short captures are never enlarged). --native keeps native',
-    '  resolution. The CSS viewport and panel widths stay unchanged; output sizes are physical pixels.',
-    '  For a guided slide, --prose-only crops the existing narration pane: it does not widen, reflow or scroll it.',
-    '  Code-pane resolution/rendering is skipped; code embedded in the prose still renders. This is a prose check,',
-    '  not a full slide audit. Add --native for a sharper crop. Native and prose captures have distinct filenames.',
-  ].join('\n'),
-  pr: '  A PR that carries a guided walkthrough (a ```reviewroom-walkthrough block in its description, or in a comment by its\n  author or you; see `publish-slides`) gets it as walkthrough.json when the review has none. Newest wins.',
-  reply: '  Thread ids can be shortened to a unique prefix. Resolving is the reviewer\'s call: pass --resolve only when\n  the user asks.\n' + ghThreads,
-  status: ghThreads.replace('You cannot reply', '--threads lists the open ones under "Open on GitHub"; --json returns them as\n  `github`. You cannot reply'),
-  hub: [
-    '  One hub per machine; a second `hub` prints the running one\'s URL. A review\'s "All reviews" button starts',
-    '  it in the background when none runs. It lists servers from ~/.reviewroom/sessions, ~/.crit/sessions and',
-    '  Plannotator\'s sessions dir, shows counts (never thread text) and can close a session.',
-    '  Each running review is also served through the hub at /r/<id>/ (<id>: first 12 hex of sha1 of its dir).',
-    '  For a phone: put a front that ends in HTTPS in front of 127.0.0.1:4847 (tailscale serve on your tailnet,',
-    '  a tunnel with an access policy) and save its origin with --public-origin, kept in ~/.reviewroom/config.json',
-    '  and read when the hub starts. The hub then answers that Host and Origin too and stays on its port, and',
-    '  `hub`, `hub --detach` and a second `hub` print that public URL on stderr (stdout stays the loopback URL). Anyone',
-    '  the front lets through can read and write every running review: reviewroom checks no identity.',
-  ].join('\n'),
-  check: [
-    '  Each link in review.html is remembered by what it pointed at when first seen. Problems:',
-    '    moved     same lines, now at most 5 lines away   -> --fix rewrites the link',
-    '    changed   code at those lines changed, or moved further, or a symbol lost its definition',
-    '              -> re-read the code; fix the link and the prose around it (or --accept if both still hold)',
-    '    broken    the file, symbol or section (rr:doc/<id>) is gone -> fix or remove the link',
-    `  walkthrough.json, when present, must match ${WALKTHROUGH_SCHEMA} (checked first); its slide refs and`,
-    '  the links in its prose are checked like the walkthrough\'s, and problems name the slide (chapter/step) they are in.',
-    '  Then whether it works as a guided walkthrough (notes, exit code unaffected): changed files no slide shows,',
-    '  chapters of one slide or more than 6, and estimates of slides too long to fit (over 120 words;',
-    '  over about 25 highlighted lines for one ref, 10 each for two stacked; more than two refs stacked). Each note says how to fix it.',
-    '  The server also checks on start and on every save of review.html or walkthrough.json. Links in HTML comments are ignored.',
-  ].join('\n'),
+  'slide-lint': `  Read-only: schema, links, focus, overflow, code visibility, sanitization.
+  Warnings exit 1; findings identify slides and fixes.
+  Selectors use IDs; --slide also accepts rr:tour/<chapter>/<step>.
+  Partial checks retain leads and inherited targets.
+  Partial checks skip whole-tour coverage and pacing.
+  Run without selectors for final validation.
+  Workers share a server; pages stay isolated.
+  JSON: engine, jobs, viewports, rasterHeight, selection, coverage, links, findings.
+  Chrome caps raster scale; WebKit scales screenshot output.
+  CSS geometry stays unchanged.`,
+  'publish-slides': `  Validates first; updates its existing PR comment.
+  Uses GitHub authentication from gh.
+  Rejects schema errors and comments exceeding 65,536 characters.`,
+  'shot': `  Default: review panel width; phone width is 390 CSS pixels.
+  Long sections split at 1400 CSS pixels.
+  Slide targets use <chapter>/<step>; findings follow PNG paths.
+  PNG height caps at 480 pixels; short images stay native.
+  CSS layout stays unchanged; --native preserves native pixel density.
+  Prose-only crops the existing pane without reflow.
+  Skips right-hand code; embedded prose code still renders.
+  Prose-only findings exclude right-hand code.
+  Nothing is written to the review.`,
+  'pr': `  Loads available PR walkthroughs into missing walkthrough.json files.
+  Newest author-owned or agent-owned walkthrough wins.`,
+  'reply': `  Thread IDs accept unique prefixes.
+  Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
+  Resolve threads only when the user requests it.
+  gh_<n> identifies GitHub threads; gh_conversation identifies PR conversation.
+  These belong to colleagues; agents cannot reply.
+  Link them with rr:thread/gh_<n>.`,
+  'status': `  gh_<n> identifies GitHub threads; gh_conversation identifies PR conversation.
+  These belong to colleagues; agents cannot reply.
+  Link them with rr:thread/gh_<n>.`,
+  'hub': `  One hub per machine; repeated starts print its URL.
+  Lists reviewroom, Crit, and Plannotator sessions without thread text.
+  Reviews are proxied at /r/<id>/.
+  Public URL: stderr; loopback URL: stdout.
+  Public access requires an HTTPS front and --public-origin.
+  The front controls access; Reviewroom checks no identity.
+  Allowed visitors can read and modify every running review.`,
+  'check': `  Tracks link fingerprints across review.html and walkthrough.json.
+  Moved: within five lines; --fix updates links.
+  Changed: inspect code and prose; --accept refreshes fingerprints.
+  Broken: fix or remove missing targets.
+  Broken schema or unresolved links exit 1.
+  Walkthrough schema: ${WALKTHROUGH_SCHEMA}
+  Notes cover coverage, chapter sizing, text, and highlighted-code budgets.
+  Budgets: 120 words; 25 lines, or 10 per stack.
+  Chapter budgets: 2-6 slides; at most two stacked refs.
+  Notes do not change check's exit status.
+  HTML comments are ignored; servers recheck after saves.`,
 };
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
-  // cac shows negated flags as "(default: true)", which reads as the opposite of what --no-open does
+  // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
   const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
   if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
@@ -227,30 +209,29 @@ cli.help((sections) => {
     {
       title: 'A review',
       body: [
-        '  reviewroom pr <n> --wait         create + serve, block until the first round ends; write review.html meanwhile',
-        '  reviewroom shot [section]        look at the review as PNGs, when you want to (no browser needed)',
-        '  reviewroom reply <thread> "..."    answer each thread in the feedback',
-        '  reviewroom review --dir <dir>    serve and block until the next round ends; repeat until approved',
-        '  Run the blocking commands in the background: a round can take hours. Threads, replies and rounds',
-        '  are kept when the server stops between rounds.',
+        '  pr <n> --wait: create, serve, await feedback.',
+        '  shot [section]: inspect PNG output.',
+        '  reply <thread> "...": answer feedback.',
+        '  review --dir <dir>: await the next round.',
+        '  Run waiting commands in background; rounds may take hours.',
+        '  Threads and rounds survive server restarts.',
       ].join('\n'),
     },
     {
       title: 'A guided walkthrough (when wanted)',
       body: [
-        '  walkthrough.json next to review.html: the main story of the diff as slides, played over the workbench',
-        '  reviewroom slide-lint             check it, then measure every slide on screen; repeat until clean',
-        '  reviewroom shot <chapter>/<step>  one slide as a PNG, to look at what a finding names',
-        '  reviewroom publish-slides         post it to the PR, where `reviewroom pr <n>` picks it up',
+        '  walkthrough.json sits beside review.html.',
+        '  slide-lint: validate guided slides.',
+        '  shot <chapter>/<step>: inspect one slide.',
+        '  publish-slides: publish to the PR.',
       ].join('\n'),
     },
     {
       title: 'The review dir',
       body: [
-        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (REVIEWROOM_HOME moves ~/.reviewroom), outside',
-        '  the repo. review.html, walkthrough.json and any assets next to them are yours; everything else',
-        '  (state.json, config.json, layout.json, rounds/) belongs to reviewroom: read and change it through',
-        '  these commands only.',
+        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/; REVIEWROOM_HOME overrides the root.',
+        '  Author review.html, walkthrough.json, and adjacent assets.',
+        '  Change state, config, layouts, and rounds through CLI commands.',
       ].join('\n'),
     },
   ];

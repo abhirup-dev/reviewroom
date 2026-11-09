@@ -1,6 +1,6 @@
 // One adversarial walkthrough over the demo repo, shared by browser regressions and the benchmark.
 // Deliberate defects stay here rather than making the teaching demo a broken review.
-import type { Walkthrough } from '../slides/model.shared';
+import type { Walkthrough } from '../../src/slides/model.shared';
 
 const builder = 'rr:code/pkg/ranker/request_builder.go#L46-54';
 const fetcher = 'rr:code/pkg/features/habit/fetcher.go#L20-28';

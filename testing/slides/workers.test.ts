@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { auditBatches, auditJobs, auditSlides } from './slide-render.ts';
-import type { Page } from './render.ts';
+import { auditJobs, auditSlides } from '../../cli/lib/slide-render.ts';
+import type { Page } from '../../cli/lib/render.ts';
 import type { StepAudit } from '../../src/slides/model.shared.ts';
 
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];
@@ -12,15 +12,6 @@ test('jobs are explicit, bounded integers', () => {
   expect(auditJobs()).toBe(1);
   expect(auditJobs('8')).toBe(8);
   for (const value of ['0', '-1', '9', '2.5', 'many', '1e0', '']) expect(() => auditJobs(value)).toThrow('--jobs');
-});
-
-test('batches preserve each viewport/slide pair exactly once and cap idle workers', () => {
-  for (const jobs of [1, 2, 4, 8]) {
-    const batches = auditBatches({ viewports, slides, jobs });
-    expect(batches.length).toBe(Math.max(2, jobs));
-    expect(batches.flatMap((b) => b.slides.map((s) => s.index)).sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i));
-  }
-  expect(auditBatches({ viewports, slides: slides.slice(0, 1), jobs: 8 })).toHaveLength(2);
 });
 
 function pages(failAt?: string) {

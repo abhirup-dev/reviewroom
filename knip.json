@@ -5,13 +5,15 @@
     "src/hub/index.ts",
     "src/sw.ts",
     "cli/reviewroom.ts",
-    "scripts/*.ts"
+    "scripts/*.ts",
+    "testing/slides/benchmark.ts"
   ],
   "project": [
     "src/**/*.ts",
     "cli/**/*.ts",
     "scripts/**/*.ts",
-    "e2e/**/*.ts"
+    "e2e/**/*.ts",
+    "testing/**/*.ts"
   ],
   "ignoreDependencies": [
     "@fontsource-variable/.+"
