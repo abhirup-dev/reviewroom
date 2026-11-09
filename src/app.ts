@@ -66,7 +66,7 @@ export interface AppEvents extends Record<string, unknown> {
   /** a code panel finished a reveal: its lines are highlighted and on screen (or there was nothing to highlight) */
   'code-landed': { panel: string };
   'reveal-doc': { id: string; path?: string; threadId?: string };
-  picker: boolean;
+  picker: boolean | 'alt';
   'open-thread': { id: string; focusComposer?: boolean };
   'compose-thread': { anchor: Anchor; quote?: string; to?: 'agent' | 'github' };
   selection: Selection;
@@ -86,6 +86,12 @@ export interface AppEvents extends Record<string, unknown> {
 export class ReviewApp {
   readonly bus = new Emitter<AppEvents>();
   readonly commands = new Commands();
+  /** Shared targeting mode; CSS and the tools only reflect it. */
+  picking: AppEvents['picker'] = false;
+  setAnnotationAlt(on: boolean) {
+    const mode = on ? 'alt' : false;
+    if (this.picking !== true && this.picking !== mode) this.bus.emit('picker', mode);
+  }
   meta!: ReviewMeta;
   provider!: CodeProvider;
   backend!: StateBackend;
