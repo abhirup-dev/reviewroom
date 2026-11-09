@@ -6,8 +6,8 @@ import { Glob } from 'bun';
 
 const LOOKALIKE = /[\u2212\u00a0\u200b-\u200d\ufeff]/;
 const bad: string[] = [];
-for (const file of new Glob('{cli,scripts,src}/**/*.{ts,css}').scanSync()) {
-  const asciiOnly = /^(cli|scripts)\//.test(file) || file.endsWith('.shared.ts');
+for (const file of new Glob('{cli,scripts,src,testing}/**/*.{ts,css}').scanSync()) {
+  const asciiOnly = /^(cli|scripts|testing)\//.test(file) || file.endsWith('.shared.ts');
   fs.readFileSync(file, 'utf8')
     .split('\n')
     .forEach((line, i) => {

@@ -3,21 +3,19 @@
 // checks compare against the current code.
 // Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
+import { z } from 'zod';
 import type { Provider } from './git.ts';
 import { regex } from 'regex';
 import { LINK_IN_TEXT, lineSpanOf, parseRef, symbolHits, symbolQuery, trimLink, withLineSpan } from '../../src/kernel/refs/refs.shared.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
-export type LinkStatus = 'ok' | 'new' | 'moved' | 'changed' | 'broken';
-export interface LinkResult {
-  ref: string;
-  status: LinkStatus;
-  why?: string;
-  /** where it is in walkthrough.json (`<chapter>/<step>`, or `<chapter>` for a lead) */
-  where?: string[];
-  /** for `moved`: the fixed link */
-  to?: string;
-}
+const LinkStatus = z.enum(['ok', 'new', 'moved', 'changed', 'broken']);
+export type LinkStatus = z.infer<typeof LinkStatus>;
+export const LinkResult = z.object({
+  ref: z.string(), status: LinkStatus, why: z.string().optional(),
+  where: z.array(z.string()).optional(), to: z.string().optional(),
+});
+export type LinkResult = z.infer<typeof LinkResult>;
 /** ref -> fingerprint (a line-range hash, or 'definition' for a symbol): state.json `links`. */
 export type Links = Record<string, string>;
 
@@ -32,10 +30,11 @@ export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
 /**
  * Check every link in `html`, and in `extra` (walkthrough.json's prose and refs: tourText), against the code. `known` is the ref -> hash map from the last check
  * (state.json `links`); `tour` is the parsed walkthrough.json a `rr:tour` link must point into; the returned `links` is the new one (links no longer in the walkthrough drop out).
+ * An array in `extra` checks only those refs; the full HTML and tour still resolve doc/tour targets.
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
-export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra = '', tour: Walkthrough | null = null) {
+export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra: string | readonly string[] = '', tour: Walkthrough | null = null) {
   const visible = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
@@ -50,7 +49,9 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     return files.get(sha + ':' + p);
   };
   const out = (ref: string, status: LinkStatus, why?: string | null, to?: string) => results.push({ ref, status, ...(why && { why }), ...(to && { to }) });
-  for (const ref of extractLinks(visible + '\n' + uncomment(extra))) {
+  // An explicit ref list scopes validation, while the full HTML remains available to resolve rr:doc targets.
+  const refs = typeof extra === 'string' ? extractLinks(visible + '\n' + uncomment(extra)) : [...new Set(extra)];
+  for (const ref of refs) {
     const r = parseRef(ref);
     if (!r || r.type === 'thread' || r.type === 'round') {
       out(ref, 'broken', 'not a valid link');

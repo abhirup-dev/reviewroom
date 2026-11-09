@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
-import { makeProvider } from '../lib/git.ts';
+import { makeProvider, type Provider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
@@ -9,18 +9,36 @@ import { fixTour, locate, tourText } from '../lib/slides-file.ts';
 import { findingReport, lintTour, type Finding } from '../lib/slide-lint.ts';
 import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
+import { selectSlides, selectionLinks, type SlideSelector, type SlideSelection } from '../lib/slide-selection.ts';
 
-type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[] };
+type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[]; selection?: SlideSelection };
+type CheckOptions = { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean; notes?: boolean; select?: SlideSelector };
+
+function checkScope(value: Walkthrough | null, o: CheckOptions, dir: string) {
+  const selection = o.select ? selectSlides(value ?? fail(`no walkthrough.json in ${dir}`), o.select) : undefined;
+  const partial = selection && selection.scope.kind !== 'all';
+  if (partial && (o.fix || o.accept || o.store !== false)) fail('scoped slide checks must be read-only');
+  const selected = partial ? new Set(selection.slides.map((s) => `${s.chapter}/${s.step}`)) : undefined;
+  const locations = partial ? selectionLinks(value!, selection) : undefined;
+  return { selection, selected, locations };
+}
+
+function staticNotes(value: Walkthrough | null, prov: Provider, o: CheckOptions, selected?: ReadonlySet<string>) {
+  if (!value || o.notes === false) return [];
+  return lintTour(value, selected ? [] : prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates, selected });
+}
 
 /** The stale-link check of review.html (missing: '') and walkthrough.json, which must match its schema first
  *  (else only `issues`), plus the walkthrough's static checks (`notes`; `estimates: false` when rendering measures them).
- *  Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files. */
-export async function runCheck(repo: string | null, dir: string, o: { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean; notes?: boolean } = {}): Promise<Checked> {
+ *  Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files.
+ *  `select` scopes slide checks without slicing the full tour; a partial selection requires store:false. */
+export async function runCheck(repo: string | null, dir: string, o: CheckOptions = {}): Promise<Checked> {
   const tour = readWalkthrough(dir);
   if (tour && !tour.ok) return { issues: tour.issues };
   const file = path.join(dir, 'review.html');
   const tourFile = walkthroughPath(dir);
   const value = tour?.ok ? tour.value : null; // past the schema check, a walkthrough that is there is valid
+  const { selection, selected, locations } = checkScope(value, o, dir);
   const tourRaw = value ? fs.readFileSync(tourFile, 'utf8') : '';
   const r = repo ?? fail('not inside a git repository (use --repo)');
   const raw = makeProvider(r, loadConfig(dir, r));
@@ -28,7 +46,7 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir, { repair: o.store !== false }).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, value ? tourText(value) : '', value);
+  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, locations ? [...locations.keys()] : value ? tourText(value) : '', value);
   let fixed = html, fixedTour = tourRaw;
   if (o.fix && results.some((x) => x.status === 'moved')) {
     if (value) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below
@@ -39,8 +57,9 @@ export async function runCheck(repo: string | null, dir: string, o: { fix?: bool
   const healed = fixed !== html || fixedTour !== tourRaw;
   if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : '', value));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
-  const notes = value && o.notes !== false ? lintTour(value, prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates }) : [];
-  return { tour: value, results, bad: locate(problems(results), value), healed, notes };
+  const notes = staticNotes(value, prov, o, selected);
+  const bad = locations ? problems(results).map((r) => ({ ...r, where: locations.get(r.ref) })) : locate(problems(results), value);
+  return { tour: value, results, bad, healed, notes, selection };
 }
 
 export const WALKTHROUGH_SCHEMA = path.join(PKG, 'schema', 'walkthrough.schema.json');

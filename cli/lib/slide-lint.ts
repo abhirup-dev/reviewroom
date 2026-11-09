@@ -1,14 +1,16 @@
 // Whether a walkthrough works as a walkthrough, beyond the schema and its links: what it leaves out, its pacing, and
 // (rendered, `slide-lint`) whether each step fits the screen. Findings name the step and say how to fix it.
+import { z } from 'zod';
 import type { ChangedFile } from '../../src/kernel/state/model.shared.ts';
 import { plain } from '../../src/threads/feedback.shared.ts';
 import { parseRef } from '../../src/kernel/refs/refs.shared.ts';
-import { nodeLabel, stepRefs, type StepAudit, type Walkthrough } from '../../src/slides/model.shared.ts';
+import { nodeLabel, stepRefs, StepAudit, type Walkthrough } from '../../src/slides/model.shared.ts';
 import { extractLinks, uncomment } from './links.ts';
 import { tourText } from './slides-file.ts';
 import { render } from 'pele';
 
-export type Finding = { check: string; level: 'warn' | 'info'; where?: string; message: string; fix: string };
+export const Finding = z.object({ check: z.string(), level: z.enum(['warn', 'info']), where: z.string().optional(), message: z.string(), fix: z.string() });
+export type Finding = z.infer<typeof Finding>;
 
 const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
 /** Markup's text as the page's textContent reads it: tags dropped, entities decoded, newlines kept. */
@@ -38,8 +40,7 @@ const TEST = /(^|\/)(tests?|__tests__|testdata)\/|[._-](test|spec)\.[^/]+$|(^|\/
 // lock, checksum, doc and generated files: only mentioned, like tests
 const SKIP = /(^|\/)(bun\.lock|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|go\.sum|Cargo\.lock|Gemfile\.lock|poetry\.lock|uv\.lock|package\.json|go\.mod|Cargo\.toml|Gemfile|pyproject\.toml|requirements[^/]*\.txt|pom\.xml|build\.gradle(\.kts)?)$|\.(sum|sha256|md|pb\.go)$|_generated\.[^/]+$|\.gen\.[^/]+$|(^|\/)dist\//;
 
-/** The static checks. `estimates`: also the text-length and range-width guesses that rendering measures for real. */
-export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name: string) => string | undefined, { estimates = true } = {}): Finding[] {
+function unshownFiles(w: Walkthrough, changed: ChangedFile[], symPath: (name: string) => string | undefined): Finding[] {
   const out: Finding[] = [];
   const shown = new Set<string>();
   for (const ref of extractLinks(uncomment(tourText(w)))) { // a link in an HTML comment shows nothing
@@ -55,14 +56,20 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
   if (big.length) out.push({ check: 'unshown-file', level: 'warn', message: `${big.length} changed file(s) no slide shows: ${big.map(size).join(', ')}`, fix: 'Show each on a slide, or link it in a slide\'s text saying why the reader can skip it.' });
   const rest = [...code.filter((f) => !big.includes(f)), ...missed.filter(minor)];
   if (rest.length) out.push({ check: 'unshown-file', level: 'info', message: `also not shown (small, tests, generated, lock or doc files): ${rest.map(size).join(', ')}`, fix: 'Fine to skip; show tests when they are the evidence for a claim.' });
+  return out;
+}
 
+/** Static checks. A selection skips whole-tour coverage/pacing and unrelated slides, retaining each slide's real lead. */
+export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name: string) => string | undefined, { estimates = true, selected }: { estimates?: boolean; selected?: ReadonlySet<string> } = {}): Finding[] {
+  const out = selected ? [] : unshownFiles(w, changed, symPath);
   const total = w.chapters.reduce((n, c) => n + c.steps.length, 0);
-  if (total > MAX_TOTAL) out.push({ check: 'too-long', level: 'warn', message: `${total} slides in all`, fix: `Aim for at most ${MAX_TOTAL}: cut slides that restate the code, leave detail to the walkthrough (review.html).` });
+  if (!selected && total > MAX_TOTAL) out.push({ check: 'too-long', level: 'warn', message: `${total} slides in all`, fix: `Aim for at most ${MAX_TOTAL}: cut slides that restate the code, leave detail to the walkthrough (review.html).` });
   w.chapters.forEach((c) => {
-    if (c.steps.length === 1 && w.chapters.length > 1) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: 'a chapter of one slide', fix: 'Merge it into a neighbouring chapter, or give it the 2 to 5 slides the concept needs.' });
-    if (c.steps.length > MAX_STEPS) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: `${c.steps.length} slides in one chapter`, fix: 'Split it into two concepts.' });
+    if (!selected && c.steps.length === 1 && w.chapters.length > 1) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: 'a chapter of one slide', fix: 'Merge it into a neighbouring chapter, or give it the 2 to 5 slides the concept needs.' });
+    if (!selected && c.steps.length > MAX_STEPS) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: `${c.steps.length} slides in one chapter`, fix: 'Split it into two concepts.' });
     c.steps.forEach((s) => {
       const where = `${c.id}/${s.id}`;
+      if (selected && !selected.has(where)) return;
       if (s.focus) {
         const labels = diagramLabels((c.lead ?? '') + s.text);
         const gone = s.focus.filter((l) => !labels.includes(nodeLabel(l)));
@@ -88,7 +95,8 @@ const MIN_VISIBLE = 8; // code lines a stacked chunk should show at once
 const LEAD_SHARE = 0.4; // of the narration's height, past which the lead is named as the cause of an overflow
 
 /** One step measured at one viewport (`slide-lint`). */
-export type Measured = { viewport: string; chapter: string; step: string; audit: StepAudit; errors: string[]; ownRef?: boolean };
+export const Measured = z.object({ viewport: z.string(), chapter: z.string(), step: z.string(), audit: StepAudit, errors: z.array(z.string()), ownRef: z.boolean().optional() });
+export type Measured = z.infer<typeof Measured>;
 
 /** The rendered checks: what each step looks like on screen. The same problem at several viewports is one finding. */
 export function judge(ms: Measured[]): Finding[] {
