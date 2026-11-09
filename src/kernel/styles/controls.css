@@ -63,10 +63,6 @@
   font-size: var(--rr-text-xs);
   white-space: nowrap;
 }
-.rr-pill--mono {
-  font-family: var(--rr-mono);
-  font-size: var(--rr-text-xs);
-}
 .rr-pill--ok {
   color: var(--rr-ok);
   background: var(--rr-ok-soft);
