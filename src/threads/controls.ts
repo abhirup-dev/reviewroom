@@ -164,10 +164,7 @@ export function roundMenu(app: ReviewApp, anchor: HTMLElement) {
 /** Feature events which affect header controls beyond the shell's ordinary repaint events. */
 export function subscribeThreadHeader(app: ReviewApp, paint: () => void): () => void {
   const offs = [
-    app.bus.on('picker', (on) => {
-      app.root.classList.toggle('is-picking', on);
-      paint();
-    }),
+    app.bus.on('picker', paint),
     app.bus.on('round-view', () => setTimeout(paint)),
   ];
   return () => offs.forEach((off) => off());

@@ -8,7 +8,7 @@ import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
-import type { PaletteHost, PaletteVariant } from './review/overlays';
+import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
 import type { PhoneFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
 
@@ -23,11 +23,14 @@ export interface PresentationModule {
   walkthrough?: WalkthroughExtension;
   /** The palette's variant; none is the desktop's ⌘K. */
   palette?: (app: ReviewApp, host: PaletteHost) => PaletteVariant;
+  /** A selection action outside the panel surface, if the presentation does not already supply one. */
+  selection?: (app: ReviewApp) => void;
   /** The guided walkthrough player's form; none is the desktop's. */
   player?: PhoneFormFactory;
 }
 
 export const desktop: PresentationModule = {
+  selection: mountQuoteComment,
   header: (app) =>
     buildHeader(app, {
       status: roundStatusControls,

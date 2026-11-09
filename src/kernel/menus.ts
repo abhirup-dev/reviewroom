@@ -2,19 +2,37 @@
 import { h, icon, placeNear } from './dom';
 
 // ---------------------------------------------------------------- tiny menu
-export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTMLElement | null)[]) {
+export function popMenu(anchor: HTMLElement, build: (close: () => void) => (HTMLElement | null)[], options: {
+  point?: { x: number; y: number };
+  onClose?: () => void;
+  returnFocus?: HTMLElement;
+  placement?: Parameters<typeof placeNear>[2];
+  focus?: boolean;
+} = {}) {
   document.querySelectorAll<HTMLElement>('.rr-menu').forEach((m) => m.hidePopover());
   // a popover: click-away and Esc close it; it's removed once closed
-  const menu = h('div', { class: 'rr-menu', role: 'menu', popover: 'auto', onkeydown: arrows, ontoggle: (e: ToggleEvent) => {
-    anchor.setAttribute('aria-expanded', String(e.newState === 'open'));
-    if (e.newState === 'closed') menu.remove();
+  const menu = h('div', { class: 'rr-menu', role: 'menu', popover: 'auto', onkeydown: (e: KeyboardEvent) => {
+    arrows(e);
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      (options.returnFocus ?? anchor).focus({ preventScroll: true });
+    }
+  }, ontoggle: (e: ToggleEvent) => {
+    if (!options.point) anchor.setAttribute('aria-expanded', String(e.newState === 'open'));
+    if (e.newState === 'closed') {
+      menu.remove();
+      options.onClose?.();
+    }
   } });
-  const close = () => menu.hidePopover();
+  const close = () => { if (menu.matches(':popover-open')) menu.hidePopover(); };
   menu.append(...(build(close).filter(Boolean) as HTMLElement[]));
   (anchor.closest('dialog') ?? document.body).append(menu); // outside an open modal dialog it would be inert
   menu.showPopover();
-  void placeNear(anchor, menu, 'bottom-end', 6, 8);
-  (menu.querySelector('button') as HTMLElement | null)?.focus();
+  const point = options.point;
+  const ref = point ? { contextElement: anchor, getBoundingClientRect: () => new DOMRect(point.x, point.y, 0, 0) } : anchor;
+  void placeNear(ref, menu, options.placement ?? (point ? 'bottom-start' : 'bottom-end'), 6, 8);
+  if (options.focus !== false) (menu.querySelector('button') as HTMLElement | null)?.focus();
   return close;
 }
 /** Up/Down/Home/End between a menu's items. */

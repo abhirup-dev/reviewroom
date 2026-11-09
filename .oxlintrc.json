@@ -105,7 +105,6 @@
     {
       "files": [
         "src/review/code.ts",
-        "src/review/walkthrough.ts",
         "src/slides/player.ts",
         "src/slides/player.phone.ts",
         "src/threads/view.ts"

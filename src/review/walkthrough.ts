@@ -1,38 +1,28 @@
 // Walkthrough panel: hosts the agent's freeform HTML (<rr-review>) untouched, and
 // layers review tooling around it without rewriting it:
 //  - every block (paragraph, list item, diagram, table, any [data-rr-block]) gets a
-//    hover handle in the left gutter to comment on or link to it
+//    plus in either gutter, sharing the right rail with existing threads
 //  - hold Alt (or toggle "Pick") to target ANY element, devtools-style
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
-import { PR_DESCRIPTION, formatRef, parseRef } from '../kernel/refs/refs.shared';
-import { cssPathWithin } from '../kernel/refs/browser';
+import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
 import { plainExcerpt } from '../kernel/markdown';
+import { WALKTHROUGH_BLOCKS as BLOCKS, resolveWalkthroughBlock } from './walkthrough-blocks';
+import { WalkthroughTools } from './walkthrough-tools';
 import type { Thread } from '../kernel/state/model.shared';
 
 type DocThread = Thread & { anchor: Extract<Anchor, { kind: 'doc' }> };
 import { definePanel, type PanelInstance } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 
-const BLOCKS =
-  'h1,h2,h3,h4,h5,h6,p,li,pre,table,figure,blockquote,img,svg,canvas,video,details,dl,[data-rr-block],rr-code,rr-embed,rr-callout,rr-mermaid,rr-checklist,.rr-block';
-
 const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
 // one highlight registry for the page: each panel contributes its own ranges
-const highlightRanges = new Map<string, Range[]>();
+const highlightRanges = new Map<string, AbstractRange[]>();
 
-import { describeElement } from '../kernel/refs/describe';
 import type { Anchor, TextQuote } from '../kernel/state/schema.shared';
-
-export function anchorFor(doc: HTMLElement, el: Element): { target: string; path?: string } {
-  if (el.id) return { target: el.id };
-  const owner = el.parentElement?.closest('[id]');
-  const root = owner && doc.contains(owner) ? owner : doc;
-  return { target: root === doc ? '' : root.id, path: cssPathWithin(root, el) || undefined };
-}
 
 /** Locate a text quote within an element and return a DOM Range. */
 export function rangeForQuote(root: Element, q: TextQuote): Range | null {
@@ -80,12 +70,8 @@ class WalkthroughPanel implements PanelInstance {
   private scroller: HTMLElement;
   private wrap: HTMLElement;
   private rail: HTMLElement;
-  private handle: HTMLElement;
-  private pinBtn = h('button', { class: 'rr-icon-btn rr-block-handle__pin', 'aria-label': 'Pin this block', onclick: () => this.pinBlock() }, icon('pin', 14));
-  private outline: HTMLElement;
+  private tools: WalkthroughTools;
   private banner: HTMLElement;
-  private hoverBlock: Element | null = null;
-  private picking = false;
   private offs: (() => void)[] = [];
   private ro: ResizeObserver;
   private current: HTMLElement;
@@ -102,27 +88,35 @@ class WalkthroughPanel implements PanelInstance {
     this.rootId = isDesc ? PR_DESCRIPTION : '';
     this.head = h('div', { class: 'rr-description__head', hidden: !isDesc });
     this.rail = h('div', { class: 'rr-rail', 'aria-label': 'Comment threads' });
-    this.outline = h('div', { class: 'rr-block-outline', hidden: true });
-    this.handle = h(
-      'div',
-      { class: 'rr-block-handle', hidden: true },
-      h('button', { class: 'rr-icon-btn', title: 'Comment on this whole block', 'data-keys': 'c', 'aria-label': 'Comment on this block', onclick: () => this.commentOnBlock() }, icon('thread', 14)),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this block (paste it into any comment)', 'aria-label': 'Copy link to this block', onclick: () => this.linkBlock() }, icon('link', 14)),
-      this.pinBtn,
-    );
     this.banner = h('div', { class: 'rr-banner', hidden: true });
-    this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail, this.outline, this.handle);
+    this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail);
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     this.element = h('div', { class: 'rr-narrative' }, this.scroller);
     // what the presentation adds (the phone's Contents button, walkthrough.phone.ts); not on the description
     if (!isDesc) extension?.(app, this.element);
 
-    // touch has no hover: a tap shows the block's handle instead (onClick), and lifting the finger doesn't hide it
-    this.wrap.addEventListener('pointerdown', (e) => (this.touched = e.pointerType === 'touch'), true);
-    this.wrap.addEventListener('pointermove', (e) => e.pointerType !== 'touch' && this.onMove(e));
-    this.wrap.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && this.scheduleHide(200));
-    this.handle.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && this.scheduleHide());
-    this.wrap.addEventListener('click', (e) => this.onClick(e), true);
+    this.tools = new WalkthroughTools(this.wrap, this.scroller, this.rail, {
+      doc: () => this.doc,
+      readOnly: () => !!this.historic,
+      resolve: (el) => resolveWalkthroughBlock(this.doc, this.rootId, el),
+      label: (reference) => app.label(reference),
+      comment: (block) => app.compose(block.anchor, block.excerpt),
+      copy: (block) => {
+        void copyText(block.reference);
+        app.toast(`Link to ${app.label(block.reference)} copied - paste it into any comment`);
+      },
+      pinned: (block) => app.state.pins.includes(block.pinReference),
+      pin: (block) => {
+        app.togglePin(block.pinReference);
+        app.toast(`${app.label(block.pinReference)} ${app.state.pins.includes(block.pinReference) ? 'pinned to' : 'unpinned from'} Contents`);
+      },
+      picked: () => app.bus.emit('picker', false),
+      isPicking: () => app.root.classList.contains('is-picking'),
+    });
+    app.listen(window, 'resize', () => this.tools.dismiss());
+    app.listen(window, 'keyup', (e) => { if (e.key === 'Alt') this.tools.releaseAlt(); });
+    app.listen(window, 'blur', () => this.tools.releaseAlt());
+    this.wrap.addEventListener('click', (e) => this.onClick(e));
     this.wrap.addEventListener('mouseup', (e) => setTimeout(() => this.onMouseUp(e), 0));
     // a touch selection ends with no mouseup: offer the comment once its handles settle, under the selection
     const touchSel = debounce(() => {
@@ -131,15 +125,19 @@ class WalkthroughPanel implements PanelInstance {
       const r = sel.getRangeAt(0).getBoundingClientRect();
       this.onMouseUp({ clientX: r.left + r.width / 2, clientY: r.bottom } as MouseEvent);
     }, 400);
-    app.listen(document, 'selectionchange', touchSel);
-    this.scroller.addEventListener('scroll', () => this.hoverBlock && this.hideHandle(), { passive: true });
+    app.listen(document, 'selectionchange', () => {
+      touchSel();
+      if (!document.getSelection()?.isCollapsed) this.tools.dismiss();
+    });
 
-    this.ro = new ResizeObserver(debounce(() => this.layoutRail(), 60));
+    this.ro = new ResizeObserver(debounce(() => { this.tools.dismiss(); this.layoutRail(); }, 60));
     this.ro.observe(this.current);
     this.offs.push(
       app.bus.on('state', () => { this.renderHead(); this.decorate(); }),
       app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
-      app.bus.on('picker', (on: boolean) => this.setPicking(on)),
+      app.bus.on('picker', (on: boolean) => this.tools.setPicking(on)),
+      app.bus.on('compose-thread', () => this.tools.dismiss()),
+      app.bus.on('open-thread', () => this.tools.dismiss()),
     );
     if (!isDesc) {
       this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)));
@@ -225,115 +223,6 @@ class WalkthroughPanel implements PanelInstance {
     if (threadId) this.focusChip(threadId);
   }
 
-  // ------------------------------------------------------------ block handle / picker
-  private blockAt(target: EventTarget | null): Element | null {
-    if (!(target instanceof Element) || !this.doc.contains(target) || target === this.doc) return null;
-    if (this.picking) return target;
-    let el: Element | null = target.closest(BLOCKS);
-    // prefer the outer figure/svg for diagram internals
-    const svgRoot = target.closest('svg');
-    if (svgRoot) el = svgRoot.closest('figure,[data-rr-block]') ?? svgRoot;
-    return el && this.doc.contains(el) ? el : null;
-  }
-
-  private hideTimer: ReturnType<typeof setTimeout> | undefined;
-  private onMove(e: PointerEvent) {
-    const t = e.target as Element;
-    if (t.closest('.rr-block-handle')) return clearTimeout(this.hideTimer);
-    if (t.closest('.rr-rail')) return this.scheduleHide();
-    this.picking = this.pickToggle || e.altKey;
-    this.wrap.classList.toggle('is-picking', this.picking);
-    // Moving from a block towards its handle crosses the gutter (and sometimes a
-    // neighbouring block's edge): keep the current block while the pointer is in
-    // that corridor so the handle stays reachable.
-    if (this.hoverBlock && !this.picking) {
-      const r = this.hoverBlock.getBoundingClientRect();
-      const h = this.handle.getBoundingClientRect();
-      if (e.clientX <= r.left + 24 && e.clientX >= h.left - 8 && e.clientY >= r.top - 10 && e.clientY <= Math.max(r.bottom, h.bottom) + 10) return clearTimeout(this.hideTimer);
-    }
-    const el = this.blockAt(t);
-    if (!el) return this.scheduleHide();
-    clearTimeout(this.hideTimer);
-    if (el === this.hoverBlock) return;
-    this.showFor(el);
-  }
-
-  private showFor(el: Element) {
-    this.hoverBlock = el;
-    this.paintPin(el);
-    const wr = this.wrap.getBoundingClientRect();
-    const r = el.getBoundingClientRect();
-    Object.assign(this.outline.style, { top: r.top - wr.top - 3 + 'px', left: r.left - wr.left - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 6 + 'px' });
-    this.outline.hidden = false;
-    this.outline.dataset.label = this.picking ? describeElement(el) : '';
-    // sit flush against the block's left edge (outline included) so there is no dead gap to cross
-    this.handle.hidden = false;
-    const hw = this.handle.offsetWidth || 34;
-    Object.assign(this.handle.style, { top: r.top - wr.top - 3 + 'px', left: Math.max(2, r.left - wr.left - 6 - hw) + 'px' });
-  }
-
-  private pickToggle = false;
-  private setPicking(on: boolean) {
-    this.pickToggle = this.picking = on; // a tap brings no pointermove first to set picking
-    this.wrap.classList.toggle('is-picking', on);
-  }
-
-  private scheduleHide(ms = 320) {
-    clearTimeout(this.hideTimer);
-    this.hideTimer = setTimeout(() => {
-      if (this.handle.matches(':hover')) return;
-      this.hideHandle();
-    }, ms);
-  }
-
-  private hideHandle() {
-    clearTimeout(this.hideTimer);
-    this.hoverBlock = null;
-    this.outline.hidden = true;
-    this.handle.hidden = true;
-  }
-
-  private anchorOf(el: Element) {
-    const a = anchorFor(this.current, el);
-    return { ...a, target: a.target || this.rootId };
-  }
-  private blockAnchor(el: Element): Anchor {
-    return { kind: 'doc', ...this.anchorOf(el) };
-  }
-  private commentOnBlock(el = this.hoverBlock) {
-    if (!el || this.historic) return;
-    this.app.compose(this.blockAnchor(el), plainExcerpt(el.textContent || '', 140));
-    this.hideHandle();
-  }
-  private linkBlock(el = this.hoverBlock) {
-    if (!el) return;
-    const a = this.anchorOf(el);
-    const ref = formatRef({ type: 'doc', id: a.target, path: a.path });
-    void copyText(ref);
-    this.app.toast(`Link to ${this.app.label(ref)} copied — paste it into any comment`);
-  }
-  /** What pinning a block pins: the heading that opens a section pins the section (as Contents and links name it), so
-   *  the heading's pin and a pinned section are one pin, not two; any other block, itself. */
-  private pinRef(el: Element) {
-    const sec = el.parentElement;
-    if (/^H[1-6]$/.test(el.tagName) && sec?.matches('section[id]') && sec.firstElementChild === el) return formatRef({ type: 'doc', id: sec.id });
-    const a = this.anchorOf(el);
-    return formatRef({ type: 'doc', id: a.target, path: a.path });
-  }
-  /** The handle's pin shows whether the block under it is pinned (pressed, in the pin colour). */
-  private paintPin(el: Element) {
-    const on = this.app.state.pins.includes(this.pinRef(el));
-    this.pinBtn.setAttribute('aria-pressed', String(on));
-    this.pinBtn.title = on ? 'Unpin from Contents' : 'Pin to Contents for quick access';
-  }
-  private pinBlock(el = this.hoverBlock) {
-    if (!el) return;
-    const ref = this.pinRef(el);
-    this.app.togglePin(ref);
-    this.app.toast(`${this.app.label(ref)} ${this.app.state.pins.includes(ref) ? 'pinned to' : 'unpinned from'} Contents`);
-    this.paintPin(el);
-  }
-
   private onClick(e: MouseEvent) {
     const t = e.target as Element;
     // description: a link to a comment on this PR opens its thread here
@@ -345,18 +234,7 @@ class WalkthroughPanel implements PanelInstance {
       void this.app.open(link.getAttribute('href') ?? link.getAttribute('ref')!);
       return;
     }
-    if (this.picking && this.doc.contains(t) && !t.closest('.rr-block-handle')) {
-      e.preventDefault();
-      e.stopPropagation();
-      this.commentOnBlock(t);
-      if (this.pickToggle) this.app.bus.emit('picker', false);
-    } else if (this.touched && !t.closest('.rr-block-handle, .rr-rail')) {
-      const el = this.blockAt(t);
-      if (el) this.showFor(el);
-      else this.hideHandle();
-    }
   }
-  private touched = false;
 
   private onMouseUp(e: MouseEvent) {
     if (this.historic) return;
@@ -412,13 +290,13 @@ class WalkthroughPanel implements PanelInstance {
       else at.el.setAttribute('data-rr-anchored', ''); // no quote, a quote no longer found, or no Highlight API
     }
     if (supportsHighlights) {
-      highlightRanges.set(this.rootId, ranges);
+      // Docking reparents the document: live Ranges collapse when an ancestor is removed. Keep node endpoints.
+      highlightRanges.set(this.rootId, ranges.map((range) => new StaticRange(range)));
       CSS.highlights.set('rr-thread', new Highlight(...[...highlightRanges.values()].flat()));
     }
     this.layoutRail();
   }
 
-  private chipY = new Map<string, number>();
   private layoutRail() {
     const wr = this.wrap.getBoundingClientRect();
     const items: { t: DocThread; y: number }[] = [];
@@ -436,7 +314,6 @@ class WalkthroughPanel implements PanelInstance {
       chip.style.top = top + 'px';
       chips.push(chip);
       floor = top + 30;
-      this.chipY.set(t.id, top);
     }
     this.rail.replaceChildren(...chips);
     this.wrap.classList.toggle('has-threads', chips.length > 0);
@@ -477,6 +354,11 @@ class WalkthroughPanel implements PanelInstance {
 
   // ------------------------------------------------------------ rounds
   private async showRound(n: number) {
+    this.tools.dismiss();
+    if (this.app.selection?.kind === 'doc') {
+      this.app.selection = null;
+      this.app.bus.emit('selection', null);
+    }
     if (!n || n === this.app.state.round) {
       if (this.historic) {
         this.historic.replaceWith(this.current);
@@ -514,6 +396,7 @@ class WalkthroughPanel implements PanelInstance {
     this.layoutRail();
   }
   dispose() {
+    this.tools.dispose();
     this.offs.forEach((f) => f());
     this.ro.disconnect();
     highlightRanges.delete(this.rootId);

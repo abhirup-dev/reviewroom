@@ -1,6 +1,6 @@
 // Tiny DOM helpers. No framework on purpose: author content is plain HTML and
 // every shell part is a plain element you can restyle or replace.
-import { computePosition, flip, offset, shift, type Placement } from '@floating-ui/dom';
+import { computePosition, flip, offset, shift, type Placement, type VirtualElement } from '@floating-ui/dom';
 import { CLAWD, CLAWD_RESOLVED } from './clawd';
 
 type Child = Node | string | number | null | undefined | false | Child[];
@@ -51,6 +51,7 @@ export const svg = (d: string, size = 16) => {
 // 16px stroke icons, drawn for this UI (no icon font, no emoji).
 const P = (d: string) => `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
 export const icons = {
+  plus: P('M8 3v10M3 8h10'),
   toc: P('M3 4h10M3 8h7M3 12h9'),
   menu: P('M2.5 4.5h11M2.5 8h11M2.5 11.5h11'),
   back: P('M13 8H3M7 4 3 8l4 4'),
@@ -231,7 +232,7 @@ export async function copyText(text: string) {
 const placing = new WeakMap<HTMLElement, number>();
 /** Put a position:fixed overlay `gap` px from `ref`, on the other side if it doesn't fit, `pad` px inside the viewport.
  *  If neither side fits it stays on `placement`'s side, shifted as far as it must. The latest call per overlay wins. */
-export function placeNear(ref: Element, el: HTMLElement, placement: Placement, gap: number, pad: number) {
+export function placeNear(ref: Element | VirtualElement, el: HTMLElement, placement: Placement, gap: number, pad: number) {
   const id = (placing.get(el) ?? 0) + 1;
   placing.set(el, id);
   const middleware = [offset(gap), flip({ padding: pad, fallbackStrategy: 'initialPlacement' }), shift({ padding: pad, crossAxis: true })];
