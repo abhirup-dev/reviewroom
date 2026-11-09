@@ -15,7 +15,7 @@ export async function checkSource(input: SourceCheckInput): Promise<SourceCheckR
       const matches = found.declarations.filter((d) => d.name === query.name &&
       (!query.path || d.path === query.path || d.path.endsWith('/' + query.path)) &&
       (!query.owner || d.owners.includes(query.owner) || d.path.split('/').includes(query.owner)))
-      .sort((a, b) => a.path.localeCompare(b.path) || (a.selectionRange ?? a.range).start.line - (b.selectionRange ?? b.range).start.line);
+      .sort((a, b) => a.path.localeCompare(b.path) || a.range.start.line - b.range.start.line);
       return { query, status: matches.length ? 'found' : 'unverified', declarations: matches };
     });
     return SourceCheckResult.parse({ snapshot: { repo: snapshot.repo, revision: snapshot.revision }, results,

@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { PKG } from '../paths';
-import { Declaration } from './model';
+import type { Declaration } from './model';
 import type { SourceFile } from './snapshot';
 
 const execute = promisify(execFile);
@@ -39,10 +39,10 @@ export async function declarations(root: string, files: SourceFile[], names: str
       return { line, character: source.subarray(start, offset).toString('utf8').length };
     };
     const visit = (entry: z.infer<typeof Entry>, owners: string[]) => {
-      if (words.has(entry.name)) out.push(Declaration.parse({
+      if (words.has(entry.name)) out.push({
         name: entry.name, path: p, language: file.language, kind: entry.astKind, owners, signature: entry.signature, evidence: 'syntax',
         range: { start: position(entry.range.start.line, entry.range.byteOffset.start), end: position(entry.range.end.line, entry.range.byteOffset.end) },
-      }));
+      });
       for (const member of entry.members ?? []) visit(member, [...owners, entry.name]);
     };
     for (const entry of file.items) visit(entry, []);

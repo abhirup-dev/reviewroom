@@ -22,7 +22,7 @@ export async function prepareSymbols(repo: string, prov: Provider, refs: readonl
   return { ...prov, resolveSymbol: (name) => {
     if (!found.has(name)) {
       const result = batch.results[names.indexOf(name)];
-      const hits = result?.declarations.map((d) => ({ path: d.path, line: (d.selectionRange ?? d.range).start.line + 1, text: d.signature, rev: batch.snapshot.revision, kind: 'definition' as const })) ?? [];
+      const hits = result?.declarations.map((d) => ({ path: d.path, line: d.range.start.line + 1, text: d.signature, rev: batch.snapshot.revision, kind: 'definition' as const })) ?? [];
       // An AST miss/partial read cannot establish absence. Preserve the existing reference fallback too.
       found.set(name, hits.length && !batch.coverage.skippedFiles.length ? hits : symbolHits(prov.search(symbolQuery(name).word, prov.head, true, 500), name));
     }
