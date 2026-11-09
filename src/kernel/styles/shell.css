@@ -85,6 +85,31 @@ body > [hidden] {
   text-overflow: ellipsis;
   max-width: 62vw;
 }
+/* the review's title is a button: it opens the change's details (header.ts, aboutChange) */
+button.rr-header__title {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.rr-header__title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* the author in the change's details, beside their avatar */
+.rr-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-6);
+}
+.rr-who > .rr-avatar {
+  width: 16px;
+  height: 16px;
+}
 .rr-header__meta {
   display: flex;
   align-items: center;
@@ -100,9 +125,6 @@ body > [hidden] {
   border: 0;
   background: none;
   font-size: inherit;
-}
-.rr-header__meta .rr-pill--mono {
-  font-size: var(--rr-text-sm);
 }
 .rr-header__meta .rr-pill + .rr-pill::before {
   content: '·';

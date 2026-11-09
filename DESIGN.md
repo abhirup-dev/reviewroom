@@ -317,7 +317,10 @@ to its context (em, %). Weights are 400, 500 and 600.
 
 ## Layout
 
-A 52px header (`chrome`) over docked panels. Every bar of tools (the dock's tab bars, the code panel's toolbar, a
+A 52px header (`chrome`) over docked panels, one line: the mark, the change's number and title, an ⓘ and a small
+diffstat on the left; search, status, the walkthrough, a quiet icon group (layout, All reviews, theme) and Send feedback
+on the right. The repository, author, branches, merge base and worktree live in a popover from the title or the ⓘ,
+each row copying its value (and a PR opens on GitHub), not in the header. Every bar of tools (the dock's tab bars, the code panel's toolbar, a
 floating window's title bar) is 36px with 8px padding at its ends and 6px between controls. A file's band, its status,
 path, size and Viewed above its code, is 38px and is the same component in the code panel and the walkthrough.
 

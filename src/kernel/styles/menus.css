@@ -29,14 +29,39 @@
   background: var(--rr-hover);
   outline: none;
 }
+/* a menu item's icon or check: ink, as the label (DESIGN.md: no decorative blue) */
 .rr-menu__check {
   width: 16px;
   display: inline-grid;
   place-items: center;
-  color: var(--rr-accent);
+  color: var(--rr-ink-2);
 }
 .rr-menu__label {
   flex: 1;
+}
+/* a field row (menuItem's field): its name, the value, the icon that acts on it */
+.rr-menu__item--field {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 300px) auto;
+  gap: var(--rr-space-12);
+}
+.rr-menu__field {
+  white-space: nowrap;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-menu__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-menu__value--mono {
+  font: var(--rr-text-sm) var(--rr-mono);
+}
+/* a value wrapped in <bdi> (a path) loses its start, not its end */
+.rr-menu__value:has(> bdi) {
+  direction: rtl;
+  text-align: left;
 }
 .rr-menu__hint {
   color: var(--rr-faint);

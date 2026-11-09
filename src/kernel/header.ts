@@ -1,12 +1,11 @@
 // Shell header: identity, search, layout, theme, and injected feature controls. On a phone, a status bar and a menu
 // drawer instead (header.phone.ts).
-import { h, icon } from './dom';
+import { avatarUrl, copyText, diffstat, h, icon, plural } from './dom';
 import { keyLabel, modLabel } from './commands';
 import { closePanel, hasPanel, panelDefs } from './dock';
 import type { ReviewApp } from '../app';
 import { noteDialog } from './dialog';
 import { popMenu, menuItem, menuLabel } from './menus';
-import { installButton } from './install';
 
 // ---------------------------------------------------------------- save a named layout
 /** Name the panels as they are now; as the default, the name starts as “Default” (taken: pick another). */
@@ -54,24 +53,16 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
           .map((d) => menuItem(d.title, () => { close(); if (hasPanel(app, d.id)) closePanel(app, d.id); else app.layout.ensurePanel(d.id); }, { checked: hasPanel(app, d.id) })),
       ]);
     };
+    const infoBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', title: 'About this change: repository, author, branches, worktree', 'aria-label': 'About this change', 'aria-haspopup': 'menu', onclick: () => aboutChange(app, infoBtn) }, icon('info', 16));
     bar.replaceChildren(
       h(
         'div',
         { class: 'rr-header__id' },
         h('div', { class: 'rr-mark', 'aria-hidden': 'true' }, 'rr'),
-        h(
-          'div',
-          { class: 'rr-header__titles' },
-          h('div', { class: 'rr-header__title', title: m.title }, m.number ? h('span', { class: 'rr-muted' }, `#${m.number} `) : null, m.title),
-          h(
-            'div',
-            { class: 'rr-header__meta' },
-            m.repo ? h('span', { class: 'rr-pill', title: 'Repository' }, m.repo) : null,
-            m.author ? h('span', { class: 'rr-pill', title: 'Author of the change' }, 'by ' + m.author) : null,
-            h('span', { class: 'rr-pill rr-pill--mono', title: `Diff of ${m.headLabel ?? m.head} against ${m.baseLabel ?? m.base} (merge base ${short(m.base)})` }, `${m.baseLabel ?? short(m.base)} ← ${m.headLabel ?? short(m.head)}`),
-            h('span', { class: 'rr-pill', title: 'Files changed' }, `${app.files.length} files`),
-          ),
-        ),
+        // the title opens the change's details too (a bigger target than the icon beside it)
+        h('button', { class: 'rr-header__title', title: m.title, 'aria-haspopup': 'menu', onclick: () => aboutChange(app, infoBtn) }, m.number ? h('span', { class: 'rr-muted' }, `#${m.number} `) : null, m.title),
+        infoBtn,
+        diffstat(app.files, { counts: false, title: plural(app.files.length, 'file') }),
       ),
       h('div', { class: 'rr-toolbar__spacer' }),
       h(
@@ -79,11 +70,11 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
         { class: 'rr-header__actions' },
         ...features.status(),
         ...shellStatus(),
-        app.backend.kind === 'server' ? h('a', { class: 'rr-hbtn', href: hubHref(), target: '_blank', title: 'Every review running on this machine: reviewroom, Crit and Plannotator' }, 'All reviews') : null,
         h('button', { class: 'rr-search-btn', onclick: () => app.openPalette(''), title: 'Jump to a file, section, thread or command. Type # for symbols, / to search code', 'data-keys': 'mod+k' }, icon('search', 14), h('span', null, 'Jump to…'), h('kbd', null, `${modLabel}K`)),
         ...features.beforeLayout(),
         layoutBtn,
-        installButton(),
+        // install stays in the palette (Install app) and on the hub
+        app.backend.kind === 'server' ? h('a', { class: 'rr-hbtn rr-hbtn--icon', href: hubHref(), target: '_blank', title: 'All reviews: every review running on this machine (reviewroom, Crit and Plannotator)', 'aria-label': 'All reviews' }, icon('globe', 16)) : null,
         h('button', { class: 'rr-hbtn rr-hbtn--icon', title: `Theme: ${app.prefs.theme === 'system' ? 'follows your system' : app.prefs.theme}. Click to switch`, 'aria-label': 'Toggle theme', onclick: () => app.setPref('theme', app.prefs.theme === 'system' ? (app.resolvedTheme() === 'dark' ? 'light' : 'dark') : app.prefs.theme === 'dark' ? 'light' : 'system') }, icon(themeIcon, 16)),
         ...features.afterTheme(),
       ),
@@ -91,6 +82,33 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
   };
   repaintOn(app, paint, features.subscribe);
   return bar;
+}
+
+/** About this change, from the title or its ⓘ: what the header used to spell out (repository, author, branches) and the
+ *  worktree, each a row that copies its value; a PR also opens on GitHub. The menu's own popover, nothing new. */
+function aboutChange(app: ReviewApp, anchor: HTMLElement) {
+  const m = app.meta;
+  const gh = app.github?.description; // the PR's author, with their avatar
+  popMenu(anchor, (close) => {
+    // a field row that copies its value (whole in its tooltip)
+    const copy = (value: string, what: string, label: string | Node = value, mono = false) =>
+      menuItem(label, () => { close(); void copyText(value); app.toast(`${what} copied`); }, { field: what, icon: 'copy', mono, title: `Copy ${what.toLowerCase()}: ${value}` });
+    const author = gh?.login ?? m.author;
+    return [
+      menuLabel(m.number ? `Pull request #${m.number}` : 'Change'),
+      m.url ? menuItem('Open on GitHub', () => { close(); window.open(m.url, '_blank', 'noopener'); }, { icon: 'github', hint: 'the pull request' }) : null,
+      // owner/name from the GitHub remote; without one, the checkout's folder name, said as such
+      m.repo ? copy(m.repo, 'Repository', m.repo.includes('/') ? m.repo : h('span', null, m.repo, h('span', { class: 'rr-muted' }, ' · local, no GitHub remote'))) : null,
+      author ? copy(author, 'Author', h('span', { class: 'rr-who' }, gh?.avatar ? h('img', { class: 'rr-avatar rr-avatar--gh', src: avatarUrl(gh.avatar, 32), alt: '' }) : null, author)) : null,
+      menuLabel('Branches'),
+      copy(m.headLabel ?? short(m.head), 'Branch', undefined, true),
+      copy(m.baseLabel ?? short(m.base), 'Base', undefined, true),
+      copy(m.base, 'Merge base', short(m.base), true),
+      m.path ? menuLabel('Worktree') : null,
+      // a long path loses its start, not the worktree's name at its end
+      m.path ? copy(m.path, 'Path', h('bdi', null, m.path), true) : null,
+    ];
+  });
 }
 
 /** Every header repaints on these, and on what its features subscribe it to. */

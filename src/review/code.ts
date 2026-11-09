@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { copyText, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, diffstat, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
@@ -38,13 +38,6 @@ const HEADER_HEIGHT = 38;
 const NO_DIFF = (name: string): FileDiffMetadata => ({ name, type: 'change', hunks: [], splitLineCount: 0, unifiedLineCount: 0, isPartial: false, deletionLines: [], additionLines: [] });
 
 const STATUS: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
-/** Five squares split between added and removed lines, as their share of the file's change. */
-const diffstat = (adds: number, dels: number) => {
-  const total = adds + dels;
-  const add = total ? Math.round((adds / total) * 5) : 0;
-  const del = total ? Math.min(5 - add, Math.round((dels / total) * 5)) : 0;
-  return h('span', { class: 'rr-diffstat', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: i < add ? 'is-add' : i < add + del ? 'is-del' : '' })));
-};
 /** A file card names its change in a word; a modified file (most of them) says nothing. */
 const STATUS_WORD: Record<string, string | undefined> = { added: 'Added', deleted: 'Deleted', renamed: 'Renamed' };
 
@@ -270,11 +263,9 @@ class CodePanel implements PanelInstance {
   /** The workbench diff's summary: its files and line counts, and the commit when one is picked. */
   private summary() {
     const vis = this.app.visibleFiles();
-    const adds = vis.reduce((a, f) => a + f.additions, 0);
-    const dels = vis.reduce((a, f) => a + f.deletions, 0);
     return [
       h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, plural(vis.length, 'file')),
-      h('span', { class: 'rr-delta', title: `${adds} lines added, ${dels} removed` }, h('span', { class: 'rr-add' }, '+' + adds), h('span', { class: 'rr-del' }, '\u2212' + dels), diffstat(adds, dels)),
+      diffstat(vis),
       this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
     ];
   }
@@ -309,7 +300,7 @@ class CodePanel implements PanelInstance {
     return [
       h('span', { class: 'rr-toolbar__spacer' }),
       ...threadCounts(threads, 'in this file'),
-      h('span', { class: 'rr-delta', title: `${f.additions} lines added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null, diffstat(f.additions, f.deletions)),
+      diffstat([f]),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); this.app.toast(`Link to ${f.path.split('/').pop()} copied \u2014 paste it into any comment`); } }, icon('link', 14)),
       extra,
       h('label', { class: 'rr-viewed', title: viewedTitle, 'data-keys': 'v' }, cb, 'Viewed'),

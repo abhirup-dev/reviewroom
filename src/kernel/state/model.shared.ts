@@ -7,7 +7,9 @@ export interface ReviewMeta {
   /** Stable id for local persistence (layout, viewed files). */
   id: string;
   title: string;
-  repo?: string; // owner/name
+  repo?: string; // owner/name; without a GitHub remote, the checkout's folder name
+  /** The checkout the diff is read from (its worktree path). */
+  path?: string;
   number?: number | string;
   author?: string;
   url?: string;
