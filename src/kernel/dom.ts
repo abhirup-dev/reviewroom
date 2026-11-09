@@ -132,7 +132,7 @@ export function threadBadge(t: { gh?: { conversation?: boolean }; status: string
 
 /** The size of a change (one file, or several summed): +added \u2212removed, zeros left out, then five squares split as
  *  their share. `counts: false` keeps only the squares, `bars: false` only the counts. */
-export const delta = (files: readonly { additions: number; deletions: number }[], opts: { counts?: boolean; bars?: boolean; small?: boolean; title?: string } = {}) => {
+export const diffstat = (files: readonly { additions: number; deletions: number }[], opts: { counts?: boolean; bars?: boolean; small?: boolean; title?: string } = {}) => {
   const adds = files.reduce((n, f) => n + f.additions, 0), dels = files.reduce((n, f) => n + f.deletions, 0);
   const total = adds + dels;
   const add = total ? Math.round((adds / total) * 5) : 0;

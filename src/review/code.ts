@@ -1,7 +1,7 @@
 // Code panel: the whole diff as one virtualized @pierre/diffs CodeView (a file per item),
 // or one full file at base/head/any sha. Supports several instances ("code", "code:2"...).
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
-import { copyText, delta, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
+import { copyText, diffstat, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { plainExcerpt } from '../kernel/markdown';
 import { oldToNewLine } from './hunks';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
@@ -265,7 +265,7 @@ class CodePanel implements PanelInstance {
     const vis = this.app.visibleFiles();
     return [
       h('span', { class: 'rr-toolbar__title', title: vis.length === this.app.files.length ? 'Files changed in this range' : `${vis.length} shown, ${this.app.files.length - vis.length} hidden by the Files filters` }, plural(vis.length, 'file')),
-      delta(vis),
+      diffstat(vis),
       this.app.range && this.app.range.key !== 'all' ? h('span', { class: 'rr-pill rr-pill--accent', title: 'Showing one commit: ' + this.app.range.label + '. Pick “All changes” in Files to see the whole PR.' }, this.app.range.label.split(' · ')[0]) : null,
     ];
   }
@@ -300,7 +300,7 @@ class CodePanel implements PanelInstance {
     return [
       h('span', { class: 'rr-toolbar__spacer' }),
       ...threadCounts(threads, 'in this file'),
-      delta([f]),
+      diffstat([f]),
       h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); this.app.toast(`Link to ${f.path.split('/').pop()} copied \u2014 paste it into any comment`); } }, icon('link', 14)),
       extra,
       h('label', { class: 'rr-viewed', title: viewedTitle, 'data-keys': 'v' }, cb, 'Viewed'),

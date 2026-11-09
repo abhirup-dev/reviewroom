@@ -1,6 +1,6 @@
 // Shell header: identity, search, layout, theme, and injected feature controls. On a phone, a status bar and a menu
 // drawer instead (header.phone.ts).
-import { avatarUrl, copyText, delta, h, icon, plural } from './dom';
+import { avatarUrl, copyText, diffstat, h, icon, plural } from './dom';
 import { keyLabel, modLabel } from './commands';
 import { closePanel, hasPanel, panelDefs } from './dock';
 import type { ReviewApp } from '../app';
@@ -62,7 +62,7 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
         // the title opens the change's details too (a bigger target than the icon beside it)
         h('button', { class: 'rr-header__title', title: m.title, 'aria-haspopup': 'menu', onclick: () => aboutChange(app, infoBtn) }, m.number ? h('span', { class: 'rr-muted' }, `#${m.number} `) : null, m.title),
         infoBtn,
-        delta(app.files, { counts: false, title: plural(app.files.length, 'file') }),
+        diffstat(app.files, { counts: false, title: plural(app.files.length, 'file') }),
       ),
       h('div', { class: 'rr-toolbar__spacer' }),
       h(
