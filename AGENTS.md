@@ -93,7 +93,8 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 ## Working on it
 
 Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bundled into `dist/` (not
-committed), so all are `devDependencies`.
+committed). The AST-grep CLI remains a runtime dependency for platform-specific binary selection;
+other libraries are `devDependencies`.
 
 ```bash
 bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep` on PATH

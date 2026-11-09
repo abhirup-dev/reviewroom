@@ -4,7 +4,7 @@ import { type Global, fail } from '../lib/args.ts';
 import { makeProvider, type Provider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
-import { checkLinks, problems, report, applyFixes, type LinkResult } from '../lib/links.ts';
+import { checkLinks, problems, report, applyFixes, extractLinks, uncomment, prepareSymbols, type SymbolResolver, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/slides-file.ts';
 import { findingReport, lintTour, type Finding } from '../lib/slide-lint.ts';
 import { PKG } from '../lib/paths.ts';
@@ -23,9 +23,14 @@ function checkScope(value: Walkthrough | null, o: CheckOptions, dir: string) {
   return { selection, selected, locations };
 }
 
-function staticNotes(value: Walkthrough | null, prov: Provider, o: CheckOptions, selected?: ReadonlySet<string>) {
+function staticNotes(value: Walkthrough | null, prov: Provider & SymbolResolver, o: CheckOptions, selected?: ReadonlySet<string>) {
   if (!value || o.notes === false) return [];
-  return lintTour(value, selected ? [] : prov.files(prov.base, prov.head), (n) => prov.search(n, prov.head, true, 1)[0]?.path, { estimates: o.estimates, selected });
+  return lintTour(value, selected ? [] : prov.files(prov.base, prov.head), (n) => prov.resolveSymbol(n)[0]?.path, { estimates: o.estimates, selected });
+}
+
+function linkScope(html: string, tour: Walkthrough | null, locations?: Map<string, string[]>) {
+  const extra = locations ? [...locations.keys()] : tour ? tourText(tour) : '';
+  return { extra, refs: typeof extra === 'string' ? extractLinks(uncomment(html + '\n' + extra)) : extra };
 }
 
 /** The stale-link check of review.html (missing: '') and walkthrough.json, which must match its schema first
@@ -42,11 +47,11 @@ export async function runCheck(repo: string | null, dir: string, o: CheckOptions
   const tourRaw = value ? fs.readFileSync(tourFile, 'utf8') : '';
   const r = repo ?? fail('not inside a git repository (use --repo)');
   const raw = makeProvider(r, loadConfig(dir, r));
-  const found = new Map<string, ReturnType<typeof raw.search>>(); // the link check and the notes resolve the same symbols
-  const prov = { ...raw, search: (...a: Parameters<typeof raw.search>) => found.get(JSON.stringify(a)) ?? found.set(JSON.stringify(a), raw.search(...a)).get(JSON.stringify(a))! };
   const known = readState(dir, { repair: o.store !== false }).links ?? {};
   const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, locations ? [...locations.keys()] : value ? tourText(value) : '', value);
+  const scope = linkScope(html, value, locations);
+  const prov = await prepareSymbols(r, raw, scope.refs);
+  let { results, links } = checkLinks(html, prov, o.accept ? {} : known, scope.extra, value);
   let fixed = html, fixedTour = tourRaw;
   if (o.fix && results.some((x) => x.status === 'moved')) {
     if (value) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below

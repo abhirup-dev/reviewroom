@@ -1,0 +1,2 @@
+# Validation uses upstream defaults, independent of the reviewed repository's configuration.
+ruleDirs: []
