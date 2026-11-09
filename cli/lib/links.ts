@@ -8,7 +8,7 @@ import type { Provider } from './git.ts';
 import { regex } from 'regex';
 import { LINK_IN_TEXT, lineSpanOf, parseRef, symbolHits, symbolQuery, trimLink, withLineSpan } from '../../src/kernel/refs/refs.shared.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
-import { checkSource } from './source/check';
+import { lookupDeclarations } from './source/lookup';
 
 export type SymbolResolver = { resolveSymbol: (name: string) => ReturnType<Provider['search']> };
 
@@ -16,7 +16,7 @@ export type SymbolResolver = { resolveSymbol: (name: string) => ReturnType<Provi
 export async function prepareSymbols(repo: string, prov: Provider, refs: readonly string[]): Promise<Provider & SymbolResolver> {
   const names = [...new Set(refs.flatMap((ref) => { const r = parseRef(ref); return r?.type === 'sym' ? [r.name] : []; }))];
   if (!names.length) return { ...prov, resolveSymbol: (name) => symbolHits(prov.search(symbolQuery(name).word, prov.head, true, 500), name) };
-  const batch = await checkSource({ repo, revision: prov.head, queries: names.map((name) => { const { word, ...rest } = symbolQuery(name); return { name: word, ...rest }; }) });
+  const batch = await lookupDeclarations({ repo, revision: prov.head, queries: names.map((name) => { const { word, ...rest } = symbolQuery(name); return { name: word, ...rest }; }) });
   if (batch.coverage.issues.length) console.error(`source symbol search fell back to Git: ${batch.coverage.issues.join('; ')}`);
   const found = new Map<string, ReturnType<Provider['search']>>();
   return { ...prov, resolveSymbol: (name) => {

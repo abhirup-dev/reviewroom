@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setup } from './fixture';
-import { checkSource } from '../cli/lib/source/check';
+import { lookupDeclarations } from '../cli/lib/source/lookup';
 
 const { repo, dir, d, cli, git } = setup();
 
-test('source checks batch declarations across languages, qualify before limits and preserve snapshot/fallback behaviour', async () => {
+test('declaration lookup batches languages, qualifies before limits and preserves snapshot/fallback behaviour', async () => {
   const files = {
     '.gitattributes': 'symbols.ts export-ignore\n',
     'README.md': '# DoesNotExist\n',
@@ -21,7 +21,7 @@ test('source checks batch declarations across languages, qualify before limits a
   await git('add', '.');
   await git('commit', '-qm', 'source checker fixture');
   const head = (await git('rev-parse', 'HEAD')).stdout.toString().trim();
-  const result = await checkSource({ repo, revision: head, queries: [
+  const result = await lookupDeclarations({ repo, revision: head, queries: [
     { name: 'Process', owner: 'Worker' }, { name: 'process', owner: 'Worker' }, { name: 'run', owner: 'Target' }, { name: 'Second' }, { name: 'Fallback', path: 'supported.rs' }, { name: 'Legacy', path: 'unsupported.custom' }, { name: 'Café' }, { name: 'DoesNotExist' },
   ] });
   expect(result.coverage.issues).toEqual([]);
