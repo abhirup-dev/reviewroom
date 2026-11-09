@@ -36,6 +36,8 @@ export const auditWalkthrough: Walkthrough = {
       steps: [
         { id: 'fits', text: '<p>A short slide fits beside a small code range.</p>', ref: fetcher },
         { id: 'inherited', text: '<p>An omitted ref keeps the preceding code target.</p>' },
+        { id: 'stacked', text: '<p>Two small ranges in an unchanged file fit without scrolling.</p>', ref: ['rr:code/pkg/tardis/client.go#L4-10', 'rr:code/pkg/tardis/client.go#L14-20'] },
+        { id: 'base', text: '<p>The unchanged base revision also lands before measurement.</p>', ref: 'rr:code/pkg/tardis/client.go@base#L10-16' },
       ],
     },
   ],

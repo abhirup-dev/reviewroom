@@ -137,6 +137,7 @@ class CodePanel implements PanelInstance {
   private files = new Map<string, { file: ChangedFile; diff: FileDiffMetadata | null; collapsed: boolean }>();
   private fileView?: { path: string; side: 'base' | 'head'; rev?: string; text?: string };
   private ready: Promise<void> = Promise.resolve();
+  private drawWaiters = new Set<() => void>();
   private loadToken = 0;
   private rangeKey = '';
   private version = 0;
@@ -481,6 +482,8 @@ class CodePanel implements PanelInstance {
       enableGutterUtility: !fv?.rev,
       unsafeCSS: CODE_CSS + PULSE_CSS + focusCSS,
       renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
+      // Item callbacks run inside CodeView's render; its scroll and selection managers flush afterwards.
+      onPostRender: (_node, _instance, phase) => { if (phase !== 'unmount' && this.drawWaiters.size) queueMicrotask(() => this.drawWaiters.forEach((check) => check())); },
       renderAnnotation: (a: { metadata: Meta }) => {
         const t = this.app.services.threads.thread(a.metadata.threadId);
         return t ? inlineThread(this.app, t) : undefined;
@@ -594,6 +597,8 @@ class CodePanel implements PanelInstance {
   /** revealMachine's `unfold`: lines the PR didn't touch sit in folded context; once the file is mounted, unfold around
    *  them. True: it did, and CodeView has applied it (land again). */
   private async unfoldAround(t: CodeTarget, signal: AbortSignal, frame: () => Promise<unknown>) {
+    await this.draw(t.path, signal);
+    if (signal.aborted) return false;
     const f = this.files.get(t.path);
     if (this.mode !== 'diff' || !f?.diff) return false;
     await frame();
@@ -615,6 +620,24 @@ class CodePanel implements PanelInstance {
     return !signal.aborted;
   }
 
+  /** Commit the queued scroll/selection, or wait for the highlighter's actual render. File mode does not unfold,
+   *  but still must draw before `code-landed`; an empty virtualized view is not ready to measure. */
+  private draw(path: string, signal: AbortSignal) {
+    return new Promise<void>((done) => {
+      const check = () => {
+        const item = this.cv.getRenderedItems().find((it) => it.id === path);
+        if (!signal.aborted && !item?.element?.shadowRoot?.querySelector('[data-line]')) return;
+        this.drawWaiters.delete(check);
+        signal.removeEventListener('abort', check);
+        done();
+      };
+      this.drawWaiters.add(check);
+      signal.addEventListener('abort', check, { once: true });
+      this.cv.render(true);
+      check();
+    });
+  }
+
   /** Highlight the target's lines and scroll them to 30% from the top (a covering element: centred above it). */
   private land(t: CodeTarget, behavior: 'instant' | 'smooth' = 'instant') {
     const side = sideOf(t.side);
@@ -624,6 +647,7 @@ class CodePanel implements PanelInstance {
     // Centre in the uncovered code, or 8px from the top when the lines do not fit there.
     const offset = this.cover ? this.centredAbove(t.path, lines, side, this.cover.px()) : this.scroller.clientHeight * 0.3;
     this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset, behavior });
+    this.cv.render(true); // `instant` scrolls are queued by CodeView too; land only after they are applied.
     this.landedAt = this.cover?.px() ?? 0;
   }
 

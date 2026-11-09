@@ -146,6 +146,9 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     split.classList.toggle('is-solo', s.kind === 'empty');
   };
   const pane$ = paneMachine.provide({
+    // Parallel pages can queue code reads behind other startup requests. Audits wait for the real render;
+    // interactive playback retains its quicker fallback. This is a deadline, not an added delay.
+    delays: { land: () => audits ? 10_000 : 4000 },
     actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: proseAudit ? null : await codeAt(app, ref) }))) } : input)) },
     actions: {
       mount: ({ context }) => mount(context.next!),
@@ -515,7 +518,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       actor.send({ type: 'open', chapter, step });
       const want = JSON.stringify(target(ctx()));
       // showing: the code has landed (or landing gave up: late)
-      const { shown, late } = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 10_000 })).context;
+      const { shown, late } = (await waitFor(actor.getSnapshot().children.pane!, (s) => s.matches('showing') && JSON.stringify(s.context.want) === want, { timeout: 15_000 })).context;
       // Normal pages retain their animation-aware audit; the headless renderer disables CSS motion before opening slides.
       await Promise.race([Promise.all(left.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1000))]);
       const settled = (await settle(left)) && !late;

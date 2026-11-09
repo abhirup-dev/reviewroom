@@ -115,13 +115,13 @@ export function judge(ms: Measured[]): Finding[] {
       add({ check: 'overflow', level: 'warn', where, message: 'the narration needs scrolling', fix: `Shorten or split the slide; move detail to the walkthrough (review.html) and link it.${lead}` }, viewport, `${over}px more than the ${a.left.visible}px it has`);
     }
     // a step without a ref shows the previous pane: its chunk findings are that step's
-    for (const c of ownRef ? a.chunks : []) {
+    for (const c of ownRef && a.settled ? a.chunks : []) {
       const r = parseRef(c.ref);
       if (!c.code && (r?.type === 'code' || r?.type === 'file' || r?.type === 'sym'))
         add({ check: 'no-code', level: 'warn', where, message: `${c.ref} shows a preview card, not code`, fix: 'The symbol or file was not found: link the code with rr:code/<path>#L<a>-<b>.' }, viewport, 'preview');
       if (c.hidden) {
         const fit = c.lines - c.hidden;
-        const narrow = (r?.type === 'code' || r?.type === 'file') && r.start ? ` such as ${c.ref.replace(/#.*$/, '')}#L${r.start}-${r.start + fit - 1}` : '';
+        const narrow = fit > 0 && (r?.type === 'code' || r?.type === 'file') && r.start ? ` such as ${c.ref.replace(/#.*$/, '')}#L${r.start}-${r.start + fit - 1}` : '';
         add({ check: 'hidden-lines', level: 'warn', where, message: `highlighted lines of ${c.ref} are off screen`, fix: `About ${fit} lines fit: point at fewer${narrow}, or split them over slides (each can show a part). ast-grep outline gives exact declaration ranges.` }, viewport, `${c.hidden} of ${c.lines}, ${fit} fit`);
       }
       else if (c.code && a.chunks.length > 1 && c.visible < MIN_VISIBLE)
@@ -131,7 +131,7 @@ export function judge(ms: Measured[]): Finding[] {
     if (a.stripped.lead.length) add({ check: 'stripped', level: 'warn', where: chapter, message: `the lead loses ${a.stripped.lead.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
     if (a.stripped.text.length) add({ check: 'stripped', level: 'warn', where, message: `the text loses ${a.stripped.text.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
     for (const e of errors) add({ check: 'page-error', level: 'warn', where, message: e.slice(0, 200), fix: 'An error on the page while this slide showed: check its HTML.' }, viewport, 'console');
-    if (!a.settled) add({ check: 'unsettled', level: 'info', where, message: 'the page was still changing when measured', fix: 'The numbers for this slide may be off; measure it again.' }, viewport, 'timed out');
+    if (!a.settled) add({ check: 'unsettled', level: 'warn', where, message: 'the page was still changing when measured', fix: 'The numbers for this slide may be off; measure it again.' }, viewport, 'timed out');
   }
   return [...found.values()].map(({ at, ...f }) => ({ ...f, message: `${f.message} (${at.join('; ')})` }));
 }
