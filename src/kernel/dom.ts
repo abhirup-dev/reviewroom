@@ -130,12 +130,21 @@ export function threadBadge(t: { gh?: { conversation?: boolean }; status: string
   );
 }
 
-/** Five squares split between added and removed lines, as their share of the change. */
-export const diffstat = (adds: number, dels: number) => {
+/** The size of a change (one file, or several summed): +added \u2212removed, zeros left out, then five squares split as
+ *  their share. `counts: false` keeps only the squares, `bars: false` only the counts. */
+export const delta = (files: readonly { additions: number; deletions: number }[], opts: { counts?: boolean; bars?: boolean; small?: boolean; title?: string } = {}) => {
+  const adds = files.reduce((n, f) => n + f.additions, 0), dels = files.reduce((n, f) => n + f.deletions, 0);
   const total = adds + dels;
   const add = total ? Math.round((adds / total) * 5) : 0;
   const del = total ? Math.min(5 - add, Math.round((dels / total) * 5)) : 0;
-  return h('span', { class: 'rr-diffstat', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: i < add ? 'is-add' : i < add + del ? 'is-del' : '' })));
+  const counts = opts.counts !== false;
+  return h(
+    'span',
+    { class: 'rr-delta' + (opts.small ? ' rr-delta--small' : ''), title: (opts.title ? opts.title + ': ' : '') + `${adds} lines added, ${dels} removed` },
+    counts && adds ? h('span', { class: 'rr-add' }, '+' + adds) : null,
+    counts && dels ? h('span', { class: 'rr-del' }, '\u2212' + dels) : null,
+    opts.bars === false ? null : h('span', { class: 'rr-diffstat', 'aria-hidden': 'true' }, ...Array.from({ length: 5 }, (_, i) => h('span', { class: i < add ? 'is-add' : i < add + del ? 'is-del' : '' }))),
+  );
 };
 
 /** `1 file`, `3 files`. */

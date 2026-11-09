@@ -1,6 +1,6 @@
 // Shell header: identity, search, layout, theme, and injected feature controls. On a phone, a status bar and a menu
 // drawer instead (header.phone.ts).
-import { avatarUrl, copyText, diffstat, h, icon, plural } from './dom';
+import { avatarUrl, copyText, delta, h, icon, plural } from './dom';
 import { keyLabel, modLabel } from './commands';
 import { closePanel, hasPanel, panelDefs } from './dock';
 import type { ReviewApp } from '../app';
@@ -54,7 +54,6 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
       ]);
     };
     const infoBtn = h('button', { class: 'rr-hbtn rr-hbtn--icon', title: 'About this change: repository, author, branches, worktree', 'aria-label': 'About this change', 'aria-haspopup': 'menu', onclick: () => aboutChange(app, infoBtn) }, icon('info', 16));
-    const adds = app.files.reduce((n, f) => n + f.additions, 0), dels = app.files.reduce((n, f) => n + f.deletions, 0);
     bar.replaceChildren(
       h(
         'div',
@@ -63,7 +62,7 @@ export function buildHeader(app: ReviewApp, features: HeaderContributions): HTML
         // the title opens the change's details too (a bigger target than the icon beside it)
         h('button', { class: 'rr-header__title', title: m.title, 'aria-haspopup': 'menu', onclick: () => aboutChange(app, infoBtn) }, m.number ? h('span', { class: 'rr-muted' }, `#${m.number} `) : null, m.title),
         infoBtn,
-        h('span', { class: 'rr-delta', title: `${plural(app.files.length, 'file')}: ${adds} lines added, ${dels} removed` }, diffstat(adds, dels)),
+        delta(app.files, { counts: false, title: plural(app.files.length, 'file') }),
       ),
       h('div', { class: 'rr-toolbar__spacer' }),
       h(

@@ -1,5 +1,5 @@
 // Changed files panel.
-import { h, icon, plural, threadCounts } from '../kernel/dom';
+import { delta, h, icon, plural, threadCounts } from '../kernel/dom';
 import { popMenu, menuItem, menuLabel } from '../kernel/menus';
 import { openCentered } from './focus';
 import type { ChangedFile } from '../kernel/state/model.shared';
@@ -83,7 +83,7 @@ class FilesPanel implements PanelInstance {
       },
       h('span', { class: 'rr-file-row__name' }, label),
       threads.length ? h('span', { class: 'rr-file-row__threads' }, ...threadCounts(threads, 'in this file')) : null,
-      h('span', { class: 'rr-delta rr-delta--small', title: `${f.additions} added, ${f.deletions} removed` }, f.additions ? h('span', { class: 'rr-add' }, '+' + f.additions) : null, f.deletions ? h('span', { class: 'rr-del' }, '\u2212' + f.deletions) : null),
+      delta([f], { small: true, bars: false }),
     );
   }
 
