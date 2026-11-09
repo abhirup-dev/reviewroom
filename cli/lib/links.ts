@@ -8,6 +8,27 @@ import type { Provider } from './git.ts';
 import { regex } from 'regex';
 import { LINK_IN_TEXT, lineSpanOf, parseRef, symbolHits, symbolQuery, trimLink, withLineSpan } from '../../src/kernel/refs/refs.shared.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
+import { checkSource } from './source/check';
+
+export type SymbolResolver = { resolveSymbol: (name: string) => ReturnType<Provider['search']> };
+
+/** Translate authored symbol links once; source checking itself knows nothing about rr: links or reviews. */
+export async function prepareSymbols(repo: string, prov: Provider, refs: readonly string[]): Promise<Provider & SymbolResolver> {
+  const names = [...new Set(refs.flatMap((ref) => { const r = parseRef(ref); return r?.type === 'sym' ? [r.name] : []; }))];
+  if (!names.length) return { ...prov, resolveSymbol: (name) => symbolHits(prov.search(symbolQuery(name).word, prov.head, true, 500), name) };
+  const batch = await checkSource({ repo, revision: prov.head, queries: names.map((name) => { const { word, ...rest } = symbolQuery(name); return { name: word, ...rest }; }) });
+  if (batch.coverage.issues.length) console.error(`source symbol search fell back to Git: ${batch.coverage.issues.join('; ')}`);
+  const found = new Map<string, ReturnType<Provider['search']>>();
+  return { ...prov, resolveSymbol: (name) => {
+    if (!found.has(name)) {
+      const result = batch.results[names.indexOf(name)];
+      const hits = result?.declarations.map((d) => ({ path: d.path, line: (d.selectionRange ?? d.range).start.line + 1, text: d.signature, rev: batch.snapshot.revision, kind: 'definition' as const })) ?? [];
+      // An AST miss/partial read cannot establish absence. Preserve the existing reference fallback too.
+      found.set(name, hits.length && !batch.coverage.skippedFiles.length ? hits : symbolHits(prov.search(symbolQuery(name).word, prov.head, true, 500), name));
+    }
+    return found.get(name)!;
+  } };
+}
 
 const LinkStatus = z.enum(['ok', 'new', 'moved', 'changed', 'broken']);
 export type LinkStatus = z.infer<typeof LinkStatus>;
@@ -34,7 +55,7 @@ export const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
  * status: ok | new (fingerprinted now) | moved (same code within +/-5 lines; `to` is the fixed link) |
  * changed (the code at those lines changed, or the symbol lost its definition) | broken (file, symbol or section is gone).
  */
-export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'>, known: Links = {}, extra: string | readonly string[] = '', tour: Walkthrough | null = null) {
+export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 'read' | 'search'> & Partial<SymbolResolver>, known: Links = {}, extra: string | readonly string[] = '', tour: Walkthrough | null = null) {
   const visible = uncomment(html);
   const results: LinkResult[] = [], links: Links = {}, files = new Map<string, string | null>();
   const read = (rev: string, p: string) => {
@@ -70,7 +91,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     }
     if (r.type === 'sym') {
       // definitions come first; only a symbol that had one is held to it (the search misses some forms)
-      const hit = symbolHits(prov.search(symbolQuery(r.name).word, prov.head, true, 500), r.name)[0];
+      const hit = (prov.resolveSymbol ? prov.resolveSymbol(r.name) : symbolHits(prov.search(symbolQuery(r.name).word, prov.head, true, 500), r.name))[0];
       if (!hit) out(ref, 'broken', 'symbol not found at head');
       else if (known[ref] && hit.kind !== 'definition') out(ref, 'changed', 'its definition is gone, only references are left');
       else out(ref, known[ref] || hit.kind !== 'definition' ? 'ok' : 'new');
