@@ -89,18 +89,16 @@ diagram, table and widget for that width, never for a wide page.
 
 Reviewroom has good support for rich visualizations in Mermaid; leverage it.
 
-Edit `review.html` in the review directory; the open page reloads on every save. Then run
-`reviewroom check --fix --dir <dir>` and fix whatever it still reports.
-Optionally, to see it as the reviewer will (or to fix a layout problem they report), run
-`reviewroom shot [section] --dir <dir>`: PNGs of the Review panel, one per section, no browser needed.
+Edit `review.html` in the review directory; the open page reloads on every save. Follow
+[Validation and audit](references/validation-and-audit.md) before handing it over.
 
 ## Step 4b: Write the guided walkthrough, when wanted
 
 Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
 files, reconciliation; the diff and description as the only evidence), then "Guided walkthrough" in
-`references/authoring.md` (the file and its checks). Write `walkthrough.json`, then run those checks
-until clean. Each finding names the chapter/step and how to fix it. Take a screenshot only of slides
-you need to see.
+`references/authoring.md` (the file format). Write `walkthrough.json`, then follow
+[Validation and audit](references/validation-and-audit.md): use scoped checks while iterating,
+and the full slide audit before handover. Take screenshots only when needed.
 
 ## Step 4c: Hand over
 
