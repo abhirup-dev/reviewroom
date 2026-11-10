@@ -71,7 +71,7 @@ For each thread in the feedback:
 6. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the reviewer
    explicitly asks.
 
-If you changed code, run `reviewroom check --fix --dir <dir>` again and fix what it reports. For a PR
+After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
 push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
@@ -82,7 +82,7 @@ deeper explanation, a table, a sketch), grow the walkthrough instead of the slid
 section that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its
 top and expands on it; the reply links that section, and the discussion continues there. Edit the
 slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
-again using the guided-walkthrough checks in `authoring.md` until clean.
+again using [Validation and audit](validation-and-audit.md) until clean.
 
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file, then send them in one call (all or nothing):

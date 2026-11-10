@@ -171,8 +171,8 @@ Interactive widgets can drive the reviewer straight into the code:
 
 The optional guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
 on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
-review directory and is validated against `schema/walkthrough.schema.json` in the reviewroom install (`reviewroom check
---help` prints its absolute path). Put that path in a top-level `"$schema"` key so your editor validates as you type.
+review directory and follows `schema/walkthrough.schema.json` in the reviewroom install. Put that path in a top-level
+`"$schema"` key so your editor validates as you type; see [Validation and audit](validation-and-audit.md).
 The demo has a full one: `examples/habit-events/walkthrough.json`.
 
 ```json
@@ -209,16 +209,8 @@ from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>
 `<rr-embed>`; ids, styles, scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). A figure
 that needs more than that (your own HTML or SVG) lives in `review.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
 
-- `reviewroom check` validates the file first, then every link in it, then whether it works as a guided walkthrough
-  (changed files no slide shows, chapter sizes); problems name the slide (chapter/step). A file linked
-  anywhere in slide text counts as shown; tests, generated, dependency, lock and doc files, and files with under 10 changed lines,
-  are only reported as info.
-- Highlight budget at a laptop screen: about 25 lines for one ref, 10 each for two stacked, never more than two
-  stacked. `check` estimates it; `slide-lint` measures it and proposes a narrower range.
-- `reviewroom slide-lint` plays every slide in a headless browser and reports what does not fit:
-  narration that needs scrolling, highlighted lines off screen, stacked chunks too short, content wider
-  than its box, prose the sanitizer strips, page errors. Each finding says how to fix it.
-- `reviewroom shot <chapter>/<step>` renders one slide to a PNG (`--theme dark`, `--viewport`).
+Use [Validation and audit](validation-and-audit.md) for checks, iteration and screenshots.
+
 - `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a slide,
   and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the walkthrough.
 - `reviewroom publish-slides` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
