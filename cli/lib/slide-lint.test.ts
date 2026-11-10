@@ -91,11 +91,17 @@ test('slide-lint reads Mermaid labels as the page does: entities decoded, whites
   expect(fs).toEqual([]);
 });
 
-test('judge: a step without its own ref does not repeat the pane findings of the step before', () => {
+test('judge: inherited, zero-fit and unfinished code ranges get valid findings', () => {
   const audit: StepAudit = { left: { visible: 600, content: 600, lead: 0 }, chunks: [{ ref: 'rr:code/a.go#L1-50', code: true, lines: 50, visible: 30, hidden: 20 }], wide: [], stripped: { lead: [], text: [] }, settled: true };
   const fs = judge([
     { viewport: 'v', chapter: 'c', step: 's1', audit, errors: [] },
     { viewport: 'v', chapter: 'c', step: 's2', audit, errors: [], ownRef: false },
   ]);
   expect(fs.map((f) => f.where)).toEqual(['c/s1']);
+  audit.chunks[0].hidden = 50;
+  const empty = judge([{ viewport: 'v', chapter: 'c', step: 's1', audit, errors: [] }]);
+  expect(empty[0].fix).not.toContain('#L1-0');
+  const waiting = judge([{ viewport: 'v', chapter: 'c', step: 's1', audit: { ...audit, settled: false }, errors: [] }]);
+  expect(waiting.map((f) => f.check)).toEqual(['unsettled']);
+  expect(waiting[0].level).toBe('warn');
 });

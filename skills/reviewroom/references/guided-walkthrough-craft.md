@@ -80,5 +80,5 @@ One story at two depths:
 - Tables, supporting detail and caveats go in the walkthrough; a slide carries only the attributed
   number its claim needs. The guided walkthrough is written once and kept stable; the walkthrough grows
   round by round (see "Answer each thread" in `review-rounds.md`).
-- Each slide fits the screen (the checks in `authoring.md` measure it). Split a slide rather than
+- Each slide fits the screen ([Validation and audit](validation-and-audit.md) measures it). Split a slide rather than
   squeeze it.
