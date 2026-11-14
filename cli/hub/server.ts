@@ -4,6 +4,8 @@
 //   GET  /api/health                counters and the Crit/Plannotator versions against the verified ones
 //   POST /api/sessions/:id/close    SIGTERM a session a fresh poll still finds (needs x-reviewroom-action: close-session)
 //   ALL  /r/<review id>/*           the review whose dir hashes to the id, proxied to its server (ADR 0001)
+//   ALL  /crit/<key>/*, /plannotator/<pid>/*   that session, proxied with its pages rewritten to stay under the prefix
+//   ALL  anything else               from a /crit/ or /plannotator/ page (Referer): 307 into its prefix; else 404
 // Behind hubAccess: loopback, or the configured public origin.
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
@@ -12,7 +14,7 @@ import { assessCompatibility } from './compat.ts';
 import type { Hub } from './hub.ts';
 import { guarded } from '../lib/server.ts';
 import { PWA_HEAD, serveClient } from '../lib/pwa.ts';
-import { serveProxy } from './proxy.ts';
+import { referredPath, serveProxy } from './proxy.ts';
 
 const PAGE = `<!doctype html>
 <html lang="en">
@@ -33,7 +35,10 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
   const app = new Hono();
   app.use(guarded((c) => hubAccess(c, publicOrigin)));
   app.use(compress()); // the phone's link is the slow one; proxied reviews arrive already encoded by their own server
-  app.notFound((c) => c.json({ error: 'not found' }, 404));
+  app.notFound((c) => {
+    const to = referredPath(c.req.header('referer'), c.req.path);
+    return to ? c.redirect(to + new URL(c.req.url).search, 307) : c.json({ error: 'not found' }, 404);
+  });
   app.get('/', (c) => c.html(PAGE, 200, { 'cache-control': 'no-cache' }));
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204));

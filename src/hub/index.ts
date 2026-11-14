@@ -296,13 +296,21 @@ function askClose(items: SessionInfo[]) {
 }
 
 // ------------------------------------------------------------ polling
+function proxiedUrl(s: SessionInfo): [string | null, string | null] {
+  if (s.reviewId) return [`/r/${s.reviewId}/`, null];
+  if (!s.url || s.tool === 'reviewroom') return [null, s.urlNote ?? 'only reachable on the machine itself'];
+  const u = new URL(s.url);
+  return [`/${s.tool}/${s.id.slice(s.tool.length + 1)}${u.pathname}${u.search}`, null];
+}
+
 async function refresh() {
   try {
     const [r, hr] = await Promise.all([fetch('/api/sessions', { cache: 'no-store' }), fetch('/api/health', { cache: 'no-store' })]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = (await r.json()) as HubSnapshot;
-    // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
-    if (!/^(127\.|localhost$|\[::1\]$)/.test(location.hostname)) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
+    // opened through a front (the public origin): loopback URLs don't reach this machine; sessions go through the
+    // hub's proxies, reviews at /r/<id>/, Crit and Plannotator at /<tool>/<key>/ (their own path kept)
+    if (!/^(127\.|localhost$|\[::1\]$)/.test(location.hostname)) for (const s of data.sessions) [s.url, s.urlNote] = proxiedUrl(s);
     const health = hr.ok ? ((await hr.json()) as { compatibility?: Compat }) : null;
     const compat = Object.entries(health?.compatibility ?? {})
       .filter(([tool, c]) => c.status === 'unverified' || (c.status === 'unavailable' && data!.sessions.some((s) => s.tool === tool)))

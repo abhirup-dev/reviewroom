@@ -57,6 +57,9 @@ The phone address is then fixed (the Mac's tailnet name and port 4847), and on t
 `https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub --public-origin <https origin>`, saved
 in `~/.reviewroom/config.json` (restart the hub to apply).
 
+Crit and Plannotator sessions the hub lists open through it too, at `/crit/<key>/` and `/plannotator/<pid>/`: their pages
+assume they own the site root, so the hub rewrites them to stay under that path.
+
 Open the public URL on the phone: the hub lists your reviews, and each opens in a phone layout (bottom tabs,
 sheets, touch commenting). Install it from **More › Install app** or the palette (`Install app`); on iOS, Safari's
 **Share › Add to Home Screen**. It updates itself when you rebuild or upgrade reviewroom, waiting while a comment is

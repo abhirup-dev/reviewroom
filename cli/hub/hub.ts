@@ -262,6 +262,18 @@ export class Hub {
     return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.reviewId === id && s.port && s.pid) ?? null;
   }
 
+  /** The live Crit or Plannotator session for /crit/<key>/ or /plannotator/<pid>/: from the last poll, polling again
+   *  when it is unknown and the poll is older than the interval; its pid must still run, as it holds the port. */
+  async toolSession(id: string): Promise<SessionInfo | null> {
+    const find = () => {
+      const s = this.sessions.get(id);
+      return s && s.tool !== 'reviewroom' && s.url && s.port && s.pid && alive(s.pid) ? s : null;
+    };
+    if (find() || Date.now() - this.lastPollAtMs < this.pollIntervalMs) return find();
+    await this.poll();
+    return find();
+  }
+
   /** SIGTERM one session that a fresh poll still finds; the client names a session, never a pid. A reviewroom
    *  server is stopped the way `reviewroom stop` does it (only if it answers with that pid). */
   async closeSession(id: string): Promise<{ ok: true; session: SessionInfo } | { ok: false; reason: 'not-found' | 'refused' }> {

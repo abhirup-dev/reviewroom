@@ -7,8 +7,9 @@ import { accessRequest, loopbackHosts, sameSite, serverPort, type AccessRequest 
 // shortcut: hard-coded to the reviewer's portless setup, make it a setting if anyone else runs the hub
 export const LOCAL_ORIGIN = 'https://reviewroom.localhost:1355';
 
-// the hub's API and every proxied review's API: cross-site checks apply to both (the proxy rewrites Origin)
-const isApi = (p: string) => /^\/(r\/[^/]+\/)?api\//.test(p);
+// the hub's API and every proxied session's API: cross-site checks apply to all (the proxy rewrites Origin, and
+// Crit and Plannotator check only Host)
+const isApi = (p: string) => /^\/((?:r|crit|plannotator)\/[^/]+\/)?api\//.test(p);
 
 /** Loopback as on a review server, or Host equal to the portless name's or the public origin's host; on the APIs no
  *  cross-site requests, and writes carry no Origin or one of those. Pure, for tests. */
