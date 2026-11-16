@@ -99,14 +99,14 @@ describe('poll', () => {
     const repo = tmp();
     using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1 }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
     const dead = sleeper();
-    write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'pr-42'), title: 'Activity events', number: 42, head: 'refs/reviewroom/pr-42', mode: 'review', agent: { name: 'claude-code', pid: 77 }, author: 'sam' });
+    write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'pr-42'), title: 'Upload limits', number: 42, head: 'refs/reviewroom/pr-42', mode: 'review', agent: { name: 'claude-code', pid: 77 }, author: 'sam-rivera' });
     const alsoLive = sleeper(); // answers as itself, with a body that is not JSON: kept
     using garbled = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('{not json', { headers: { 'x-reviewroom-pid': String(alsoLive.pid) } }) });
     write(rrHome, `${alsoLive.pid}.json`, { pid: alsoLive.pid, port: garbled.port, repo, dir: repo, head: 'main', mode: 'serve' });
     write(rrHome, `${dead.pid}.json`, { pid: dead.pid, port: 1, repo, dir: repo, head: 'main', mode: 'serve' }); // alive pid, no server: stale
     const sessions = Object.fromEntries((await new Hub({ critHome: tmp(), plannotatorDataDir: tmp(), healthTimeoutMs: 500 }).poll()).map((x) => [x.id, x]));
     expect(Object.keys(sessions).sort()).toEqual([`reviewroom:${process.pid}`, `reviewroom:${alsoLive.pid}`].sort());
-    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Activity events', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, origin: 'claude-code', parentAgentPid: 77, author: 'sam' });
+    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Upload limits', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, origin: 'claude-code', parentAgentPid: 77, author: 'sam-rivera' });
     expect(sessions[`reviewroom:${alsoLive.pid}`]).toMatchObject({ health: 'ok', commentCount: null });
     expect(fs.existsSync(path.join(rrHome, 'sessions', `${dead.pid}.json`))).toBe(false);
   });

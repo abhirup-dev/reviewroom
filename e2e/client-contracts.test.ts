@@ -40,7 +40,7 @@ describe('built client author contract', () => {
           result.files = rr.files().length > 0;
           const file = rr.files().find(f => !f.binary && f.status !== 'deleted');
           result.read = typeof await rr.read(file.path) === 'string';
-          result.search = Array.isArray(await rr.search('RecentEvents'));
+          result.search = Array.isArray(await rr.search('Take'));
           const docs = [];
           const off = rr.on('reveal-doc', target => docs.push(target.id));
           await rr.open('rr:doc/contract');

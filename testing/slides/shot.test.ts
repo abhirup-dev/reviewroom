@@ -27,8 +27,8 @@ async function pixelDifference(page: Page, a: Blob, b: Blob) {
 }
 
 test.skipIf(!browser)('shot defaults to a 480-high raster and native opts out without changing the CSS viewport', async () => {
-  const capped = await shot(['latency/s2', '--viewport', '1440x900']);
-  const native = await shot(['latency/s2', '--viewport', '1440x900', '--native']);
+  const capped = await shot(['enforce/s2', '--viewport', '1440x900']);
+  const native = await shot(['enforce/s2', '--viewport', '1440x900', '--native']);
   expect([capped.code, native.code]).toEqual([0, 0]);
   expect(await pngSize(image(capped.stdout))).toEqual({ width: 768, height: 480 });
   const nativeSize = await pngSize(image(native.stdout));
@@ -38,7 +38,7 @@ test.skipIf(!browser)('shot defaults to a 480-high raster and native opts out wi
   expect(nativeSize.width / 1440).toBe(nativeSize.height / 900);
   expect(capped.stdout).toContain('1440x900 CSS viewport');
   expect(native.stdout).toContain('-native.png');
-  const prose = await shot(['latency/s2', '--viewport', '1440x900', '--prose-only']);
+  const prose = await shot(['enforce/s2', '--viewport', '1440x900', '--prose-only']);
   expect(prose.code).toBe(0);
   const size = await pngSize(image(prose.stdout));
   expect(size.width).toBeLessThan(768);
@@ -50,7 +50,7 @@ test.skipIf(!browser)('prose-only preserves the full-slide pane bounds and pixel
   await withServer(repo, dir, async (url) => {
     for (const vp of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) for (const rasterHeight of [undefined, 480]) for (const theme of ['light', 'dark'] as const) {
       await withPage(url, vp, async (page) => {
-        const full = await page.audit('latency', 's1', theme);
+        const full = await page.audit('why', 's1', theme);
         const before = await pane(page);
         const crop = await page.screenshot('.rr-tour__left');
         await page.evaluate(`(() => {
@@ -59,7 +59,7 @@ test.skipIf(!browser)('prose-only preserves the full-slide pane bounds and pixel
           code.read=(...args)=>{window.__shotReads++;return original(...args)};
           return true;
         })()`);
-        const prose = await page.audit('latency', 's1', theme, { proseOnly: true });
+        const prose = await page.audit('why', 's1', theme, { proseOnly: true });
         expect(await pane(page)).toEqual(before);
         expect(prose.left).toEqual(full.left);
         expect(prose.chunks).toEqual([]);
@@ -75,10 +75,10 @@ test.skipIf(!browser)('prose-only preserves the full-slide pane bounds and pixel
 
 test.skipIf(!browser)('prose-only keeps focus, inheritance and embedded code while skipping the right pane', async () => {
   const w = JSON.parse(read(file));
-  w.chapters[3].steps[0].ref = 'rr:sym/DefinitelyMissingPaneSymbol';
-  w.chapters[3].steps[1].ref = undefined;
-  w.chapters[3].steps[1].focus = ['Ledger.Fetch', 'habit.RecentEvents'];
-  w.chapters[3].steps[1].text += '<rr-code ref="rr:code/pkg/features/habit/fetcher.go#L1-48"></rr-code>';
+  w.chapters[2].steps[0].ref = 'rr:sym/DefinitelyMissingPaneSymbol';
+  w.chapters[2].steps[1].ref = undefined;
+  w.chapters[2].steps[1].focus = ['Plan lookup', 'Take'];
+  w.chapters[2].steps[1].text += '<rr-code ref="rr:code/internal/limit/bucket.go#L1-48"></rr-code>';
   fs.writeFileSync(file, JSON.stringify(w));
   await withServer(repo, dir, (url) => withPage(url, { width: 1440, height: 900 }, async (page) => {
     await page.evaluate(`(() => {
@@ -87,7 +87,7 @@ test.skipIf(!browser)('prose-only keeps focus, inheritance and embedded code whi
       rr.app.searchSymbol=()=>{throw new Error('unexpected symbol resolution')};
       return true;
     })()`);
-    const audit = await page.audit('latency', 's2', 'light', { proseOnly: true });
+    const audit = await page.audit('enforce', 's2', 'light', { proseOnly: true });
     expect(audit.settled).toBe(true);
     expect(await page.evaluate(`!!document.querySelector('.rr-tour__left rr-code .rr-code__body')`)).toBe(true);
     expect(await page.evaluate(`document.querySelectorAll('.rr-tour__lead .pele-node.is-focus').length`)).toBe(2);
@@ -97,8 +97,8 @@ test.skipIf(!browser)('prose-only keeps focus, inheritance and embedded code whi
 }, 30_000);
 
 test.skipIf(!browser)('normal review screenshots also cap each part while native keeps its layout size', async () => {
-  const capped = await shot(['request-path']);
-  const native = await shot(['request-path', '--native']);
+  const capped = await shot(['summary']);
+  const native = await shot(['summary', '--native']);
   expect([capped.code, native.code]).toEqual([0, 0]);
   const files = (stdout: string) => stdout.split('\n').flatMap((line) => { const match = /^(.*\.png)  \(/.exec(line); return match ? [match[1]] : []; });
   const small = await Promise.all(files(capped.stdout).map((f) => pngSize(new Blob([fs.readFileSync(f)]))));

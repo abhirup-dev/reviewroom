@@ -52,7 +52,7 @@ export function createEditor(
     onEscape(e: KeyboardEvent): void;
   },
 ): Editor {
-  // The text is the markdown itself, with rr: links drawn as atomic chips: people see "request_builder.go:51-53",
+  // The text is the markdown itself, with rr: links drawn as atomic chips: people see "handler.go:21-25",
   // never `[...](rr:code/...)`.
   const chips = new MatchDecorator({ regexp: o.linkPattern, decoration: (m) => Decoration.replace({ widget: new Chip(m[3], m[2] || o.label(m[3]), !!m[1]) }) });
   const chipView = ViewPlugin.fromClass(

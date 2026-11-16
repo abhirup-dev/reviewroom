@@ -6,8 +6,8 @@ import { read, setup } from './fixture.ts';
 
 describe('slides', () => {
   const { dir, d, cli, state, repo } = setup();
-  const demo = path.join(import.meta.dir, '..', 'examples', 'activity-events', 'walkthrough.json');
-  const walkthrough = read(import.meta.dir, '..', 'examples', 'activity-events', 'review.html');
+  const demo = path.join(import.meta.dir, '..', 'examples', 'uploads', 'walkthrough.json');
+  const walkthrough = read(import.meta.dir, '..', 'examples', 'uploads', 'review.html');
   // Keep the paired walkthrough: slides may link to its sections with rr:doc refs.
   beforeEach(() => {
     fs.copyFileSync(demo, path.join(dir, 'walkthrough.json'));
@@ -16,11 +16,11 @@ describe('slides', () => {
   });
 
   test('a comment on a step is a tour thread; status --threads shows the slide', async () => {
-    const c = await cli(['comment', 'rr:tour/latency/s2', 'why 30 ms?', ...d]);
+    const c = await cli(['comment', 'rr:tour/enforce/s2', 'why retry immediately?', ...d]);
     expect(c.code).toBe(0);
-    expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'latency', step: 's2' });
+    expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'enforce', step: 's2' });
     const s = await cli(['status', '--threads', ...d]);
-    expect(s.stdout).toMatch(/guided walkthrough "Builder.Build: the threads meet" slide 2\/5: "The fetcher arrives through/);
+    expect(s.stdout).toMatch(/guided walkthrough "The handler joins the contract" slide 2\/2: "The client retries/);
   });
 
   test('check covers walkthrough.json: the demo is ok, a broken step ref names its step, a schema error stops it', async () => {
@@ -31,7 +31,7 @@ describe('slides', () => {
     w.chapters[1].steps[0].ref = 'rr:code/pkg/gone.go#L1-2';
     fs.writeFileSync(file, JSON.stringify(w, null, 2));
     const broken = await cli(['check', ...d]);
-    expect([broken.code, broken.stdout]).toEqual([1, expect.stringMatching(/broken\s+rr:code\/pkg\/gone.go#L1-2.*\[guided walkthrough fetcher\/s1\]/)]);
+    expect([broken.code, broken.stdout]).toEqual([1, expect.stringMatching(/broken\s+rr:code\/pkg\/gone.go#L1-2.*\[guided walkthrough bucket\/s1\]/)]);
     fs.writeFileSync(file, JSON.stringify({ ...w, version: 2 }));
     const bad = await cli(['check', ...d]);
     expect([bad.code, bad.stderr]).toEqual([1, expect.stringContaining('version')]);
@@ -45,9 +45,9 @@ describe('slides', () => {
   });
 
   test('a tour anchor without a step breaks the schema', async () => {
-    await cli(['comment', 'rr:tour/latency/s2', 'why 30 ms?', ...d]);
+    await cli(['comment', 'rr:tour/enforce/s2', 'why retry immediately?', ...d]);
     const st = state();
-    st.threads[0].anchor = { kind: 'tour', chapter: 'latency' };
+    st.threads[0].anchor = { kind: 'tour', chapter: 'enforce' };
     fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(st));
     const r = await cli(['status', '--threads', ...d]);
     expect(r.stderr).toMatch(/does not match schema.*step/);
@@ -62,7 +62,7 @@ describe('slides', () => {
     // Exercise overflow deliberately, independently of how well the demo fits.
     const file = path.join(dir, 'walkthrough.json');
     const tour = JSON.parse(read(file));
-    tour.chapters.find((chapter: { id: string }) => chapter.id === 'latency').steps[2].text += `<p>${'Oversized narration. '.repeat(300)}</p>`;
+    tour.chapters.find((chapter: { id: string }) => chapter.id === 'enforce').steps[1].text += `<p>${'Oversized narration. '.repeat(300)}</p>`;
     fs.writeFileSync(file, JSON.stringify(tour));
     const before = listing();
     const lint = await cli(['slide-lint', '--viewport', '1280x720', '--json', ...d]);
@@ -70,12 +70,12 @@ describe('slides', () => {
     const out = JSON.parse(lint.stdout);
     expect(out).toMatchObject({ viewports: ['1280x720'], links: [] });
     // The oversized step needs scrolling, and the report names it and explains the fix.
-    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the slide') }));
+    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'enforce/s2', fix: expect.stringContaining('Shorten or split the slide') }));
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
     expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('rr-mermaid#bad: the diagram could not be rendered') }));
     expect(lint.code).toBe(1);
-    const png = path.join(dir, '..', 'shots', 'latency-s2-1280x800-light.png');
-    const shot = await cli(['shot', 'latency/s2', '--out', path.dirname(png), ...d]);
+    const png = path.join(dir, '..', 'shots', 'enforce-s2-1280x800-light.png');
+    const shot = await cli(['shot', 'enforce/s2', '--out', path.dirname(png), ...d]);
     expect([shot.code, shot.stdout.split('\n')[0]]).toEqual([0, png]);
     expect([...fs.readFileSync(png).subarray(1, 4)].map((c) => String.fromCharCode(c)).join('')).toBe('PNG');
     expect(listing()).toEqual(before);
@@ -97,7 +97,7 @@ describe('slides', () => {
           at();
         })`),
       );
-    const gaps = await withServer(repo, dir, async (url) => [await gap(url + '?walkthrough=why/s1'), await gap(url + '?walkthrough=fetcher/s1')]);
+    const gaps = await withServer(repo, dir, async (url) => [await gap(url + '?walkthrough=why/s1'), await gap(url + '?walkthrough=bucket/s1')]);
     expect(gaps).toEqual([0, 0]);
   }, 60_000);
 });

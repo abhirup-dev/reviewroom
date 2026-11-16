@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Limit file uploads per account</title>
+<script type="module" src="_rr/reviewroom.js"></script></head><body><rr-app>
+<script type="application/json" id="rr-meta">{"title":"Limit file uploads per account"}</script>
+<rr-review>
+<h1>Limit file uploads per account</h1>
+<section id="summary"><h2>Summary</h2>
+<p class="rr-lede">Uploads now spend a token from their account’s allowance before reaching storage. Free and Pro have configured rates; an exhausted bucket produces 429 with a wait time.</p>
+<section id="request-path"><h3>Request path</h3><rr-mermaid id="upload-flow" class="rr-diagram-delta">
+flowchart TD
+ A[Account] --> H[Handler, changed]:::changed
+ H --> B[Token bucket, new]:::added
+ B -- allowed --> S[Store]
+ B -- wait --> R[429 and Retry-After, new]:::added
+ click A "rr:sym/AccountFrom"
+ click H "rr:sym/ServeHTTP"
+ click B "rr:sym/Take"
+ click S "rr:sym/Store"
+ click R "rr:code/internal/upload/handler.go#L21-25"
+</rr-mermaid></section>
+<p><a href="rr:sym/ServeHTTP">The handler</a> joins identity and enforcement. <a href="rr:sym/Take">Take</a> holds an in-memory bucket per account, and <a href="rr:code/config/limits.json">the plan configuration</a> sets the refill rate and burst.</p>
+<p><strong>Suggested verdict: request changes.</strong> Team has no configured rate, and the retry client ignores the server’s wait. Both are observable paths through this diff.</p>
+<p data-baseline>Previously, <a href="rr:code/internal/upload/handler.go@base#L10-19">the handler stored uploads immediately</a>. Authentication already supplied <a href="rr:sym/Account">account identity</a>.</p>
+</section>
+<section id="findings"><h2>Findings</h2>
+<section id="finding-team"><h3>High: Team uploads bypass the limit</h3>
+<p><a href="rr:code/config/limits.json#L1-5">Team’s configuration</a> supplies only a byte limit. <a href="rr:sym/Load">Load</a> accepts it without validation, leaving the rate at zero. <a href="rr:code/internal/limit/bucket.go#L33-36">Take allows every request with a non-positive rate</a>, so Team uploads never consume tokens.</p>
+<p>An account on that plan can send uploads continuously despite the new per-account protection. Configure Team’s rate and burst, validate every supported plan at load time, and make any unlimited policy explicit. Add a configuration-to-handler test for each plan and for an unknown plan.</p>
+</section>
+<section id="finding-retry"><h3>Medium: retries ignore the wait</h3>
+<p><a href="rr:code/client/upload.go#L10-25">Send</a> now retries 429 responses, but it closes the response and immediately starts the next attempt. It never reads Retry-After, which <a href="rr:code/internal/upload/handler.go#L21-25">the handler sets</a> to the next token’s wait rounded up to seconds.</p>
+<p>When a bucket is empty, three quick attempts can all fail before it refills. That spends the client’s retry budget without giving the upload a useful chance to recover. Honour Retry-After with a bounded, cancellable wait; test a 429 followed by a successful response after the indicated delay.</p>
+</section>
+</section>
+<section id="author-questions"><h2>Questions for the author</h2>
+<rr-checklist>
+<rr-check id="account-scope">Is one shared allowance for every user in an account the intended product policy?</rr-check>
+<rr-check id="replicas">Will this run in one process, or must accounts share an allowance across replicas?</rr-check>
+<rr-check id="unlimited">Should any plan deliberately allow unlimited uploads?</rr-check>
+</rr-checklist>
+<p><a href="rr:sym/Uploads">Uploads</a> stores buckets in process memory without eviction. Confirm the deployment and account cardinality before treating that as a production quota.</p>
+</section>
+<section id="evidence"><h2>Evidence</h2>
+<p>Inspected both feature commits against main, including the <a href="rr:code/client/send.go@base">original client</a> and its <a href="rr:code/client/upload.go">renamed implementation</a>.</p>
+<table><thead><tr><th>Behavior</th><th>Evidence</th><th>Gap</th></tr></thead><tbody>
+<tr><td>Burst exhaustion</td><td><rr-ref ref="rr:sym/TestTakeBurst"></rr-ref></td><td>No handler assertion</td></tr>
+<tr><td>Timed refill</td><td><rr-ref ref="rr:sym/TestTakeRefill"></rr-ref></td><td>No retry timing assertion</td></tr>
+</tbody></table>
+<p>Ran <code>go test ./...</code>: passed. The tests use a controlled clock. They establish burst and refill behavior, not end-to-end recovery from 429, configuration completeness, or a quota shared across processes.</p>
+</section>
+<section id="your-questions"><h2>Your questions</h2>
+<section id="shared-account" data-round="2"><h3>Sharing an allowance</h3>
+<p><a href="rr:thread/t_seq01">Your question about account scope</a> asks whether users compete for tokens. <a href="rr:code/internal/limit/bucket.go#L37-42">The bucket map uses the account id</a>, so they do. A per-user policy would need a different key and an explicit decision about the account-wide cap.</p>
+</section>
+<section id="retry-header" data-round="2"><h3>The wait is in seconds</h3>
+<p><a href="rr:thread/t_rows">Your question about the header</a> is answered by <a href="rr:code/internal/upload/handler.go#L22">rounding the duration up</a>. The response communicates whole seconds, so a fractional wait cannot become a zero-second retry.</p>
+</section>
+</section>
+</rr-review></rr-app></body></html>

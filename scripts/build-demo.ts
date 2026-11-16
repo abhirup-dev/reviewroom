@@ -74,7 +74,7 @@ for (const c of commits) {
 }
 // a couple of untouched files so symbol search can leave the diff
 for (const p of git('ls-tree', '-r', '--name-only', head).split('\n').filter(Boolean)) if (!contents[`${head}:${p}`]) grab(head, p);
-const meta = { title: git('log', '-1', '--format=%s', head).trim(), repo: 'example/app-feed-aggregator-service', author: git('log', '-1', '--format=%an', head).trim(), base, head, baseLabel: baseRef, headLabel: headRef };
+const meta = { title: git('log', '-1', '--format=%s', head).trim(), repo: 'example/uploads', author: git('log', '-1', '--format=%an', head).trim(), base, head, baseLabel: baseRef, headLabel: headRef };
 const fixture = { meta, commits, files, contents };
 
 // 3) page

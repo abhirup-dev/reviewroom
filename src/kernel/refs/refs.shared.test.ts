@@ -54,14 +54,14 @@ test('rr:sym qualifiers narrow the search hits', () => {
   const hits = [
     { path: 'pkg/a/use.go', text: 'b.Build(ctx)', kind: 'reference' as const },
     { path: 'pkg/cache/cache.go', text: 'func (c *Cache) Build() error {', kind: 'definition' as const },
-    { path: 'pkg/ranker/builder.go', text: 'func (b *Builder) Build(ctx context.Context) {', kind: 'definition' as const },
-    { path: 'pkg/habit/fetcher.go', text: 'func (f *Fetcher) Build() {', kind: 'definition' as const },
+    { path: 'pkg/storage/builder.go', text: 'func (b *Builder) Build(ctx context.Context) {', kind: 'definition' as const },
+    { path: 'pkg/upload/fetcher.go', text: 'func (f *Fetcher) Build() {', kind: 'definition' as const },
   ];
   const paths = (name: string) => symbolHits(hits, name).map((h) => h.path);
   expect(paths('Build')[0]).toBe('pkg/cache/cache.go'); // definitions first
   expect(paths('Build').at(-1)).toBe('pkg/a/use.go');
-  expect(paths('Builder.Build')).toEqual(['pkg/ranker/builder.go']); // receiver, not "Builder" inside other words
-  expect(paths('habit.Build')).toEqual(['pkg/habit/fetcher.go']); // package = path segment
-  expect(paths('ranker/builder.go:Build')).toEqual(['pkg/ranker/builder.go']);
+  expect(paths('Builder.Build')).toEqual(['pkg/storage/builder.go']); // receiver, not "Builder" inside other words
+  expect(paths('upload.Build')).toEqual(['pkg/upload/fetcher.go']); // package = path segment
+  expect(paths('storage/builder.go:Build')).toEqual(['pkg/storage/builder.go']);
   expect(paths('Nope.Build')).toEqual([]); // a qualified symbol that's gone is broken, not some other Build
 });

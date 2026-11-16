@@ -18,8 +18,8 @@ describe('cli', () => {
   test('--dir alone finds the repo the review dir is in', async () => expect(await cli(['check', '--dir', dir])).toMatchObject({ code: 0, stderr: '' }));
   test('pr without a target scaffolds from --base/--head and serves', async () => {
     const local = path.join(tmp, 'local-review');
-    spawn(['pr', '--base', 'main', '--head', 'feat/activity-events', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
+    spawn(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
     expect((await fetch((await url(local)) + 'api/meta')).ok && fs.existsSync(path.join(local, 'review.html'))).toBe(true);
-    expect(JSON.parse(read(local, 'config.json')).head).toBe('feat/activity-events');
+    expect(JSON.parse(read(local, 'config.json')).head).toBe('feat/upload-rate-limit');
   });
 });

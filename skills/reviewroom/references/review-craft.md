@@ -84,16 +84,15 @@ stays a list.
 comment on gets its own sentence, item or paragraph.
 
 ```html
-<p>The fetcher now retries twice, the builder degrades when the fetch fails instead of
-returning the error, and the ranker request gains an optional events field that the proto marks
-append-only.</p>
+<p>The bucket spends a token, the handler rejects an upload when the bucket is empty,
+and the client retries a rejected request.</p>
 ```
 
 ```html
 <ul>
-  <li><a href="rr:sym/fetchHabit">fetchHabit</a> retries twice.</li>
-  <li><a href="rr:sym/Builder.Build">Builder.Build</a> degrades on a failed fetch instead of returning the error.</li>
-  <li><a href="rr:code/proto/ranker.proto#L12">RankerRequest.events</a> is new and append-only.</li>
+  <li><a href="rr:sym/Take">Take</a> spends one token.</li>
+  <li><a href="rr:sym/ServeHTTP">ServeHTTP</a> returns 429 when no token is available.</li>
+  <li><a href="rr:sym/Send">Send</a> retries rejected uploads.</li>
 </ul>
 ```
 
@@ -103,19 +102,16 @@ more clearly; keep the inventory when individual entries are what the reviewer n
 
 ```html
 <ul>
-  <li><rr-ref ref="rr:sym/TestFetch_RetriesOnce"></rr-ref><br>Retries after one transient error.</li>
-  <li><rr-ref ref="rr:sym/TestFetch_GivesUp"></rr-ref><br>Gives up after the second error.</li>
-  <li><rr-ref ref="rr:sym/TestBuild_Degrades"></rr-ref><br>Builds without events when the fetch fails.</li>
-  <!-- More entries of the same shape. -->
+  <li><rr-ref ref="rr:sym/TestTakeBurst"></rr-ref><br>Rejects uploads after the initial burst.</li>
+  <li><rr-ref ref="rr:sym/TestTakeRefill"></rr-ref><br>Allows an upload after a token refills.</li>
 </ul>
 ```
 
 ```html
-<h3>Retry policy</h3>
-<p>Two attempts, then give up: <rr-ref ref="rr:sym/TestFetch_RetriesOnce"></rr-ref>,
-<rr-ref ref="rr:sym/TestFetch_GivesUp"></rr-ref>.</p>
-<h3>Degraded ranking</h3>
-<p>The request goes out without events: <rr-ref ref="rr:sym/TestBuild_Degrades"></rr-ref>.</p>
+<h3>Bucket behavior</h3>
+<p>Burst exhaustion and timed refill:
+<rr-ref ref="rr:sym/TestTakeBurst"></rr-ref>,
+<rr-ref ref="rr:sym/TestTakeRefill"></rr-ref>.</p>
 ```
 
 A table (behaviour, tests, gap) does the same when every item has the same fields.
@@ -125,21 +121,22 @@ degrades, unless D": consider a picture with a caption ("Show it, then say it"),
 relationships in text. If drawing them, link the relevant code and explain the important relationship.
 
 ```html
-<p>Build calls the fetcher, which calls TFS; a TFS error comes back wrapped, the builder catches
-it and sends the ranker a request without events, while on success the events are attached before
-the request leaves.</p>
+<p>The handler asks the bucket for permission, then either saves the upload or returns
+429 with Retry-After.</p>
 ```
 
 ```html
-<rr-mermaid id="fetch-path">
+<rr-mermaid id="upload-path">
 flowchart TD
-  Build[Builder.Build] --> Fetch[fetchHabit] --> TFS
-  TFS -- error --> Degrade[request without events]
-  TFS -- events --> Attach[request with events]
-  click Fetch "rr:sym/fetchHabit"
-  click Degrade "rr:code/pkg/ranker/request_builder.go#L50-54"
+  Handler[ServeHTTP] --> Bucket[Take]
+  Bucket -- token --> Store
+  Bucket -- wait --> Reject[429 and Retry-After]
+  click Handler "rr:sym/ServeHTTP"
+  click Bucket "rr:sym/Take"
+  click Store "rr:sym/Store"
+  click Reject "rr:code/internal/upload/handler.go#L21-25"
 </rr-mermaid>
-<p>A TFS error never reaches the ranker: the builder degrades at the marked lines.</p>
+<p>The bucket returns a wait without sleeping; the handler communicates it to the client.</p>
 ```
 
 **Lists nested more than one level deep.** The outer level is usually headings or separate
@@ -155,8 +152,8 @@ sections; the leaves are one list, or a table when they all have the same fields
 
 ```html
 <h3>Storage</h3>
-<p>The migration <a href="rr:code/migrations/004_activity_events.sql#L1-9">adds <code>events_json</code></a>
-and backfills nothing.</p>
+<p>The configuration <a href="rr:code/config/limits.json#L1-5">adds upload allowances</a>
+for each plan.</p>
 ```
 
 ## With a guided walkthrough

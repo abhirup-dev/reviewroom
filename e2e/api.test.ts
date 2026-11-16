@@ -14,11 +14,11 @@ describe('api', () => {
 
   test('the patch is a plain git diff whatever the git config', async () => expect(await (await fetch(url + 'api/patch')).text()).toStartWith('diff --git a/'));
   test('symbol search finds the definition', async () => {
-    const hits: SearchHit[] = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/activity-events')).json();
+    const hits: SearchHit[] = await (await fetch(url + 'api/search?symbol=1&q=Take&rev=feat/upload-rate-limit')).json();
     expect(hits.some((h) => h.kind === 'definition')).toBe(true);
   });
   test('a running server is listed in the per-user session registry', () =>
-    expect(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-activity-events'))).toBe(true));
+    expect(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-upload-rate-limit'))).toBe(true));
   test('summary gives round and counts without thread text', async () =>
     expect(await (await fetch(url + 'api/summary')).json()).toMatchObject({ round: 1, threads: 0, browserClients: expect.any(Number), walkthrough: expect.any(Boolean) }));
 

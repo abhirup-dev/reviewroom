@@ -20,7 +20,7 @@ describe('discovery', () => {
     expect(await cli(['status', '--threads', '--repo', repo])).toMatchObject({ code: 1, stderr: expect.stringContaining('--dir') });
   });
   test('stop finds and stops the server and releases the lock', async () => {
-    await git('checkout', '-q', 'feat/activity-events');
+    await git('checkout', '-q', 'feat/upload-rate-limit');
     expect((await cli(['stop', ...d])).stdout).toStartWith('stopped');
     expect(fs.existsSync(path.join(dir, 'state.lock'))).toBe(false);
   });

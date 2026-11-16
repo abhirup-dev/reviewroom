@@ -1,0 +1,7 @@
+flowchart LR
+  a["storage_re (cap 2, postId)"] --> m[MergeSpecs]
+  b["upload_re (cap 3, postId+watchTime)"] --> m
+  m --> g["one GetTake(user, merged)"]
+  g --> r[response]
+  r -->|BuildBatch · storage_re| ba[storage_re batch]
+  r -->|BuildBatch · upload_re| bb[upload_re batch]
