@@ -6,9 +6,8 @@ file format and the commands are in `authoring.md` ("Guided walkthrough"); the l
 
 The guided walkthrough (`walkthrough.json`) is read before the detailed review. Its job is
 comprehension: the reader should come out knowing what changed, what it touches and why, well enough
-to hold it in their head while they review. It catches nothing. No evaluation on a slide ("a valuable
-fix", "rather than a large abstraction", "not premature"): risks, opinions and comparisons belong in
-`review.html`.
+to hold it in their head while they review. Keep the story factual. The final **Risks** chapter
+summarises the main risks; the findings and their evidence belong in `review.html`.
 
 **Shape.** Introduce, develop, turn, reconcile (kishōtenketsu: contrast, not conflict). Chapters in
 this order; how many slides each gets is your call, scaled to the diff. A config change needs a
@@ -25,8 +24,12 @@ sentence of context; a new subsystem needs a chapter.
    one per five files the diff changes; say in a sentence why each is the centre. With more than two,
    either give them one chapter together, or give each its own chapter with its own prelude: the
    thread that leads to it, then its changes.
-4. **Reconciliation.** Re-read the whole with the threads joined, then point at where to look next:
-   the `review.html` sections (risks, tests, open questions) that go deeper. No opinions.
+4. **Reconciliation.** Re-read the whole with the threads joined.
+5. **Risks.** End with a chapter titled **Risks**. Give each main risk one line, with a severity
+   (for example, High, Medium or Low) and a link to its finding in `review.html`:
+   `<a href="rr:doc/finding-retry-loss">High: retries can discard queued work</a>`.
+   Keep the explanation, evidence and suggested direction in that finding. If there are no findings,
+   say no material risks were found; do not invent one to fill the chapter.
 
 **Evidence.** The diff and the PR description are the only evidence. Numbers, screenshots and
 rationale from the description may be used, attributed on the slide ("the description reports 3×
@@ -52,7 +55,8 @@ chapter's lead is a diagram of the surrounding system with the threads marked; t
 shows the contract as a diagram (who writes it, who reads it) before it shows the lines; a thread
 chapter opens on its flow, then walks it line by line. Slides take `<rr-mermaid>`, `<rr-code>` and
 `<rr-callout>` directly, and `<rr-embed ref="rr:doc/<id>">` for any richer figure you drew in
-`review.html`, so draw once and show it in both. `visual-formats.md` has the menu. Build every figure for the narrow pane.
+`review.html`. During the initial slide pass, keep figures in the slides so they do not depend on
+unwritten detail. `visual-formats.md` has the menu. Build every figure for the narrow pane.
 
 **A map that stays while the slides walk it.** A chapter that walks several parts of one system
 draws the whole system once, as the lead's `<rr-mermaid>`, with each node linked to
@@ -64,21 +68,27 @@ among several. The reader can fold a tall lead away. When the map would crowd ev
 same diagram in each slide's text instead; the same rule lights it there. This is the chapter's
 picture, so give each node the name the slides use.
 
-**Anti-patterns**, all from one real walkthrough: chapters named after review categories (Why,
-Validation, Failure modes, Tests) instead of parts of the change; slides about what the PR is *not*;
+**Anti-patterns**, all from one real walkthrough: story chapters named after review categories (Why,
+Validation, Failure modes, Tests) instead of parts of the change (the final Risks chapter is deliberate);
+slides about what the PR is *not*;
 a thread introduced on slide 2 that vanishes until chapter 4; the critical contract spread over four
 slides and never named as the centre.
 
 ## With the walkthrough (`review.html`)
 
-One story at two depths:
+The guided walkthrough is the story, pinned to the reviewed snapshot. The walkthrough is the record:
+findings, evidence, open questions and later answers. They need not share section names or order.
 
-- Outline once, then write both from it. The walkthrough's first sections mirror the chapters, in the
-  same order with the same names; its risk, test and open-question sections come after, and the
-  reconciliation points at them. A chapter's lead or last slide links its section (`rr:doc/<id>`); a
-  section can link back to its slide (`rr:tour/<chapter>/<step>`).
-- Tables, supporting detail and caveats go in the walkthrough; a slide carries only the attributed
-  number its claim needs. The guided walkthrough is written once and kept stable; the walkthrough grows
-  round by round (see "Answer each thread" in `review-rounds.md`).
-- Each slide fits the screen ([Validation and audit](validation-and-audit.md) measures it). Split a slide rather than
-  squeeze it.
+- Outline first. Create only heading sections in `review.html`: the outline's top-level parts and
+  one finding section per risk. Give each a stable id so the Risks links resolve during slide lint.
+- Write `walkthrough.json`, then run full `reviewroom slide-lint --dir <dir>` until it passes.
+  Only then fill `review.html` and run `reviewroom check --fix --dir <dir>` until it passes.
+- Keep detailed findings, tables and caveats in the walkthrough. Link them from the slides with
+  `rr:doc/<id>`; the walkthrough can link back with `rr:tour/<chapter>/<step>`.
+- Keep the guided walkthrough stable while the walkthrough grows round by round (see
+  "Answer each thread" in `review-rounds.md`). Regenerate it when the reviewed code moves.
+- Each slide fits the screen ([Validation and audit](validation-and-audit.md) measures it). Split a slide
+  rather than squeeze it.
+
+If the PR ships a guided walkthrough pulled by `reviewroom pr`, use it as is. Do not replace it to
+match this shape. Write the walkthrough for the reviewer alongside it.

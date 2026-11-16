@@ -58,10 +58,12 @@ by line number.
 
 For each thread in the feedback:
 
-1. Understand what it asks. Change code or the walkthrough if asked.
+1. Understand what it asks. For someone else's PR, never change code, even if a later round asks
+   for a fix: explain the suggested direction instead. Check the PR author against the authenticated
+   `gh` login as in Step 3 of the skill. In other reviews, change code or the walkthrough if asked.
 2. Short answers go in the reply. Substantial ones (tables, diagrams, queries, sketches) go in a new
-   section of `review.html`, and the reply links to it. If the explanation already exists in the
-   walkthrough, link that section instead.
+   section of `review.html` (under **Your questions** for someone else's PR), and the reply links to it.
+   If the explanation already exists in the walkthrough, link that section instead.
 3. Mark every section you add or substantially change with `data-round="<next round>"`, and link
    the thread that prompted it at the section's top.
 4. When the answer builds on an earlier thread, a team thread or what the walkthrough said in an
@@ -79,9 +81,9 @@ push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say 
 A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
 the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a
 deeper explanation, a table, a sketch), grow the walkthrough instead of the slide: a new `data-round`
-section that embeds the slide (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its
-top and expands on it; the reply links that section, and the discussion continues there. Edit the
-slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
+section (under **Your questions** for someone else's PR) that embeds the slide
+(`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its top and expands on it. The reply
+links that section, and the discussion continues there. Edit the slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
 again using [Validation and audit](validation-and-audit.md) until clean.
 
 <important if="you are replying to several threads at once">

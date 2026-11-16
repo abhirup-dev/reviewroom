@@ -34,13 +34,33 @@ The agent's freeform explanation of the diff, written for the reviewer to read a
 _Avoid_: narrative, review, review page, review.html
 
 **Guided walkthrough**:
-The optional main story of the diff, played over the workbench: chapters of slides, narration beside the code each slide
+The main story of the diff, played over the workbench: chapters of slides, narration beside the code each slide
 shows. The reviewer sees it first; the walkthrough is where they dig in.
 _Avoid_: walkthrough (bare), tour, slideshow, presentation
 
 **Slide**:
 One step of a guided walkthrough: its narration and the code it shows (`steps` in `walkthrough.json`).
 _Avoid_: page, card
+
+**Review mode**:
+Draft has no PR; Author is the reviewer's own PR; Peer is someone else's PR. These modes and their UI defaults
+land in Release 2. In Peer, the agent explains and reviews but never changes code, including in later rounds.
+
+**Risks chapter**:
+The final chapter of an agent-written guided walkthrough: the main risks as one-liners with severities,
+each linking to its finding in the walkthrough. Detailed findings stay out of the slides.
+
+**Finding**:
+An actionable problem in the diff, with a severity, location, impact, evidence and suggested direction.
+It has a stable section id in the walkthrough so the Risks chapter can link to it.
+
+**Review profile**:
+A composable skill reference saying what to look for and which sections or findings to add to a review.
+
+The terms above keep today's UI names until rr-wd3.7: **Guided walkthrough** is `walkthrough.json`,
+and **Walkthrough** is `review.html`. The decided future UI names are **Walkthrough** (slides, the story)
+and **Report** (`review.html`, the record). The documents need not mirror each other. See
+[ADR 0002](docs/adr/0002-review-modes.md).
 
 **GitHub review**:
 The reviewer's pending or submitted review on the PR in GitHub. Separate from the review in reviewroom.

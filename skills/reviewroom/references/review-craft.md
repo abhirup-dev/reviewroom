@@ -28,6 +28,9 @@ Someone who reads only this should know where to look and what to worry about.
 
 ## The body
 
+For someone else's PR, use the suggested outline in `profiles/default.md`. The guidance below
+orders an explanation of the diff for other reviews, or supporting detail within that outline.
+
 - Sections in the order a reviewer traces the diff: entry point → new code → storage / proto /
   config → failure modes → tests → risks. Each is a `<section id>` with an `<h2>`, short and about
   one concern, so it can be commented on as a unit.
@@ -158,9 +161,10 @@ and backfills nothing.</p>
 
 ## With a guided walkthrough
 
-When the reviewer wants a guided walkthrough too, read `guided-walkthrough-craft.md` first and outline
-the story once: the walkthrough's first sections mirror its chapters, and its risk, test and
-open-question sections are what the last slide points at.
+Read `guided-walkthrough-craft.md` first. Outline the story and create the heading-only sections
+in `review.html`, including a stable finding section for every risk. Write and validate the guided
+walkthrough before filling the walkthrough. The slides tell the story; the walkthrough keeps the
+review record. Its sections need not mirror the chapters.
 
 ## Answering threads
 

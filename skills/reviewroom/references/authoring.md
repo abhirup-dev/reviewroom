@@ -169,11 +169,12 @@ Interactive widgets can drive the reviewer straight into the code:
 
 ## Guided walkthrough: `walkthrough.json`
 
-The optional guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
+The guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
 on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
 review directory and follows `schema/walkthrough.schema.json` in the reviewroom install. Put that path in a top-level
 `"$schema"` key so your editor validates as you type; see [Validation and audit](validation-and-audit.md).
-The demo has a full one: `examples/activity-events/walkthrough.json`.
+The demo shows the format: `examples/activity-events/walkthrough.json`. The excerpt below is one
+story chapter; follow `guided-walkthrough-craft.md` for the intro and final Risks chapter.
 
 ```json
 {

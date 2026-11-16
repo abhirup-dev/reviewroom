@@ -1,6 +1,6 @@
 ---
 name: reviewroom
-description: Run agent-guided code reviews in reviewroom, a local review workbench where you write an interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code, optionally a guided walkthrough (chaptered slides played over the code), and answer the reviewer's threads round by round.
+description: Run agent-guided code reviews in reviewroom, a local review workbench where you write an interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code, a guided walkthrough (chaptered slides played over the code), and answer the reviewer's threads round by round.
 ---
 
 # Review with reviewroom
@@ -39,7 +39,7 @@ outside the repo) and the URL.
 `reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
-> **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the walkthrough now; it updates live."**
+> **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the guided walkthrough first."**
 
 ## Step 3: Understand the diff
 
@@ -49,7 +49,9 @@ not your checkout: every line number you link is the head sha's, so read files w
 run `git diff <base> --stat`, read files from disk, and add untracked files
 (`git ls-files --others --exclude-standard`), which `git diff` leaves out. Find the entry point, the new pieces,
 storage / proto / config changes, failure paths and what the tests cover. Read the PR description
-when `gh` is available.
+when `gh` is available. For a PR, compare `gh pr view <n | url> --json author --jq .author.login`
+with `gh api user --jq .login` from the repo. If they differ, explain and review only: **never change
+code, including in later rounds**. If ownership is unknown, establish it before changing code.
 
 **Take line numbers from ast-grep, not by counting.** A range that is off by a few lines cuts a
 function in half or highlights the wrong statement, and the reviewer has to fix it. Pipe the head
@@ -66,48 +68,45 @@ For `--head worktree`, pass the file path instead of piping (`ast-grep outline <
 reviewroom's setup installs `ast-grep` (the `ast-grep` skill, when installed, has the pattern
 syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
 
-**Decide on a guided walkthrough now.** A guided walkthrough (`walkthrough.json` next to
-`review.html`) is the main story of the diff played over the workbench: chapters of slides, narration on
-the left, the slide's code on the right. When there is one, the reviewer opens it first, so it tells the
-main story; the walkthrough (`review.html`) is where they dig in.
+## Step 4: Outline, then write the guided walkthrough first
 
-- Write one when the reviewer asked for a guided walkthrough, guided review or tour.
-- If they didn't, and the diff has a path to follow across files or touches more than about five,
-  ask once: **"Want a guided walkthrough of this diff too?"** Don't wait for the answer: go on with
-  the walkthrough, and write the guided walkthrough (Step 4b) if the answer is yes.
+Read `references/guided-walkthrough-craft.md` for the story, `references/review-craft.md` for the
+record, and `references/profiles/index.md` for the default profile and any additions the review needs.
+Read `references/authoring.md` for the format and `references/visual-formats.md` when writing visuals.
 
-## Step 4: Write the walkthrough
+Always provide a guided walkthrough. If `reviewroom pr` pulled one shipped with the PR, use it as is;
+it was validated before publication. Go to Step 4b without replacing it. Otherwise:
 
-Before writing, read:
-1. `references/review-craft.md`: what to say and in what order (with a guided walkthrough,
-   `references/guided-walkthrough-craft.md` first: outline the story once, then write both from it).
-2. `references/authoring.md`: links, symbols, code previews and typography;
-   `references/visual-formats.md` when choosing or writing visuals.
+1. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
+   Each main risk is one line with a severity and an `rr:doc/<section id>` link to its finding in
+   `review.html`; keep detailed findings out of the slides.
+2. As part of the outline, write a minimal `review.html`: the top-level `<section id>` parts plus
+   one finding section per risk, each with just a heading. Keep these ids stable for the Risks links.
+3. Write `walkthrough.json` in the review directory.
+4. Run a full `reviewroom slide-lint --dir <dir>`, fix issues and repeat until it passes.
+   The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
+   do not count. Follow [Validation and audit](references/validation-and-audit.md).
 
-The walkthrough is usually read in a narrow side panel (about 400px) or on a phone: design every
-diagram, table and widget for that width, never for a wide page.
+## Step 4b: Fill the walkthrough
 
-Reviewroom has good support for rich visualizations in Mermaid; leverage it.
+Only after the guided walkthrough passes, fill `review.html`. For someone else's PR, use the
+suggested outline in `references/profiles/default.md`: Summary, Findings, Questions for the author,
+Evidence, Your questions. Each top-level part is a `<section id>`; the HTML inside is yours.
 
-Edit `review.html` in the review directory; the open page reloads on every save. Follow
-[Validation and audit](references/validation-and-audit.md) before handing it over.
+The guided walkthrough tells the story; the walkthrough keeps the detailed review and later answers.
+They need not mirror each other. Both are read in a narrow panel (about 400px) or on a phone:
+design every diagram, table and widget for that width. Prefer Mermaid for diagrams.
 
-## Step 4b: Write the guided walkthrough, when wanted
-
-Read `references/guided-walkthrough-craft.md` (the shape: context, threads, convergence on the critical
-files, reconciliation; the diff and description as the only evidence), then "Guided walkthrough" in
-`references/authoring.md` (the file format). Write `walkthrough.json`, then follow
-[Validation and audit](references/validation-and-audit.md): use scoped checks while iterating,
-and the full slide audit before handover. Take screenshots only when needed.
+Run `reviewroom check --fix --dir <dir>`, fix remaining issues and repeat until it passes.
 
 ## Step 4c: Hand over
 
-Only once the walkthrough (and the guided walkthrough, if wanted) is done and clean, tell the reviewer:
+Once both documents are done and clean, tell the reviewer:
 
-- With a guided walkthrough: **"The review is ready. Start with the guided walkthrough:
-  <url>?walkthrough= — then leave comments on slides or the walkthrough, and click Send feedback (or
-  Approve)."** (`?walkthrough=` opens the player at the first slide; the page alone does not.)
-- Without: **"The walkthrough is ready. Leave comments, then click Send feedback (or Approve)."**
+> **"The review is ready. Start with the guided walkthrough: <url>?walkthrough= — then leave
+> comments on slides or the walkthrough, and click Send feedback (or Approve)."**
+
+`?walkthrough=` opens the player at the first slide.
 
 ## Step 5: Continue across review rounds
 
