@@ -44,9 +44,9 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:code/pkg/x.go#L45-54` | Lines 45–54 of any file in the repo at the head revision |
 | `rr:code/pkg/x.go@base#L45` | The same file at the base (`@<sha>` for any other commit) |
 | `rr:code/pkg/x.go` | The whole file; for a file in the diff its preview shows the changed hunks |
-| `rr:sym/RecentEvents` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
-| `rr:sym/Builder.Build` | A symbol narrowed by its receiver, type or package (`habit.RecentEvents`) |
-| `rr:sym/pkg/ranker/builder.go:Build` | A symbol narrowed by its file (also a path suffix: `ranker/builder.go:Build`) |
+| `rr:sym/Take` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
+| `rr:sym/Uploads.Take` | A symbol narrowed by its receiver, type or package (`limit.Take`) |
+| `rr:sym/internal/limit/bucket.go:Take` | A symbol narrowed by its file (also a path suffix: `limit/bucket.go:Take`) |
 | `rr:doc/request-path` | A section or element id in the walkthrough |
 | `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
 | `rr:thread/t_ab12cd` | An agent thread (`gh_<n>`: a team thread on the PR) |
@@ -71,7 +71,7 @@ where it first comes up, not on every mention: within the next few paragraphs, p
 
 Prefer `rr:sym/<name>` for a function or type: it follows the code as it moves, and `check` never
 reports it as moved. A bare name that has several definitions (`Build`, `New`) is ambiguous: clicking
-it opens a search instead of jumping. Qualify it (`Builder.Build`, `ranker/builder.go:Build`) whenever
+it opens a search instead of jumping. Qualify it (`Uploads.Take`, `limit/bucket.go:Take`) whenever
 the name isn't unique in the repo. A method declared inside a class body (TypeScript, Python) only
 narrows by file, so use the `path:Name` form there; `check` reports a qualified link that matches nothing as broken.
 
@@ -85,8 +85,8 @@ at behaviour rather than a declaration ("the retry loop").
 Never paste diff code into the page; it goes stale and duplicates the code panel. Instead:
 
 ```html
-<rr-ref ref="rr:code/pkg/ranker/request_builder.go#L50-54"></rr-ref>                <!-- chip; hover = preview -->
-<rr-code ref="rr:code/migrations/004_activity_events.sql#L1-9" title="table"></rr-code> <!-- live lines, highlighted -->
+<rr-ref ref="rr:code/internal/upload/handler.go#L50-54"></rr-ref>                <!-- chip; hover = preview -->
+<rr-code ref="rr:code/config/limits.json#L1-5" title="plans"></rr-code> <!-- live lines, highlighted -->
 <rr-embed ref="rr:doc/parallel-sketch"></rr-embed>                                    <!-- preview card of any ref -->
 <rr-code lang="go" title="suggested change">…code that is NOT in the diff…</rr-code>   <!-- your own code only -->
 ```
@@ -114,10 +114,11 @@ next to your answer. A link covers the whole thread, not a single message.
 Prefer Mermaid in `<rr-mermaid>` for diagrams. `visual-formats.md` has the menu, snippets and presets.
 
 ```html
-<rr-mermaid id="request-path" class="rr-diagram-delta">             <!-- Mermaid source, HTML-escaped (&lt; &gt; &amp;) -->
+<rr-mermaid id="request-path" class="rr-diagram-delta">
 flowchart TD
-  Req[FeedRequest] --> Fetch[habit.RecentEvents, new]:::added --> Rank[RankerRequest, changed]:::changed
-  click Fetch "rr:code/pkg/features/habit/fetcher.go#L20-28" "the fetcher"   <!-- click-to-code, any rr: link -->
+  Req[Upload] --> Gate[Take, new]:::added --> Store[Store]
+  click Gate "rr:sym/Take" "the token bucket"
+  click Store "rr:sym/Store" "storage"
 </rr-mermaid>
 ```
 
@@ -173,22 +174,30 @@ The guided walkthrough of the diff, played over the workbench: chapters of slide
 on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
 review directory and follows `schema/walkthrough.schema.json` in the reviewroom install. Put that path in a top-level
 `"$schema"` key so your editor validates as you type; see [Validation and audit](validation-and-audit.md).
-The demo shows the format: `examples/activity-events/walkthrough.json`. The excerpt below is one
+The demo shows the format: `examples/uploads/walkthrough.json`. The excerpt below is one
 story chapter; follow `guided-walkthrough-craft.md` for the intro and final Risks chapter.
 
 ```json
 {
+  "$schema": "../../schema/walkthrough.schema.json",
   "version": 1,
-  "title": "Attach recent ACTIVITY events to the ranker request",
+  "title": "Limit file uploads per account",
   "chapters": [
     {
-      "id": "build",
-      "title": "Build integration",
-      "lead": "<p class=\"rr-lede\">Recent ACTIVITY events now reach the ranker.</p><rr-mermaid class=\"rr-diagram-delta\">flowchart TD\n  Fetch[habit.RecentEvents]:::added --> Build[Builder.Build]:::changed\n  click Fetch \"rr:code/pkg/features/habit/fetcher.go#L20-28\"\n  click Build \"rr:sym/pkg/ranker/request_builder.go:Build\"</rr-mermaid>",
+      "id": "enforce",
+      "title": "The handler joins the contract",
+      "lead": "<rr-mermaid>flowchart TD\n P[Plan lookup] --> T[Take]\n T --> H[Handler]\n click P \"rr:code/config/limits.json\"\n click T \"rr:sym/Take\"\n click H \"rr:sym/ServeHTTP\"</rr-mermaid>",
       "steps": [
-        { "id": "s1", "text": "<p>Before this PR, <a href=\"rr:code/pkg/ranker/request_builder.go@base#L29-39\">Builder.Build</a> sends no ACTIVITY events.</p>", "ref": "rr:code/pkg/ranker/request_builder.go@base#L29-39" },
-        { "id": "s2", "text": "<p>A TFS error comes back wrapped (top); the builder degrades (below).</p>", "ref": ["rr:code/pkg/features/habit/fetcher.go#L23-26", "rr:code/pkg/ranker/request_builder.go#L50-54"] },
-        { "id": "s3", "text": "<p>That is the whole path.</p>" }
+        {
+          "id": "s1",
+          "text": "<p>The handler asks Take before storing a body. A rejected request receives 429 and a Retry-After value rounded up to whole seconds.</p>",
+          "ref": "rr:code/internal/upload/handler.go#L18-25"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The client retries a 429 with the same payload. The handler supplies Retry-After, but the loop never waits; together these paths decide whether a rejected upload can recover.</p>",
+          "ref": "rr:code/client/upload.go#L10-25"
+        }
       ]
     }
   ]
