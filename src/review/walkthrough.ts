@@ -100,7 +100,7 @@ class WalkthroughPanel implements PanelInstance {
       this.scroller.hidden = waiting;
     };
     progress();
-    app.bus.on('progress', progress);
+    this.offs.push(app.bus.on('progress', progress));
     // what the presentation adds (the phone's Contents button, walkthrough.phone.ts); not on the description
     if (!isDesc) extension?.(app, this.element);
 

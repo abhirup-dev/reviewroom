@@ -4,7 +4,6 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { parseProgress, reduceProgress, ProgressLine, type Artifact } from '../../src/kernel/state/progress.shared.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
-import { JSDOM } from 'jsdom';
 
 const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'review' ? 'review.html' : 'walkthrough.json');
 export const progressHash = (bytes: string | Buffer) => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -30,10 +29,6 @@ export function recordArtifact(dir: string, artifact: Artifact, event: 'written'
   if (artifact === 'walkthrough') {
     const w = parseWalkthrough(raw);
     if (w.ok) facts = { chapters: w.value.chapters.length, slides: w.value.chapters.reduce((n, c) => n + c.steps.length, 0) };
-  } else {
-    const dom = new JSDOM(raw);
-    facts = { sections: dom.window.document.querySelectorAll('rr-review > section[id]').length };
-    dom.window.close();
   }
   appendProgress(dir, { artifact, event, hash: checkedHash, ...facts, ...extra });
 }

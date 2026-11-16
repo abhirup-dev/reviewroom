@@ -87,7 +87,7 @@ it was validated before publication. Go to Step 4b without replacing it. Otherwi
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).
 
-## Step 4b: Fill the walkthrough
+## Step 4b: Fill the walkthrough (`review.html`)
 
 Only after the guided walkthrough passes, fill `review.html`. For someone else's PR, use the
 suggested outline in `references/profiles/default.md`: Summary, Findings, Questions for the author,

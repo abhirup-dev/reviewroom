@@ -1,5 +1,5 @@
-import { appendProgress, recordArtifact } from '../lib/progress.ts';
 // pr: the one-step entry point
+import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

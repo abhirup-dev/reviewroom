@@ -1,6 +1,6 @@
-import { artifactHash, recordArtifact } from '../lib/progress.ts';
 // slide-lint: `check`, then every slide of the guided walkthrough measured on screen in a headless browser.
 // shotSlide: one slide's picture (`reviewroom shot <chapter>/<step>`).
+import { artifactHash, recordArtifact } from '../lib/progress.ts';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';

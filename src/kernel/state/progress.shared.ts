@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const facts = { head: z.string().optional(), slides: z.number().int().nonnegative().optional(), chapters: z.number().int().nonnegative().optional(), sections: z.number().int().nonnegative().optional(), source: z.literal('pr').optional() };
+const facts = { head: z.string().optional(), slides: z.number().int().nonnegative().optional(), chapters: z.number().int().nonnegative().optional(), source: z.literal('pr').optional() };
 const identity = { at: z.iso.datetime(), artifact: z.enum(['walkthrough', 'review']), ...facts };
 export const ProgressLine = z.discriminatedUnion('event', [
   z.object({ ...identity, event: z.literal('requested') }),
@@ -8,7 +8,7 @@ export const ProgressLine = z.discriminatedUnion('event', [
 ]);
 export type ProgressLine = z.infer<typeof ProgressLine>;
 export type Artifact = ProgressLine['artifact'];
-export type ArtifactProgress = { state: 'none' | ProgressLine['event']; hash?: string; slides?: number; chapters?: number; sections?: number };
+export type ArtifactProgress = { state: 'none' | ProgressLine['event']; hash?: string; slides?: number; chapters?: number };
 export type Progress = Record<Artifact, ArtifactProgress>;
 export const pendingArtifact = (p: ArtifactProgress) => p.state === 'requested' || p.state === 'written';
 

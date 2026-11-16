@@ -131,12 +131,13 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, 'review.html');
   // what a reconnecting client compares: a change to either file while it was away reloads the page
-  const hash = () => {
-    const h = crypto.createHash('sha1');
+  // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
+  const parts = () => {
     const progress = readProgress(dir);
-    for (const [artifact, f] of [['review', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const) h.update(pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? fs.readFileSync(f) : '\0');
-    return h.digest('hex').slice(0, 12);
+    return ([['review', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
+      pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex') : '');
   };
+  const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
   const send = (event: string, data: unknown) => {
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
@@ -164,18 +165,18 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
   // read-only: no live reload, and no link check that would write state.json
-  let lastHash = hash();
+  let last = parts();
   const watcher = readOnly
     ? null
     : watchNarrative(dir, (files) => {
-        if (files.has('walkthrough.json')) recordArtifact(dir, 'walkthrough', 'written', /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {});
-        if (files.has('review.html')) recordArtifact(dir, 'review', 'written', /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {});
+        const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
+        if (files.has('walkthrough.json')) recordArtifact(dir, 'walkthrough', 'written', head);
+        if (files.has('review.html')) recordArtifact(dir, 'review', 'written', head);
         send('progress', readProgress(dir));
-        const next = hash();
-        const p = readProgress(dir);
-        const changedReady = (files.has('review.html') && !pendingArtifact(p.review)) || (files.has('walkthrough.json') && !pendingArtifact(p.walkthrough));
-        if (changedReady || (files.has('progress.jsonl') && !files.has('review.html') && !files.has('walkthrough.json') && next !== lastHash) || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: next });
-        lastHash = next;
+        // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
+        const next = parts();
+        if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
+        last = next;
         if (files.has('review.html') || files.has('walkthrough.json')) checkNarrative();
       });
 

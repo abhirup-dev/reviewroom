@@ -13,7 +13,7 @@ test('writers deduplicate bytes and validation retains the bytes checked, not a 
     recordArtifact(dir, 'review', 'written');
     recordArtifact(dir, 'review', 'written');
     expect(progressLines(dir)).toHaveLength(2);
-    expect(readProgress(dir).review).toMatchObject({ state: 'written', sections: 1 });
+    expect(readProgress(dir).review).toMatchObject({ state: 'written' });
     const checked = artifactHash(dir, 'review');
     fs.appendFileSync(file, 'changed while checking');
     recordArtifact(dir, 'review', 'validated', {}, checked);
