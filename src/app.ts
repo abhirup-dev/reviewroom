@@ -1,3 +1,4 @@
+import type { Progress } from './kernel/state/progress.shared';
 // ReviewApp: the shared context every panel, overlay and author element talks to.
 // It owns data (meta, files, threads), preferences, navigation and the panel surface (dock or phone shell).
 import { Layouts } from './kernel/layouts/layout';
@@ -76,6 +77,7 @@ export interface AppEvents extends Record<string, unknown> {
   'active-file': string;
   'round-view': number;
   /** play the walkthrough at a step (ids; missing: the first) */
+  progress: Progress;
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
   walkthrough: Walkthrough | null;
@@ -104,6 +106,7 @@ export class ReviewApp {
   files: ChangedFile[] = [];
   commits: Commit[] = [];
   /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
+  progress: Progress = { walkthrough: { state: 'none' }, review: { state: 'none' } };
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;
   range!: DiffRange;

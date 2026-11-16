@@ -23,6 +23,7 @@ test.skipIf(!browser)('partial checks ignore unrelated links, focus and overflow
   w.chapters[1].steps[0] = { id: 's1', ref: 'rr:code/pkg/gone.go#L1', text: `<p>${'Unrelated overflow. '.repeat(300)}</p><rr-mermaid>flowchart TD\n A -->\n ((( bad</rr-mermaid>`, focus: ['Missing node'] };
   fs.writeFileSync(file, JSON.stringify(w));
   fs.appendFileSync(path.join(dir, 'review.html'), '<a href="rr:sym/UnrelatedMissingSymbol">Unrelated</a>');
+  fs.writeFileSync(path.join(dir, 'progress.jsonl'), JSON.stringify({ at: new Date().toISOString(), artifact: 'walkthrough', event: 'requested' }) + '\n');
   const before = fs.readdirSync(dir).sort().map((f) => [f, fs.statSync(path.join(dir, f)).mtimeMs, read(dir, f)]);
   const single = await lint(['--slide', 'latency/s2']);
   expect(single.code).toBe(0);

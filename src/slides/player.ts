@@ -1,3 +1,4 @@
+import { pendingArtifact } from '../kernel/state/progress.shared';
 // The guided walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
 // paused. walkthroughMachine and its paneMachine child (src/slides/player.machine.ts) own every state and transition;
 // this file renders snapshots and implements the pane's actions (resolve links, mount, glide, settle, unmount); what the
@@ -268,6 +269,30 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   // slides' text rendered ahead (below: prose)
   const stash = h('div', { class: 'rr-tour__stash rr-prose', 'aria-hidden': 'true', inert: true });
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill, stash);
+  const status = h('p');
+  const show = h('button', { class: 'rr-btn', onclick: async () => {
+    const w = decodeWalkthrough(await app.backend.walkthrough?.());
+    if (w && 'version' in w) {
+      app.walkthrough = w;
+      app.bus.emit('walkthrough', w);
+      actor.send({ type: 'load', doc: w });
+      actor.send({ type: 'open' });
+    } else app.toast('The guided walkthrough is not ready to show yet');
+  } }, 'Show it anyway');
+  const writing = h('div', { class: 'rr-tour__writing', role: 'status', tabindex: '-1' },
+    h('h1', null, 'Writing your walkthrough'), h('p', null, app.meta.title),
+    h('p', null, `${app.files.length} files changed · +${app.files.reduce((n, f) => n + f.additions, 0)} / -${app.files.reduce((n, f) => n + f.deletions, 0)} · ${app.commits.length} commits`), status, show);
+  root.append(writing);
+  let pendingVersion: string | null = null;
+  const progressChanged = () => {
+    const p = app.progress.walkthrough;
+    status.textContent = p.state === 'requested' ? 'Reading the diff' : `${p.slides ?? 0} slides in ${p.chapters ?? 0} chapters written, checking`;
+    show.hidden = p.state !== 'written';
+    const version = pendingArtifact(p) ? `${p.state}:${p.hash ?? ''}` : null;
+    if (version && version !== pendingVersion) actor.send({ type: 'writing', active: true });
+    pendingVersion = version;
+  };
+  app.bus.on('progress', progressChanged);
   root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
@@ -371,15 +396,16 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     for (const el of app.root.children) if (el !== root) (el as HTMLElement).inert = on;
     if (on) {
       back = document.activeElement as HTMLElement | null;
-      player.focus();
+      (actor.getSnapshot().matches('writing') ? writing : player).focus();
     } else if (player.contains(document.activeElement)) back?.focus();
   };
   actor.subscribe((s) => {
-    const mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
+    const mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : s.matches('writing') ? 'writing' : 'closed';
     const was = root.dataset.mode;
     root.dataset.mode = mode; // first: the player can't take focus while hidden
     pill.inert = mode !== 'paused'; // transparent, not hidden: keep it out of the tab order
-    if ((mode === 'playing') !== (was === 'playing')) modal(mode === 'playing');
+    if ((mode === 'playing' || mode === 'writing') !== (was === 'playing' || was === 'writing')) modal(mode === 'playing' || mode === 'writing');
+    if (mode === 'playing' && was === 'writing') player.focus();
     if (!s.matches('open')) return void (last = { chapter: -1, step: -1, doc: null });
     const { chapter, step, doc: d } = s.context;
     const cur = current(s.context);
@@ -471,7 +497,8 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const link = deepLink(location.search); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
-      if (link && app.walkthrough) actor.send({ type: 'open', ...link });
+      progressChanged();
+      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough)) actor.send({ type: 'open', ...link });
     },
     () => {},
   );

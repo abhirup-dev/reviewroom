@@ -38,7 +38,7 @@ Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
    answers, changes code, and waits again. Your open tab reconnects and shows round 2.
 
 Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`:
-`review.html`, `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, `layout.json`
+`review.html`, `progress.jsonl` (CLI/server generation events), `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, `layout.json`
 (the panels as you left them), and `rounds/<n>/{review.html,feedback.md}` — browse old rounds from the
 **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 

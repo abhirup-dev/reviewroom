@@ -1,3 +1,4 @@
+import type { Progress } from '../state/progress.shared';
 // Contracts shared by provider implementations and their callers. No runtime dependencies.
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, GitHubSnapshot } from '../state/model.shared';
 import type { GitHubAction } from '../state/schema.shared';
@@ -42,11 +43,13 @@ export interface StateBackend {
   githubAct?(action: GitHubAction): Promise<GitHubSnapshot>;
   /** Raw walkthrough transport: server JSON (including 422 `{ issues }`), embedded text, or null if absent.
    * Schema parsing belongs to the walkthrough feature. Other HTTP failures reject. */
+  progress?(): Promise<Progress>;
   walkthrough?(): Promise<unknown>;
   /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
   pending?(): { unsent: boolean; started: string | null };
 }
 export interface BackendEvents {
+  progress?(p: Progress): void;
   state(s: ReviewState): void;
   review(): void;
   error(text: string): void;

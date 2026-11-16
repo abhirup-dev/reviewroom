@@ -1,7 +1,7 @@
 // End-to-end fixture: the demo repo with a scaffolded review, built once per test process. Each describe calls
 // setup() for its own copy, REVIEWROOM_HOME and servers on OS-assigned ports. Run with `bun run smoke` (builds first).
 import { afterAll, expect } from 'bun:test';
-import { $, type Subprocess } from 'bun';
+import { $, Glob, type Subprocess } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,6 +22,9 @@ for (const args of [['pr', 'feat/activity-events', '--detach', '--no-open', '--p
   const r = await run({ ...process.env, REVIEWROOM_HOME: path.join(template, 'home') }, [...args, '--repo', path.join(template, 'repo')]);
   if (r.code) throw new Error(r.stderr);
 }
+
+// Existing fixtures exercise legacy reviews; progress tests opt in explicitly.
+for (const file of new Glob('**/progress.jsonl').scanSync({ cwd: template, absolute: true })) fs.rmSync(file);
 
 export const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 export const op = (url: string, o: object) => post(url + 'api/ops', { ops: [o] });

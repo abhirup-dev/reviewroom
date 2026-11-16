@@ -213,3 +213,17 @@ test('pane: showing waits until every code chunk has landed; a chunk that never 
   const s = await waitFor(p.a, (x) => x.matches('showing'));
   expect(s.context.late).toBe(true);
 });
+
+test('writing is beside closed, accepts partial loads and permits an explicit preview', () => {
+  using scope = fixture();
+  const a = start(scope, null);
+  a.send({ type: 'writing', active: true });
+  a.send({ type: 'load', doc: null });
+  expect(a.getSnapshot().matches('writing')).toBe(true);
+  a.send({ type: 'load', doc });
+  expect(a.getSnapshot().matches('writing')).toBe(true);
+  a.send({ type: 'open' });
+  expect(where(a)).toEqual(['playing', 0, 0]);
+  a.send({ type: 'writing', active: true });
+  expect(a.getSnapshot().matches('writing')).toBe(true);
+});

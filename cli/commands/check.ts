@@ -1,3 +1,4 @@
+import { progressHash, recordArtifact } from '../lib/progress.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
@@ -11,7 +12,7 @@ import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
 import { selectSlides, selectionLinks, type SlideSelector, type SlideSelection } from '../lib/slide-selection.ts';
 
-type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[]; selection?: SlideSelection };
+type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; reviewHash: string; head?: string; notes: Finding[]; selection?: SlideSelection };
 type CheckOptions = { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean; notes?: boolean; select?: SlideSelector };
 
 function checkScope(value: Walkthrough | null, o: CheckOptions, dir: string) {
@@ -64,7 +65,7 @@ export async function runCheck(repo: string | null, dir: string, o: CheckOptions
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const notes = staticNotes(value, prov, o, selected);
   const bad = locations ? problems(results).map((r) => ({ ...r, where: locations.get(r.ref) })) : locate(problems(results), value);
-  return { tour: value, results, bad, healed, notes, selection };
+  return { tour: value, results, bad, healed, reviewHash: progressHash(fixed), head: /^[a-f0-9]{40}$/.test(raw.head) ? raw.head : undefined, notes, selection };
 }
 
 export const WALKTHROUGH_SCHEMA = path.join(PKG, 'schema', 'walkthrough.schema.json');
@@ -89,4 +90,5 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
     if (tour && notes.length) console.log(`\nthe guided walkthrough, walkthrough.json (\`reviewroom slide-lint\` also measures each slide on screen):\n${findingReport(notes, tour)}`);
   }
   if (bad.length) process.exitCode = 1;
+  else recordArtifact(dir, 'review', 'validated', { head: c.head }, c.reviewHash);
 }

@@ -232,6 +232,7 @@ cli.help((sections) => {
         '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/; REVIEWROOM_HOME overrides the root.',
         '  Author review.html, walkthrough.json, and adjacent assets.',
         '  Change state, config, layouts, and rounds through CLI commands.',
+        '  progress.jsonl records generation requests, writes and successful checks (CLI/server only).',
       ].join('\n'),
     },
   ];

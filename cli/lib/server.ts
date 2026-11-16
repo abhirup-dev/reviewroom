@@ -1,4 +1,6 @@
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
+import { readProgress, recordArtifact } from './progress.ts';
+import { pendingArtifact } from '../../src/kernel/state/progress.shared.ts';
 import { execFile } from 'node:child_process';
 import open from 'open';
 import fs from 'node:fs';
@@ -41,18 +43,18 @@ export interface Finished {
   round: number;
 }
 
-/** Watch the review dir for review.html, walkthrough.json and assets (debounced); `edited` = review.html or walkthrough.json changed.
+/** Watch the review dir for review.html, walkthrough.json assets and progress.jsonl (debounced).
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
-function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
-  let t: NodeJS.Timeout | undefined, edited = false;
+function watchNarrative(dir: string, onChange: (files: Set<string>) => void) {
+  let t: NodeJS.Timeout | undefined, changed = new Set<string>();
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
-    if (f === 'review.html' || f === 'walkthrough.json' || (f && /\.(css|js|svg|png)$/.test(f))) {
-      edited ||= f === 'review.html' || f === 'walkthrough.json';
+    if (f === 'progress.jsonl' || f === 'review.html' || f === 'walkthrough.json' || (f && /\.(css|js|svg|png)$/.test(f))) {
+      changed.add(f);
       clearTimeout(t);
       t = setTimeout(() => {
-        onChange(edited);
-        edited = false;
+        onChange(changed);
+        changed = new Set<string>();
       }, 150);
     }
   });
@@ -131,7 +133,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   // what a reconnecting client compares: a change to either file while it was away reloads the page
   const hash = () => {
     const h = crypto.createHash('sha1');
-    for (const f of [reviewFile, walkthroughPath(dir)]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
+    const progress = readProgress(dir);
+    for (const [artifact, f] of [['review', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const) h.update(pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? fs.readFileSync(f) : '\0');
     return h.digest('hex').slice(0, 12);
   };
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
@@ -161,11 +164,19 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
   // read-only: no live reload, and no link check that would write state.json
+  let lastHash = hash();
   const watcher = readOnly
     ? null
-    : watchNarrative(dir, (edited) => {
-        send('review', { hash: hash() });
-        if (edited) checkNarrative();
+    : watchNarrative(dir, (files) => {
+        if (files.has('walkthrough.json')) recordArtifact(dir, 'walkthrough', 'written', /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {});
+        if (files.has('review.html')) recordArtifact(dir, 'review', 'written', /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {});
+        send('progress', readProgress(dir));
+        const next = hash();
+        const p = readProgress(dir);
+        const changedReady = (files.has('review.html') && !pendingArtifact(p.review)) || (files.has('walkthrough.json') && !pendingArtifact(p.walkthrough));
+        if (changedReady || (files.has('progress.jsonl') && !files.has('review.html') && !files.has('walkthrough.json') && next !== lastHash) || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: next });
+        lastHash = next;
+        if (files.has('review.html') || files.has('walkthrough.json')) checkNarrative();
       });
 
   const app = new Hono();
@@ -203,6 +214,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     return json(c, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
+  // A headless audit reads incomplete artifacts on purpose; generation must not cover its player.
+  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, review: { state: 'none' } } : readProgress(dir)));
   app.get('/api/state', (c) => json(c, read()));
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {
@@ -287,6 +300,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
       await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
+      if (!readOnly) await stream.writeSSE({ event: 'progress', data: JSON.stringify(readProgress(dir)) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
       onClient?.();

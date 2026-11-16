@@ -99,6 +99,7 @@ export const paneMachine = setup({
 type Ctx = WalkthroughPosition;
 
 type WalkthroughEvent =
+  | { type: 'writing'; active: boolean }
   | { type: 'load'; doc: Walkthrough | null }
   /** by ids; unknown or missing ids start at the first chapter / step */
   | { type: 'open'; chapter?: string; step?: string }
@@ -149,8 +150,9 @@ export const walkthroughMachine = setup({
   id: 'walkthrough',
   context: { doc: null, chapter: 0, step: 0 },
   initial: 'closed',
-  on: { load: [{ guard: 'docless', target: '.closed', actions: 'load' }, { actions: 'load' }] },
+  on: { writing: [{ guard: ({ event }) => event.active, target: '.writing' }, { target: '.closed' }], load: [{ guard: 'docless', target: '.closed', actions: 'load' }, { actions: 'load' }] },
   states: {
+    writing: { on: { load: { actions: 'load' }, open: { guard: 'loaded', target: 'open', actions: 'open' } } },
     closed: { on: { open: { guard: 'loaded', target: 'open', actions: 'open' } } },
     open: {
       // the pane starts on the step opened; every move after that re-aims it

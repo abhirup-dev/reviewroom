@@ -1,3 +1,4 @@
+import type { Progress } from '../state/progress.shared';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import type { ReviewState } from '../state/model.shared';
 import { roundStatus, syncMachine, unsent } from './sync.machine';
@@ -12,6 +13,7 @@ export class ServerState implements StateBackend {
   readonly kind = 'server';
   private sync?: ActorRefFrom<typeof syncMachine>;
   private disposed = false;
+  private onProgress?: (p: Progress) => void;
   private loading?: AbortController;
   private subscriptions: { unsubscribe(): void }[] = [];
   private readonly beforeUnload = (e: BeforeUnloadEvent) => {
@@ -29,6 +31,7 @@ export class ServerState implements StateBackend {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.onProgress = undefined;
     removeEventListener('beforeunload', this.beforeUnload);
     this.loading?.abort();
     this.loading = undefined;
@@ -64,6 +67,7 @@ export class ServerState implements StateBackend {
           fetchState: fromPromise(({ signal }) => this.fetchState(signal)),
           stream: fromCallback(({ sendBack }) => {
             const es = new EventSource(`${api}/events`);
+            es.addEventListener('progress', (e) => this.onProgress?.(JSON.parse(e.data)));
             es.addEventListener('hello', (e) => sendBack({ type: 'hello', ...JSON.parse(e.data) }));
             es.addEventListener('state', (e) => sendBack({ type: 'state', state: JSON.parse(e.data) }));
             es.addEventListener('review', () => sendBack({ type: 'review' }));
@@ -92,6 +96,7 @@ export class ServerState implements StateBackend {
   }
   subscribe(on: BackendEvents) {
     const sync = this.sync!;
+    this.onProgress = (p) => on.progress?.(p);
     this.subscriptions.push(
       sync.on('state', (e) => on.state(e.state)),
       sync.on('error', (e) => on.error(e.text)),
@@ -140,6 +145,7 @@ export class ServerState implements StateBackend {
       return (await (layout ? sendJSON(`${this.api}/layouts/${id}`, 'PUT', layout) : fetch(`${this.api}/layouts/${id}`, { method: 'DELETE' }))).ok;
     },
   };
+  progress(): Promise<Progress> { return fetch(`${this.api}/progress`).then(json); }
   async walkthrough(): Promise<unknown> {
     const r = await fetch(`${this.api}/walkthrough`);
     if (r.status === 404) return null;

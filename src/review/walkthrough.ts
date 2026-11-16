@@ -1,3 +1,4 @@
+import { pendingArtifact } from '../kernel/state/progress.shared';
 // Walkthrough panel: hosts the agent's freeform HTML (<rr-review>) untouched, and
 // layers review tooling around it without rewriting it:
 //  - every block (paragraph, list item, diagram, table, any [data-rr-block]) gets a
@@ -91,7 +92,15 @@ class WalkthroughPanel implements PanelInstance {
     this.banner = h('div', { class: 'rr-banner', hidden: true });
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail);
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
-    this.element = h('div', { class: 'rr-narrative' }, this.scroller);
+    const writing = h('div', { class: 'rr-empty' }, 'The walkthrough is being written');
+    this.element = h('div', { class: 'rr-narrative' }, writing, this.scroller);
+    const progress = () => {
+      const waiting = !isDesc && pendingArtifact(app.progress.review);
+      writing.hidden = !waiting;
+      this.scroller.hidden = waiting;
+    };
+    progress();
+    app.bus.on('progress', progress);
     // what the presentation adds (the phone's Contents button, walkthrough.phone.ts); not on the description
     if (!isDesc) extension?.(app, this.element);
 

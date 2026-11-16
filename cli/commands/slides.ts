@@ -1,3 +1,4 @@
+import { artifactHash, recordArtifact } from '../lib/progress.ts';
 // slide-lint: `check`, then every slide of the guided walkthrough measured on screen in a headless browser.
 // shotSlide: one slide's picture (`reviewroom shot <chapter>/<step>`).
 import os from 'node:os';
@@ -17,6 +18,7 @@ type SlideOpts = Global & { viewport?: string; theme?: string; out?: string; jso
 export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
   const jobs = auditJobs(o.jobs);
   const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
+  const checkedHash = artifactHash(dir, 'walkthrough');
   const c = await runCheck(repo, dir, { store: false, estimates: false, select: { chapter: o.chapter, slide: o.slide } });
   if ('issues' in c) fail(schemaReport(c.issues));
   const tour = c.tour!;
@@ -39,6 +41,7 @@ export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
     if (findings.some((f) => f.level === 'warn')) console.log('\nSee a slide with `reviewroom shot <chapter>/<step>`.');
   }
   if (c.bad.length || findings.some((f) => f.level === 'warn')) process.exitCode = 1;
+  else if (!partial) recordArtifact(dir, 'walkthrough', 'validated', { head: c.head }, checkedHash);
 }
 
 /** `reviewroom shot <chapter>/<step>`: one slide's PNG, and what lint finds on it. */

@@ -336,6 +336,8 @@ Trees indent 14px per level.
 as the code's toolbar plus its file band (`--rr-bar-h + --rr-band-h`), so a slide's first line starts level with the
 code's first line, whether or not the chapter has an intro.
 
+**Generation loading** uses the shared guided walkthrough root on desktop and phone. A quiet full-page paper surface shows the review facts and writing/checking status; once content exists, Show it anyway lets the reviewer open it.
+
 **Contents** follows the reader: the section and headings down to the one being read are bold, that last one is
 underlined, and its guide lines firm up. Pinned entries sit at the top without a heading; the Walkthrough group has a
 heading over a full-width hairline, its entries flush with the heading.

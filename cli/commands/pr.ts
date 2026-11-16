@@ -1,3 +1,4 @@
+import { appendProgress, recordArtifact } from '../lib/progress.ts';
 // pr: the one-step entry point
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -70,7 +71,7 @@ function localTarget(repo: string, o: PrOpts): Target {
 }
 
 /** A PR's own walkthrough (a ```reviewroom-walkthrough block in a comment or the description) when there is no local one. */
-async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean) {
+async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean, head: string) {
   const file = walkthroughPath(dir);
   const t = prTarget(cfg);
   if (!t || (fs.existsSync(file) && !force)) return;
@@ -84,6 +85,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   const r = parseWalkthrough(pick.text);
   if (!r.ok) return console.error(`reviewroom: the guided walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
+  recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(/^[a-f0-9]{40}$/.test(head) ? { head } : {}) });
   console.error(`reviewroom: guided walkthrough from ${pick.from}`);
 }
 
@@ -98,9 +100,12 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
+  if (fresh || o.force) {
+    for (const artifact of ['walkthrough', 'review'] as const) appendProgress(dir, { artifact, event: 'requested', ...(/^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {}) });
+  }
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
-  await pullWalkthrough(repo, dir, cfg, !!o.force);
+  await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
   if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
   const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
