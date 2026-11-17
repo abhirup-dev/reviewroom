@@ -242,6 +242,7 @@ cli.help((sections) => {
         '  reviewAgentPromptFile: custom Markdown prompt; relative paths resolve beside config.json.',
         '  Model changes apply to the next new question; restart for harness or prompt changes.',
         '  Conversation and transcript are saved in the review dir and restored when it reopens.',
+        '  Only on the review\'s own URL: the hub (/r/<id>/) does not reach it.',
       ].join('\n'),
     },
   ];

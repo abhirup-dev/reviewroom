@@ -25,7 +25,7 @@ import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../.
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 import { buildId, serveClient, withHead } from './pwa.ts';
-import { assistantEnabled, assistantRoutes } from './assistant.ts';
+import { assistantEnabled, assistantRoutes, VIA_HUB } from './assistant.ts';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
@@ -190,7 +190,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && { assistant: true, assistantModel: assistant.model }) })); // id: the same for direct and proxied access
+  // id: the same for direct and proxied access; the assistant only for direct access
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
   if (assistant) app.route('/api/assistant', assistant.app);
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));

@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
 import type { Hub } from './hub.ts';
+import { VIA_HUB } from '../lib/assistant.ts';
 
 export function serveProxy(app: Hono, hub: Hub) {
   // hubAccess passed: the review server gets its own loopback Host and Origin, and checks the rest itself
@@ -12,6 +13,7 @@ export function serveProxy(app: Hono, hub: Hub) {
     const u = new URL(c.req.url);
     const headers = new Headers(c.req.raw.headers);
     headers.set('host', up);
+    headers.set(VIA_HUB, '1'); // the review server keeps what only this machine may use (its assistant) from the hub's callers
     if (!headers.has('accept-encoding')) headers.set('accept-encoding', 'identity'); // else fetch adds its own, and the body is passed on as encoded
     if (headers.has('origin')) headers.set('origin', `http://${up}`);
     try {

@@ -56,7 +56,8 @@ export async function expectClientHeaders(url: string, api: string) {
   }
 }
 
-export function setup() {
+/** `env`: added to every command and server this test starts. */
+export function setup(extraEnv: Record<string, string> = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-'));
   const repo = path.join(tmp, 'repo');
   const home = path.join(tmp, 'home');
@@ -64,7 +65,7 @@ export function setup() {
   const reviews = path.join(home, 'reviews', 'repo');
   const dir = path.join(reviews, 'feat-activity-events');
   const d = ['--repo', repo, '--dir', dir];
-  const env = { ...process.env, REVIEWROOM_HOME: home };
+  const env = { ...process.env, REVIEWROOM_HOME: home, ...extraEnv };
   const procs: Subprocess[] = [];
   fs.cpSync(path.join(template, 'repo'), repo, { recursive: true });
   fs.cpSync(path.join(template, 'home', 'reviews'), path.join(home, 'reviews'), { recursive: true });

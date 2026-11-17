@@ -10,7 +10,7 @@ interface Capabilities {
   resolve(el: Element): WalkthroughBlock;
   label(reference: string): string;
   comment: (block: WalkthroughBlock) => void;
-  /** only when the server runs an assistant */
+  /** only when the assistant is registered (src/assistant/panel.ts) */
   ask?: (block: WalkthroughBlock) => void;
   copy: (block: WalkthroughBlock) => void;
   pin: (block: WalkthroughBlock) => void;

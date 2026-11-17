@@ -8,7 +8,8 @@ import { expectClientHeaders, op, setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
 
 describe('hub', () => {
-  const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup();
+  // the review runs the assistant: reaching it through the hub must not reach Claude Code
+  const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup({ REVIEWROOM_ASSISTANT: '1' });
   let review = '', hub = '';
   const list = async () => (await (await fetch(hub + 'api/sessions')).json()).sessions as { id: string; tool: string; label: string; reviewRound: number; commentCount: number; health: string }[];
   beforeAll(async () => {
@@ -108,6 +109,19 @@ describe('hub', () => {
       // spellings the review server might route as its API: never past the hub with a foreign Origin
       const odd = await Promise.all(['%61pi/ops', '/api/ops'].map((p) => fetch(r + p, { method: 'POST', headers: { origin: 'https://evil.com', 'content-type': 'application/json' }, body: '{"ops":[]}' }).then((x) => x.status)));
       expect(odd).toEqual([403, 403]);
+    });
+
+    test('the assistant answers only the review\'s own URL: through the hub it is refused and not offered', async () => {
+      expect((await (await fetch(review + 'api/meta')).json()).assistant).toBe(true);
+      expect((await fetch(review + 'api/assistant')).status).toBe(200);
+      expect((await (await fetch(r + 'api/meta')).json()).assistant).toBeUndefined();
+      const spellings = ['api/assistant', 'api/assistant/model', '%61pi/assistant', 'api/%61ssistant', '/api/assistant', 'api//assistant'];
+      const proxied = await Promise.all(spellings.map((p) => fetch(r + p).then((x) => x.status)));
+      expect(proxied.every((s) => s === 403 || s === 404)).toBe(true);
+      expect(proxied[0]).toBe(403);
+      const ask = await fetch(r + 'api/assistant', { method: 'POST', headers: { 'content-type': 'application/json', origin: hub.slice(0, -1) }, body: JSON.stringify({ trigger: 'submit-message', messages: [] }) });
+      expect([ask.status, await ask.text()]).toEqual([403, expect.stringContaining('only on this machine')]);
+      expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false); // nothing ran
     });
 
     test('an unknown id is 404, and only review sessions are reachable', async () => {

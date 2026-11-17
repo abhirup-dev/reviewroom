@@ -1,5 +1,6 @@
-// Experimental assistant panel (rr-2l7), only when the server runs one (REVIEWROOM_ASSISTANT=1, `assistant` in its
-// meta). The chat is a lazy React island (./thread.tsx: assistant-ui on AI SDK); nothing loads React until it opens.
+// Experimental assistant panel (rr-2l7): on the desktop (src/presentation.ts), when the server runs one for this page
+// (`assistant` in its meta: REVIEWROOM_ASSISTANT=1, reached directly). The chat is a lazy React island (./thread.tsx:
+// assistant-ui on AI SDK); nothing loads React until it opens. Ask actions elsewhere show only once this registered.
 import { h } from '../kernel/dom';
 import { addPanelAt, definePanel, showPanel } from '../kernel/dock';
 import type { ReviewApp } from '../app';
@@ -23,7 +24,7 @@ export function registerAssistant(app: ReviewApp) {
       let unmount: (() => void) | undefined, gone = false;
       void import('./thread').then(async (m) => {
         const response = await fetch('api/assistant');
-        if (!response.ok) throw new Error('Could not load the saved assistant conversation.');
+        if (!response.ok) throw new Error(await response.text()); // a moved-aside conversation, invalid settings: why
         const initial = await response.json();
         if (gone) return;
         unmount = m.mount(element, (fn) => {
@@ -66,5 +67,4 @@ export function registerAssistant(app: ReviewApp) {
       app.bus.emit('ask-assistant', s.kind === 'code' ? { anchor: { kind: 'code', path: s.path, rev: s.side, start: s.start, end: s.end } } : { anchor: s.anchor, quote: s.label });
     } },
   ));
-  return () => open(app);
 }

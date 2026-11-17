@@ -65,12 +65,7 @@ function Chat({ onAsk, host, initial }: { onAsk: OnAsk; host: HTMLElement; initi
   const [model, setModel] = useState(initial.model);
   const runtime = useChatRuntime({
     messages: initial.messages,
-    transport: new AssistantChatTransport({ api: 'api/assistant', fetch: async (input, init) => {
-      const response = await fetch(input, init);
-      const active = response.headers.get('x-reviewroom-model');
-      if (active) setModel(active);
-      return response;
-    } }), // relative: works at / and through the hub's /r/<id>/
+    transport: new AssistantChatTransport({ api: 'api/assistant' }), // relative: the page's own review server
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
   });
   useEffect(() => {

@@ -48,7 +48,6 @@ import './review/contents';
 import './threads/panels';
 import './threads/ci';
 import { recapOnNewRound } from './threads/recap';
-import { registerAssistant } from './assistant/panel';
 
 export { ReviewApp, definePanel, parseRef, formatRef, renderMarkdown, renderPreview, LocalProvider, GitHubProvider, StaticProvider, ServerState, BrowserState };
 export type { CodeProvider, StateBackend, PanelDef, Fixture, ReviewMeta, ReviewState };
@@ -201,9 +200,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountHoverCards(app);
   mountThreadPopup(app);
   const tour = mountWalkthrough(app, { phoneForm: ui.player });
-  const openAssistant = app.meta.assistant ? registerAssistant(app) : undefined;
   ui.mountSurface(app, dockHost, { lastLayout });
-  openAssistant?.();
   watchShell(app);
   registerCommands(app);
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';

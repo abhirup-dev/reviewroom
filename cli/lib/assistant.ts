@@ -1,8 +1,8 @@
 // Experimental assistant (REVIEWROOM_ASSISTANT=1, rr-2l7): one native Claude Code conversation per review server,
 // through AI SDK's ACP harness. The harness owns the ACP protocol and the native session; AI SDK owns message
 // conversion and the UI message stream (`toUIMessageStreamResponse`). This file owns only the session's lifetime and
-// the route. The packages are experimental: pinned exactly, kept out of the CLI bundle (scripts/build.ts) and loaded
-// only when enabled.
+// the route. The packages are experimental: pinned runtime dependencies, kept out of the CLI bundle (scripts/build.ts)
+// and loaded only when enabled.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +17,9 @@ import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.t
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 
 export const assistantEnabled = () => !!process.env.REVIEWROOM_ASSISTANT;
+/** The hub's proxy sets it on everything it forwards (cli/hub/proxy.ts). The assistant runs Claude Code with the
+ *  reviewer's login, so it answers only this machine's direct review URL until the hub knows who is asking (ADR 0001). */
+export const VIA_HUB = 'x-reviewroom-via-hub';
 
 const AssistantSettings = z.object({
   defaultAgentHarness: z.literal('claude', { error: 'Only the claude agent harness is supported.' }).default('claude'),
@@ -24,7 +27,7 @@ const AssistantSettings = z.object({
   reviewAgentPromptFile: z.string().trim().min(1).default(path.join(PKG, 'templates/assistant-prompt.md')),
 });
 
-/** Machine-wide defaults, read when the review server starts. Other settings in this file are left alone. */
+/** Machine-wide defaults: the model is read for each new question, the rest when the native session starts. */
 export function readAssistantSettings(file = settingsFile()) {
   try {
     const settings = AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
@@ -58,55 +61,69 @@ export function instructions(repo: string, dir: string, cfg: ReviewConfig, promp
     fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
 }
 
-async function start(repo: string, dir: string, cfg: ReviewConfig, settings: ReturnType<typeof readAssistantSettings>, store: ReturnType<typeof assistantStore>) {
-  const { defaultReviewModel, reviewAgentPromptFile } = settings;
-  const prompt = instructions(repo, dir, cfg, reviewAgentPromptFile);
+type Settings = ReturnType<typeof readAssistantSettings>;
+type Store = ReturnType<typeof assistantStore>;
+
+/** The review's native session: started on its first question, resumed from the review's saved state when there is one. */
+async function start({ repo, dir, cfg, settings, store, model }: { repo: string; dir: string; cfg: ReviewConfig; settings: Settings; store: Store; model: () => string }) {
+  const prompt = instructions(repo, dir, cfg, settings.reviewAgentPromptFile);
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
   // The bridge names Node explicitly; adapt its launch to Bun without changing the server's environment.
   // Only a machine without Node needs a private shebang fallback for the native adapter.
   const bin = Bun.which('node') ? undefined : fs.mkdtempSync(path.join(os.tmpdir(), 'reviewroom-assistant-'));
-  if (bin) fs.symlinkSync(process.execPath, path.join(bin, 'node'));
-  const free = Bun.serve({ port: 0, fetch: () => new Response() });
-  const port = free.port!;
-  void free.stop();
-  const harness = createACP({
-    harnessId: 'reviewroom-claude', // stable: the installed agent (~/.ai-sdk-harness/.harness-bootstrap/<id>) is keyed by it
-    source: { type: 'npm-locked', packageJson: agentFile('package.json'), pnpmLockYaml: agentFile('pnpm-lock.yaml') },
-    executable: 'claude-agent-acp',
-    modelMapping: { type: 'session-config-option', path: 'model' }, // the adapter dropped session/set_model
-    isMcpToolCall: (tc) => typeof tc.title === 'string' && tc.title.startsWith('mcp__'),
-    resolveHostToolCall: () => undefined,
-    port,
-    portEndpoint: { url: `ws://127.0.0.1:${port}` }, // ai-sdk-sandbox-local lacks getPortEndpoint
-    auth: 'direct',
-  });
-  // allow-reads: the native policy decides first; what it would ask about (edits, most commands) comes to the reviewer
-  // as an AI SDK tool approval, never approved here.
-  const agent: HarnessAgent = new HarnessAgent({ harness, model: defaultReviewModel, prepareCall: (options) => ({ ...options, model: settings.defaultReviewModel }), permissionMode: 'allow-reads', instructions: prompt, sandboxConfig: { workDir: '.' } });
-  // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
-  // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
-  const provider = createLocalSandbox({ cwd: repo });
-  const previous = store.saved.session;
-  const local = previous ? await provider.resumeSession!({ sessionId: previous.sandboxId }) : await provider.createSession();
-  const adapt = (view: ReturnType<typeof local.restricted>) => Object.assign(Object.create(view) as typeof view, {
-    run: (o: Parameters<typeof view.run>[0]) => view.run(o.command === PNPM_INSTALL ? { ...o, command: 'bun install --frozen-lockfile --production' } : o),
-    spawn: (o: Parameters<typeof view.spawn>[0]) => view.spawn({
-      ...o,
-      command: assistantLaunch(o.command),
-      ...(bin ? { env: { ...o.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } } : {}),
-    }),
-  });
-  const sandbox = Object.assign(adapt(local), { restricted: () => adapt(local.restricted()) });
+  let local: Awaited<ReturnType<ReturnType<typeof createLocalSandbox>['createSession']>> | undefined;
   const cleanup = async () => {
-    await local.stop();
+    await local?.stop(); // the local runner's stop ends every process it spawned (the bridge and, through it, Claude Code)
     if (bin) fs.rmSync(bin, { recursive: true, force: true });
   };
   try {
-    let session = await agent.createSession({ sandboxSession: sandbox, ...(previous ? { sessionId: previous.id, resumeFrom: previous.resume } : {}) });
+    if (bin) fs.symlinkSync(process.execPath, path.join(bin, 'node'));
+    const free = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response() });
+    const port = free.port!;
+    await free.stop();
+    const harness = createACP({
+      harnessId: 'reviewroom-claude', // stable: the installed agent (~/.ai-sdk-harness/.harness-bootstrap/<id>) is keyed by it
+      source: { type: 'npm-locked', packageJson: agentFile('package.json'), pnpmLockYaml: agentFile('pnpm-lock.yaml') },
+      executable: 'claude-agent-acp',
+      modelMapping: { type: 'session-config-option', path: 'model' }, // the adapter dropped session/set_model
+      isMcpToolCall: (tc) => typeof tc.title === 'string' && tc.title.startsWith('mcp__'),
+      resolveHostToolCall: () => undefined,
+      port,
+      portEndpoint: { url: `ws://127.0.0.1:${port}` }, // ai-sdk-sandbox-local lacks getPortEndpoint
+      auth: 'direct',
+    });
+    // allow-reads: only what the native agent asks about (edits, most commands) comes to the reviewer as an AI SDK tool
+    // approval, never approved here. Its own permission mode decides first: the reviewer's Claude Code defaultMode
+    // (`auto` included) may approve an edit itself, and no permission mode mapping overrides it.
+    const agent: HarnessAgent = new HarnessAgent({ harness, model: model(), prepareCall: (options) => ({ ...options, model: model() }), permissionMode: 'allow-reads', instructions: prompt, sandboxConfig: { workDir: '.' } });
+    // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
+    // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
+    const provider = createLocalSandbox({ cwd: repo });
+    const previous = store.saved.session;
+    // resuming creates a new runner with the saved id: it never adopts processes another server started
+    local = previous ? await provider.resumeSession!({ sessionId: previous.sandboxId }) : await provider.createSession();
+    const runner = local;
+    const adapt = (view: ReturnType<typeof runner.restricted>) => Object.assign(Object.create(view) as typeof view, {
+      run: (o: Parameters<typeof view.run>[0]) => view.run(o.command === PNPM_INSTALL ? { ...o, command: 'bun install --frozen-lockfile --production' } : o),
+      spawn: (o: Parameters<typeof view.spawn>[0]) => view.spawn({
+        ...o,
+        command: assistantLaunch(o.command),
+        ...(bin ? { env: { ...o.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } } : {}),
+      }),
+    });
+    const sandbox = Object.assign(adapt(runner), { restricted: () => adapt(runner.restricted()) });
+    let session: Awaited<ReturnType<HarnessAgent['createSession']>>;
+    try {
+      session = await agent.createSession({ sandboxSession: sandbox, ...(previous ? { sessionId: previous.id, resumeFrom: previous.resume } : {}) });
+    } catch (error) {
+      if (!previous) throw error;
+      throw new Error(`Could not resume this review's Claude Code session (${error instanceof Error ? error.message : String(error)}). Delete ${store.file} to start a new conversation.`, { cause: error });
+    }
     const remember = (resume: NonNullable<SavedAssistant['session']>['resume']) => {
-      store.saved.session = { id: session.sessionId, sandboxId: local.id, resume };
+      store.saved.session = { id: session.sessionId, sandboxId: runner.id, resume };
       store.write();
     };
+    let stopped: Promise<void> | undefined;
     return {
       agent,
       get session() { return session; },
@@ -116,13 +133,14 @@ async function start(repo: string, dir: string, cfg: ReviewConfig, settings: Ret
         remember(resume);
         session = await agent.createSession({ sandboxSession: sandbox, sessionId: session.sessionId, resumeFrom: resume });
       },
-      stop: () => session.stop().then(remember).finally(cleanup),
+      stop: () => (stopped ??= session.stop().then(remember).finally(cleanup)),
     };
   } catch (error) {
     await cleanup();
     throw error;
   }
 }
+export type Live = Pick<Awaited<ReturnType<typeof start>>, 'agent' | 'session' | 'checkpoint' | 'stop'>;
 
 /**
  * A new question carries what the reviewer attached (its quote, validated by AskMetadata) as text before it. Only a
@@ -135,76 +153,114 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
   return [...messages.slice(0, -1), { ...last, parts: [{ type: 'text', text: contextPrompt(quote, revs) }, ...last.parts] }];
 }
 
-/** POST /api/assistant: AI SDK's chat request in, its UI message stream out. */
-export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSettings }: { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings }) {
-  const settings = readSettings();
-  const store = assistantStore(dir, repo);
-  let live: ReturnType<typeof start> | undefined;
-  let finishing: Promise<void> = Promise.resolve();
-  let running = false;
+type RouteOpts = { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings; launch?: typeof start };
+
+/**
+ * /api/assistant: GET the saved conversation and the model the next question uses; POST AI SDK's chat request, its UI
+ * message stream out. One question at a time; the server keeps the history, and a window that missed a turn must
+ * reload. Failures (settings, a moved-aside or another checkout's assistant.json) disable only the assistant.
+ */
+export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSettings, launch = start }: RouteOpts) {
+  let store: Store | undefined;
+  let live: Promise<Live> | undefined;
+  let turn: { abort: AbortController; done: Promise<void> } | undefined;
+  let turnModel = '';
+  let closed: Promise<void> | undefined;
+  const load = () => (store ??= assistantStore(dir, repo));
   // The caller supplies the diff provider's frozen revisions (including its merge base), not moving branch names.
   const revs = { base: cfg.base, head: cfg.head };
+  const model = () => (turn ? turnModel : readSettings().defaultReviewModel);
   const app = new Hono();
-  const model = () => running ? settings.defaultReviewModel : readSettings().defaultReviewModel;
+  // errors as text: AI SDK's transport shows a failed request's body as the chat's error
+  app.onError((e, c) => c.text(e instanceof Error ? e.message : String(e), 503));
+  app.use(async (c, next) => {
+    if (c.req.header(VIA_HUB)) return c.text('The assistant runs Claude Code with your login, so it answers only on this machine: open the review from its own URL.', 403);
+    await next();
+  });
   app.get('/model', (c) => c.json({ model: model() }));
   app.get('/', async (c) => {
+    const { saved } = load();
     const { validateUIMessages } = await import('ai');
-    const messages = store.saved.messages.length ? await validateUIMessages<UIMessage>({ messages: store.saved.messages, metadataSchema: AskMetadata }) : [];
+    const messages = saved.messages.length ? await validateUIMessages<UIMessage>({ messages: saved.messages, metadataSchema: AskMetadata }) : [];
     return c.json({ messages, model: model() });
   });
   app.post('/', async (c) => {
-    await finishing.catch(() => {});
-    if (running) return c.json({ error: 'The assistant is already answering a question.' }, 409);
-    const body = await c.req.json<{ trigger?: string; messages?: unknown }>();
-    // the native session cannot branch: regenerating or editing a past message would desync it from the transcript
-    if (body.trigger !== 'submit-message') return c.json({ error: 'The assistant only takes new messages.' }, 400);
-    const { validateUIMessages, convertToModelMessages } = await import('ai');
-    let valid: UIMessage[];
+    // taken before anything awaits, released on every exit (a stream's after it is saved)
+    if (turn || closed) return c.text(closed ? 'The review is closing.' : 'The assistant is already answering a question.', 409);
+    let release!: () => void;
+    const abort = new AbortController();
+    turn = { abort, done: new Promise((r) => (release = r)) };
+    const end = () => { turn = undefined; release(); };
+    let streaming = false;
     try {
-      valid = await validateUIMessages<UIMessage>({ messages: body.messages, metadataSchema: AskMetadata });
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
-    }
-    if (valid.at(-1)?.role === 'user') settings.defaultReviewModel = readSettings().defaultReviewModel;
-    const messages = await convertToModelMessages(withContext(valid, revs));
-    // the harness sends only the last user message to the native session, or continues the paused turn when the
-    // messages end in approval responses
-    running = true;
-    try {
-      live ??= start(repo, dir, cfg, settings, store).catch((e: unknown) => {
+      const body: { trigger?: string; messages?: unknown } = await c.req.json().catch(() => ({}));
+      // the native session cannot branch: regenerating or editing a past message would desync it from the transcript
+      if (body.trigger !== 'submit-message') return c.text('The assistant only takes new messages.', 400);
+      const s = load();
+      const { validateUIMessages, convertToModelMessages } = await import('ai');
+      let incoming: UIMessage[];
+      try {
+        incoming = await validateUIMessages<UIMessage>({ messages: body.messages, metadataSchema: AskMetadata });
+      } catch (e) {
+        return c.text(e instanceof Error ? e.message : String(e), 400);
+      }
+      // a new question follows the saved messages; an approval continues the last one (same id, its parts answered)
+      const last = incoming.at(-1)!;
+      const asking = last.role === 'user';
+      const saved = s.saved.messages;
+      const prior = asking ? incoming.slice(0, -1) : incoming;
+      if (prior.length !== saved.length || prior.some((m, i) => m.id !== saved[i].id)) return c.text('This conversation changed in another window. Reload the page to continue it.', 409);
+      if (asking || !turnModel) turnModel = readSettings().defaultReviewModel;
+      const valid = asking ? [...saved, last] : [...saved.slice(0, -1), last];
+      const messages = await convertToModelMessages(withContext(valid, revs));
+      s.saved.messages = valid; // before starting: a failed start keeps the question, so the window stays in step
+      s.write();
+      live ??= launch({ repo, dir, cfg, settings: readSettings(), store: s, model: () => turnModel }).catch((e: unknown) => {
         live = undefined; // let the next message retry
         throw e;
       });
       const current = await live;
-      const { agent, session } = current;
-      store.saved.messages = valid;
-      store.write();
-      const result = await agent.stream({ session, messages, abortSignal: c.req.raw.signal });
-      return result.toUIMessageStreamResponse({
+      let result: Awaited<ReturnType<Live['agent']['stream']>>;
+      try {
+        // the harness sends only the last user message to the native session, or continues the paused turn
+        result = await current.agent.stream({ session: current.session, messages, abortSignal: AbortSignal.any([c.req.raw.signal, abort.signal]) });
+      } catch (error) {
+        live = undefined;
+        await current.stop().catch(() => {});
+        throw error;
+      }
+      const response = result.toUIMessageStreamResponse({
         originalMessages: valid, generateMessageId: randomUUID,
-        headers: { 'x-reviewroom-model': settings.defaultReviewModel },
-        messageMetadata: () => ({ model: settings.defaultReviewModel }),
-        onEnd: ({ messages: completed }) => {
-          finishing = (async () => {
-            const response = await Promise.resolve(result.response).catch(() => undefined);
-            const last = completed.at(-1);
-            if (last?.role === 'assistant') last.metadata = { model: settings.defaultReviewModel, resolvedModel: response?.modelId };
-            store.saved.messages = completed;
-            store.write();
-            await current.checkpoint();
-          })().catch(async (error: unknown) => {
+        // also when the reviewer stops or leaves: the partial answer is saved under the id their window has
+        onEnd: async ({ messages: completed }) => {
+          try {
+            const answer = completed.at(-1);
+            const resolved = await Promise.resolve(result.response).catch(() => undefined);
+            if (answer?.role === 'assistant') answer.metadata = { model: turnModel, resolvedModel: resolved?.modelId };
+            s.saved.messages = completed;
+            s.write();
+            if (!closed) await current.checkpoint();
+          } catch (error) {
+            console.error(`reviewroom: assistant: ${error instanceof Error ? error.message : String(error)}`);
             live = undefined; // recover from the saved checkpoint on the next question
             await current.stop().catch(() => {});
-            throw error;
-          }).finally(() => { running = false; });
-          return finishing;
+          } finally {
+            end();
+          }
         },
         onError: (e) => (e instanceof Error ? e.message : String(e)),
       });
-    } catch (error) {
-      running = false;
-      throw error;
+      streaming = true;
+      return response;
+    } finally {
+      if (!streaming) end();
     }
   });
-  return { app, get model() { return model(); }, close: async () => { await finishing.catch(() => {}); const current = await live?.catch(() => undefined); await current?.stop(); } };
+  /** Stops a running turn (its answer is saved), then the native session, saving where it can resume. */
+  const close = () => (closed ??= (async () => {
+    turn?.abort.abort();
+    await turn?.done;
+    await (await live?.catch(() => undefined))?.stop();
+  })());
+  return { app, close };
 }

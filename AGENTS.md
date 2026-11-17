@@ -41,6 +41,9 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   prompt path, relative to this config file). Model defaults are reread before new questions; restart for other changes.
 - **`assistant.json`** in a review directory stores that review's AI SDK transcript and opaque harness resume state (private,
   mode 0600). Reopening the review restores the transcript and resumes its existing native session. The harness owns recovery.
+  Like `state.json`, a corrupt one is moved aside and blocks the assistant (not the review) until restored or deleted; one
+  started from another checkout is kept and refused there. The assistant answers only the review's own URL: the hub proxy
+  marks what it forwards (`x-reviewroom-via-hub`) and the review server refuses it (ADR 0001: no identity yet).
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,
@@ -97,8 +100,9 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 ## Working on it
 
 Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bundled into `dist/` (not
-committed). The AST-grep CLI remains a runtime dependency for platform-specific binary selection;
-other libraries are `devDependencies`.
+committed). The AST-grep CLI remains a runtime dependency for platform-specific binary selection; so are the
+assistant's server packages (`ai`, `@ai-sdk/harness*`, `ai-sdk-sandbox-local`), which the CLI bundle leaves external
+(the harness reads its bridge files beside its module); other libraries are `devDependencies`.
 
 ```bash
 bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep` on PATH

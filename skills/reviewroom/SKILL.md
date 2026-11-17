@@ -22,6 +22,7 @@ The experimental assistant (`REVIEWROOM_ASSISTANT=1`) reads machine defaults fro
 by default). `reviewAgentPromptFile` optionally names a custom Markdown prompt, relative to this config file or absolute.
 Keep existing keys such as `publicOrigin`. Model changes apply to the next new question; restart for harness or prompt changes.
 The review's private `assistant.json` restores the transcript and native session when reopening it; do not edit it by hand.
+The assistant answers only on the review's own URL, never through the hub.
 
 ## Choose the command
 
