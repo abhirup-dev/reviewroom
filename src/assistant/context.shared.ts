@@ -20,10 +20,10 @@ export type AskContext = z.infer<typeof AskContext>;
 /** UI message metadata as the assistant reads it: anything, with a valid quote when there is one. */
 export const AskMetadata = z.looseObject({ custom: z.looseObject({ quote: AskContext.optional() }).optional() }).optional();
 
-/** The link to what was asked about. In a one-commit range, code names that commit, not the whole change's base/head. */
+/** Pin the displayed revision when attaching code, even if the reader switches ranges before sending. */
 export function askRef(anchor: Extract<Anchor, { kind: 'code' | 'doc' }>, range: { key: string; base: string; head: string }) {
   if (anchor.kind === 'doc') return formatRef({ type: 'doc', id: anchor.target, path: anchor.path });
-  const rev = range.key === 'all' ? anchor.rev : range[anchor.rev];
+  const rev = range[anchor.rev];
   return formatRef({ type: 'code', path: anchor.path, rev, start: anchor.start, end: anchor.end });
 }
 

@@ -30,7 +30,7 @@ assistant about the selection* also covers selected code lines, which have no po
 same way `app.compose` emits `compose-thread`. The panel turns the selection into an `rr:` address, a description and
 a short excerpt (`src/assistant/context.shared.ts`):
 
-- Code links its side, `@head` or `@base`. In a one-commit diff range it links that commit, `@<sha>` or `@<sha>^`.
+- Code links the displayed revision, `@<sha>` (or `@<sha>^` for a commit's parent), pinned when attached.
 - The excerpt is the selected lines, read once, at most 40 lines or 4,000 characters.
 
 That context becomes assistant-ui's **composer quote** (`setQuote`). The library owns the removable chip
@@ -39,7 +39,7 @@ navigating afterwards changes nothing. The chip is Review Room's own `<rr-ref>`,
 
 The server validates message metadata through `validateUIMessages({ metadataSchema })`. It accepts only an `rr:code`
 or `rr:doc` address and a brief excerpt; anything else gets a 400. Only when the last message is the user's new
-question does the server put the context in front of it, naming the commits base and head resolve to at that moment
+question does the server put the context in front of it, using the diff provider's frozen revisions and merge base
 (`withContext`). Earlier history and approval continuations are untouched.
 
 The instructions tell the agent to answer with `[label](rr:code/…#L…)`, `rr:sym/…` and `rr:doc/<id>` links, and to

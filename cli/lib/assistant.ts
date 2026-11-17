@@ -12,7 +12,6 @@ import type { UIMessage } from 'ai';
 import type { HarnessAgent } from '@ai-sdk/harness/agent';
 import { PKG } from './paths.ts';
 import type { ReviewConfig } from './config.ts';
-import { git } from './git.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
 
 export const assistantEnabled = () => !!process.env.REVIEWROOM_ASSISTANT;
@@ -106,14 +105,13 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
 /** POST /api/assistant: AI SDK's chat request in, its UI message stream out. */
 export function assistantRoutes({ repo, dir, cfg }: { repo: string; dir: string; cfg: ReviewConfig }) {
   let live: ReturnType<typeof start> | undefined;
-  // base and head as commits now, so a quoted @head line means what the reviewer saw (a rev git can't read stays a name)
-  const commit = (rev: string) => git(['rev-parse', '--verify', '--quiet', `${rev}^{commit}`], repo, { soft: true })?.trim() || rev;
+  // The caller supplies the diff provider's frozen revisions (including its merge base), not moving branch names.
+  const revs = { base: cfg.base, head: cfg.head };
   const app = new Hono();
   app.post('/', async (c) => {
     const body = await c.req.json<{ trigger?: string; messages?: unknown }>();
     // the native session cannot branch: regenerating or editing a past message would desync it from the transcript
     if (body.trigger !== 'submit-message') return c.json({ error: 'The assistant only takes new messages.' }, 400);
-    const revs = { base: commit(cfg.base), head: commit(cfg.head) };
     const { validateUIMessages, convertToModelMessages } = await import('ai');
     let valid: UIMessage[];
     try {

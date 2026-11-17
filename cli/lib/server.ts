@@ -169,7 +169,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         if (edited) checkNarrative();
       });
 
-  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg }) : undefined;
+  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
   const app = new Hono();
   app.use(localOnly);
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies

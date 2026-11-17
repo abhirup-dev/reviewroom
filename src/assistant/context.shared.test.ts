@@ -2,13 +2,13 @@ import { expect, test } from 'bun:test';
 import { parseRef } from '../kernel/refs/refs.shared';
 import { AskContext, askRef, contextPrompt, excerptLines, MAX_EXCERPT } from './context.shared';
 
-const all = { key: 'all', base: 'main', head: 'feat/x' };
+const all = { key: 'all', base: 'base-sha', head: 'head-sha' };
 const commit = { key: 'abc123', base: 'abc123^', head: 'abc123' };
 const code = (rev: 'base' | 'head') => ({ kind: 'code' as const, path: 'src/a b.ts', rev, start: 3, end: 5 });
 
-test('a selection in the whole change links its side; in one commit, that commit', () => {
-  expect(parseRef(askRef(code('head'), all))).toEqual({ type: 'code', path: 'src/a b.ts', rev: 'head', start: 3, end: 5 });
-  expect(parseRef(askRef(code('base'), all))).toMatchObject({ rev: 'base' });
+test('a selection pins the displayed revision in both the whole change and one commit', () => {
+  expect(parseRef(askRef(code('head'), all))).toEqual({ type: 'code', path: 'src/a b.ts', rev: 'head-sha', start: 3, end: 5 });
+  expect(parseRef(askRef(code('base'), all))).toMatchObject({ rev: 'base-sha' });
   expect(parseRef(askRef(code('head'), commit))).toMatchObject({ rev: 'abc123' });
   expect(parseRef(askRef(code('base'), commit))).toMatchObject({ rev: 'abc123^' });
 });

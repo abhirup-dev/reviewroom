@@ -12,6 +12,8 @@ export function registerAssistant(app: ReviewApp) {
   // the context asked about last, until the chat takes it (it may still be loading)
   let pending: AskContext | undefined;
   let take: ((c: AskContext) => void) | undefined;
+  let latestAsk = 0;
+  app.onDispose(() => { latestAsk++; });
   app.onDispose(definePanel({
     id: PANEL.id,
     title: PANEL.title,
@@ -36,14 +38,21 @@ export function registerAssistant(app: ReviewApp) {
     },
   }));
   app.onDispose(app.bus.on('ask-assistant', async ({ anchor, quote }) => {
+    const request = ++latestAsk;
     // fixed now: navigating afterwards doesn't change what was attached
     const ref = askRef(anchor, app.range);
     const rev = anchor.kind === 'code' ? app.range[anchor.rev] : '';
-    const text = anchor.kind === 'doc' ? (anchor.quote?.exact ?? quote ?? '') : excerptLines((await app.services.code.read(anchor.path, rev)) ?? '', anchor.start, anchor.end);
-    const context = { text, messageId: '', ref, label: app.label(ref) };
-    open(app);
-    if (take) take(context);
-    else pending = context;
+    const label = app.label(ref);
+    try {
+      const text = anchor.kind === 'doc' ? excerptLines(anchor.quote?.exact ?? quote ?? '', 1, 40) : excerptLines((await app.services.code.read(anchor.path, rev)) ?? '', anchor.start, anchor.end);
+      if (request !== latestAsk) return; // a slower file read must not replace a newer question
+      const context = { text, messageId: '', ref, label };
+      open(app);
+      if (take) take(context);
+      else pending = context;
+    } catch {
+      if (request === latestAsk) app.toast('Could not attach that selection. Try again.', 'error');
+    }
   }));
   app.onDispose(app.commands.register(
     { id: 'assistant.open', title: 'Ask the assistant', group: 'Panels', hint: 'Claude Code on this machine, about this review', run: () => open(app) },
