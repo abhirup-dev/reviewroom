@@ -24,7 +24,8 @@ Use the existing machine-wide JSON settings, `~/.reviewroom/config.json` (`REVIE
 Merge these keys with existing settings such as `publicOrigin`. An absent file or keys defaults to Claude and Sonnet.
 Only `claude` is supported for now. The model is passed to the native agent as configured (an alias such as `sonnet`
 or a full model ID); the agent validates availability. Invalid settings are reported rather than silently ignored.
-Defaults are read when the conversation starts; restart the review server to apply changes to an existing session.
+Defaults are read when the review server starts; restart it to apply changes. The configured model appears directly above
+the assistant's text input and is the same value passed to the harness (an alias is shown as configured).
 This does not change Claude's own settings or login. Live model discovery and effort controls remain deferred.
 
 The optional `reviewAgentPromptFile` selects a UTF-8 Markdown file. Relative paths resolve beside `config.json`, so the

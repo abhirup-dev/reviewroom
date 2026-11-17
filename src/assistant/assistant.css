@@ -75,6 +75,11 @@
   justify-content: flex-end;
   padding: 0 var(--rr-space-10) var(--rr-space-8);
 }
+.rr-assistant__model {
+  padding: var(--rr-space-6) var(--rr-space-10) 0;
+  font-size: var(--rr-text-sm);
+  overflow-wrap: anywhere;
+}
 /* the context attached to a question: Review Room's link chip, removable in the composer */
 .rr-assistant__quote {
   display: flex;

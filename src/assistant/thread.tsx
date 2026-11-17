@@ -60,7 +60,7 @@ const AssistantMessage = () => (
   </MessagePrimitive.Root>
 );
 
-function Chat({ onAsk, host }: { onAsk: OnAsk; host: HTMLElement }) {
+function Chat({ onAsk, host, model }: { onAsk: OnAsk; host: HTMLElement; model: string }) {
   const runtime = useChatRuntime({
     transport: new AssistantChatTransport({ api: 'api/assistant' }), // relative: works at / and through the hub's /r/<id>/
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
@@ -86,6 +86,7 @@ function Chat({ onAsk, host }: { onAsk: OnAsk; host: HTMLElement }) {
             <ComposerAbout />
             <ComposerPrimitive.QuoteDismiss className="rr-icon-btn" title="Don't attach this" aria-label="Remove the attached context">×</ComposerPrimitive.QuoteDismiss>
           </ComposerPrimitive.Quote>
+          <div className="rr-assistant__model rr-muted">Model: {model}</div>
           <ComposerPrimitive.Input className="rr-composer__input" placeholder="Ask about this change" rows={2} />
           <div className="rr-assistant__actions">
             <AuiIf condition={(s) => !s.thread.isRunning}>
@@ -101,8 +102,8 @@ function Chat({ onAsk, host }: { onAsk: OnAsk; host: HTMLElement }) {
   );
 }
 
-export function mount(host: HTMLElement, onAsk: OnAsk) {
+export function mount(host: HTMLElement, onAsk: OnAsk, model: string) {
   const root = createRoot(host);
-  root.render(<Chat onAsk={onAsk} host={host} />);
+  root.render(<Chat onAsk={onAsk} host={host} model={model} />);
   return () => root.unmount();
 }

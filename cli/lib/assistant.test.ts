@@ -8,6 +8,7 @@ import { LINK_IN_TEXT, parseRef } from '../../src/kernel/refs/refs.shared.ts';
 import { PKG } from './paths.ts';
 
 const revs = { base: 'b0', head: 'h0' };
+const settings = { defaultAgentHarness: 'claude' as const, defaultReviewModel: 'sonnet', reviewAgentPromptFile: path.join(PKG, 'templates/assistant-prompt.md') };
 const quote = { text: 'return x;', messageId: '', ref: 'rr:code/src/a.ts#L4-6', label: 'src/a.ts:4-6' };
 const user = (text: string, metadata?: unknown): UIMessage => ({ id: text, role: 'user', parts: [{ type: 'text', text }], metadata });
 
@@ -70,7 +71,7 @@ test('an approval continuation and a plain question are left as they are', () =>
 });
 
 test('a question with an invalid context is refused', async () => {
-  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' } });
+  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' }, settings });
   const bad = user('x', { custom: { quote: { ...quote, ref: 'rr:thread/t1' } } });
   const res = await app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages: [bad] }) });
   expect(res.status).toBe(400);
@@ -83,7 +84,7 @@ test('every link the agent is shown as an example is one Review Room opens', () 
 });
 
 test('the assistant takes only new messages: the native session cannot branch', async () => {
-  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' } });
+  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' }, settings });
   const res = await app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'regenerate-message', messages: [] }) });
   expect(res.status).toBe(400);
 });

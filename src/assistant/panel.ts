@@ -28,7 +28,7 @@ export function registerAssistant(app: ReviewApp) {
           if (pending) fn(pending);
           pending = undefined;
           return () => (take = take === fn ? undefined : take);
-        });
+        }, app.meta.assistantModel ?? 'Unavailable');
       });
       const dispose = () => {
         gone = true;

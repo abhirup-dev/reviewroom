@@ -23,7 +23,7 @@ const AssistantSettings = z.object({
   reviewAgentPromptFile: z.string().trim().min(1).default(path.join(PKG, 'templates/assistant-prompt.md')),
 });
 
-/** Machine-wide defaults, read when the conversation starts. Other settings in this file are left alone. */
+/** Machine-wide defaults, read when the review server starts. Other settings in this file are left alone. */
 export function readAssistantSettings(file = settingsFile()) {
   try {
     const settings = AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
@@ -57,8 +57,8 @@ export function instructions(repo: string, dir: string, cfg: ReviewConfig, promp
     fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
 }
 
-async function start(repo: string, dir: string, cfg: ReviewConfig) {
-  const { defaultReviewModel, reviewAgentPromptFile } = readAssistantSettings();
+async function start(repo: string, dir: string, cfg: ReviewConfig, settings: ReturnType<typeof readAssistantSettings>) {
+  const { defaultReviewModel, reviewAgentPromptFile } = settings;
   const prompt = instructions(repo, dir, cfg, reviewAgentPromptFile);
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
   // The bridge names Node explicitly; adapt its launch to Bun without changing the server's environment.
@@ -119,7 +119,7 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
 }
 
 /** POST /api/assistant: AI SDK's chat request in, its UI message stream out. */
-export function assistantRoutes({ repo, dir, cfg }: { repo: string; dir: string; cfg: ReviewConfig }) {
+export function assistantRoutes({ repo, dir, cfg, settings = readAssistantSettings() }: { repo: string; dir: string; cfg: ReviewConfig; settings?: ReturnType<typeof readAssistantSettings> }) {
   let live: ReturnType<typeof start> | undefined;
   // The caller supplies the diff provider's frozen revisions (including its merge base), not moving branch names.
   const revs = { base: cfg.base, head: cfg.head };
@@ -136,7 +136,7 @@ export function assistantRoutes({ repo, dir, cfg }: { repo: string; dir: string;
       return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
     }
     const messages = await convertToModelMessages(withContext(valid, revs));
-    live ??= start(repo, dir, cfg).catch((e: unknown) => {
+    live ??= start(repo, dir, cfg, settings).catch((e: unknown) => {
       live = undefined; // let the next message retry
       throw e;
     });
@@ -146,5 +146,5 @@ export function assistantRoutes({ repo, dir, cfg }: { repo: string; dir: string;
     const result = await agent.stream({ session, messages, abortSignal: c.req.raw.signal });
     return result.toUIMessageStreamResponse({ generateMessageId: randomUUID, onError: (e) => (e instanceof Error ? e.message : String(e)) });
   });
-  return { app, close: async () => { const current = await live?.catch(() => undefined); await current?.stop(); } };
+  return { app, model: settings.defaultReviewModel, close: async () => { const current = await live?.catch(() => undefined); await current?.stop(); } };
 }
