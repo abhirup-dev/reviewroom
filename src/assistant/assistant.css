@@ -75,3 +75,19 @@
   justify-content: flex-end;
   padding: 0 var(--rr-space-10) var(--rr-space-8);
 }
+/* the context attached to a question: Review Room's link chip, removable in the composer */
+.rr-assistant__quote {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-4);
+  min-width: 0;
+}
+.rr-assistant__about {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.rr-assistant__msg.is-user .rr-assistant__about {
+  display: block;
+  margin-bottom: var(--rr-space-4);
+}

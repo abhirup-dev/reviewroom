@@ -1,10 +1,16 @@
 // The assistant's chat: assistant-ui's primitives on its AI SDK runtime. The runtime owns the messages, streaming,
 // stop and approvals; this file owns only which primitives show and their Review Room classes.
+import { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AssistantRuntimeProvider, AuiIf, ComposerPrimitive, ErrorPrimitive, MessagePrimitive, ThreadPrimitive, type TextMessagePartProps, type ToolCallMessagePartProps } from '@assistant-ui/react';
+import { AssistantRuntimeProvider, AuiIf, ComposerPrimitive, ErrorPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, type QuoteInfo, type TextMessagePartProps, type ToolCallMessagePartProps } from '@assistant-ui/react';
 import { AssistantChatTransport, useChatRuntime } from '@assistant-ui/ai-sdk';
 import { lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { renderMarkdown } from '../kernel/markdown';
+import { h } from '../kernel/dom';
+import type { AskContext } from './context.shared';
+
+/** Hands the chat each context the reviewer asks about; returns the unsubscribe. */
+type OnAsk = (take: (c: AskContext) => void) => () => void;
 
 // Review Room's sanitised Markdown, as in threads
 const Text = ({ text }: TextMessagePartProps) => <div className="rr-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
@@ -29,8 +35,16 @@ function Tool({ toolName, args, status, isError, approval, respondToApproval }: 
   );
 }
 
+/** What a question is about: Review Room's own link chip (its label, icon and opening); the runtime keeps the quote as set. */
+const About = ({ quote }: { quote: QuoteInfo | undefined }) => {
+  const c = quote as AskContext | undefined;
+  return c?.ref ? <span className="rr-assistant__about" title={c.text} ref={(el) => { el?.replaceChildren(h('rr-ref', { ref: c.ref })); }} /> : null;
+};
+const ComposerAbout = () => <About quote={useAuiState((s) => s.composer.quote)} />;
+
 const UserMessage = () => (
   <MessagePrimitive.Root className="rr-assistant__msg is-user">
+    <MessagePrimitive.Quote>{(quote) => <About quote={quote} />}</MessagePrimitive.Quote>
     <MessagePrimitive.Parts />
   </MessagePrimitive.Root>
 );
@@ -46,11 +60,15 @@ const AssistantMessage = () => (
   </MessagePrimitive.Root>
 );
 
-function Chat() {
+function Chat({ onAsk, host }: { onAsk: OnAsk; host: HTMLElement }) {
   const runtime = useChatRuntime({
     transport: new AssistantChatTransport({ api: 'api/assistant' }), // relative: works at / and through the hub's /r/<id>/
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
   });
+  useEffect(() => onAsk((c) => {
+    runtime.thread.composer.setQuote(c);
+    host.querySelector('textarea')?.focus();
+  }), [runtime, onAsk, host]);
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadPrimitive.Root className="rr-assistant__thread">
@@ -64,6 +82,10 @@ function Chat() {
           </AuiIf>
         </ThreadPrimitive.Viewport>
         <ComposerPrimitive.Root className="rr-composer rr-assistant__composer">
+          <ComposerPrimitive.Quote className="rr-assistant__quote">
+            <ComposerAbout />
+            <ComposerPrimitive.QuoteDismiss className="rr-icon-btn" title="Don't attach this" aria-label="Remove the attached context">×</ComposerPrimitive.QuoteDismiss>
+          </ComposerPrimitive.Quote>
           <ComposerPrimitive.Input className="rr-composer__input" placeholder="Ask about this change" rows={2} />
           <div className="rr-assistant__actions">
             <AuiIf condition={(s) => !s.thread.isRunning}>
@@ -79,8 +101,8 @@ function Chat() {
   );
 }
 
-export function mount(host: HTMLElement) {
+export function mount(host: HTMLElement, onAsk: OnAsk) {
   const root = createRoot(host);
-  root.render(<Chat />);
+  root.render(<Chat onAsk={onAsk} host={host} />);
   return () => root.unmount();
 }

@@ -10,6 +10,8 @@ interface Capabilities {
   resolve(el: Element): WalkthroughBlock;
   label(reference: string): string;
   comment: (block: WalkthroughBlock) => void;
+  /** only when the server runs an assistant */
+  ask?: (block: WalkthroughBlock) => void;
   copy: (block: WalkthroughBlock) => void;
   pin: (block: WalkthroughBlock) => void;
   pinned(block: WalkthroughBlock): boolean;
@@ -161,6 +163,7 @@ export class WalkthroughTools {
     const closeMenu = popMenu(this.handle, () => [
       menuLabel(this.caps.label(block.reference)),
       readOnly ? null : menuItem('Add comment', invoke(this.caps.comment), { icon: 'thread' }),
+      this.caps.ask ? menuItem('Ask assistant about this', invoke(this.caps.ask), { icon: 'thread' }) : null,
       menuItem('Copy block reference', invoke(this.caps.copy), { icon: 'link' }),
       !point ? menuItem(this.caps.pinned(block) ? 'Unpin from Contents' : 'Pin to Contents', invoke(this.caps.pin), { icon: 'pin' }) : null,
     ], { point, returnFocus: this.scroller, onClose: () => {

@@ -23,14 +23,58 @@ The harness picks the last user message from the history as the new prompt for t
 paused turn when the messages end in approval responses. Text and tool assembly, streaming, Stop (request abort),
 follow-up and approvals are the libraries'.
 
+## Asking about a selection
+
+**Ask assistant** appears in the walkthrough's block menu and the selected-text popup. The palette command *Ask the
+assistant about the selection* also covers selected code lines, which have no popup. Each emits `ask-assistant`, the
+same way `app.compose` emits `compose-thread`. The panel turns the selection into an `rr:` address, a description and
+a short excerpt (`src/assistant/context.shared.ts`):
+
+- Code links its side, `@head` or `@base`. In a one-commit diff range it links that commit, `@<sha>` or `@<sha>^`.
+- The excerpt is the selected lines, read once, at most 40 lines or 4,000 characters.
+
+That context becomes assistant-ui's **composer quote** (`setQuote`). The library owns the removable chip
+(`ComposerPrimitive.Quote`/`QuoteDismiss`) and freezes the quote into the sent message's `metadata.custom.quote`, so
+navigating afterwards changes nothing. The chip is Review Room's own `<rr-ref>`, with its label, icon and opening.
+
+The server validates message metadata through `validateUIMessages({ metadataSchema })`. It accepts only an `rr:code`
+or `rr:doc` address and a brief excerpt; anything else gets a 400. Only when the last message is the user's new
+question does the server put the context in front of it, naming the commits base and head resolve to at that moment
+(`withContext`). Earlier history and approval continuations are untouched.
+
+The instructions tell the agent to answer with `[label](rr:code/…#L…)`, `rr:sym/…` and `rr:doc/<id>` links, and to
+link only things it has checked. A test parses every example link in the instructions.
+
+## Model and effort: blocked upstream
+
+`claude-agent-acp` 0.107.3 advertises `configOptions` (category `model`, and `thought_level` as `effort`) on
+`session/new`, and accepts `session/set_config_option`. The pinned harness consumes these internally but never exposes
+them:
+
+- **Model:** `HarnessAgent` `model` (also per turn via `prepareCall`) goes through `modelMapping` →
+  `session/set_config_option`, but the host never sees the advertised choices. The bridge reads `configOptions` only
+  to check permission mappings and to resolve the current model id.
+- **Effort:** no mapping exists. `permissionModeMapping` can set a config option, but only per permission mode, and
+  using it for effort would be misuse.
+
+So the panel has no model or effort control: one would need a hardcoded catalog, a second session or raw stdio. The
+smallest upstream extension:
+
+1. Expose the session's advertised config options (from `session/new`/`load`/`resume` and `config_option_update`) on
+   the harness session, or as stream metadata.
+2. Generalise `modelMapping` into a per-turn `sessionConfig: Record<configId, string | boolean>`. Apply it through the
+   same `session/set_config_option` call as `configureACPModel`, validated against the advertised options the way
+   `validateTarget` validates.
+
 ## What we own
 
 | File | Lines | What |
 | --- | --- | --- |
-| `cli/lib/assistant.ts` | ~90 | session lifetime, route, instructions (Review Room skill + review context), Bun-only glue |
-| `src/assistant/thread.tsx` | ~85 | which assistant-ui primitives show, with Review Room classes; markdown through `renderMarkdown` |
-| `src/assistant/panel.ts` | ~30 | `definePanel`, palette command, lazy import of the island |
-| `src/assistant/assistant.css` | ~75 | tokens only; the composer, buttons, prose and empty state are the shared ones |
+| `cli/lib/assistant.ts` | ~135 | session lifetime, route, attached-context check and injection, instructions (Review Room skill + review context + link contract), Bun-only glue |
+| `src/assistant/context.shared.ts` | ~40 | the attached context: its address, excerpt, schema and prompt line |
+| `src/assistant/thread.tsx` | ~110 | which assistant-ui primitives show, with Review Room classes; markdown through `renderMarkdown`; the quote chip |
+| `src/assistant/panel.ts` | ~55 | `definePanel`, palette commands, `ask-assistant` → composer quote, lazy import of the island |
+| `src/assistant/assistant.css` | ~95 | tokens only; the composer, buttons, prose and empty state are the shared ones |
 | `cli/lib/assistant-agent/` | data | the native agent's `package.json` + `pnpm-lock.yaml` (claude-agent-acp 0.107.3) |
 
 Seams elsewhere (~20 lines): the route mount and `assistant` flag in `/api/meta` (`cli/lib/server.ts`), `mountAssistant`
@@ -41,11 +85,12 @@ No text accumulator, tool merger, event projector, replay reducer, custom stream
 
 ## Bun only
 
-No Node or pnpm is needed. Two process-scoped adaptations, both in `start()`:
+No Node or pnpm is needed. Two process-scoped adaptations in `start()`:
 
-- `node`: the harness launches its bridge as the literal `node <bridge.mjs>`, and the adapter's bin is
-  `#!/usr/bin/env node`. A temp dir with `node` linked to this Bun goes first on the server's PATH. Side effect: the
-  agent's own commands also get Bun for `node` (`node --version` fails there).
+- `node`: the bridge's literal `node <bridge.mjs>` launch is rewritten to this Bun. The adapter has a Node shebang;
+  where Node already exists, it remains available unchanged. On a Bun-only machine, only the child launch receives
+  a private `node`→Bun fallback. No global or server PATH mutation. In that fallback environment, agent commands
+  naming `node` resolve to Bun; this is launcher compatibility, not a complete Node emulation.
 - `pnpm`: the harness bootstrap runs `pnpm install --frozen-lockfile --prod --store-dir .pnpm-store`. Our sandbox
   session's `restricted()` views swap that exact command for `bun install --frozen-lockfile --production`, which
   migrates the pnpm lock. The install (~420 MB, once) lives in `~/.ai-sdk-harness/.harness-bootstrap/reviewroom-claude`.
@@ -68,7 +113,11 @@ their bridge files beside their own modules); the panel is one lazy chunk (1.2 M
   Allow/Deny (assistant-ui `respondToApproval`, AI SDK `sendAutomaticallyWhen`). Not seen live: this machine's native
   mode (`auto`) allowed every tool tried.
 - One conversation per server process, lost on restart. No reload replay, multi-tab sync, queue, attachments,
-  model picker or phone layout. A fixed free port for the bridge per server. The local "sandbox" is a process runner,
+  model or effort picker (see above), phone layout or phone selection action. A fixed free port for the bridge per server. The local "sandbox" is a process runner,
   not isolation.
-- Login and gateway overrides (`ANTHROPIC_*`, `CLAUDE_CODE_*`, `CLAUDECODE`) are removed from the server's env when the
-  assistant starts, so the native subscription login is used.
+- Login and gateway overrides are unset for the bridge child with `env -u`; the review server's environment is
+  preserved. Normal server shutdown explicitly destroys the native session and stops its process runner.
+- This source-checkout POC externalizes the harness packages so their bridge assets can be read. They are currently
+  devDependencies; publishing a distributable CLI requires deliberately packaging runtime dependencies/assets.
+- The panel definition is registered before saved-layout restore. Closing/reopening the panel recreates its UI state;
+  native conversation history stays in the server until shutdown, but transcript replay is not implemented.
