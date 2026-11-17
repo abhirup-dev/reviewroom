@@ -9,6 +9,23 @@ REVIEWROOM_ASSISTANT=1 bun dist/cli/reviewroom.js pr feat/activity-events --repo
 
 (`.demo/assistant-review` is a copy of `examples/activity-events`, so the checked-in example stays untouched.)
 
+## Defaults
+
+Use the existing machine-wide JSON settings, `~/.reviewroom/config.json` (`REVIEWROOM_HOME` overrides the root):
+
+```json
+{
+  "defaultAgentHarness": "claude",
+  "defaultReviewModel": "sonnet"
+}
+```
+
+Merge these keys with existing settings such as `publicOrigin`. An absent file or keys defaults to Claude and Sonnet.
+Only `claude` is supported for now. The model is passed to the native agent as configured (an alias such as `sonnet`
+or a full model ID); the agent validates availability. Invalid settings are reported rather than silently ignored.
+Defaults are read when the conversation starts; restart the review server to apply changes to an existing session.
+This does not change Claude's own settings or login. Live model discovery and effort controls remain deferred.
+
 ## The path, all maintained packages
 
 ```mermaid

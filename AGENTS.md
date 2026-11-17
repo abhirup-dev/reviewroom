@@ -36,7 +36,8 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
   `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the shipped ones
   in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
-  reviewer's settings, so far `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts.
+  reviewer's settings: `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts, and
+  `defaultAgentHarness` (`claude` only) / `defaultReviewModel` (`sonnet` by default), read when the assistant conversation starts.
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,

@@ -10,7 +10,7 @@ export const registryDir = () => path.join(homeDir(), 'sessions');
 /** The hub's record (`reviewroom hub`, one per machine) and its log when started in the background. */
 export const hubFile = () => path.join(homeDir(), 'hub.json');
 export const hubLog = () => path.join(homeDir(), 'hub.log');
-/** The reviewer's settings for this machine: { "publicOrigin": "https://..." } (ADR 0001). */
+/** The reviewer's settings for this machine: publicOrigin (ADR 0001) and defaultAgentHarness/defaultReviewModel. */
 export const settingsFile = () => path.join(homeDir(), 'config.json');
 /** Every review on this machine: reviews/<owner>-<repo>/<branch>/ (resolveDir). */
 export const reviewsDir = () => path.join(homeDir(), 'reviews');

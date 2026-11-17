@@ -8,13 +8,28 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { UIMessage } from 'ai';
 import type { HarnessAgent } from '@ai-sdk/harness/agent';
-import { PKG } from './paths.ts';
+import { PKG, settingsFile } from './paths.ts';
 import type { ReviewConfig } from './config.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
 
 export const assistantEnabled = () => !!process.env.REVIEWROOM_ASSISTANT;
+
+const AssistantSettings = z.object({
+  defaultAgentHarness: z.literal('claude', { error: 'Only the claude agent harness is supported.' }).default('claude'),
+  defaultReviewModel: z.string().trim().min(1).default('sonnet'),
+});
+
+/** Machine-wide defaults, read when the conversation starts. Other settings in this file are left alone. */
+export function readAssistantSettings(file = settingsFile()) {
+  try {
+    return AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
+  } catch (error) {
+    throw new Error(`Invalid assistant settings in ${file}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+}
 
 // API-key, gateway and nested-session overrides would replace the reviewer's native subscription login
 const OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'AI_GATEWAY_API_KEY', 'CLAUDECODE'];
@@ -44,6 +59,7 @@ export const instructions = (repo: string, dir: string, cfg: ReviewConfig) =>
   fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
 
 async function start(repo: string, dir: string, cfg: ReviewConfig) {
+  const { defaultReviewModel } = readAssistantSettings();
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
   // The bridge names Node explicitly; adapt its launch to Bun without changing the server's environment.
   // Only a machine without Node needs a private shebang fallback for the native adapter.
@@ -65,7 +81,7 @@ async function start(repo: string, dir: string, cfg: ReviewConfig) {
   });
   // allow-reads: the native policy decides first; what it would ask about (edits, most commands) comes to the reviewer
   // as an AI SDK tool approval, never approved here.
-  const agent: HarnessAgent = new HarnessAgent({ harness, model: 'sonnet', permissionMode: 'allow-reads', instructions: instructions(repo, dir, cfg), sandboxConfig: { workDir: '.' } });
+  const agent: HarnessAgent = new HarnessAgent({ harness, model: defaultReviewModel, permissionMode: 'allow-reads', instructions: instructions(repo, dir, cfg), sandboxConfig: { workDir: '.' } });
   // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
   // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
   const local = await createLocalSandbox({ cwd: repo }).createSession();

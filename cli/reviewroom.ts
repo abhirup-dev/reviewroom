@@ -236,7 +236,11 @@ cli.help((sections) => {
     },
     {
       title: 'Experimental',
-      body: '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
+      body: [
+        '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
+        '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet).',
+        '  Read when the conversation starts; restart the review server after changing defaults.',
+      ].join('\n'),
     },
   ];
 });

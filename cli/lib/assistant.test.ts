@@ -1,11 +1,32 @@
 import { expect, test } from 'bun:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { UIMessage } from 'ai';
-import { assistantLaunch, assistantRoutes, instructions, withContext } from './assistant.ts';
+import { assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext } from './assistant.ts';
 import { LINK_IN_TEXT, parseRef } from '../../src/kernel/refs/refs.shared.ts';
 
 const revs = { base: 'b0', head: 'h0' };
 const quote = { text: 'return x;', messageId: '', ref: 'rr:code/src/a.ts#L4-6', label: 'src/a.ts:4-6' };
 const user = (text: string, metadata?: unknown): UIMessage => ({ id: text, role: 'user', parts: [{ type: 'text', text }], metadata });
+
+test('machine settings default when absent and accept a model alongside existing settings', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-settings-'));
+  const file = path.join(dir, 'config.json');
+  try {
+    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'sonnet' });
+    const existing = '{"publicOrigin":"https://review.example","defaultReviewModel":"claude-custom-model"}';
+    fs.writeFileSync(file, existing);
+    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'claude-custom-model' });
+    expect(fs.readFileSync(file, 'utf8')).toBe(existing);
+    for (const invalid of ['{', '{"defaultAgentHarness":"codex"}', '{"defaultReviewModel":" "}']) {
+      fs.writeFileSync(file, invalid);
+      expect(() => readAssistantSettings(file)).toThrow(`Invalid assistant settings in ${file}`);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('a new question carries its attached context, once, before the question', () => {
   const earlier = user('first', { custom: { quote } });

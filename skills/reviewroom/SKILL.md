@@ -17,6 +17,10 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 `bunx reviewroom …`. This skill covers the usual path; `reviewroom --help` lists every capability
 (screenshots, the hub, …).
 
+The experimental assistant (`REVIEWROOM_ASSISTANT=1`) reads machine defaults from `~/.reviewroom/config.json`
+(`REVIEWROOM_HOME` overrides the root): `defaultAgentHarness` (`claude` only) and `defaultReviewModel` (`sonnet`
+by default). Keep existing keys such as `publicOrigin`; restart the review server after changing assistant defaults.
+
 ## Choose the command
 
 | The reviewer wants                                        | Run                                                                  |
