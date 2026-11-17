@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { UIMessage } from 'ai';
 import { assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext } from './assistant.ts';
 import { LINK_IN_TEXT, parseRef } from '../../src/kernel/refs/refs.shared.ts';
+import { PKG } from './paths.ts';
 
 const revs = { base: 'b0', head: 'h0' };
 const quote = { text: 'return x;', messageId: '', ref: 'rr:code/src/a.ts#L4-6', label: 'src/a.ts:4-6' };
@@ -14,15 +15,40 @@ test('machine settings default when absent and accept a model alongside existing
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-settings-'));
   const file = path.join(dir, 'config.json');
   try {
-    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'sonnet' });
+    const defaultPrompt = path.join(PKG, 'templates/assistant-prompt.md');
+    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'sonnet', reviewAgentPromptFile: defaultPrompt });
     const existing = '{"publicOrigin":"https://review.example","defaultReviewModel":"claude-custom-model"}';
     fs.writeFileSync(file, existing);
-    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'claude-custom-model' });
+    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'claude-custom-model', reviewAgentPromptFile: defaultPrompt });
     expect(fs.readFileSync(file, 'utf8')).toBe(existing);
     for (const invalid of ['{', '{"defaultAgentHarness":"codex"}', '{"defaultReviewModel":" "}']) {
       fs.writeFileSync(file, invalid);
       expect(() => readAssistantSettings(file)).toThrow(`Invalid assistant settings in ${file}`);
     }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a configured prompt resolves beside settings and replaces the default while retaining review context and skill', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-prompt-'));
+  const file = path.join(dir, 'config.json');
+  const prompt = path.join(dir, 'review-agent.md');
+  try {
+    fs.writeFileSync(file, JSON.stringify({ reviewAgentPromptFile: 'review-agent.md' }));
+    fs.writeFileSync(prompt, 'Explain tradeoffs first. Keep {{literal}} unchanged.');
+    expect(readAssistantSettings(file).reviewAgentPromptFile).toBe(prompt);
+    const text = instructions('repository', 'review-directory', { base: 'base-sha', head: 'head-sha' }, readAssistantSettings(file).reviewAgentPromptFile);
+    expect(text).toStartWith('Explain tradeoffs first. Keep {{literal}} unchanged.');
+    expect(text).not.toContain('You are the assistant beside');
+    expect(text).toContain('base-sha..head-sha of repository');
+    expect(text).toContain('review-directory/review.html');
+    expect(text).toContain(fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ reviewAgentPromptFile: prompt }));
+    expect(readAssistantSettings(file).reviewAgentPromptFile).toBe(prompt);
+    fs.writeFileSync(prompt, '  ');
+    expect(() => instructions('r', 'd', { base: 'b', head: 'h' }, prompt)).toThrow('prompt file is empty');
+    expect(() => instructions('r', 'd', { base: 'b', head: 'h' }, path.join(dir, 'missing.md'))).toThrow('missing.md');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

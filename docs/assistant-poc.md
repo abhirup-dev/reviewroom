@@ -16,7 +16,8 @@ Use the existing machine-wide JSON settings, `~/.reviewroom/config.json` (`REVIE
 ```json
 {
   "defaultAgentHarness": "claude",
-  "defaultReviewModel": "sonnet"
+  "defaultReviewModel": "sonnet",
+  "reviewAgentPromptFile": "prompts/review-agent.md"
 }
 ```
 
@@ -25,6 +26,13 @@ Only `claude` is supported for now. The model is passed to the native agent as c
 or a full model ID); the agent validates availability. Invalid settings are reported rather than silently ignored.
 Defaults are read when the conversation starts; restart the review server to apply changes to an existing session.
 This does not change Claude's own settings or login. Live model discovery and effort controls remain deferred.
+
+The optional `reviewAgentPromptFile` selects a UTF-8 Markdown file. Relative paths resolve beside `config.json`, so the
+example reads `~/.reviewroom/prompts/review-agent.md`; absolute paths also work. Without this key, the packaged
+`templates/assistant-prompt.md` is used. Copy that file to start customizing. A custom file replaces this default prompt;
+the current review's paths, revisions and Review Room skill are appended automatically. The file is read as plain text,
+without template expansion. Missing, unreadable or empty files report an error before starting the agent. Restart the
+review server after editing the prompt for an existing conversation.
 
 ## The path, all maintained packages
 

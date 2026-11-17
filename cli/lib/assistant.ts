@@ -20,12 +20,14 @@ export const assistantEnabled = () => !!process.env.REVIEWROOM_ASSISTANT;
 const AssistantSettings = z.object({
   defaultAgentHarness: z.literal('claude', { error: 'Only the claude agent harness is supported.' }).default('claude'),
   defaultReviewModel: z.string().trim().min(1).default('sonnet'),
+  reviewAgentPromptFile: z.string().trim().min(1).default(path.join(PKG, 'templates/assistant-prompt.md')),
 });
 
 /** Machine-wide defaults, read when the conversation starts. Other settings in this file are left alone. */
 export function readAssistantSettings(file = settingsFile()) {
   try {
-    return AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
+    const settings = AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
+    return { ...settings, reviewAgentPromptFile: path.resolve(path.dirname(file), settings.reviewAgentPromptFile) };
   } catch (error) {
     throw new Error(`Invalid assistant settings in ${file}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
@@ -46,20 +48,18 @@ export function assistantLaunch(command: string) {
 /** The native agent's package and lock: the harness installs them once under ~/.ai-sdk-harness and reuses them. */
 const agentFile = (f: string) => fs.readFileSync(path.join(PKG, 'cli/lib/assistant-agent', f), 'utf8');
 
-export const instructions = (repo: string, dir: string, cfg: ReviewConfig) =>
-  `You are the assistant beside a Review Room code review. The reviewer reads the diff ${cfg.base}..${cfg.head} of ${repo}` +
-  ` with the walkthrough in ${dir}. Use git, gh and \`reviewroom <command> --dir ${dir}\` to look things up. Answer briefly.` +
-  ` Your reply renders in Review Room, where a Markdown link to an rr: address opens it beside the chat. Name code by its` +
-  ` lines, e.g. [src/app.ts:12-20](rr:code/src/app.ts#L12-20) for the head side, [src/app.ts:8](rr:code/src/app.ts@base#L8)` +
-  ` for the old side, keeping any @<commit> of a link the reviewer attached; a whole declaration as [ReviewApp](rr:sym/ReviewApp);` +
-  ` a walkthrough section or block as [its title](rr:doc/overview), by its id in ${dir}/review.html. Link only lines you` +
-  ' have read, symbols you found declared, and ids that exist; write any other name as `code`, never a guessed link.' +
-  ` Do not change files unless the reviewer asks. Read relative skill references from ${path.join(PKG, 'skills/reviewroom')};` +
-  ` the skill file is ${path.join(PKG, 'skills/reviewroom/SKILL.md')}. The Review Room skill follows.\n\n` +
-  fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
+export function instructions(repo: string, dir: string, cfg: ReviewConfig, promptFile = path.join(PKG, 'templates/assistant-prompt.md')) {
+  const prompt = fs.readFileSync(promptFile, 'utf8').trim();
+  if (!prompt) throw new Error(`The agent prompt file is empty: ${promptFile}`);
+  return `${prompt}\n\nCurrent review: ${cfg.base}..${cfg.head} of ${repo}. The walkthrough is in ${dir}/review.html.` +
+    ` Use \`reviewroom <command> --dir ${dir}\` for this review. Read relative skill references from ${path.join(PKG, 'skills/reviewroom')};` +
+    ` the skill file is ${path.join(PKG, 'skills/reviewroom/SKILL.md')}. The Review Room skill follows.\n\n` +
+    fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
+}
 
 async function start(repo: string, dir: string, cfg: ReviewConfig) {
-  const { defaultReviewModel } = readAssistantSettings();
+  const { defaultReviewModel, reviewAgentPromptFile } = readAssistantSettings();
+  const prompt = instructions(repo, dir, cfg, reviewAgentPromptFile);
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
   // The bridge names Node explicitly; adapt its launch to Bun without changing the server's environment.
   // Only a machine without Node needs a private shebang fallback for the native adapter.
@@ -81,7 +81,7 @@ async function start(repo: string, dir: string, cfg: ReviewConfig) {
   });
   // allow-reads: the native policy decides first; what it would ask about (edits, most commands) comes to the reviewer
   // as an AI SDK tool approval, never approved here.
-  const agent: HarnessAgent = new HarnessAgent({ harness, model: defaultReviewModel, permissionMode: 'allow-reads', instructions: instructions(repo, dir, cfg), sandboxConfig: { workDir: '.' } });
+  const agent: HarnessAgent = new HarnessAgent({ harness, model: defaultReviewModel, permissionMode: 'allow-reads', instructions: prompt, sandboxConfig: { workDir: '.' } });
   // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
   // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
   const local = await createLocalSandbox({ cwd: repo }).createSession();

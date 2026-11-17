@@ -19,7 +19,8 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 
 The experimental assistant (`REVIEWROOM_ASSISTANT=1`) reads machine defaults from `~/.reviewroom/config.json`
 (`REVIEWROOM_HOME` overrides the root): `defaultAgentHarness` (`claude` only) and `defaultReviewModel` (`sonnet`
-by default). Keep existing keys such as `publicOrigin`; restart the review server after changing assistant defaults.
+by default). `reviewAgentPromptFile` optionally names a custom Markdown prompt, relative to this config file or absolute.
+Keep existing keys such as `publicOrigin`; restart the review server after changing assistant defaults.
 
 ## Choose the command
 
