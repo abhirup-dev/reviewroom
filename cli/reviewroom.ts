@@ -234,6 +234,10 @@ cli.help((sections) => {
         '  Change state, config, layouts, and rounds through CLI commands.',
       ].join('\n'),
     },
+    {
+      title: 'Experimental',
+      body: '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
+    },
   ];
 });
 

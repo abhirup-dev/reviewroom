@@ -18,6 +18,8 @@ export interface ReviewMeta {
   head: Rev;
   baseLabel?: string;
   headLabel?: string;
+  /** The server runs the experimental assistant (REVIEWROOM_ASSISTANT=1). */
+  assistant?: boolean;
 }
 
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed';

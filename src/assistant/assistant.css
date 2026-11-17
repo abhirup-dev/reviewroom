@@ -1,0 +1,77 @@
+/* The experimental assistant panel (src/assistant/). The composer, buttons, prose and empty state are the shared ones. */
+.rr-assistant__thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.rr-assistant__viewport {
+  flex: 1;
+  min-height: 0;
+  padding: var(--rr-space-8) var(--rr-space-12);
+}
+.rr-assistant__msg {
+  margin: var(--rr-space-8) 0;
+  font-size: var(--rr-text-md);
+}
+.rr-assistant__msg.is-user {
+  margin-left: var(--rr-space-32);
+  padding: var(--rr-space-6) var(--rr-space-10);
+  border-radius: var(--rr-radius-lg);
+  background: var(--rr-surface-well);
+  white-space: pre-wrap;
+}
+.rr-assistant__tool {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rr-space-6);
+  margin: var(--rr-space-4) 0;
+  padding: var(--rr-space-4) var(--rr-space-8);
+  border: 1px solid var(--rr-line);
+  border-radius: var(--rr-radius);
+  font-size: var(--rr-text-sm);
+}
+.rr-assistant__tool > code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--rr-mono);
+}
+.rr-assistant__tool-name {
+  font-weight: 500;
+}
+.rr-assistant__tool.is-needs-approval {
+  border-color: var(--rr-warn);
+  background: var(--rr-warn-soft);
+}
+.rr-assistant__tool.is-failed,
+.rr-assistant__tool.is-denied {
+  border-color: var(--rr-risk);
+}
+.rr-assistant__approve {
+  display: flex;
+  gap: var(--rr-space-6);
+}
+.rr-assistant__approve > .rr-btn {
+  height: var(--rr-control);
+}
+.rr-assistant__error {
+  margin: var(--rr-space-6) 0;
+  padding: var(--rr-space-6) var(--rr-space-10);
+  border-radius: var(--rr-radius);
+  background: var(--rr-risk-soft);
+  color: var(--rr-risk-ink);
+  font-size: var(--rr-text-sm);
+}
+.rr-assistant__working {
+  margin: var(--rr-space-8) 0;
+  font-size: var(--rr-text-sm);
+}
+.rr-assistant__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--rr-space-10) var(--rr-space-8);
+}

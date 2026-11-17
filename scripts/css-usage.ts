@@ -9,7 +9,7 @@ import { Glob } from 'bun';
 
 const read = (pattern: string) => [...new Glob(pattern).scanSync()].map((f) => [f, fs.readFileSync(f, 'utf8')] as const);
 const css = read('src/**/*.css');
-const code = [...read('{src,cli,e2e}/**/*.ts'), ...read('{src,examples,skills}/**/*.{html,md,json}')]
+const code = [...read('{src,cli,e2e}/**/*.{ts,tsx}'), ...read('{src,examples,skills}/**/*.{html,md,json}')]
   .filter(([f]) => !f.endsWith('.test.ts'))
   .map(([, s]) => s)
   .join('\n');
