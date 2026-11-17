@@ -21,14 +21,19 @@ export function registerAssistant(app: ReviewApp) {
     create: () => {
       const element = h('div', { class: 'rr-side rr-assistant' });
       let unmount: (() => void) | undefined, gone = false;
-      void import('./thread').then((m) => {
+      void import('./thread').then(async (m) => {
+        const response = await fetch('api/assistant');
+        if (!response.ok) throw new Error('Could not load the saved assistant conversation.');
+        const initial = await response.json();
         if (gone) return;
         unmount = m.mount(element, (fn) => {
           take = fn;
           if (pending) fn(pending);
           pending = undefined;
           return () => (take = take === fn ? undefined : take);
-        }, app.meta.assistantModel ?? 'Unavailable');
+        }, initial);
+      }).catch((error: unknown) => {
+        if (!gone) element.textContent = error instanceof Error ? error.message : String(error);
       });
       const dispose = () => {
         gone = true;

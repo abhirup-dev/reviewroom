@@ -14,6 +14,7 @@ import type { HarnessAgent } from '@ai-sdk/harness/agent';
 import { PKG, settingsFile } from './paths.ts';
 import type { ReviewConfig } from './config.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
+import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 
 export const assistantEnabled = () => !!process.env.REVIEWROOM_ASSISTANT;
 
@@ -57,7 +58,7 @@ export function instructions(repo: string, dir: string, cfg: ReviewConfig, promp
     fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
 }
 
-async function start(repo: string, dir: string, cfg: ReviewConfig, settings: ReturnType<typeof readAssistantSettings>) {
+async function start(repo: string, dir: string, cfg: ReviewConfig, settings: ReturnType<typeof readAssistantSettings>, store: ReturnType<typeof assistantStore>) {
   const { defaultReviewModel, reviewAgentPromptFile } = settings;
   const prompt = instructions(repo, dir, cfg, reviewAgentPromptFile);
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
@@ -81,10 +82,12 @@ async function start(repo: string, dir: string, cfg: ReviewConfig, settings: Ret
   });
   // allow-reads: the native policy decides first; what it would ask about (edits, most commands) comes to the reviewer
   // as an AI SDK tool approval, never approved here.
-  const agent: HarnessAgent = new HarnessAgent({ harness, model: defaultReviewModel, permissionMode: 'allow-reads', instructions: prompt, sandboxConfig: { workDir: '.' } });
+  const agent: HarnessAgent = new HarnessAgent({ harness, model: defaultReviewModel, prepareCall: (options) => ({ ...options, model: settings.defaultReviewModel }), permissionMode: 'allow-reads', instructions: prompt, sandboxConfig: { workDir: '.' } });
   // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
   // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
-  const local = await createLocalSandbox({ cwd: repo }).createSession();
+  const provider = createLocalSandbox({ cwd: repo });
+  const previous = store.saved.session;
+  const local = previous ? await provider.resumeSession!({ sessionId: previous.sandboxId }) : await provider.createSession();
   const adapt = (view: ReturnType<typeof local.restricted>) => Object.assign(Object.create(view) as typeof view, {
     run: (o: Parameters<typeof view.run>[0]) => view.run(o.command === PNPM_INSTALL ? { ...o, command: 'bun install --frozen-lockfile --production' } : o),
     spawn: (o: Parameters<typeof view.spawn>[0]) => view.spawn({
@@ -99,8 +102,22 @@ async function start(repo: string, dir: string, cfg: ReviewConfig, settings: Ret
     if (bin) fs.rmSync(bin, { recursive: true, force: true });
   };
   try {
-    const session = await agent.createSession({ sandboxSession: sandbox });
-    return { agent, session, stop: () => session.destroy().finally(cleanup) };
+    let session = await agent.createSession({ sandboxSession: sandbox, ...(previous ? { sessionId: previous.id, resumeFrom: previous.resume } : {}) });
+    const remember = (resume: NonNullable<SavedAssistant['session']>['resume']) => {
+      store.saved.session = { id: session.sessionId, sandboxId: local.id, resume };
+      store.write();
+    };
+    return {
+      agent,
+      get session() { return session; },
+      async checkpoint() {
+        if (session.hasUnfinishedTurn()) return; // approvals stay with the harness's active turn
+        const resume = await session.detach();
+        remember(resume);
+        session = await agent.createSession({ sandboxSession: sandbox, sessionId: session.sessionId, resumeFrom: resume });
+      },
+      stop: () => session.stop().then(remember).finally(cleanup),
+    };
   } catch (error) {
     await cleanup();
     throw error;
@@ -119,12 +136,25 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
 }
 
 /** POST /api/assistant: AI SDK's chat request in, its UI message stream out. */
-export function assistantRoutes({ repo, dir, cfg, settings = readAssistantSettings() }: { repo: string; dir: string; cfg: ReviewConfig; settings?: ReturnType<typeof readAssistantSettings> }) {
+export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSettings }: { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings }) {
+  const settings = readSettings();
+  const store = assistantStore(dir, repo);
   let live: ReturnType<typeof start> | undefined;
+  let finishing: Promise<void> = Promise.resolve();
+  let running = false;
   // The caller supplies the diff provider's frozen revisions (including its merge base), not moving branch names.
   const revs = { base: cfg.base, head: cfg.head };
   const app = new Hono();
+  const model = () => running ? settings.defaultReviewModel : readSettings().defaultReviewModel;
+  app.get('/model', (c) => c.json({ model: model() }));
+  app.get('/', async (c) => {
+    const { validateUIMessages } = await import('ai');
+    const messages = store.saved.messages.length ? await validateUIMessages<UIMessage>({ messages: store.saved.messages, metadataSchema: AskMetadata }) : [];
+    return c.json({ messages, model: model() });
+  });
   app.post('/', async (c) => {
+    await finishing.catch(() => {});
+    if (running) return c.json({ error: 'The assistant is already answering a question.' }, 409);
     const body = await c.req.json<{ trigger?: string; messages?: unknown }>();
     // the native session cannot branch: regenerating or editing a past message would desync it from the transcript
     if (body.trigger !== 'submit-message') return c.json({ error: 'The assistant only takes new messages.' }, 400);
@@ -135,16 +165,46 @@ export function assistantRoutes({ repo, dir, cfg, settings = readAssistantSettin
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
     }
+    if (valid.at(-1)?.role === 'user') settings.defaultReviewModel = readSettings().defaultReviewModel;
     const messages = await convertToModelMessages(withContext(valid, revs));
-    live ??= start(repo, dir, cfg, settings).catch((e: unknown) => {
-      live = undefined; // let the next message retry
-      throw e;
-    });
-    const { agent, session } = await live;
     // the harness sends only the last user message to the native session, or continues the paused turn when the
     // messages end in approval responses
-    const result = await agent.stream({ session, messages, abortSignal: c.req.raw.signal });
-    return result.toUIMessageStreamResponse({ generateMessageId: randomUUID, onError: (e) => (e instanceof Error ? e.message : String(e)) });
+    running = true;
+    try {
+      live ??= start(repo, dir, cfg, settings, store).catch((e: unknown) => {
+        live = undefined; // let the next message retry
+        throw e;
+      });
+      const current = await live;
+      const { agent, session } = current;
+      store.saved.messages = valid;
+      store.write();
+      const result = await agent.stream({ session, messages, abortSignal: c.req.raw.signal });
+      return result.toUIMessageStreamResponse({
+        originalMessages: valid, generateMessageId: randomUUID,
+        headers: { 'x-reviewroom-model': settings.defaultReviewModel },
+        messageMetadata: () => ({ model: settings.defaultReviewModel }),
+        onEnd: ({ messages: completed }) => {
+          finishing = (async () => {
+            const response = await Promise.resolve(result.response).catch(() => undefined);
+            const last = completed.at(-1);
+            if (last?.role === 'assistant') last.metadata = { model: settings.defaultReviewModel, resolvedModel: response?.modelId };
+            store.saved.messages = completed;
+            store.write();
+            await current.checkpoint();
+          })().catch(async (error: unknown) => {
+            live = undefined; // recover from the saved checkpoint on the next question
+            await current.stop().catch(() => {});
+            throw error;
+          }).finally(() => { running = false; });
+          return finishing;
+        },
+        onError: (e) => (e instanceof Error ? e.message : String(e)),
+      });
+    } catch (error) {
+      running = false;
+      throw error;
+    }
   });
-  return { app, model: settings.defaultReviewModel, close: async () => { const current = await live?.catch(() => undefined); await current?.stop(); } };
+  return { app, get model() { return model(); }, close: async () => { await finishing.catch(() => {}); const current = await live?.catch(() => undefined); await current?.stop(); } };
 }

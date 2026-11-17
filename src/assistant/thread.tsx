@@ -1,16 +1,17 @@
 // The assistant's chat: assistant-ui's primitives on its AI SDK runtime. The runtime owns the messages, streaming,
 // stop and approvals; this file owns only which primitives show and their Review Room classes.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AssistantRuntimeProvider, AuiIf, ComposerPrimitive, ErrorPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, type QuoteInfo, type TextMessagePartProps, type ToolCallMessagePartProps } from '@assistant-ui/react';
 import { AssistantChatTransport, useChatRuntime } from '@assistant-ui/ai-sdk';
-import { lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
+import { lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from 'ai';
 import { renderMarkdown } from '../kernel/markdown';
 import { h } from '../kernel/dom';
 import type { AskContext } from './context.shared';
 
 /** Hands the chat each context the reviewer asks about; returns the unsubscribe. */
 type OnAsk = (take: (c: AskContext) => void) => () => void;
+type InitialConversation = { messages: UIMessage[]; model: string };
 
 // Review Room's sanitised Markdown, as in threads
 const Text = ({ text }: TextMessagePartProps) => <div className="rr-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
@@ -60,11 +61,29 @@ const AssistantMessage = () => (
   </MessagePrimitive.Root>
 );
 
-function Chat({ onAsk, host, model }: { onAsk: OnAsk; host: HTMLElement; model: string }) {
+function Chat({ onAsk, host, initial }: { onAsk: OnAsk; host: HTMLElement; initial: InitialConversation }) {
+  const [model, setModel] = useState(initial.model);
   const runtime = useChatRuntime({
-    transport: new AssistantChatTransport({ api: 'api/assistant' }), // relative: works at / and through the hub's /r/<id>/
+    messages: initial.messages,
+    transport: new AssistantChatTransport({ api: 'api/assistant', fetch: async (input, init) => {
+      const response = await fetch(input, init);
+      const active = response.headers.get('x-reviewroom-model');
+      if (active) setModel(active);
+      return response;
+    } }), // relative: works at / and through the hub's /r/<id>/
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
   });
+  useEffect(() => {
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const response = await fetch('api/assistant/model', { signal: controller.signal });
+        if (response.ok) setModel((await response.json()).model);
+      } catch { /* keep the current label while the server restarts */ }
+    };
+    const timer = setInterval(() => void refresh(), 2000);
+    return () => { clearInterval(timer); controller.abort(); };
+  }, []);
   useEffect(() => onAsk((c) => {
     runtime.thread.composer.setQuote(c);
     host.querySelector('textarea')?.focus();
@@ -102,8 +121,8 @@ function Chat({ onAsk, host, model }: { onAsk: OnAsk; host: HTMLElement; model: 
   );
 }
 
-export function mount(host: HTMLElement, onAsk: OnAsk, model: string) {
+export function mount(host: HTMLElement, onAsk: OnAsk, initial: InitialConversation) {
   const root = createRoot(host);
-  root.render(<Chat onAsk={onAsk} host={host} model={model} />);
+  root.render(<Chat onAsk={onAsk} host={host} initial={initial} />);
   return () => root.unmount();
 }

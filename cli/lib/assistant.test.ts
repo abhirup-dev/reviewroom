@@ -6,6 +6,7 @@ import type { UIMessage } from 'ai';
 import { assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext } from './assistant.ts';
 import { LINK_IN_TEXT, parseRef } from '../../src/kernel/refs/refs.shared.ts';
 import { PKG } from './paths.ts';
+import { assistantStore } from './assistant-store.ts';
 
 const revs = { base: 'b0', head: 'h0' };
 const settings = { defaultAgentHarness: 'claude' as const, defaultReviewModel: 'sonnet', reviewAgentPromptFile: path.join(PKG, 'templates/assistant-prompt.md') };
@@ -63,6 +64,23 @@ test('a new question carries its attached context, once, before the question', (
   expect(parts.map((p) => p.text)).toEqual([expect.stringContaining('rr:code/src/a.ts#L4-6 (head = h0)'), 'why?']);
 });
 
+test('reopening a review restores its transcript, and changing model settings does not replace it', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-reopen-'));
+  try {
+    const store = assistantStore(dir, 'repo');
+    store.saved.messages = [user('an earlier question', {})];
+    store.write();
+    let model = 'sonnet';
+    const { app } = assistantRoutes({ repo: 'repo', dir, cfg: { base: 'b', head: 'h' }, readSettings: () => ({ ...settings, defaultReviewModel: model }) });
+    expect(await (await app.request('/')).json()).toMatchObject({ model: 'sonnet', messages: store.saved.messages });
+    model = 'opus';
+    expect(await (await app.request('/model')).json()).toEqual({ model: 'opus' });
+    expect(await (await app.request('/')).json()).toMatchObject({ model: 'opus', messages: store.saved.messages });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('an approval continuation and a plain question are left as they are', () => {
   const continuation = [user('do it', { custom: { quote } }), { id: 'a', role: 'assistant' as const, parts: [] }];
   expect(withContext(continuation, revs)).toBe(continuation);
@@ -71,7 +89,7 @@ test('an approval continuation and a plain question are left as they are', () =>
 });
 
 test('a question with an invalid context is refused', async () => {
-  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' }, settings });
+  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' }, readSettings: () => settings });
   const bad = user('x', { custom: { quote: { ...quote, ref: 'rr:thread/t1' } } });
   const res = await app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages: [bad] }) });
   expect(res.status).toBe(400);
@@ -84,7 +102,7 @@ test('every link the agent is shown as an example is one Review Room opens', () 
 });
 
 test('the assistant takes only new messages: the native session cannot branch', async () => {
-  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' }, settings });
+  const { app } = assistantRoutes({ repo: '.', dir: '.', cfg: { base: 'main', head: 'HEAD' }, readSettings: () => settings });
   const res = await app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'regenerate-message', messages: [] }) });
   expect(res.status).toBe(400);
 });

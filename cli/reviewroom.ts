@@ -240,7 +240,8 @@ cli.help((sections) => {
         '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
         '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet).',
         '  reviewAgentPromptFile: custom Markdown prompt; relative paths resolve beside config.json.',
-        '  Read when the review server starts; restart it after changing defaults.',
+        '  Model changes apply to the next new question; restart for harness or prompt changes.',
+        '  Conversation and transcript are saved in the review dir and restored when it reopens.',
       ].join('\n'),
     },
   ];

@@ -1,6 +1,6 @@
 # Assistant panel (experimental POC, rr-2l7)
 
-One native Claude Code conversation per review server, in a docked **Assistant** panel. Opt-in:
+One native Claude Code conversation per review, in a docked **Assistant** panel. Opt-in:
 
 ```bash
 bun run build && bash examples/make-demo-repo.sh .demo/demoapp
@@ -24,8 +24,9 @@ Use the existing machine-wide JSON settings, `~/.reviewroom/config.json` (`REVIE
 Merge these keys with existing settings such as `publicOrigin`. An absent file or keys defaults to Claude and Sonnet.
 Only `claude` is supported for now. The model is passed to the native agent as configured (an alias such as `sonnet`
 or a full model ID); the agent validates availability. Invalid settings are reported rather than silently ignored.
-Defaults are read when the review server starts; restart it to apply changes. The configured model appears directly above
-the assistant's text input and is the same value passed to the harness (an alias is shown as configured).
+The model default is reread before each new question, so editing it needs no restart. An active response finishes with
+its existing model, including approval continuations. The configured model appears directly above the assistant's text
+input (an alias is shown as configured); the idle label refreshes within two seconds. Restart for harness or prompt changes.
 This does not change Claude's own settings or login. Live model discovery and effort controls remain deferred.
 
 The optional `reviewAgentPromptFile` selects a UTF-8 Markdown file. Relative paths resolve beside `config.json`, so the
@@ -34,6 +35,28 @@ example reads `~/.reviewroom/prompts/review-agent.md`; absolute paths also work.
 the current review's paths, revisions and Review Room skill are appended automatically. The file is read as plain text,
 without template expansion. Missing, unreadable or empty files report an error before starting the agent. Restart the
 review server after editing the prompt for an existing conversation.
+
+## Reopening a review
+
+`assistant.json` in the review directory stores the AI SDK transcript and the harness's opaque session-resume state.
+Messages retain their IDs, metadata and context chips. The file is written atomically with mode 0600, since resume state
+can contain bridge credentials. Do not share or edit it. A corrupt file is reported rather than silently replaced.
+
+On reopening the same review, assistant-ui starts with the saved messages. The first question resumes the existing native
+session through `HarnessAgent.createSession({ sessionId, resumeFrom })`. Completed turns checkpoint through the harness's
+`detach`/reattach APIs; graceful shutdown uses `stop()` and saves its resume state. No custom event reducer is involved.
+Restarts between completed turns are tested. Recovery of a partially streamed response or a pending approval across an
+abrupt termination is not established; multi-client live transcript synchronization remains deferred.
+
+Manual trial (makes a real model call, using the existing native login):
+
+```bash
+bun scripts/assistant-trial.ts http://127.0.0.1:4873/ 'Reply briefly without tools.'
+```
+
+Live evidence: Sonnet accepted a conversation-only marker; after changing the isolated settings to Opus without restarting,
+the next turn recalled it. After stopping and reopening that same review, all four earlier message IDs were preserved and
+Opus recalled the marker again using the same session ID. The old browser window restored its transcript after reconnecting.
 
 ## The path, all maintained packages
 
@@ -138,12 +161,12 @@ their bridge files beside their own modules); the panel is one lazy chunk (1.2 M
 - Approvals: `permissionMode: 'allow-reads'`, so anything the native policy asks about comes to the panel as
   Allow/Deny (assistant-ui `respondToApproval`, AI SDK `sendAutomaticallyWhen`). Not seen live: this machine's native
   mode (`auto`) allowed every tool tried.
-- One conversation per server process, lost on restart. No reload replay, multi-tab sync, queue, attachments,
+- One conversation per review, restored on reopen. No multi-tab sync, queue, attachments,
   model or effort picker (see above), phone layout or phone selection action. A fixed free port for the bridge per server. The local "sandbox" is a process runner,
   not isolation.
 - Login and gateway overrides are unset for the bridge child with `env -u`; the review server's environment is
   preserved. Normal server shutdown explicitly destroys the native session and stops its process runner.
 - This source-checkout POC externalizes the harness packages so their bridge assets can be read. They are currently
   devDependencies; publishing a distributable CLI requires deliberately packaging runtime dependencies/assets.
-- The panel definition is registered before saved-layout restore. Closing/reopening the panel recreates its UI state;
-  native conversation history stays in the server until shutdown, but transcript replay is not implemented.
+- The panel definition is registered before saved-layout restore. Closing/reopening the panel reloads its saved transcript;
+  reopening the review resumes the native conversation. Unsaved composer drafts are not persisted.
