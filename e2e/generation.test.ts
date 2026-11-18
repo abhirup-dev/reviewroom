@@ -162,6 +162,28 @@ describe('the assistant panel', () => {
     }
   }, 60_000);
 
+  test.skipIf(!browser)('a late failure of an earlier Generate shows nothing, not even a toast', async () => {
+    const page = await open(await serve());
+    try {
+      const stopped = (n: number) => ({ walkthrough: doc('stopped', `w${n}`, { reason: 'failed' }), report: doc('stopped', `r${n}`, { reason: 'failed' }) });
+      // each press's POST waits until the test answers it
+      await page.evaluate(`void (window.__answers = [], rr.app.backend.generate = () => new Promise((r) => window.__answers.push(r)))`);
+      await feed(page, stopped(1));
+      await page.evaluate(`rr.app.commands.run('generation.generate')`);
+      await feed(page, { walkthrough: doc('requested', 'w2'), report: doc('requested', 'r2') });
+      await feed(page, stopped(2)); // the first press's request stopped at once; its POST is still out
+      await page.evaluate(`rr.app.commands.run('generation.generate')`); // Retry
+      await until(page, `window.__answers.length === 2`);
+      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
+      await until(page, `document.querySelector('.rr-gen').hidden`);
+      await page.evaluate(`window.__answers[0]({ ok: false, code: 'busy' })`); // the first POST, failing late
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await page.evaluate<number>(`document.querySelectorAll('.rr-toast').length`)).toBe(0);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
   test.skipIf(!browser)('a refresh that fails keeps the chat and its draft, and says why beside it', async () => {
     const page = await open(await serve());
     try {

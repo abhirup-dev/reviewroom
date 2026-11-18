@@ -47,6 +47,7 @@ export function mountGeneration(app: ReviewApp) {
     actor.send({ type: 'generate' });
     const { attempt } = snap().context;
     const r = await app.backend.generate().catch(() => ({ ok: false as const, code: undefined }));
+    if (snap().context.attempt !== attempt) return; // an earlier press's answer: nothing to settle, nothing to say
     // the answer only settles the request: what happens to it comes over SSE
     if (r.ok) return actor.send({ type: 'generated', attempt, started: r.started });
     const error = refused(r);
