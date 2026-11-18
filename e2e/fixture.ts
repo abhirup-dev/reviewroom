@@ -1,7 +1,7 @@
 // End-to-end fixture: the demo repo with a scaffolded review, built once per test process. Each describe calls
 // setup() for its own copy, REVIEWROOM_HOME and servers on OS-assigned ports. Run with `bun run smoke` (builds first).
 import { afterAll, expect } from 'bun:test';
-import { $, Glob, type Subprocess } from 'bun';
+import { $, type Subprocess } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,13 +18,11 @@ const run = async (env: Record<string, string | undefined>, args: string[], inpu
 const template = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-template-'));
 process.on('exit', () => fs.rmSync(template, { recursive: true, force: true }));
 await $`bash ${path.join(root, 'examples', 'make-demo-repo.sh')} ${path.join(template, 'repo')}`.quiet();
-for (const args of [['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0'], ['stop']]) {
+// --no-agent: the fixture review asks nobody for its documents, so generation stays idle
+for (const args of [['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0', '--no-agent'], ['stop']]) {
   const r = await run({ ...process.env, REVIEWROOM_HOME: path.join(template, 'home') }, [...args, '--repo', path.join(template, 'repo')]);
   if (r.code) throw new Error(r.stderr);
 }
-
-// Existing fixtures exercise legacy reviews; progress tests opt in explicitly.
-for (const file of new Glob('**/progress.jsonl').scanSync({ cwd: template, absolute: true })) fs.rmSync(file);
 
 export const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 export const op = (url: string, o: object) => post(url + 'api/ops', { ops: [o] });
