@@ -99,7 +99,10 @@ const route = STAGES.map((s) => ({ guard: (x: Ctx) => stageOf(next(x.context, x.
 export const generationMachine = setup({
   types: { context: {} as GenerationContext, events: {} as GenerationEvent, input: {} as { canGenerate: boolean } & Remembered, emitted: {} as { type: 'play'; request: string } },
   guards: {
-    canGenerate: ({ context }) => context.canGenerate && context.requesting === null && ['idle', 'stopped'].includes(stageOf(context)),
+    // apart from the stage shown: any document not validated and none on its way (a PR's walkthrough with no report
+    // yet shows done, and Generate writes the report: api/generate asks only for what isn't validated)
+    canGenerate: ({ context: { canGenerate, requesting, progress: { walkthrough: w, report: r } } }) =>
+      canGenerate && requesting === null && !pendingArtifact(w) && !pendingArtifact(r) && !(w.state === 'validated' && r.state === 'validated'),
   },
   actions: {
     update: enqueueActions(({ context, event, enqueue }) => {
@@ -141,7 +144,7 @@ const closed = ({ context: c }: GenerationSnapshot) => c.closedFor === PENDING |
 export const screenShown = (s: GenerationSnapshot) => ['starting', 'writing', 'stopped'].includes(stageIn(s)) && !closed(s);
 /** The header indicator: generation under way (or stopped) with the loading screen closed. Gone at idle and done. */
 export const indicatorShown = (s: GenerationSnapshot) => ['starting', 'writing', 'playable', 'stopped'].includes(stageIn(s)) && !screenShown(s);
-/** Generate (or Retry) is offered: idle or stopped, where the server can generate, and no request on its way. */
+/** Generate (or Retry) is offered: a document not validated, where the server can generate, and no request on its way. */
 export const generateOffered = (s: GenerationSnapshot) => s.can({ type: 'generate' });
 /** The turn waits for the reviewer's approval in the assistant panel (rare: assistant turns approve their tools). */
 export const awaitingApproval = (s: GenerationSnapshot) => !!s.context.progress.generation?.awaitingApproval && ['starting', 'writing', 'playable'].includes(stageIn(s));

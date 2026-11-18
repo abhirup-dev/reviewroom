@@ -177,3 +177,14 @@ test('a turn waiting on an approval says so, and stays where it is', () => {
   g.send(p(doc('writing', 'w1', { hash }), doc('requested', 'r1'), { running: true, awaitingApproval: false }));
   expect([g.at(), awaitingApproval(g.s())]).toEqual(['writing', false]);
 });
+
+test('Generate is offered whenever a document is not validated: a PR\'s walkthrough with no report yet shows done, and offers it', () => {
+  const imported = p(doc('validated', 'w0', { hash, source: 'pr' }), doc('idle', ''));
+  const g = start(true, imported);
+  expect([g.at(), generateOffered(g.s())]).toEqual(['done', true]);
+  g.a.send({ type: 'generate' });
+  expect(g.at()).toBe('starting');
+  expect(generateOffered(start(true, DONE).s())).toBe(false);
+  expect(generateOffered(start(false, imported).s())).toBe(false);
+});
+
