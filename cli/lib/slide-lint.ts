@@ -65,8 +65,9 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
   const out = selected ? [] : unshownFiles(w, changed, symPath);
   const total = w.chapters.reduce((n, c) => n + c.steps.length, 0);
   if (!selected && total > MAX_TOTAL) out.push({ check: 'too-long', level: 'warn', message: `${total} slides in all`, fix: `Aim for at most ${MAX_TOTAL}: cut slides that restate the code, leave detail to the walkthrough (${REPORT_FILE}).` });
-  w.chapters.forEach((c) => {
-    if (!selected && c.steps.length === 1 && w.chapters.length > 1) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: 'a chapter of one slide', fix: 'Merge it into a neighbouring chapter, or give it the 2 to 5 slides the concept needs.' });
+  w.chapters.forEach((c, i) => {
+    // the final Risks chapter the skill asks for is one slide by design
+    if (!selected && c.steps.length === 1 && i < w.chapters.length - 1) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: 'a chapter of one slide', fix: 'Merge it into a neighbouring chapter, or give it the 2 to 5 slides the concept needs.' });
     if (!selected && c.steps.length > MAX_STEPS) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: `${c.steps.length} slides in one chapter`, fix: 'Split it into two concepts.' });
     c.steps.forEach((s) => {
       const where = `${c.id}/${s.id}`;
