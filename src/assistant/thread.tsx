@@ -48,12 +48,21 @@ const About = ({ quote }: { quote: QuoteInfo | undefined }) => {
 };
 const ComposerAbout = () => <About quote={useAuiState((s) => s.composer.quote)} />;
 
-const UserMessage = () => (
-  <MessagePrimitive.Root className="rr-assistant__msg is-user">
-    <MessagePrimitive.Quote>{(quote) => <About quote={quote} />}</MessagePrimitive.Quote>
-    <MessagePrimitive.Parts />
-  </MessagePrimitive.Root>
-);
+const UserMessage = () => {
+  // the generate prompt (api/generate) is long and reads as instructions: one line, opened on request
+  const generate = useAuiState((s) => !!s.message.metadata.custom?.generate);
+  return (
+    <MessagePrimitive.Root className="rr-assistant__msg is-user">
+      <MessagePrimitive.Quote>{(quote) => <About quote={quote} />}</MessagePrimitive.Quote>
+      {generate ? (
+        <details className="rr-assistant__prompt">
+          <summary title="Show the prompt the assistant was given">Generate the walkthrough and report</summary>
+          <MessagePrimitive.Parts />
+        </details>
+      ) : <MessagePrimitive.Parts />}
+    </MessagePrimitive.Root>
+  );
+};
 
 const AssistantMessage = () => (
   <MessagePrimitive.Root className="rr-assistant__msg">

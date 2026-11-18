@@ -452,7 +452,8 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     generation = { running: true, awaitingApproval: false };
     // the question saved and the turn taken before the pages hear of it: a window that looks finds both
     try {
-      startTurn([...load().saved.messages, { id: randomUUID(), role: 'user', parts: [{ type: 'text', text }] }], true);
+      // marked: the window shows the long prompt folded
+      startTurn([...load().saved.messages, { id: randomUUID(), role: 'user', metadata: { custom: { generate: true } }, parts: [{ type: 'text', text }] }], true);
     } catch (e) {
       generation = undefined;
       stopAssistantWork(dir, 'failed'); // nothing will write them

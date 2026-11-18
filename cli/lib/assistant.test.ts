@@ -263,7 +263,7 @@ test('generate requests both documents of the assistant and starts one turn; ask
   expect(r.events()).toHaveLength(2);
   const chat = await r.post([user('q1')]);
   expect([chat.status, await chat.text()]).toEqual([409, 'The assistant is writing the review.']);
-  expect(r.saved().map((m) => m.role)).toEqual(['user']); // the generate prompt, in the transcript
+  expect(r.saved().map((m) => [m.role, m.metadata])).toEqual([['user', { custom: { generate: true } }]]); // the generate prompt, marked (shown folded)
   await r.routes.close(); // the server closing: what the turn did not validate was interrupted, not failed
   expect(r.events().slice(2)).toEqual(['walkthrough stopped interrupted', 'report stopped interrupted']);
   expect(r.calls.launched).toBe(1);

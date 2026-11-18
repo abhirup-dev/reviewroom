@@ -38,6 +38,13 @@
   background: var(--rr-surface-well);
   white-space: pre-wrap;
 }
+.rr-assistant__prompt > summary {
+  cursor: pointer;
+  white-space: normal;
+}
+.rr-assistant__prompt[open] > summary {
+  margin-bottom: var(--rr-space-6);
+}
 .rr-assistant__tool {
   display: flex;
   flex-wrap: wrap;
