@@ -28,6 +28,7 @@ import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../.
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 import { buildId, serveClient, withHead } from './pwa.ts';
+import { Streams } from './streams.ts';
 import { assistantEnabled, assistantRoutes, VIA_HUB } from './assistant.ts';
 
 function excerpt(prov: Provider, anchor: Anchor) {
@@ -129,7 +130,7 @@ type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f:
 export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
-  const clients = new Set<SSEStreamingApi>();
+  const clients = new Streams<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, REPORT_FILE);
   // what a reconnecting client compares: a change to either file while it was away reloads the page
@@ -141,16 +142,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   };
   const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
-  let lastProgress = '';
-  const send = (event: string, data: unknown) => {
-    const text = JSON.stringify(data);
-    // a turn's end and the file watcher may both report the same state: pages get it once
-    if (event === 'progress') {
-      if (text === lastProgress) return;
-      lastProgress = text;
-    }
-    for (const c of clients) c.writeSSE({ event, data: text }).catch(() => {});
-  };
+  const send = (event: string, data: unknown) => clients.send(event, data);
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
   // request bodies are untrusted: a bad one is a 400 shaped like an OpError's
   const body = <T extends z.ZodType>(schema: T) =>
@@ -318,15 +310,17 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
-      // registered and its snapshot queued with no await between: an update sent meanwhile follows the snapshot, never lost
-      clients.add(stream);
-      void stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) }).catch(() => {});
-      if (!readOnly) void stream.writeSSE({ event: 'progress', data: JSON.stringify(progress()) }).catch(() => {});
+      // registered and its snapshot queued with no await between: an update sent meanwhile follows the snapshot, never
+      // lost. The snapshot is computed first: one that throws leaves no stream registered
+      clients.add(stream, () => [['hello', { hash: hash(), started }], ...(readOnly ? [] : [['progress', progress()] as [string, unknown]])]);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
-      onClient?.();
-      await new Promise<void>((r) => stream.onAbort(r));
-      clearInterval(ping);
-      clients.delete(stream);
+      try {
+        onClient?.();
+        await new Promise<void>((r) => stream.onAbort(r));
+      } finally {
+        clearInterval(ping);
+        clients.delete(stream);
+      }
     }),
   );
   app.post('/api/finish', body(FinishRound.omit({ op: true, at: true })), (c) => {
