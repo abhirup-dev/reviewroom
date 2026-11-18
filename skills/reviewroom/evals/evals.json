@@ -72,12 +72,6 @@
       "prompt": "I wrote walkthrough.json for a small PR, and reviewroom slide-lint --chapter risks passed. Can I fill review.html now?",
       "expected_output": "Requires a full unscoped `reviewroom slide-lint --dir <dir>` run and fixes issues until it passes. Explains that a scoped pass does not clear the loading screen. Only then fills the heading-only review.html skeleton and runs reviewroom check until it passes.",
       "files": []
-    },
-    {
-      "id": 13,
-      "prompt": "Add a security review profile to the reviewroom skill and use it alongside the default for a teammate's PR.",
-      "expected_output": "Adds references/profiles/security.md stating when to use it, what to look for and which sections or findings it adds, plus one line in profiles/index.md. Composes it with default.md, merges overlapping findings, preserves the suggested top-level section structure, writing order and no-code-changes rule. Adds no CLI flag, custom element or validation rule.",
-      "files": []
     }
   ]
 }

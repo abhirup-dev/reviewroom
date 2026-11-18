@@ -1,8 +1,8 @@
 // pr: the one-step entry point
-import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';

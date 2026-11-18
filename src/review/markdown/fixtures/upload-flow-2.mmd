@@ -1,7 +1,7 @@
 flowchart LR
-  a["storage_re (cap 2, postId)"] --> m[MergeSpecs]
-  b["upload_re (cap 3, postId+watchTime)"] --> m
-  m --> g["one GetTake(user, merged)"]
-  g --> r[response]
-  r -->|BuildBatch · storage_re| ba[storage_re batch]
-  r -->|BuildBatch · upload_re| bb[upload_re batch]
+  a["free plan (rate 2, per account)"] --> m[LoadPlans]
+  b["team plan (rate 0, per account+user)"] --> m
+  m --> g["one Take(account, now)"]
+  g --> r[decision]
+  r -->|allow · free| ok[202 accepted]
+  r -->|deny · free| no[429 retry later]

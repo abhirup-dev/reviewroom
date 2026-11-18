@@ -1,6 +1,6 @@
-import type { Progress } from '../state/progress.shared';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import type { ReviewState } from '../state/model.shared';
+import type { Progress } from '../state/progress.shared';
 import { roundStatus, syncMachine, unsent } from './sync.machine';
 import { builtinLayouts, type LastLayout, type Layout, type LayoutScope, type LayoutsOf, type LayoutStore, type SavedLayouts } from '../layouts/layout.shared';
 import type { GitHubAction } from '../state/schema.shared';
