@@ -56,9 +56,20 @@ export function diskReviews(): DiskReview[] {
 // ------------------------------------------------------------ Add a PR
 /** A GitHub pull request URL: owner, repo and number, or null. */
 export function parsePrUrl(v: string): { owner: string; repo: string; number: number } | null {
-  const m = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})\/pull\/(\d{1,9})(?:\/[^?#]*)?(?:[?#].*)?$/.exec(v.trim());
-  if (!m || /^\.+$/.test(m[2])) return null; // `.` and `..` would leave repos/<owner>/
-  return { owner: m[1], repo: m[2].replace(/\.git$/, ''), number: +m[3] };
+  const m = /^https:\/\/github\.com\/([^/?#]+)\/([^/?#]+)\/pull\/(\d{1,9})(?:\/[^?#]*)?(?:[?#].*)?$/.exec(v.trim());
+  if (!m) return null;
+  const [owner, repo] = [m[1], m[2].replace(/\.git$/, '')];
+  // checked after normalizing: each is one path segment under repos/, never empty, `.` or `..`
+  const segment = (s: string) => /^[A-Za-z0-9._-]{1,100}$/.test(s) && !/^\.+$/.test(s);
+  return segment(owner) && segment(repo) ? { owner, repo, number: +m[3] } : null;
+}
+
+/** Where Add a PR clones a repository: `<home>/repos/<owner>/<repo>`, asserted to stay inside `<home>/repos`. */
+export function clonePath(owner: string, repo: string) {
+  const root = path.resolve(homeDir(), 'repos');
+  const dest = path.resolve(root, owner, repo);
+  if (!dest.startsWith(root + path.sep)) throw new Error(`not a repository path: ${owner}/${repo}`);
+  return dest;
 }
 
 // Test seam: REVIEWROOM_TEST_CLONE_ROOT=<dir> clones <dir>/<owner>/<repo>.git instead of GitHub (e2e has no GitHub).
@@ -77,7 +88,7 @@ const why = (e: unknown) => {
 export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok: true; id: string; dir: string } | { ok: false; error: string }> {
   const pr = parsePrUrl(url);
   if (!pr) return { ok: false, error: 'That is not a GitHub pull request URL (https://github.com/<owner>/<repo>/pull/<number>).' };
-  const dest = path.join(homeDir(), 'repos', pr.owner, pr.repo);
+  const dest = clonePath(pr.owner, pr.repo);
   const source = cloneSource(pr.owner, pr.repo);
   try {
     if (fs.existsSync(path.join(dest, '.git'))) await run('git', ['-C', dest, 'fetch', '--prune', 'origin']);

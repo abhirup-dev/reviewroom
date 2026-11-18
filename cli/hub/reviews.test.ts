@@ -1,12 +1,21 @@
 import { afterAll, expect, test } from 'bun:test';
-import { generate, generationState, parsePrUrl } from './reviews.ts';
+import path from 'node:path';
+import { clonePath, generate, generationState, parsePrUrl } from './reviews.ts';
 import type { ArtifactProgress } from '../../src/kernel/state/progress.shared.ts';
 
 test('a PR URL: GitHub only, and no name that leaves repos/<owner>/', () => {
   expect(parsePrUrl('https://github.com/acme/demo/pull/7')).toEqual({ owner: 'acme', repo: 'demo', number: 7 });
   expect(parsePrUrl(' https://github.com/acme/demo.js/pull/12/files?x#y ')).toEqual({ owner: 'acme', repo: 'demo.js', number: 12 });
-  for (const bad of ['', 'acme/demo#7', 'http://github.com/acme/demo/pull/7', 'https://gitlab.com/acme/demo/pull/7', 'https://github.com/acme/../pull/7', 'https://github.com/acme/demo/issues/7', 'https://github.com/a/b/pull/x'])
+  for (const bad of ['', 'acme/demo#7', 'http://github.com/acme/demo/pull/7', 'https://gitlab.com/acme/demo/pull/7', 'https://github.com/acme/../pull/7', 'https://github.com/acme/demo/issues/7', 'https://github.com/a/b/pull/x',
+    // empty, `.` or `..` once `.git` is stripped; characters outside [A-Za-z0-9._-]; a dot-only owner
+    'https://github.com/acme/.git/pull/7', 'https://github.com/acme/..git/pull/7', 'https://github.com/acme/...git/pull/7', 'https://github.com/acme/de%2Fmo/pull/7', 'https://github.com/../demo/pull/7'])
     expect(parsePrUrl(bad)).toBeNull();
+  expect(parsePrUrl('https://github.com/acme/demo.git/pull/7')).toEqual({ owner: 'acme', repo: 'demo', number: 7 });
+});
+
+test('a clone path stays inside <home>/repos', () => {
+  expect(clonePath('acme', 'demo').endsWith(path.join('repos', 'acme', 'demo'))).toBe(true);
+  for (const [o, r] of [['..', 'x'], ['acme', '..'], ['acme', '../../etc'], ['', '']]) expect(() => clonePath(o, r)).toThrow();
 });
 
 test('generation state from the progress log: ready only with both documents validated', () => {
