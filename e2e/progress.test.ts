@@ -68,6 +68,12 @@ test('pr requests only on creation/force; watcher pushes progress without reload
     expect((await cli(['check', ...d])).code).toBe(0);
     await until(() => events.filter((e) => e.event === 'review').length === 1);
     expect((await fetch(url + 'api/progress').then((r) => r.json())).report.state).toBe('validated');
+    // the same bytes saved again: the watcher fires, but the state did not change, so pages get no progress event
+    const progressEvents = () => events.filter((e) => e.event === 'progress').length;
+    const sent = progressEvents();
+    fs.writeFileSync(path.join(dir, REPORT_FILE), fs.readFileSync(path.join(dir, REPORT_FILE)));
+    await Bun.sleep(600);
+    expect(progressEvents()).toBe(sent);
     fs.appendFileSync(path.join(dir, REPORT_FILE), '<!-- another save -->');
     await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'writing');
     expect(events.filter((e) => e.event === 'review')).toHaveLength(1);
@@ -90,21 +96,24 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
   expect(JSON.parse(fs.readFileSync(log, 'utf8').trim().split('\n').at(-1)!)).toMatchObject({ artifact: 'walkthrough', event: 'validated', slides: 1, chapters: 1 });
 }, 30_000);
 
-test('--no-agent requests nothing; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
+test('--force --no-agent resets the old generation to idle; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
   const log = path.join(dir, 'progress.jsonl');
-  fs.rmSync(log, { force: true });
+  // the log keeps the earlier tests' requests and validations: --no-agent must not carry them over
+  expect(progressLines(dir).some((l) => l.event === 'requested')).toBe(true);
+  const requestsBefore = progressLines(dir).filter((l) => l.event === 'requested').length;
   expect((await cli([...prArgs, '--force', '--no-agent'])).code).toBe(0);
-  // (the previous server may still record the rescaffolded report as written: no request, so it stays idle)
-  expect(progressLines(dir).filter((l) => l.event === 'requested')).toEqual([]);
+  expect(progressLines(dir).filter((l) => l.event === 'requested')).toHaveLength(requestsBefore);
   const url = (await cli(prArgs)).stdout.trim();
   expect(await fetch(url + 'api/progress').then((r) => r.json())).toEqual({ walkthrough: { state: 'idle' }, report: { state: 'idle' } });
-  // without the assistant, generate says why
+  // through the hub, the hub's refusal comes first; without the assistant, generate says why
+  const viaHub = await fetch(url + 'api/generate', { method: 'POST', headers: { 'x-reviewroom-via-hub': '1' } });
+  expect([viaHub.status, (await viaHub.json()).code]).toEqual([403, 'via_hub']);
   const generate = await fetch(url + 'api/generate', { method: 'POST' });
   expect([generate.status, (await generate.json()).code]).toEqual([409, 'assistant_off']);
   expect((await fetch(url + 'api/meta').then((r) => r.json())).generate).toBeUndefined();
   // a generation the previous server was running (the assistant's walkthrough), and an agent's report
   const at = new Date().toISOString();
-  fs.writeFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
+  fs.appendFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
   const next = (await cli(prArgs)).stdout.trim(); // takes the server over
   const progress = await fetch(next + 'api/progress').then((r) => r.json());
   expect([progress.walkthrough.state, progress.walkthrough.reason, progress.report.state]).toEqual(['stopped', 'interrupted', 'requested']);

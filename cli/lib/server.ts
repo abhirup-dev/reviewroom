@@ -141,8 +141,15 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   };
   const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
+  let lastProgress = '';
   const send = (event: string, data: unknown) => {
-    for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
+    const text = JSON.stringify(data);
+    // a turn's end and the file watcher may both report the same state: pages get it once
+    if (event === 'progress') {
+      if (text === lastProgress) return;
+      lastProgress = text;
+    }
+    for (const c of clients) c.writeSSE({ event, data: text }).catch(() => {});
   };
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
   // request bodies are untrusted: a bad one is a 400 shaped like an OpError's
@@ -211,7 +218,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   if (assistant) {
     app.route('/api/assistant', assistant.app);
     app.route('/api/generate', assistant.generate);
-  } else app.post('/api/generate', (c) => json(c, { error: 'The built-in assistant is off: set "assistant": true in ~/.reviewroom/config.json (or REVIEWROOM_ASSISTANT=1) and restart the review.', code: 'assistant_off' }, 409));
+  } else app.post('/api/generate', (c) => c.req.header(VIA_HUB) ? json(c, { error: 'Generation starts only on this machine: open the review from its own URL.', code: 'via_hub' }, 403) : json(c, { error: 'The built-in assistant is off: set "assistant": true in ~/.reviewroom/config.json (or REVIEWROOM_ASSISTANT=1) and restart the review.', code: 'assistant_off' }, 409));
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
@@ -311,9 +318,10 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
-      await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
-      if (!readOnly) await stream.writeSSE({ event: 'progress', data: JSON.stringify(progress()) });
+      // registered and its snapshot queued with no await between: an update sent meanwhile follows the snapshot, never lost
       clients.add(stream);
+      void stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) }).catch(() => {});
+      if (!readOnly) void stream.writeSSE({ event: 'progress', data: JSON.stringify(progress()) }).catch(() => {});
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
       onClient?.();
       await new Promise<void>((r) => stream.onAbort(r));
