@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from 'bun:test';
 import path from 'node:path';
-import { clonePath, generate, generationState, parsePrUrl } from './reviews.ts';
+import { clonePath, generate, generationState, parsePrUrl, serialized } from './reviews.ts';
 import type { ArtifactProgress } from '../../src/kernel/state/progress.shared.ts';
 
 test('a PR URL: GitHub only, and no name that leaves repos/<owner>/', () => {
@@ -52,4 +52,18 @@ test('Play\'s generate: waits out a server still starting, then reports what api
   const off = stub({}, []);
   expect(await generate(off)).toMatchObject({ ok: false, code: 'assistant_off' });
   expect(off.calls).toEqual(['GET /api/meta']); // never asked: generation isn't available there
+});
+
+test('serialized: one key runs one at a time, in order, and a failure releases it; other keys run alongside', async () => {
+  const log: string[] = [];
+  const step = (name: string, ms: number, fail = false) => async () => {
+    log.push(`${name}+`);
+    await new Promise((r) => setTimeout(r, ms));
+    log.push(`${name}-`);
+    if (fail) throw new Error(name);
+    return name;
+  };
+  const results = await Promise.allSettled([serialized('/r/a', step('a1', 30, true)), serialized('/r/a', step('a2', 5)), serialized('/r/b', step('b1', 5))]);
+  expect(results.map((r) => r.status)).toEqual(['rejected', 'fulfilled', 'fulfilled']);
+  expect(log).toEqual(['a1+', 'b1+', 'b1-', 'a1-', 'a2+', 'a2-']);
 });

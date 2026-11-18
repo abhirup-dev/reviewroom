@@ -89,9 +89,23 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect(all.map((s) => path.basename(s.reviewPath!)).sort()).toEqual(['pr-7', 'pr-8']);
   }, 60_000);
 
+  test('two first Adds of one new repository at once: one clones, the other waits and fetches; both set it up', async () => {
+    await $`git clone -q --bare ${path.join(scratch, 'src')} ${path.join(clones, 'acme', 'other.git')}`.quiet();
+    await $`git -C ${path.join(clones, 'acme', 'other.git')} update-ref refs/pull/1/head refs/heads/feat/upload-rate-limit`.quiet();
+    const rs = await Promise.all([0, 1].map(() => post('api/reviews', 'add-review', { url: 'https://github.com/acme/other/pull/1' })));
+    const bodies = await Promise.all(rs.map((r) => r.json()));
+    expect(rs.map((r) => r.status)).toEqual([201, 201]);
+    expect(bodies[0].id).toBe(bodies[1].id);
+    expect(fs.readdirSync(path.join(tmp, 'home', 'repos', 'acme')).sort()).toEqual(['demo', 'other']); // no staging left in repos/
+  }, 60_000);
+
   let pid = 0;
   test('Play starts it with the built-in assistant and asks it to generate; Play again reuses the same server', async () => {
-    const first = await (await post(`api/reviews/${id}/play`, 'play-review')).json();
+    // two Plays at once: one starts the server and asks it to generate, the other finds that server and just opens it
+    const both = await Promise.all([0, 1].map(async () => (await post(`api/reviews/${id}/play`, 'play-review')).json()));
+    const first = both.find((r) => r.started);
+    const other = both.find((r) => r !== first);
+    expect([other?.ok, other?.started, other?.pid, other?.generate]).toEqual([true, false, first?.pid, null]);
     // the refusal is api/generate's own (its preflight found no Claude): it was called, and the review still runs
     expect(first).toMatchObject({ ok: true, started: true, generate: { ok: false, code: 'assistant_unavailable' } });
     expect(first.generate.error).toContain('Claude executable not found');

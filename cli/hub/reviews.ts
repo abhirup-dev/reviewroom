@@ -9,7 +9,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { configPath, readConfig } from '../lib/config.ts';
+import { branchDir, configPath, readConfig } from '../lib/config.ts';
 import { answers } from '../lib/lock.ts';
 import { homeDir, reviewsDir } from '../lib/paths.ts';
 import { readProgress } from '../lib/progress.ts';
@@ -18,6 +18,18 @@ import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.
 import type { GenerationState } from '../../src/hub/model.shared.ts';
 
 const run = promisify(execFile);
+
+// The hub is one process, so an in-memory queue per key is the lock: Add, Play, close and re-add of one review (keyed by
+// its folder) run one at a time, as do clones and fetches of one repository (keyed by its clone path).
+const queues = new Map<string, Promise<unknown>>();
+export function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const k = path.resolve(key);
+  const result = (queues.get(k) ?? Promise.resolve()).then(fn);
+  const settled = result.catch(() => {}); // a failure releases the lock too
+  queues.set(k, settled);
+  void settled.then(() => queues.get(k) === settled && queues.delete(k));
+  return result;
+}
 
 /** Where generation stands, from the review's progress log: ready once both documents validated. */
 export function generationState({ walkthrough: w, report: r }: Progress): GenerationState {
@@ -91,28 +103,30 @@ export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok:
   const dest = clonePath(pr.owner, pr.repo);
   const source = cloneSource(pr.owner, pr.repo);
   try {
-    if (fs.existsSync(path.join(dest, '.git'))) await run('git', ['-C', dest, 'fetch', '--prune', 'origin']);
-    else {
-      // into a temporary folder first: a failed clone leaves nothing that looks like a clone
-      // shortcut: two adds of the same new repository at once both clone, the second fails; lock it if that happens
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      const tmp = `${dest}.partial-${process.pid}`;
-      fs.rmSync(tmp, { recursive: true, force: true });
+    // one clone or fetch of a repository at a time: a second Add of a new one waits, then fetches
+    await serialized(dest, async () => {
+      if (fs.existsSync(path.join(dest, '.git'))) return void (await run('git', ['-C', dest, 'fetch', '--prune', 'origin']));
+      // into a fresh temporary folder outside repos/ (same disk, for the rename): a failed clone leaves no half clone
+      fs.mkdirSync(path.join(homeDir(), 'tmp'), { recursive: true });
+      const tmp = fs.mkdtempSync(path.join(homeDir(), 'tmp', 'clone-'));
       try {
         if (source) await run('git', ['clone', '--quiet', source, tmp]);
         else await run('gh', ['repo', 'clone', `${pr.owner}/${pr.repo}`, tmp, '--', '--quiet']);
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.renameSync(tmp, dest);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
-    }
+    });
   } catch (e) {
     const w = why(e);
     if (w === null) return { ok: false, error: source ? 'git is not installed.' : 'Adding a PR needs the GitHub CLI (gh): install it and sign in with `gh auth login`.' };
     return { ok: false, error: `Could not get ${pr.owner}/${pr.repo}: ${w}` };
   }
   try {
-    const { stdout } = await run(process.execPath, [entry, 'pr', `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 });
+    // the folder `pr` sets up (pr-<n>): a re-add stops its server, so it waits for a Play or close of it, and they for it
+    const { stdout } = await serialized(branchDir(dest, `pr-${pr.number}`), () =>
+      run(process.execPath, [entry, 'pr', `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 }));
     const dir = stdout.trim().split('\n').at(-1) ?? '';
     return { ok: true, id: reviewId(dir), dir };
   } catch (e) {
@@ -145,16 +159,22 @@ export async function generate(rec: Pick<ServerRecord, 'url'>): Promise<Generate
  *  (`assistant: true` in its config.json), started, and asked for both documents unless they are validated already.
  *  ("Use my own agent" is the client's: a prompt to paste, and nothing started here.) */
 export async function play(id: string, entry = process.argv[1]): Promise<PlayResult> {
-  const review = diskReviews().find((r) => r.id === id);
-  if (!review) return { ok: false, error: 'No such review on this machine.' };
-  const live = liveServer(review.dir);
-  const rec = live && (await answers(live.pid, live.port, 1500)) !== false ? live : null;
-  if (rec) return { ok: true, url: rec.url, pid: rec.pid, started: false, generate: null };
-  if (!review.repo || !fs.existsSync(review.repo)) return { ok: false, error: `The review's repository is gone: ${review.repo || 'not recorded'}` };
-  const file = configPath(review.dir);
-  fs.writeFileSync(file, JSON.stringify({ ...(JSON.parse(fs.readFileSync(file, 'utf8')) as object), assistant: true }, null, 2));
-  const started = await startDetached(review.repo, review.dir, ['--no-open'], entry);
-  if (!started) return { ok: false, error: `The review did not start: see ${path.join(review.dir, 'server.log')}` };
-  const gen = review.generation === 'ready' ? null : await generate(started);
-  return { ok: true, url: started.url, pid: started.pid, started: true, generate: gen };
+  const found = diskReviews().find((r) => r.id === id);
+  if (!found) return { ok: false, error: 'No such review on this machine.' };
+  // one at a time with other Plays, closes and re-adds of it: only the Play that starts the server asks it to generate,
+  // and a later one finds that server and just opens it
+  return serialized(found.dir, async (): Promise<PlayResult> => {
+    const review = diskReviews().find((r) => r.id === id); // as it is now, after whatever held the lock before
+    if (!review) return { ok: false, error: 'No such review on this machine.' };
+    const live = liveServer(review.dir);
+    const rec = live && (await answers(live.pid, live.port, 1500)) !== false ? live : null;
+    if (rec) return { ok: true, url: rec.url, pid: rec.pid, started: false, generate: null };
+    if (!review.repo || !fs.existsSync(review.repo)) return { ok: false, error: `The review's repository is gone: ${review.repo || 'not recorded'}` };
+    const file = configPath(review.dir);
+    fs.writeFileSync(file, JSON.stringify({ ...(JSON.parse(fs.readFileSync(file, 'utf8')) as object), assistant: true }, null, 2));
+    const started = await startDetached(review.repo, review.dir, ['--no-open'], entry);
+    if (!started) return { ok: false, error: `The review did not start: see ${path.join(review.dir, 'server.log')}` };
+    const gen = review.generation === 'ready' ? null : await generate(started);
+    return { ok: true, url: started.url, pid: started.pid, started: true, generate: gen };
+  });
 }

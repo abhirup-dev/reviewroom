@@ -9,7 +9,7 @@ import { classifySession, sessionOpenUrl } from './classify.ts';
 import { GitMetaCache } from './gitmeta.ts';
 import { critLoopbackUrl, sanitizeLoopbackUrl } from './loopback.ts';
 import { type Agent, agentAncestor, lsofCwd, processCommand, runCapture } from './proc.ts';
-import { diskReviews } from './reviews.ts';
+import { diskReviews, serialized } from './reviews.ts';
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/hub/model.shared.ts';
 import { alive } from '../lib/lock.ts';
@@ -296,7 +296,9 @@ export class Hub {
     if (!s?.pid) return { ok: false, reason: 'not-found' };
     if (s.pid === process.pid || s.pid <= 1) return { ok: false, reason: 'refused' };
     if (s.tool === 'reviewroom') {
-      const stopped = s.reviewPath && fs.existsSync(s.reviewPath) ? await stopServer(s.reviewPath, s.pid) : null;
+      // one at a time with a Play or re-add of the same review (reviews.ts): a Play never reuses a server this is stopping
+      const dir = s.reviewPath, pid = s.pid;
+      const stopped = dir && fs.existsSync(dir) ? await serialized(dir, () => stopServer(dir, pid)) : null;
       return stopped ? { ok: true, session: s } : { ok: false, reason: 'refused' };
     }
     // the pid may have been reused since the tool wrote its registry: signal it only if it still runs that tool
