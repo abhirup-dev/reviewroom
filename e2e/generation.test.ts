@@ -142,6 +142,26 @@ describe('the assistant panel', () => {
   const fetched = `performance.getEntriesByType('resource').filter((r) => r.name.endsWith('/api/assistant')).length`;
   const box = `document.querySelector('.rr-assistant__island textarea')`;
 
+  test.skipIf(!browser)('a refresh fetched while idle is held, not applied, if the reviewer starts typing before it arrives', async () => {
+    const page = await open(await serve());
+    try {
+      await page.evaluate(`rr.app.commands.run('assistant.open')`);
+      await until(page, box, 15_000);
+      // the transcript answers slowly: long enough to start typing while it is out
+      await page.evaluate(`(() => { const f = window.fetch; window.fetch = (u, ...a) => String(u).endsWith('api/assistant') ? new Promise((r) => setTimeout(r, 800)).then(() => f(u, ...a)) : f(u, ...a); })()`);
+      await page.evaluate(`void (window.__box = ${box})`);
+      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`); // idle: the fetch starts
+      await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'typed meanwhile'))`);
+      await new Promise((r) => setTimeout(r, 1500)); // the response has arrived
+      expect(await page.evaluate<string>(`JSON.stringify([${box} === window.__box, document.activeElement === window.__box, ${box}.value])`)).toBe(JSON.stringify([true, true, 'typed meanwhile']));
+      await page.evaluate(`document.activeElement.blur()`);
+      await until(page, `${box} && ${box} !== window.__box && ${box}.value === 'typed meanwhile'`, 5000); // applied once safe, the draft kept
+      expect(page.errors()).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
   test.skipIf(!browser)('a conversation changed elsewhere waits while the reviewer types, then shows with their draft kept', async () => {
     const page = await open(await serve());
     try {

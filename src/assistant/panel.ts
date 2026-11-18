@@ -39,6 +39,8 @@ export function registerAssistant(app: ReviewApp) {
           if (!response.ok) throw new Error(await response.text()); // a moved-aside conversation, invalid settings: why
           const initial = await response.json();
           if (gone) return;
+          // checked again on arrival: a turn may have started, or the reviewer started typing, while this was out
+          if (chat && busy()) return void (stale = true);
           const draft = chat?.draft(); // the reviewer's text and attached context carry over
           chat?.unmount();
           chat = m.mount(island, (fn) => {
