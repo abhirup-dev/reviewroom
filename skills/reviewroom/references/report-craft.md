@@ -28,8 +28,8 @@ Someone who reads only this should know where to look and what to worry about.
 
 ## The body
 
-For someone else's PR, use the suggested outline in `profiles/default.md`. The guidance below
-orders an explanation of the diff for other reviews, or supporting detail within that outline.
+The report starts with its profile's sections (`profiles/index.md`); keep them. The guidance below
+orders the explanation of the diff and the supporting detail within them.
 
 - Sections in the order a reviewer traces the diff: entry point → new code → storage / proto /
   config → failure modes → tests → risks. Each is a `<section id>` with an `<h2>`, short and about
@@ -158,10 +158,10 @@ for each plan.</p>
 
 ## With the walkthrough
 
-Read `walkthrough-craft.md` first. Outline the story and create the heading-only sections
-in the report, including a stable finding section for every risk. Write and validate the
-walkthrough before filling the report. The slides tell the story; the report keeps the
-review record. Its sections need not mirror the chapters.
+Read `walkthrough-craft.md` first. The report starts with its profile's sections; while outlining
+the story, add a heading-only finding section with a stable id under Findings for every risk.
+Write and validate the walkthrough before filling the report. The slides tell the story; the
+report keeps the review record. Its sections need not mirror the chapters.
 
 ## Answering threads
 

@@ -85,10 +85,10 @@ Reviewing someone else's PR: the walkthrough first, then the report. The agent e
 changes the code, in any round. The mode reviewroom is built around; reviewing your own work is not described yet.
 _Avoid_: team review
 
-**Review profile**:
-A composable skill reference saying what to look for and which sections or findings to add to the report.
-`default` is the base profile; others add to it.
-_Avoid_: template, checklist
+**Report profile**:
+A folder in the skill holding the report's starting sections (`report.html`) and a guide to what to look for and
+what each section holds. A review uses one, chosen when it is created; `default` is the base.
+_Avoid_: review profile, template, checklist
 
 ### Conversation
 

@@ -35,9 +35,10 @@ export function dirForEdit(repo: string | null, dirFlag: string | undefined, nee
 }
 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept.
-// repoPath: the checkout the review was made from, so `--dir` alone finds its repo; repo: GitHub's owner/name.
+// repoPath: the checkout the review was made from, so `--dir` alone finds its repo; repo: GitHub's owner/name;
+// profile: the report profile its report.html was made from (skills/reviewroom/references/profiles/<profile>/).
 const text = z.string().optional().catch(undefined);
-const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text });
+const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text, profile: text });
 /** config.json, with --base/--head/--title applied (loadConfig). */
 export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
 export const configPath = (dir: string) => path.join(dir, 'config.json');

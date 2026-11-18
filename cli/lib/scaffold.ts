@@ -1,22 +1,30 @@
-import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeProvider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import { PKG } from './paths.ts';
-import { formatRef } from '../../src/kernel/refs/refs.shared.ts';
+import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 
+export const DEFAULT_PROFILE = 'default';
+const profilesDir = () => path.join(PKG, 'skills', 'reviewroom', 'references', 'profiles');
+
+/** A report profile's sections (profiles/<name>/report.html); an unknown name fails with the ones there are. */
+export function profileSections(name: string) {
+  const file = path.join(profilesDir(), name, REPORT_FILE);
+  if (/^[a-z0-9-]+$/.test(name) && fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trimEnd();
+  const known = fs.readdirSync(profilesDir(), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  throw new ReviewroomError(`no report profile "${name}" (profiles: ${known.join(', ')})`);
+}
+
+/** Writes the report from the page shell and the review's profile, once (or again with --force). */
 export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = false) {
   const target = path.join(dir, REPORT_FILE);
   if (fs.existsSync(target) && !force) return false;
-  const prov = makeProvider(repo, cfg);
-  const meta = prov.meta();
-  const files = prov.files(prov.base, prov.head);
-  let html = fs.readFileSync(path.join(PKG, 'templates', REPORT_FILE), 'utf8');
+  const body = profileSections(cfg.profile ?? DEFAULT_PROFILE);
   const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-  const list = files.map((f) => `          <li><rr-ref ref="${esc(formatRef({ type: 'code', path: f.path, rev: 'head' }))}"></rr-ref> - ${f.status}, +${f.additions} -${f.deletions}</li>`).join('\n');
-  // function replacers: `$&`, `$'` in titles/paths must stay literal
-  html = html.replaceAll('{{TITLE}}', () => esc(meta.title)).replace('{{FILES}}', () => list);
-  fs.writeFileSync(target, html);
+  const html = fs.readFileSync(path.join(PKG, 'templates', REPORT_FILE), 'utf8');
+  // function replacers: `$&`, `$'` in titles must stay literal
+  fs.writeFileSync(target, html.replaceAll('{{TITLE}}', () => esc(makeProvider(repo, cfg).meta().title)).replace('{{BODY}}', () => body));
   return true;
 }

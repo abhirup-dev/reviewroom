@@ -53,6 +53,7 @@ cli
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Git remote', { default: 'origin' })
   .option('--force', `Replace ${REPORT_FILE} and PR walkthrough`)
+  .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: default)')
   .option('--detach', 'Serve in background; print URL')
   .option('--wait', 'Wait for the first feedback round')
   .option('--port <n>', 'Port (default: 4848)')

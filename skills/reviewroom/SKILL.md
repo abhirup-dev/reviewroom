@@ -45,6 +45,7 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 Read "Start the review server" in `references/review-rounds.md` and launch the review as it
 instructs. Keep the command running in the background while writing the walkthrough and the report.
+`--profile <name>` picks the report profile (default `default`; see `references/profiles/index.md`).
 
 ## Step 2: Relay the URL
 
@@ -85,27 +86,26 @@ syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
 ## Step 4: Outline, then write the walkthrough first
 
 Read `references/walkthrough-craft.md` for the story, `references/report-craft.md` for the
-record, and `references/profiles/index.md` for the default profile and any additions the review needs.
-Read `references/authoring.md` for the format and `references/visual-formats.md` when writing visuals.
+record, `references/profiles/index.md`, and the guide of the review's report profile. Read
+`references/authoring.md` for the format and `references/visual-formats.md` when writing visuals.
+The report already has its sections, from the profile.
 
 Always provide a walkthrough. If `reviewroom pr` pulled one shipped with the PR, use it as is;
 it was validated before publication. Go to Step 4b without replacing it. Otherwise:
 
 1. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
    Each main risk is one line with a severity and an `rr:doc/<section id>` link to its finding in
-   the report; keep detailed findings out of the slides.
-2. As part of the outline, write a minimal report: the top-level `<section id>` parts plus
-   one finding section per risk, each with just a heading. Keep these ids stable for the Risks links.
-3. Write `walkthrough.json` in the review directory.
-4. Run a full `reviewroom slide-lint --dir <dir>`, fix issues and repeat until it passes.
+   the report; keep detailed findings out of the slides. For each risk, add a heading-only finding
+   section under Findings in the report, with a stable id for the link.
+2. Write `walkthrough.json` in the review directory.
+3. Run a full `reviewroom slide-lint --dir <dir>`, fix issues and repeat until it passes.
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).
 
 ## Step 4b: Fill the report
 
-Only after the walkthrough passes, fill the report. For someone else's PR, use the
-suggested outline in `references/profiles/default.md`: Summary, Findings, Questions for the author,
-Evidence, Your questions. Each top-level part is a `<section id>`; the HTML inside is yours.
+Only after the walkthrough passes, fill the report's sections as the profile's guide says.
+Keep their ids; the HTML inside is yours.
 
 The walkthrough tells the story; the report keeps the detailed review and later answers.
 They need not mirror each other. Both are read in a narrow panel (about 400px) or on a phone:

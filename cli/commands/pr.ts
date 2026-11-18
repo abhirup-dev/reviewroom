@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
-import { scaffold } from '../lib/scaffold.ts';
+import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
@@ -28,7 +28,7 @@ function gh(repo: string, args: string[]) {
   }
 }
 
-export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean };
+export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string };
 /** Where the review lives and what it compares; base and head are always resolved. */
 type Target = { dir: string; cfg: ReviewConfig };
 
@@ -98,6 +98,8 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;
+  if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
+  cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
