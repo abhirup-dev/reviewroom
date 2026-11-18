@@ -45,6 +45,23 @@ const readHub = (): HubRecord | null => {
   }
 };
 
+/** Whether hub.json proves this hub (`pid`) no longer owns it: gone (ENOENT), or a valid record naming another pid. Read
+ *  once; any other failure (EACCES, a half-written file) proves nothing, so the hub keeps serving. */
+export function lostHub(pid: number) {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(hubFile(), 'utf8');
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+  try {
+    const other = (JSON.parse(raw) as { pid?: unknown }).pid;
+    return Number.isInteger(other) && other !== pid;
+  } catch {
+    return false;
+  }
+}
+
 // One hub per machine: a second `hub` points at the running one.
 export async function cmdHub(o: HubOpts) {
   const show = (url: string) => {
@@ -107,11 +124,7 @@ export async function cmdHub(o: HubOpts) {
   }
   process.on('exit', () => readHub()?.pid === process.pid && fs.rmSync(hubFile(), { force: true }));
   // a hub that no longer owns hub.json (deleted, its home removed, taken over) is unreachable by `hub --stop`: exit
-  // (only when it is gone or names another hub: a transient read error is no reason to stop serving)
-  setInterval(() => {
-    const owned = fs.existsSync(hubFile()) ? readHub() : null;
-    if (!fs.existsSync(hubFile()) || (owned && owned.pid !== process.pid)) process.exit(0);
-  }, 1000);
+  setInterval(() => lostHub(process.pid) && process.exit(0), 1000);
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   console.error(`reviewroom: hub | ${rec.url}${pub ? ` | public: ${pub}/` : ''}`);
   show(rec.url);
