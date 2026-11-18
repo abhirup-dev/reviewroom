@@ -3,7 +3,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { recordArtifact, requestGeneration, resetGeneration } from '../lib/progress.ts';
+import { progressLines, recordArtifact, requestGeneration, resetGeneration } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
@@ -89,6 +89,20 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   console.error(`reviewroom: walkthrough from ${pick.from}`);
 }
 
+/** A fresh or forced review asks its agent for both documents. --no-agent (the hub) sets up only: generation goes idle
+ *  until someone asks (api/generate), and also when a re-add finds the PR moved, since validations of another head no
+ *  longer count (the documents stay on disk). True when it moved: the PR's own walkthrough is imported again. */
+function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) {
+  if (o.agent !== false) {
+    if (fresh || o.force) requestGeneration(dir, 'agent', head);
+    return false;
+  }
+  const madeFor = progressLines(dir).findLast((l) => l.head)?.head;
+  const moved = !fresh && !!madeFor && madeFor !== head;
+  if (fresh || o.force || moved) resetGeneration(dir);
+  return moved;
+}
+
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
@@ -109,13 +123,9 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const stopped = await stopServer(dir);
   // the next server takes its port (an open tab reconnects): cmdServe's own takeover finds nothing left to stop
   const port = o.port || (stopped ? String(stopped.port) : undefined);
-  // --no-agent (the hub): set up only; generation is idle (a forced review's old one reset) until someone asks (api/generate)
-  if (fresh || o.force) {
-    if (o.agent === false) resetGeneration(dir);
-    else requestGeneration(dir, 'agent', prov.head);
-  }
+  const moved = settleGeneration(dir, o, fresh, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
-  await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
+  await pullWalkthrough(repo, dir, cfg, !!o.force || moved, prov.head);
 
   if (o.serve === false) return console.log(dir); // set up only (the hub's Add a PR): its Play starts the server
   if (!o.detach) return cmdServe(repo, { dir, port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now

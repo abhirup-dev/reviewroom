@@ -7,7 +7,10 @@ import { $ } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SessionInfo } from '../src/hub/model.shared.ts';
+import { recordArtifact, requestGeneration } from '../cli/lib/progress.ts';
+import { WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import { setup } from './fixture.ts';
+import { until } from '../src/testing/wait.ts';
 
 const root = path.resolve(import.meta.dir, '..');
 
@@ -55,7 +58,19 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect(config(s.reviewPath!).assistant).toBeUndefined();
   }, 60_000);
 
-  test('adding it again picks up new commits', async () => {
+  test('adding it again picks up new commits; documents made for the old head no longer count, but stay on disk', async () => {
+    // both documents written and validated for the PR's head as it is now
+    const [s] = await ours();
+    const dir = s.reviewPath!;
+    const clone = path.join(tmp, 'home', 'repos', 'acme', 'demo');
+    const old = (await $`git -C ${clone} rev-parse refs/reviewroom/pr-7`.text()).trim();
+    fs.copyFileSync(path.join(root, 'examples', 'uploads', WALKTHROUGH_FILE), path.join(dir, WALKTHROUGH_FILE));
+    requestGeneration(dir, 'agent', old);
+    for (const a of ['walkthrough', 'report'] as const) recordArtifact(dir, a, 'validated', { head: old });
+    await until(async () => (await ours())[0].generation === 'ready', { timeout: 10_000, every: 200 }); // the hub's next poll
+    // the same head again: still ready
+    expect((await post('api/reviews', 'add-review', { url: PR })).status).toBe(201);
+    expect((await ours())[0].generation).toBe('ready');
     const work = path.join(scratch, 'work');
     await $`git clone -q ${bare} ${work}`.quiet();
     await $`git -C ${work} checkout -q feat/upload-rate-limit && git -C ${work} -c user.email=t@t -c user.name=t commit -q --allow-empty -m more`.quiet();
@@ -64,6 +79,8 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect((await post('api/reviews', 'add-review', { url: PR })).status).toBe(201);
     expect((await $`git -C ${path.join(tmp, 'home', 'repos', 'acme', 'demo')} rev-parse refs/reviewroom/pr-7`.text()).trim()).toBe(sha);
     expect(await ours()).toHaveLength(1);
+    expect((await ours())[0].generation).toBe('idle'); // the next Play regenerates them
+    expect(fs.existsSync(path.join(dir, WALKTHROUGH_FILE))).toBe(true);
   }, 60_000);
 
   test('two PRs from branches of the same name are two reviews, each in its pr-<n> folder', async () => {
