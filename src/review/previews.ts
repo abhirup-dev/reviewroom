@@ -159,6 +159,6 @@ export async function renderPreview(app: ReviewApp, ref: string, opts: PreviewOp
     case 'round':
       return h('div', null, `Round ${r.n}`);
     case 'tour':
-      return extensions.tour?.(app, r, opts) ?? h('div', { class: 'rr-empty' }, 'Guided walkthrough previews are unavailable');
+      return extensions.tour?.(app, r, opts) ?? h('div', { class: 'rr-empty' }, 'Walkthrough previews are unavailable');
   }
 }

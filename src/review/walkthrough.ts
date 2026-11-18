@@ -406,5 +406,5 @@ export function registerWalkthroughExtension(next: WalkthroughExtension | undefi
   extension = next;
 }
 
-definePanel({ id: 'narrative', title: 'Review', icon: 'doc', create: (app) => new WalkthroughPanel(app) });
+definePanel({ id: 'narrative', title: 'Report', icon: 'doc', create: (app) => new WalkthroughPanel(app) });
 definePanel({ id: 'description', title: 'Description', icon: 'doc', create: (app) => new WalkthroughPanel(app, true) });

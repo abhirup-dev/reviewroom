@@ -111,7 +111,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   lines.push(...githubContext(opts.github));
   const viewed = Object.keys(state.viewed || {}).length;
   const checks = Object.entries(state.checks || {});
-  if (checks.length) lines.push('## Open questions', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
+  if (checks.length) lines.push('## Flagged questions', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
   lines.push(`_Files marked viewed: ${viewed}. Open threads overall: ${open.length}._`);
   return lines.join('\n');
 }

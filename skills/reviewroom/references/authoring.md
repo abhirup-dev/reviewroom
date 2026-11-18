@@ -137,7 +137,7 @@ Give it an `id` so threads can anchor on it. Pele has no animation; the walkthro
 ```
 
 Each `<rr-check>` is one **flagged question**; the reviewer marks it settled or not, and the feedback
-lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
+lists them under `Flagged questions` by `id`. Always give it an `id`: without one, the first 40
 characters of its text stand in, and rewording it loses the reviewer's mark.
 
 ## Scripting: `window.rr`

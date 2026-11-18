@@ -187,6 +187,9 @@ export class Layouts {
       }
     }
     if (restored) {
+      // a saved dock keeps the tab titles it was saved with: a renamed panel ("Review", now "Report") takes its current one
+      const report = panelDef('narrative');
+      if (report) api.getPanel('narrative')?.api.setTitle(report.title);
       this.setCurrent(saved!.layout && this.all()[saved!.layout] ? saved!.layout : this.startId());
       this.offered = new Set(saved!.offered);
     } else this.reset();

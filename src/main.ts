@@ -137,7 +137,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   const seedState = readJSON('#rr-state') as ReviewState | null;
   const seedTour = document.querySelector('#rr-walkthrough')?.textContent ?? undefined;
   const review = root.querySelector('rr-review') as HTMLElement | null;
-  const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No <rr-review> content yet.'));
+  const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No report yet.'));
   doc.remove();
   doc.classList.add('rr-prose', 'rr-doc');
   app.doc = doc;
@@ -309,12 +309,12 @@ function registerCommands(app: ReviewApp) {
     { id: 'palette.symbols', title: 'Find symbol', group: 'Navigate', keys: ['mod+shift+o', '#'], run: pal('#') },
     { id: 'palette.search', title: 'Search code', group: 'Navigate', keys: ['mod+shift+f', '/'], run: pal('/') },
     { id: 'hub', title: 'All reviews', group: 'Navigate', hint: 'Every review running on this machine', when: () => app.backend.kind === 'server', run: () => window.open(hubHref(), '_blank') },
-    { id: 'focus.narrative', title: 'Focus narrative', group: 'Panels', keys: ['g n'], run: () => { ensurePanel(app, 'narrative'); (document.querySelector('.rr-narrative-scroll') as HTMLElement)?.focus(); } },
+    { id: 'focus.narrative', title: 'Focus the report', group: 'Panels', keys: ['g n'], run: () => { ensurePanel(app, 'narrative'); (document.querySelector('.rr-narrative-scroll') as HTMLElement)?.focus(); } },
     { id: 'focus.code', title: 'Focus code', group: 'Panels', keys: ['g c'], run: () => { ensurePanel(app, 'code'); (document.querySelector('.rr-code-scroll') as HTMLElement)?.focus(); } },
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
-    { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
+    { id: 'walkthrough.play', title: 'Play the walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
     { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', when: () => app.presentation.canArrange, run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: () => app.layout.canUndo(), run: () => app.layout.undo() },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', when: () => app.presentation.canArrange, run: () => app.layout.reset() },
@@ -335,8 +335,8 @@ function registerCommands(app: ReviewApp) {
     { id: 'diff.prevFile', title: 'Previous file', group: 'Code', keys: ['[ f', 'shift+k'], scope: 'code', run: codeCmd('prevFile') },
     { id: 'diff.viewed', title: 'Mark current file viewed', group: 'Code', keys: ['v'], scope: 'code', run: () => app.activeFile && app.setViewed(app.activeFile, app.state.viewed[app.activeFile] === undefined) },
     { id: 'files.tests', title: 'Toggle test files', group: 'Files', run: () => app.setPref('hideTests', !app.prefs.hideTests) },
-    { id: 'doc.next', title: 'Next section', group: 'Narrative', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
-    { id: 'doc.prev', title: 'Previous section', group: 'Narrative', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },
+    { id: 'doc.next', title: 'Next section', group: 'Report', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
+    { id: 'doc.prev', title: 'Previous section', group: 'Report', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },
     { id: 'pick', title: 'Pick an element to comment on', group: 'Comments', keys: ['x'], run: () => app.bus.emit('picker', !app.picking) },
     { id: 'comment.selection', title: 'Comment on selection', group: 'Comments', keys: ['c'], when: () => !!app.selection, run: () => {
       const s = app.selection!;

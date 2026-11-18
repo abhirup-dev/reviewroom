@@ -15,7 +15,7 @@ export interface PhoneBarContributions {
   /** A tap on the title (the rounds menu); null: the title only shows. */
   titleMenu: () => ((anchor: HTMLElement) => void) | null;
   status: () => HTMLElement[];
-  /** Before send: play the guided review. */
+  /** Before send: play the walkthrough. */
   actions: () => (HTMLElement | null)[];
   send: () => HTMLElement;
   /** The drawer's facts line, after the repo. */
@@ -36,7 +36,7 @@ export function buildPhoneBar(app: ReviewApp, features: PhoneBarContributions): 
     const sub = [m.repo?.split('/').pop(), features.sub()].filter(Boolean).join(' · ');
     const titles = h(
       'button',
-      { class: 'rr-phonebar__titles', 'aria-haspopup': menu ? 'menu' : null, title: menu ? 'Review rounds: view the narrative as it was at the end of an earlier round' : m.title },
+      { class: 'rr-phonebar__titles', 'aria-haspopup': menu ? 'menu' : null, title: menu ? 'Review rounds: view the report as it was at the end of an earlier round' : m.title },
       h('span', { class: 'rr-phonebar__title' }, m.title),
       h('span', { class: 'rr-phonebar__sub' }, h('span', null, sub), ...features.status(), ...shellStatus()),
     );

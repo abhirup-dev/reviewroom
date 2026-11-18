@@ -258,15 +258,15 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   const bottom = h('div', { class: 'rr-tour__bottom' }, prev, progress, next);
   const player = h(
     'div',
-    { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
+    { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Walkthrough', tabindex: '-1' },
+    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), btn('close', 'Close the walkthrough', () => actor.send({ type: 'close' }))),
     (split.append(left, right), split),
     bottom,
   );
   splitAt(loadJSON(SPLIT)); // on the player: on the desktop its grid holds the columns, so the chapter bar spans only the narration
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
-  const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
+  const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   // slides' text rendered ahead (below: prose)
   const stash = h('div', { class: 'rr-tour__stash rr-prose', 'aria-hidden': 'true', inert: true });
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill, stash);
@@ -461,7 +461,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   );
 
   app.bus.on('walkthrough-open', ({ chapter, step }) => {
-    if (!app.walkthrough) return app.toast('No guided walkthrough for this review');
+    if (!app.walkthrough) return app.toast('No walkthrough for this review');
     actor.send({ type: 'open', chapter, step });
   });
   // generation (src/review/generation.ts) shows a walkthrough as soon as it is playable, or one still being written
@@ -554,7 +554,7 @@ export async function renderWalkthroughPreview(app: ReviewApp, r: Extract<Ref, {
   const w = loaded && 'version' in loaded ? loaded : null;
   const ch = w?.chapters.find((c) => c.id === r.chapter);
   const i = ch?.steps.findIndex((s) => s.id === r.step) ?? -1;
-  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This guided walkthrough slide no longer exists');
+  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This walkthrough slide no longer exists');
   const step = ch.steps[i];
   const text = h('div', { class: 'rr-prose rr-slide__text' });
   text.innerHTML = sanitizeProse(step.text); // a walkthrough can come from a PR
@@ -562,7 +562,7 @@ export async function renderWalkthroughPreview(app: ReviewApp, r: Extract<Ref, {
   const code = opts.compact
     ? refs.length ? [h('div', { class: 'rr-slide__refs' }, ...refs.map((x) => h('span', { class: 'rr-slide__ref' }, refIcon(parseRef(x)!), app.label(x))))] : []
     : await Promise.all(refs.map((x) => renderPreview(app, x, { compact: true })));
-  const title = 'Play the guided walkthrough from this slide';
+  const title = 'Play the walkthrough from this slide';
   const play = h('button', {
     class: 'rr-icon-btn',
     title,

@@ -6,7 +6,7 @@ export const REF_ELEMENTS = 'a[href^="rr:"], rr-ref';
 export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | undefined): string {
   switch (r.type) {
     case 'doc':
-      return (r.id && resolveDocTitle?.(r.id)) || 'Review';
+      return (r.id && resolveDocTitle?.(r.id)) || 'Report';
     case 'code':
     case 'file': {
       const base = r.path.split('/').pop()!;
@@ -21,7 +21,7 @@ export function refLabel(r: Ref, resolveDocTitle?: (id: string) => string | unde
     case 'round':
       return 'Round ' + r.n;
     case 'tour':
-      return 'Guided walkthrough slide'; // ReviewApp.label names the chapter and step
+      return 'Walkthrough slide'; // ReviewApp.label names the chapter and step
   }
 }
 

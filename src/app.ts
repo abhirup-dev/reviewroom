@@ -315,7 +315,7 @@ export class ReviewApp {
   describeDoc(id: string, path?: string): string {
     const el = this.docElement(id, path);
     if (id === PR_DESCRIPTION) return path && el ? describeElement(el) + ' in the PR description' : 'PR description';
-    return el ? describeElement(el) : id ? id.replace(/[-_]+/g, ' ') : 'Review';
+    return el ? describeElement(el) : id ? id.replace(/[-_]+/g, ' ') : 'Report';
   }
   docTitle = (id: string): string | undefined => {
     const el = this.doc?.querySelector(`#${CSS.escape(id)}`);
@@ -335,7 +335,7 @@ export class ReviewApp {
     if (r.type === 'tour') {
       const ch = this.walkthrough?.chapters.find((c) => c.id === r.chapter);
       const n = ch ? ch.steps.findIndex((s) => s.id === r.step) + 1 : 0;
-      return ch && n ? `Guided walkthrough · ${ch.title} · slide ${n}` : 'Guided walkthrough slide';
+      return ch && n ? `Walkthrough · ${ch.title} · slide ${n}` : 'Walkthrough slide';
     }
     return refLabel(r, this.docTitle);
   }

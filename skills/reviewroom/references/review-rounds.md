@@ -43,7 +43,7 @@ know the reviewer has finished the round.
 
 The command prints the round's feedback as markdown: one block per thread with new messages, each
 with its anchor, then the state of the flagged questions in the report, under
-`Open questions`, and the reviewer's overall note. Its opening lines give the
+`Flagged questions`, and the reviewer's overall note. Its opening lines give the
 exact commands to answer and to start the next round.
 
 If its heading says `APPROVED`, tell the reviewer and stop. Leave open threads alone unless they ask.
