@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProgress, artifactHash, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts, stopAssistantWork } from './progress.ts';
+import { appendProgress, artifactHash, importToRetry, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts, stopAssistantWork } from './progress.ts';
 
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
@@ -128,5 +128,19 @@ test('a request for an old head is stale on a re-add at a new head: no loading s
     expect(staleArtifacts(dir, B)).toEqual(['walkthrough', 'report']);
     resetGeneration(dir, staleArtifacts(dir, B));
     expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['idle', 'idle']);
+  });
+});
+
+test('a PR walkthrough import is retried while the untouched import is not validated at the head; an edit makes it local', () => {
+  const [A, B] = ['a'.repeat(40), 'b'.repeat(40)];
+  inTemp((dir) => {
+    expect(importToRetry(dir, A)).toBe(false); // nothing imported
+    fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), '{}');
+    recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', head: A });
+    expect([importToRetry(dir, A), importToRetry(dir, B)]).toEqual([false, true]);
+    resetGeneration(dir, staleArtifacts(dir, B)); // the re-add at B, whose fetch then failed
+    expect(importToRetry(dir, B)).toBe(true); // the next re-add fetches again
+    fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), '{"edited":1}');
+    expect(importToRetry(dir, B)).toBe(false);
   });
 });

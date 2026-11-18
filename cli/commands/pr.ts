@@ -3,7 +3,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
+import { importToRetry, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
@@ -84,7 +84,8 @@ function localTarget(repo: string, o: PrOpts): Target {
 async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean, head: string) {
   const file = walkthroughPath(dir);
   const t = prTarget(cfg);
-  if (!t || (fs.existsSync(file) && !force)) return;
+  // a local file is kept, unless it is still an earlier import not validated now (a refresh whose fetch failed): retried
+  if (!t || (fs.existsSync(file) && !force && !importToRetry(dir, head))) return;
   let pick;
   try {
     pick = pickBlock(await fetchPr(repo, t, null));

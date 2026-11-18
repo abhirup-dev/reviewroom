@@ -63,6 +63,14 @@ export const staleArtifacts = (dir: string, head: string) => {
   const progress = readProgress(dir);
   return ARTIFACTS.filter((a) => progress[a].state !== 'idle' && !!progress[a].head && progress[a].head !== head);
 };
+/** The walkthrough on disk is the PR's, imported untouched, but not validated at `head` (the PR moved, and fetching it
+ *  again failed): the next setup fetches it again. Anyone's edit since makes it theirs, never replaced. */
+export function importToRetry(dir: string, head: string) {
+  const last = progressLines(dir).findLast((l) => l.artifact === 'walkthrough' && l.event === 'validated');
+  if (last?.event !== 'validated' || last.source !== 'pr' || last.hash !== artifactHash(dir, 'walkthrough')) return false;
+  const w = readProgress(dir).walkthrough;
+  return !(w.state === 'validated' && w.head === head);
+}
 /** Stops the assistant work pending now, each naming its request: a stop that lands after a newer request is ignored.
  *  `interrupted` when a server starts (the previous server's turn died with it) or closes; `failed` when a turn ends. */
 export function stopAssistantWork(dir: string, reason: 'failed' | 'interrupted') {
