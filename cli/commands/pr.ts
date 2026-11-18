@@ -3,7 +3,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { recordArtifact, requestGeneration } from '../lib/progress.ts';
+import { recordArtifact, requestGeneration, resetGeneration } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
@@ -103,8 +103,11 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
-  // --no-agent (the hub): set up only; generation stays idle until someone asks (api/generate)
-  if ((fresh || o.force) && o.agent !== false) requestGeneration(dir, 'agent', prov.head);
+  // --no-agent (the hub): set up only; generation is idle (a forced review's old one reset) until someone asks (api/generate)
+  if (fresh || o.force) {
+    if (o.agent === false) resetGeneration(dir);
+    else requestGeneration(dir, 'agent', prov.head);
+  }
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);

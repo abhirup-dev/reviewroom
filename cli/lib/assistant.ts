@@ -17,7 +17,7 @@ import { readState } from './state.ts';
 import { astGrepBinary } from './source/outline.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
-import { readProgress, requestGeneration, stopAfterTurn } from './progress.ts';
+import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 
 /** REVIEWROOM_ASSISTANT, or `assistant: true` in ~/.reviewroom/config.json. Never throws: bad settings only disable it. */
 export function assistantEnabled(file = settingsFile()) {
@@ -239,7 +239,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
         if (!generation.awaitingApproval) {
           generation = undefined;
           // whatever the turn did not validate stopped with it; a closing server's turn was interrupted
-          stopAfterTurn(dir, aborted || closed ? 'interrupted' : 'failed');
+          stopAssistantWork(dir, aborted || closed ? 'interrupted' : 'failed');
         }
         send('progress', progressNow());
       }

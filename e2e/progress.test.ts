@@ -104,7 +104,7 @@ test('--no-agent requests nothing; a server start stops pending assistant work a
   expect((await fetch(url + 'api/meta').then((r) => r.json())).generate).toBeUndefined();
   // a generation the previous server was running (the assistant's walkthrough), and an agent's report
   const at = new Date().toISOString();
-  fs.writeFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant' }, { at, artifact: 'report', event: 'requested', by: 'agent' }].map((l) => JSON.stringify(l) + '\n').join(''));
+  fs.writeFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
   const next = (await cli(prArgs)).stdout.trim(); // takes the server over
   const progress = await fetch(next + 'api/progress').then((r) => r.json());
   expect([progress.walkthrough.state, progress.walkthrough.reason, progress.report.state]).toEqual(['stopped', 'interrupted', 'requested']);

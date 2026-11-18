@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProgress, artifactHash, progressLines, readProgress, recordArtifact } from './progress.ts';
+import { appendProgress, artifactHash, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, stopAssistantWork } from './progress.ts';
 
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
@@ -23,3 +23,41 @@ test('writers deduplicate bytes and validation retains the bytes checked, not a 
     expect(readProgress(dir).report.state).toBe('validated');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+const inTemp = (fn: (dir: string, log: string) => void) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
+  try { fn(dir, path.join(dir, 'progress.jsonl')); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+};
+
+test('a cut-off last line stays alone: the next append starts on its own line', () => inTemp((dir, log) => {
+  fs.writeFileSync(log, '{"at":"2026-');
+  requestGeneration(dir, 'agent');
+  expect(progressLines(dir).map((l) => l.artifact)).toEqual(['walkthrough', 'report']);
+}));
+
+test('both requests land in one write, each with its own id', () => inTemp((dir, log) => {
+  requestGeneration(dir, 'assistant');
+  const lines = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  expect(lines.map((l) => [l.artifact, l.by])).toEqual([['walkthrough', 'assistant'], ['report', 'assistant']]);
+  expect(new Set(lines.map((l) => l.id)).size).toBe(2);
+  const blocked = path.join(dir, 'blocked');
+  fs.mkdirSync(path.join(blocked, 'progress.jsonl'), { recursive: true }); // appending fails: nothing is requested
+  expect(() => requestGeneration(blocked, 'assistant')).toThrow();
+}));
+
+test('a stop read before a takeover\'s request and written after it leaves that request alone', () => inTemp((dir) => {
+  requestGeneration(dir, 'assistant');
+  const pendingBefore = readProgress(dir);
+  requestGeneration(dir, 'agent', undefined, ['report']); // pr --force lands between the old server's read and write
+  // the old server's stop names the requests it read
+  appendProgress(dir, { artifact: 'report', event: 'stopped', reason: 'interrupted', request: pendingBefore.report.request! });
+  expect(readProgress(dir).report).toMatchObject({ state: 'requested', by: 'agent' });
+  stopAssistantWork(dir, 'interrupted'); // now: only the assistant's walkthrough is pending
+  expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['stopped', 'requested']);
+}));
+
+test('reset makes both documents idle again', () => inTemp((dir) => {
+  requestGeneration(dir, 'agent');
+  resetGeneration(dir);
+  expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['idle', 'idle']);
+}));
