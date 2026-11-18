@@ -16,6 +16,7 @@ import opencode from '@lobehub/icons-static-svg/icons/opencode.svg' with { type:
 import kiro from '@lobehub/icons-static-svg/icons/kiro-color.svg' with { type: 'text' };
 import amp from '@lobehub/icons-static-svg/icons/amp-color.svg' with { type: 'text' };
 import pi from '@lobehub/icons-static-svg/icons/pi.svg' with { type: 'text' };
+import { currentForm } from '../kernel/form';
 
 type Compat = Record<string, { installed: string | null; verifiedAgainst: string; status: string }>;
 type SortKey = 'subject' | 'author' | 'reviewRound' | 'changes' | 'threads' | 'origin' | 'activity';
@@ -162,10 +163,14 @@ const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', nu
 
 mountTooltips();
 startUpdates(import.meta.url);
-document.body.append(
-  h(
-    'div',
-    { class: 'rr-root rr-hub' },
+const root = h('div', { class: 'rr-root rr-hub' });
+// a phone upright (or ?phone) gets the phone's layout (hub.phone.css); on its side, the table
+const applyForm = () => root.classList.toggle('is-phone', currentForm() === 'phone');
+applyForm();
+addEventListener('resize', applyForm);
+screen.orientation?.addEventListener('change', applyForm);
+document.body.append(root);
+root.append(
     h(
       'header',
       { class: 'rr-header' },
@@ -187,7 +192,6 @@ document.body.append(
         h('div', { class: 'rr-hub__scroll' }, table, empty),
       ),
     ),
-  ),
 );
 
 // ------------------------------------------------------------ filtering, sorting, grouping
@@ -282,7 +286,7 @@ function row(s: SessionInfo) {
         'div',
         { class: 'rr-hub__actions' },
         s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the guided walkthrough', 'aria-label': `Play the guided walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
-        s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : null,
+        s.url ? h('a', { class: 'rr-icon-btn is-open', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : null,
         // #rr-browser: the app hands this one to the browser instead
         inApp && s.url ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in the browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
         h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),

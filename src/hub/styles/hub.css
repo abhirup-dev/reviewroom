@@ -435,11 +435,11 @@ a.rr-hub__name:hover {
   font-weight: 500;
 }
 
-/* the diff's size: fixed tracks, so the counts and squares line up even when one count is left out */
+/* the diff's size: fixed tracks (five mono characters each), so the counts and squares line up down the column even
+   when one count is left out; + hugs - from the left, - from the right, so each pair reads as one value */
 .rr-hub .c-diff .rr-delta {
   display: inline-grid;
-  grid-template-columns: 3.75em 3.75em auto;
-  justify-items: end;
+  grid-template-columns: 5ch 5ch auto;
   align-items: center;
   column-gap: var(--rr-space-4);
 }
@@ -448,9 +448,11 @@ a.rr-hub__name:hover {
 }
 .rr-hub .c-diff .rr-add {
   grid-column: 1;
+  justify-self: end;
 }
 .rr-hub .c-diff .rr-del {
   grid-column: 2;
+  justify-self: start;
 }
 .rr-hub .c-diff .rr-diffstat {
   grid-column: 3;

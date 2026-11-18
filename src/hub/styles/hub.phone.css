@@ -1,0 +1,320 @@
+/* The hub on a phone upright (docs/design/phone.md): the same markup, laid out as a phone list. A full-width search
+   bar, the counts as tabs, and each review a list item: the author's avatar, the title and where it lives, its facts
+   under it; the whole item opens it. Selection and bulk actions stay on the computer. Loads after hub.css; scoped to
+   .is-phone. */
+
+/* the page scrolls as one: the bar, the chips and the filters scroll away, leaving the screen to the cards */
+.rr-hub.is-phone {
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+  background: var(--rr-bg);
+}
+.rr-hub.is-phone :is(.rr-hub__body, .rr-hub__main, .rr-hub__scroll) {
+  flex: none;
+  overflow: visible;
+}
+
+/* top app bar: title and meta, then the search bar on its own line */
+.rr-hub.is-phone .rr-header {
+  flex-wrap: wrap;
+  height: auto;
+  row-gap: var(--rr-space-8);
+  padding: var(--rr-space-12) var(--rr-space-8) var(--rr-space-12) var(--rr-space-16);
+}
+.rr-hub.is-phone .rr-header__meta {
+  display: block;
+}
+.rr-hub.is-phone .rr-header__title {
+  font-size: var(--rr-text-lg);
+}
+.rr-hub.is-phone .rr-hub__find {
+  order: 1;
+  flex: 1 0 100%;
+  height: calc(var(--rr-space-48) + var(--rr-space-8));
+  margin-right: var(--rr-space-8);
+  padding: 0 var(--rr-space-16);
+  gap: var(--rr-space-12);
+  border: 0;
+  border-radius: var(--rr-shape-full);
+  background: var(--rr-surface-nav-2);
+}
+.rr-hub.is-phone .rr-hub__search {
+  font-size: var(--rr-text-lg);
+}
+.rr-hub.is-phone .rr-install-btn {
+  width: var(--rr-touch);
+  height: var(--rr-touch);
+  border-radius: var(--rr-shape-full);
+}
+
+/* the counts: tabs, scrolled sideways; the chosen one underlined */
+.rr-hub.is-phone .rr-hub__strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0 var(--rr-space-4);
+  background: var(--rr-bg);
+  border-top: 0;
+  border-bottom: 1px solid var(--rr-line);
+  scrollbar-width: none;
+}
+.rr-hub.is-phone .rr-hub__tile {
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--rr-space-6);
+  height: var(--rr-touch);
+  padding: 0 var(--rr-space-12);
+  border: 0;
+}
+.rr-hub.is-phone .rr-hub__tile.is-on {
+  background: none;
+  box-shadow: inset 0 -3px 0 var(--rr-accent);
+}
+.rr-hub.is-phone .rr-hub__tile-label {
+  font-size: var(--rr-text-md);
+  font-weight: 500;
+}
+.rr-hub.is-phone .rr-hub__tile.is-on .rr-hub__tile-label {
+  color: var(--rr-accent);
+}
+.rr-hub.is-phone .rr-hub__tile-value {
+  font-family: inherit;
+  font-size: var(--rr-text-sm);
+  font-weight: 500;
+  letter-spacing: normal;
+}
+.rr-hub.is-phone .rr-hub__tile-sub {
+  display: none;
+}
+
+/* filters: a 48px row that opens to chips */
+.rr-hub.is-phone .rr-hub__rail {
+  max-height: 60dvh;
+  padding: 0 var(--rr-space-16);
+  background: var(--rr-bg);
+  border-top: 1px solid var(--rr-line);
+}
+.rr-hub.is-phone .rr-hub__rail-toggle {
+  height: var(--rr-touch);
+  font-size: var(--rr-text-md);
+}
+.rr-hub.is-phone .rr-hub__rail-body {
+  padding: 0 0 var(--rr-space-16);
+}
+.rr-hub.is-phone .rr-hub__facet-items {
+  flex-flow: row wrap;
+  gap: var(--rr-space-8);
+}
+.rr-hub.is-phone .rr-hub__facet-item {
+  max-width: 100%;
+  height: var(--rr-control-lg);
+  padding: 0 var(--rr-space-12);
+  border: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-shape-s);
+  font-size: var(--rr-text-md);
+}
+.rr-hub.is-phone .rr-hub__facet-item.is-on {
+  background: var(--rr-accent-soft);
+  border-color: transparent;
+  color: var(--rr-accent);
+}
+.rr-hub.is-phone .rr-hub__group-by {
+  height: var(--rr-control-lg);
+}
+
+/* the list bar: how many are shown; no selection, so no Open or Close */
+.rr-hub.is-phone .rr-hub__bar {
+  padding: var(--rr-space-4) var(--rr-space-16);
+  background: var(--rr-bg);
+  border-bottom: 0;
+}
+.rr-hub.is-phone .rr-hub__bar > .rr-btn:not(.rr-btn--ghost),
+.rr-hub.is-phone .rr-hub__count {
+  display: none;
+}
+/* the Live tab says how many; the line shows only while a filter narrows the list, with its Clear */
+.rr-hub.is-phone .rr-hub__bar:has(> .rr-btn--ghost[hidden]) {
+  display: none;
+}
+.rr-hub.is-phone .rr-hub__main {
+  padding-bottom: var(--rr-space-24);
+  background: var(--rr-bg);
+}
+
+/* the table becomes a list */
+.rr-hub.is-phone :is(.rr-hub__table, .rr-hub__table tbody) {
+  display: block;
+}
+.rr-hub.is-phone .rr-hub__table thead,
+.rr-hub.is-phone .rr-hub__table .rr-hub__sel {
+  display: none;
+}
+.rr-hub.is-phone .rr-hub__table :is(th, td) {
+  position: static;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* a group: a subheader that stays in view while its reviews scroll under it */
+.rr-hub.is-phone .rr-hub__group {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: block;
+}
+.rr-hub.is-phone .rr-hub__group > th {
+  display: block;
+  background: var(--rr-bg);
+}
+.rr-hub.is-phone .rr-hub__group-btn {
+  position: static;
+  width: 100%;
+  max-width: none;
+  height: var(--rr-touch);
+  padding: 0 var(--rr-space-16);
+  background: none;
+  color: var(--rr-ink-2);
+  font-size: var(--rr-text-md);
+  font-weight: 500;
+}
+.rr-hub.is-phone .rr-hub__group-name {
+  font-family: inherit;
+}
+/* the subheader keeps its name and open threads; its count and age are in the items */
+.rr-hub.is-phone .rr-hub__group-btn > .rr-hub__dim {
+  display: none;
+}
+
+/* a review: an M3 list item. Leading, the author's avatar (or the tool's mark) with the live dot as its badge; the
+   title as headline; one wrapping supporting line (PR, branch, round, size, threads, agent, when); play the one
+   trailing action. The cells and their wrappers dissolve (display: contents) so their bits flow as one line. */
+.rr-hub.is-phone .rr-hub__table tr:not(.rr-hub__group) {
+  --lead: calc(var(--rr-space-32) + var(--rr-space-8));
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--rr-space-8);
+  row-gap: var(--rr-space-2);
+  min-height: calc(var(--rr-space-48) + var(--rr-space-24));
+  padding: var(--rr-space-12) var(--rr-space-48) var(--rr-space-12) calc(var(--rr-space-16) * 2 + var(--lead));
+  background: var(--rr-bg);
+}
+.rr-hub.is-phone .rr-hub__table tr:not(.rr-hub__group):active {
+  background: var(--rr-hover);
+}
+.rr-hub.is-phone .rr-hub__table :is(.c-review, .c-actions),
+.rr-hub.is-phone :is(.rr-hub__review, .rr-hub__actions) {
+  display: contents;
+}
+.rr-hub.is-phone .rr-hub__name {
+  order: 1;
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow: visible;
+  color: var(--rr-ink);
+  font-size: var(--rr-text-lg);
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* the whole item opens the review */
+.rr-hub.is-phone .rr-hub__name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+/* the supporting line: plain text, no mono, no squares, no bars */
+.rr-hub.is-phone .rr-hub__review > :is(.rr-hub__mono, .rr-hub__branch),
+.rr-hub.is-phone .rr-hub__table :is(.c-round, .c-diff, .c-threads, .c-agent, .c-active) {
+  order: 2;
+  min-width: 0;
+  color: var(--rr-ink-2);
+  font-family: inherit;
+  font-size: var(--rr-text-md);
+}
+.rr-hub.is-phone .rr-hub__table .c-active {
+  order: 3;
+  color: var(--rr-muted);
+}
+.rr-hub.is-phone .rr-hub__table .c-agent {
+  display: block;
+  align-self: center;
+}
+.rr-hub.is-phone .rr-hub__table td:has(> .rr-hub__dim:only-child) {
+  display: none;
+}
+.rr-hub.is-phone :is(.rr-hub__bar-track, .c-diff .rr-diffstat) {
+  display: none;
+}
+.rr-hub.is-phone .c-diff .rr-delta {
+  display: inline-flex;
+  gap: var(--rr-space-4);
+}
+
+/* leading: the author's avatar; with no author, the tool's mark takes its place */
+.rr-hub.is-phone .rr-hub__table .c-author {
+  position: absolute;
+  top: var(--rr-space-12);
+  left: var(--rr-space-16);
+}
+.rr-hub.is-phone .rr-hub__author {
+  display: block;
+  max-width: none;
+  font-size: 0; /* the login is in its title */
+}
+.rr-hub.is-phone .rr-hub__avatar {
+  width: var(--lead);
+  height: var(--lead);
+}
+.rr-hub.is-phone .rr-hub__review > .rr-hub__tool {
+  order: 2;
+  align-self: center;
+}
+.rr-hub.is-phone tr:not(:has(.rr-hub__author)) .rr-hub__tool {
+  position: absolute;
+  top: var(--rr-space-12);
+  left: var(--rr-space-16);
+}
+.rr-hub.is-phone tr:not(:has(.rr-hub__author)) .rr-hub__tool > :is(img, .rr-mark) {
+  width: var(--lead);
+  height: var(--lead);
+  border-radius: var(--rr-shape-m);
+}
+.rr-hub.is-phone tr:not(:has(.rr-hub__author)) .rr-hub__tool > .rr-mark {
+  font-size: var(--rr-text-xl);
+}
+/* the live dot: a badge on the leading element */
+.rr-hub.is-phone .rr-hub__dot {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--rr-space-12) + var(--lead) - var(--rr-space-10));
+  left: calc(var(--rr-space-16) + var(--lead) - var(--rr-space-10));
+  width: var(--rr-space-8);
+  height: var(--rr-space-8);
+  box-sizing: content-box;
+  border: 2px solid var(--rr-bg);
+}
+
+/* trailing: play, level with the leading (M3 tops both on a multi-line item); opening is the item itself, and closing stays on the computer */
+.rr-hub.is-phone .rr-hub__actions > .rr-icon-btn {
+  display: none;
+}
+.rr-hub.is-phone .rr-hub__actions > a.rr-icon-btn[href$='?walkthrough'] {
+  position: absolute;
+  z-index: 1;
+  top: var(--rr-space-8);
+  right: 0;
+  display: inline-flex;
+  width: var(--rr-touch);
+  height: var(--rr-touch);
+  border-radius: var(--rr-shape-full);
+  opacity: 1;
+}
