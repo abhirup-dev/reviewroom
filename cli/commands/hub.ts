@@ -106,6 +106,8 @@ export async function cmdHub(o: HubOpts) {
     stale = JSON.stringify(readHub());
   }
   process.on('exit', () => readHub()?.pid === process.pid && fs.rmSync(hubFile(), { force: true }));
+  // a hub that no longer owns hub.json (deleted, its home removed, taken over) is unreachable by `hub --stop`: exit
+  setInterval(() => readHub()?.pid !== process.pid && process.exit(0), 1000);
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   console.error(`reviewroom: hub | ${rec.url}${pub ? ` | public: ${pub}/` : ''}`);
   show(rec.url);

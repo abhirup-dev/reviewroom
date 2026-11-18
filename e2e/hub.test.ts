@@ -165,6 +165,13 @@ describe('hub', () => {
     expect((await cli(['hub', '--stop'])).stdout).toStartWith('stopped');
     await until(() => !fs.existsSync(path.join(tmp, 'home', 'hub.json')));
   });
+
+  test('a hub whose hub.json is gone exits (no `hub --stop` could reach it)', async () => {
+    await cli(['hub', '--detach', '--no-open', '--port', '0']);
+    const { pid } = JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'hub.json'), 'utf8'));
+    fs.rmSync(path.join(tmp, 'home', 'hub.json'));
+    await until(() => { try { process.kill(pid, 0); return false; } catch { return true; } });
+  });
 });
 
 describe('hub with a public origin', () => {
