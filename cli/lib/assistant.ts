@@ -36,6 +36,7 @@ export const VIA_HUB = 'x-reviewroom-via-hub';
 const AssistantSettings = z.object({
   defaultAgentHarness: z.literal('claude', { error: 'Only the claude agent harness is supported.' }).default('claude'),
   defaultReviewModel: z.string().trim().min(1).default('sonnet'),
+  defaultReviewEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(), // unset: Claude Code's own default
   claudeExecutable: z.string().trim().min(1).optional(),
   reviewAgentPromptFile: z.string().trim().min(1).default(path.join(PKG, 'templates/assistant-prompt.md')),
 });
@@ -123,6 +124,7 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
       auth: 'direct',
       session: { meta: { claudeCode: { options: {
         plugins: [{ type: 'local', path: PKG, skipMcpDiscovery: true }],
+        ...(settings.defaultReviewEffort ? { effort: settings.defaultReviewEffort } : {}),
       } } } },
     });
     // shortcut: allow-all approves every tool, generation and questions alike, so no turn waits on the reviewer;

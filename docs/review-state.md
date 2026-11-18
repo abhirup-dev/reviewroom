@@ -60,7 +60,7 @@ it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/gene
   shipped ones in `src/kernel/layouts/` (whose names they can't take). `default-layout.json` names their default.
 - `config.json`: the reviewer's settings. Whether the built-in assistant runs is not one of them: it is chosen per
   review (`assistant` in the review's own `config.json`, above), read when its server starts. `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the
-  hub starts; `defaultAgentHarness` (`claude` only), `defaultReviewModel` (`sonnet` by default) and
+  hub starts; `defaultAgentHarness` (`claude` only), `defaultReviewModel` (`sonnet` by default), `defaultReviewEffort` (`low` to `max`; Claude Code's default when unset) and
   `reviewAgentPromptFile` (optional Markdown prompt path, relative to this file); `claudeExecutable` overrides the
   Claude binary (otherwise the native override environment, `claude` on PATH, then the adapter's bundled binary).
   Model defaults are reread before new questions; restart for other changes.

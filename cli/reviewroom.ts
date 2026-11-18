@@ -248,7 +248,7 @@ cli.help((sections) => {
         '  Agent runtime/cache: ~/.reviewroom/assistant/ (under REVIEWROOM_HOME); Claude login/settings stay native.',
         '  claudeExecutable: optional executable name or path (relative to config.json). Restart after changing it.',
         '  Selection: config override, CLAUDE_CODE_EXECUTABLE, claude on PATH, then the bundled binary.',
-        '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet).',
+        '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet), defaultReviewEffort (low..max).',
         '  reviewAgentPromptFile: custom Markdown prompt; relative paths resolve beside config.json.',
         '  Model changes apply to the next new question; restart for harness or prompt changes.',
         '  Conversation and transcript are saved in the review dir and restored when it reopens.',

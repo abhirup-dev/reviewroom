@@ -34,7 +34,7 @@ test('machine settings default when absent and accept a model alongside existing
     const existing = '{"publicOrigin":"https://review.example","defaultReviewModel":"claude-custom-model"}';
     fs.writeFileSync(file, existing);
     expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'claude-custom-model', reviewAgentPromptFile: defaultPrompt });
-    for (const invalid of ['{', '{"defaultAgentHarness":"codex"}', '{"defaultReviewModel":" "}']) {
+    for (const invalid of ['{', '{"defaultAgentHarness":"codex"}', '{"defaultReviewModel":" "}', '{"defaultReviewEffort":"huge"}']) {
       fs.writeFileSync(file, invalid);
       expect(() => readAssistantSettings(file)).toThrow(`Invalid assistant settings in ${file}`);
     }
