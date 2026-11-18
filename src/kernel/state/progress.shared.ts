@@ -25,10 +25,9 @@ export type Progress = Record<Artifact, ArtifactProgress> & { generation?: { run
 export const ARTIFACTS: readonly Artifact[] = ['walkthrough', 'report'];
 /** Generation is under way: someone was asked and has not finished. */
 export const pendingArtifact = (p: ArtifactProgress) => p.state === 'requested' || p.state === 'writing';
-/** What a starting server stops as `interrupted`: pending assistant work, whose turn died with the previous server. */
-export const interruptedOnStart = (progress: Progress) => ARTIFACTS.filter((a) => pendingArtifact(progress[a]) && progress[a].by === 'assistant');
-/** What an ended generation turn stops as `failed`: everything it did not validate. */
-export const failedOnTurnEnd = (progress: Progress) => ARTIFACTS.filter((a) => progress[a].state !== 'validated');
+/** Pending assistant work: what a starting server stops as `interrupted` (its turn died with the previous server), and
+ *  what an ended generation turn stops (never an agent's request made since). */
+export const pendingAssistantWork = (progress: Progress) => ARTIFACTS.filter((a) => pendingArtifact(progress[a]) && progress[a].by === 'assistant');
 
 /** Ignore incomplete/malformed lines (including a writer's unfinished final append). */
 export function parseProgress(text: string): ProgressLine[] {

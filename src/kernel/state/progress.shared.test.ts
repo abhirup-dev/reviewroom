@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { failedOnTurnEnd, interruptedOnStart, parseProgress, reduceProgress, type ProgressLine } from './progress.shared';
+import { pendingAssistantWork, parseProgress, reduceProgress, type ProgressLine } from './progress.shared';
 const hash = 'a'.repeat(64);
 const at = new Date().toISOString();
 const line = (event: 'written' | 'validated', artifact: ProgressLine['artifact'] = 'walkthrough'): ProgressLine => ({ at, artifact, event, hash });
@@ -31,10 +31,12 @@ test('stopped keeps what was written; saves leave it stopped; a validation or a 
 });
 test('a starting server interrupts only pending assistant work; an ended turn fails what is not validated', () => {
   const p = reduceProgress([requested('assistant'), line('written'), requested('agent', 'report')], {});
-  expect(interruptedOnStart(p)).toEqual(['walkthrough']);
-  expect(interruptedOnStart(reduceProgress([requested('assistant'), stopped('failed')], {}))).toEqual([]);
+  expect(pendingAssistantWork(p)).toEqual(['walkthrough']);
+  expect(pendingAssistantWork(reduceProgress([requested('assistant'), stopped('failed')], {}))).toEqual([]);
   const done = reduceProgress([requested('assistant'), line('validated'), requested('assistant', 'report')], { walkthrough: hash });
-  expect(failedOnTurnEnd(done)).toEqual(['report']);
+  expect(pendingAssistantWork(done)).toEqual(['report']);
+  // an agent asked (pr --force) while the assistant was generating: its request is not the turn's to stop
+  expect(pendingAssistantWork(reduceProgress([requested('assistant'), requested('agent')], {}))).toEqual([]);
 });
 test('a new request resets the artifact; malformed, partial and by-less request lines are ignored', () => {
   expect(reduceProgress([requested(), line('validated'), requested()], {}).walkthrough.state).toBe('requested');

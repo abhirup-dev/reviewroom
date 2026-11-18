@@ -368,3 +368,11 @@ test('a generation turn approves its own tool requests and finishes without paus
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('closing a generation leaves an agent\'s request made meanwhile (pr --force) alone', async () => {
+  using r = reviewWithAgent(false);
+  await r.generate();
+  fs.appendFileSync(path.join(r.dir, 'progress.jsonl'), JSON.stringify({ at: new Date().toISOString(), artifact: 'report', event: 'requested', by: 'agent' }) + '\n');
+  await r.routes.close();
+  expect(r.events().slice(2)).toEqual(['report requested agent', 'walkthrough stopped interrupted']);
+});

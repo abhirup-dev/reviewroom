@@ -3,7 +3,7 @@ import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shar
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { parseProgress, reduceProgress, interruptedOnStart, failedOnTurnEnd, ProgressLine, type Artifact, type Requester } from '../../src/kernel/state/progress.shared.ts';
+import { parseProgress, reduceProgress, pendingAssistantWork, ProgressLine, type Artifact, type Requester } from '../../src/kernel/state/progress.shared.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 
 const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'report' ? REPORT_FILE : WALKTHROUGH_FILE);
@@ -42,11 +42,11 @@ export function requestGeneration(dir: string, by: Requester, head?: string) {
 }
 /** A server starting (it holds the lock): assistant work left pending died with the previous server's turn. */
 export function interruptOnStart(dir: string) {
-  for (const artifact of interruptedOnStart(readProgress(dir))) appendProgress(dir, { artifact, event: 'stopped', reason: 'interrupted' });
+  for (const artifact of pendingAssistantWork(readProgress(dir))) appendProgress(dir, { artifact, event: 'stopped', reason: 'interrupted' });
 }
 /** An assistant generation turn ended (`interrupted`: the server is closing). Returns what it stopped. */
 export function stopAfterTurn(dir: string, reason: 'failed' | 'interrupted') {
-  const stopped = failedOnTurnEnd(readProgress(dir));
+  const stopped = pendingAssistantWork(readProgress(dir));
   for (const artifact of stopped) appendProgress(dir, { artifact, event: 'stopped', reason });
   return stopped;
 }
