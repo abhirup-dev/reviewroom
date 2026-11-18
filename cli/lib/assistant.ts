@@ -166,10 +166,22 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   let turn: { abort: AbortController; done: Promise<void> } | undefined;
   let turnModel = '';
   let closed: Promise<void> | undefined;
-  const load = () => (store ??= assistantStore(dir, repo));
+  const load = () => {
+    if (!store) {
+      store = assistantStore(dir, repo);
+      // A turn left active on disk belonged to the previous server, never this process.
+      if (store.saved.status === 'working') {
+        store.saved.status = 'interrupted';
+        store.write();
+      }
+    }
+    return store;
+  };
   // The caller supplies the diff provider's frozen revisions (including its merge base), not moving branch names.
   const revs = { base: cfg.base, head: cfg.head };
   const model = () => (turn ? turnModel : readSettings().defaultReviewModel);
+  const instance = randomUUID();
+  const status = () => ({ model: model(), instance, status: load().saved.status });
   const app = new Hono();
   // errors as text: AI SDK's transport shows a failed request's body as the chat's error
   app.onError((e, c) => c.text(e instanceof Error ? e.message : String(e), 503));
@@ -177,12 +189,12 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     if (c.req.header(VIA_HUB)) return c.text('The assistant runs Claude Code with your login, so it answers only on this machine: open the review from its own URL.', 403);
     await next();
   });
-  app.get('/model', (c) => c.json({ model: model() }));
+  app.get('/model', (c) => c.json(status()));
   app.get('/', async (c) => {
     const { saved } = load();
     const { validateUIMessages } = await import('ai');
     const messages = saved.messages.length ? await validateUIMessages<UIMessage>({ messages: saved.messages, metadataSchema: AskMetadata }) : [];
-    return c.json({ messages, model: model() });
+    return c.json({ messages, ...status() });
   });
   app.post('/', async (c) => {
     // taken before anything awaits, released on every exit (a stream's after it is saved)
@@ -214,6 +226,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       const valid = asking ? [...saved, last] : [...saved.slice(0, -1), last];
       const messages = await convertToModelMessages(withContext(valid, revs));
       s.saved.messages = valid; // before starting: a failed start keeps the question, so the window stays in step
+      s.saved.status = 'working';
       s.write();
       live ??= launch({ repo, dir, cfg, settings: readSettings(), store: s, model: () => turnModel }).catch((e: unknown) => {
         live = undefined; // let the next message retry
@@ -232,12 +245,13 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       const response = result.toUIMessageStreamResponse({
         originalMessages: valid, generateMessageId: randomUUID,
         // also when the reviewer stops or leaves: the partial answer is saved under the id their window has
-        onEnd: async ({ messages: completed }) => {
+        onEnd: async ({ messages: completed, isAborted, isCancelled, outcome }) => {
           try {
             const answer = completed.at(-1);
             const resolved = await Promise.resolve(result.response).catch(() => undefined);
             if (answer?.role === 'assistant') answer.metadata = { model: turnModel, resolvedModel: resolved?.modelId };
             s.saved.messages = completed;
+            s.saved.status = isAborted || isCancelled ? 'interrupted' : outcome.status === 'failed' ? 'failed' : 'idle';
             s.write();
             if (!closed) await current.checkpoint();
           } catch (error) {
@@ -252,6 +266,12 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       });
       streaming = true;
       return response;
+    } catch (error) {
+      if (store?.saved.status === 'working') {
+        store.saved.status = abort.signal.aborted || c.req.raw.signal.aborted ? 'interrupted' : 'failed';
+        store.write();
+      }
+      throw error;
     } finally {
       if (!streaming) end();
     }

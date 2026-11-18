@@ -141,6 +141,7 @@ test('a stopped answer is saved under the id the window has, and the next questi
   await reader.cancel().catch(() => {});
   await Bun.sleep(50);
   expect(r.saved().map((m) => m.id)).toEqual(['q1', id]);
+  expect((await (await r.routes.app.request('/model')).json()).status).toBe('interrupted');
   const next = await r.post([...r.saved(), user('q2')]);
   expect(next.status).toBe(200); // the stopped turn freed the assistant
 });
@@ -171,7 +172,22 @@ test('closing stops a running answer, saves it and stops the agent once', async 
   await Promise.all([r.routes.close(), r.routes.close()]);
   expect(r.saved().map((m) => m.role)).toEqual(['user', 'assistant']);
   expect(r.calls.stopped).toBe(1);
+  const reopened = assistantRoutes({ repo: r.dir, dir: r.dir, cfg: { base: 'b', head: 'h' }, readSettings: () => settings });
+  const restored = await (await reopened.app.request('/')).json();
+  expect(restored.status).toBe('interrupted');
+  expect(restored.messages.map((m: UIMessage) => m.id)).toEqual(r.saved().map((m) => m.id));
   expect((await r.post([...r.saved(), user('q2')])).status).toBe(409);
+});
+
+test('a server restart marks an unfinished turn interrupted and keeps the transcript', async () => {
+  using r = reviewWithAgent();
+  const store = assistantStore(r.dir, r.dir);
+  store.saved.messages = [user('unfinished')];
+  store.saved.status = 'working';
+  store.write();
+  const restored = await (await r.routes.app.request('/')).json();
+  expect(restored.status).toBe('interrupted');
+  expect(restored.messages).toEqual(store.saved.messages);
 });
 
 test('a failed start keeps the question, so the same window can ask again', async () => {

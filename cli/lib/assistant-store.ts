@@ -10,6 +10,7 @@ const SavedAssistant = z.object({
   version: z.literal(1),
   repo: z.string(),
   messages: z.array(z.custom<UIMessage>()),
+  status: z.enum(['idle', 'working', 'interrupted', 'failed']).default('idle'),
   session: z.object({
     id: z.string(), sandboxId: z.string(),
     resume: z.custom<HarnessAgentResumeSessionState>(), // validated by the harness when resumed
@@ -21,7 +22,7 @@ export type SavedAssistant = z.infer<typeof SavedAssistant>;
 export function assistantStore(dir: string, repo: string) {
   const file = path.join(dir, 'assistant.json');
   const raw = readUnlessAside(file);
-  let saved: SavedAssistant = { version: 1, repo, messages: [] };
+  let saved: SavedAssistant = { version: 1, repo, messages: [], status: 'idle' };
   if (raw !== null) {
     let data: unknown;
     try {
