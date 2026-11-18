@@ -20,7 +20,8 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Where reviews live
 
-By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo.
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo. What the agent writes there:
+`docs/review-artifacts.md`; everything else: `docs/review-state.md`.
 
 ## Contracts (change deliberately, update the skill when you do)
 
@@ -32,25 +33,8 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   parsing.
 - **The walkthrough** follows `schema/walkthrough.schema.json`, generated from
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
-- **`state.json`** is written by the CLI, browser and agents. Change it in `src/kernel/state/schema.shared.ts`, then `bun run schema`
-  to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
-  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
-  `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the shipped ones
-  in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
-  reviewer's settings: `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts, and
-  `defaultAgentHarness` (`claude` only) / `defaultReviewModel` (`sonnet` by default) / `reviewAgentPromptFile` (optional Markdown
-  prompt path, relative to this config file). Model defaults are reread before new questions; restart for other changes.
-- **`assistant.json`** in a review directory stores that review's AI SDK transcript and opaque harness resume state (private,
-  mode 0600). Reopening with the same installation restores the transcript and resumes its existing native session.
-  The harness owns recovery; changing the installation path or agent dependencies can invalidate native resume.
-  The harness keeps its runtime and session files in `assistant/.ai-sdk-harness/` under `REVIEWROOM_HOME`;
-  its setup commands use `assistant/` as HOME, while the native agent keeps the reviewer's real HOME and login.
-  `claudeExecutable` in the user config overrides the Claude binary; otherwise the native override environment,
-  `claude` on PATH, then the adapter's bundled binary are used. Changing it requires restarting the review server.
-  Like `state.json`, a corrupt one is moved aside and blocks the assistant (not the review) until restored or deleted; one
-  started from another checkout is kept and refused there. The assistant answers only the review's own URL: the hub proxy
-  marks what it forwards (`x-reviewroom-via-hub`) and the review server refuses it (ADR 0001: no identity yet).
+- **Review state** (`docs/review-state.md`): what reviewroom keeps per review and in `~/.reviewroom/`, and how to
+  change it.
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,

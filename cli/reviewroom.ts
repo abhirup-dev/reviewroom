@@ -3,7 +3,7 @@
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
 // The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch). What the agent
-// writes there: docs/review-artifacts.md. The rest is reviewroom's own state.
+// writes there: docs/review-artifacts.md; reviewroom's own state: docs/review-state.md.
 import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import { cac } from 'cac';

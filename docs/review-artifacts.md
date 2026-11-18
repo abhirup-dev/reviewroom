@@ -10,4 +10,4 @@ What an agent writes into a review folder. Code names each file through its cons
 | Assets | none | any | Images, CSS or JS the report links, beside it. |
 
 A report profile's sections file (`skills/reviewroom/references/profiles/<name>/`) is also named by `REPORT_FILE`.
-Everything else in the review folder belongs to reviewroom.
+Everything else in the review folder belongs to reviewroom: [review state](review-state.md).
