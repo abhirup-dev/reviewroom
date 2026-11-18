@@ -16,6 +16,7 @@ import opencode from '@lobehub/icons-static-svg/icons/opencode.svg' with { type:
 import kiro from '@lobehub/icons-static-svg/icons/kiro-color.svg' with { type: 'text' };
 import amp from '@lobehub/icons-static-svg/icons/amp-color.svg' with { type: 'text' };
 import pi from '@lobehub/icons-static-svg/icons/pi.svg' with { type: 'text' };
+import { ownAgentPrompt } from './prompt';
 
 type Compat = Record<string, { installed: string | null; verifiedAgainst: string; status: string }>;
 type SortKey = 'tool' | 'subject' | 'state' | 'author' | 'kind' | 'repository' | 'branch' | 'cwd' | 'pid' | 'origin' | 'commentCount' | 'reviewRound' | 'startedAt';
@@ -141,18 +142,16 @@ async function play(s: SessionInfo) {
   else if (!inApp) notice = { ...notice, text: `${notice.text} Your browser blocked the new tab:`, link: url };
   await refresh();
 }
-/** "Use my own agent": the prompt for an agent the reviewer runs themselves. The hub starts nothing; the agent's own
- *  `pr --wait` sets the review up and serves it, and the built-in assistant stays off for it. */
+/** "Use my own agent": the prompt for an agent the reviewer runs themselves (prompt.ts). The hub starts nothing. */
 function ownAgent(s: SessionInfo) {
-  const target = s.prUrl ?? s.branch ?? '';
-  const text = `Review ${target} with reviewroom: run \`reviewroom pr ${target} --repo ${s.repoRoot ?? s.cwd ?? '.'} --wait\` and follow the reviewroom skill.`;
+  const text = ownAgentPrompt(s.prUrl ?? s.branch ?? '', s.repoRoot ?? s.cwd ?? '.');
   const close = () => box.close();
   const copy = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => void navigator.clipboard.writeText(text).then(() => (copy.textContent = 'Copied'), () => (copy.textContent = 'Copy failed: select the text')) }, 'Copy');
   const box = h(
     'dialog',
     { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Use my own agent', onmousedown: backdropCloses, onclose: () => box.remove() },
     h('header', { class: 'rr-thread__head' }, h('strong', null, 'Use my own agent'), h('span', { class: 'rr-hub__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Cancel', title: 'Cancel', onclick: close }, icon('close', 14))),
-    h('div', { class: 'rr-send__body' }, h('p', { class: 'rr-hub__p' }, 'Paste this into your agent (Claude Code, Codex, …). It writes the review; the built-in assistant stays off for it.'), h('pre', { class: 'rr-hub__prompt' }, text)),
+    h('div', { class: 'rr-send__body' }, h('p', { class: 'rr-hub__p' }, 'Paste this into your agent (Claude Code, Codex, …). Your agent writes the review.'), h('pre', { class: 'rr-hub__prompt' }, text)),
     h('footer', { class: 'rr-composer__foot rr-hub__foot' }, h('button', { class: 'rr-btn', onclick: close }, 'Close'), copy),
   );
   document.body.append(box);
