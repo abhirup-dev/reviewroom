@@ -88,7 +88,7 @@ export function parsePrUrl(v: string): { owner: string; repo: string; number: nu
 /** Where Add a PR clones a repository: `<home>/repos/<owner>/<repo>`, asserted to stay inside `<home>/repos`. */
 export function clonePath(owner: string, repo: string) {
   const root = path.resolve(homeDir(), 'repos');
-  const dest = path.resolve(root, owner, repo);
+  const dest = path.resolve(root, owner.toLowerCase(), repo.toLowerCase()); // GitHub names ignore case, as macOS does: one clone, one queue key
   if (!dest.startsWith(root + path.sep)) throw new Error(`not a repository path: ${owner}/${repo}`);
   return dest;
 }

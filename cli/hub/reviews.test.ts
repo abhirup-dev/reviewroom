@@ -15,6 +15,7 @@ test('a PR URL: GitHub only, and no name that leaves repos/<owner>/', () => {
 
 test('a clone path stays inside <home>/repos', () => {
   expect(clonePath('acme', 'demo').endsWith(path.join('repos', 'acme', 'demo'))).toBe(true);
+  expect(clonePath('ACME', 'Demo')).toBe(clonePath('acme', 'demo')); // one clone, and one queue key, whatever the case
   for (const [o, r] of [['..', 'x'], ['acme', '..'], ['acme', '../../etc'], ['', '']]) expect(() => clonePath(o, r)).toThrow();
 });
 
