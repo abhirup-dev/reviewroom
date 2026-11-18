@@ -416,13 +416,20 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   const close = () => (closed ??= (async () => {
     turn?.abort.abort();
     await turn?.done;
-    // a generation paused on an approval has no turn to end it: it stops here
-    if (generation) {
-      generation = undefined;
-      stopAssistantWork(dir, 'interrupted');
-      send('progress', progressNow());
+    try {
+      // a generation paused on an approval has no turn to end it: it stops here
+      if (generation) {
+        generation = undefined;
+        stopAssistantWork(dir, 'interrupted');
+        send('progress', progressNow());
+      }
+    } catch (e) {
+      // the next server's start stops it as interrupted instead
+      console.error(`reviewroom: could not record the stopped generation: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      // whatever the journal did: the native session saves where it can resume and ends its processes
+      await (await live?.catch(() => undefined))?.stop();
     }
-    await (await live?.catch(() => undefined))?.stop();
   })());
   return { app, generate, close, progress: progressNow, ready: () => void (isReady = true) };
 }

@@ -395,6 +395,25 @@ test('closing a generation paused on an approval stops it as interrupted; a clos
   expect(readProgress(r.dir).report.state).toBe('stopped');
 });
 
+test('closing stops the native session even when the progress journal cannot be written', async () => {
+  using r = reviewWithAgent(true, () => true);
+  await r.generate();
+  await until(() => r.sent.includes('assistant'));
+  const log = path.join(r.dir, 'progress.jsonl');
+  fs.chmodSync(log, 0o444);
+  const errors: unknown[] = [];
+  const error = console.error;
+  console.error = (...a: unknown[]) => void errors.push(a.join(' '));
+  try {
+    await r.routes.close();
+  } finally {
+    console.error = error;
+    fs.chmodSync(log, 0o644);
+  }
+  expect(r.calls.stopped).toBe(1);
+  if (process.getuid?.() !== 0) expect(String(errors[0])).toContain('could not record the stopped generation');
+});
+
 test('generate checks what a turn needs before answering started: a configured Claude that is missing', async () => {
   using r = reviewWithAgent(true, () => false, true, () => ({ ...settings, claudeExecutable: '/nonexistent/claude' }));
   const [status, body] = await r.generate();
