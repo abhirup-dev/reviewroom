@@ -39,6 +39,15 @@ export function generationState({ walkthrough: w, report: r }: Progress): Genera
   return 'idle';
 }
 
+/** A running review's generation state, from its own folder (a custom --dir too); undefined if it can't be read. */
+export function generationOf(dir: string): GenerationState | undefined {
+  try {
+    return generationState(readProgress(dir));
+  } catch {
+    return undefined;
+  }
+}
+
 export type DiskReview = { dir: string; id: string; repo: string; title: string | null; number: number | string | null; prUrl: string | null; branch: string | null; generation: GenerationState; updatedAt: string | null };
 
 /** Every review folder with a config.json (a broken one is skipped: the hub lists, it doesn't repair). */

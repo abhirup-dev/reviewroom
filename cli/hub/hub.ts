@@ -9,7 +9,7 @@ import { classifySession, sessionOpenUrl } from './classify.ts';
 import { GitMetaCache } from './gitmeta.ts';
 import { critLoopbackUrl, sanitizeLoopbackUrl } from './loopback.ts';
 import { type Agent, agentAncestor, lsofCwd, processCommand, runCapture } from './proc.ts';
-import { diskReviews, serialized } from './reviews.ts';
+import { diskReviews, generationOf, serialized } from './reviews.ts';
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/hub/model.shared.ts';
 import { alive } from '../lib/lock.ts';
@@ -213,7 +213,7 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir), prUrl: r.prUrl,
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir), prUrl: r.prUrl, generation: generationOf(r.dir), // from its own folder, wherever --dir put it
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
       withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
@@ -250,13 +250,9 @@ export class Hub {
     }
 
     await Promise.allSettled(enrich);
-    // reviews on disk: a running one gets its generation state, the others show as stopped (Play starts them)
+    // reviews on disk not running show as stopped (Play starts them); a running one is listed above already
     for (const d of read('reviews on disk', diskReviews)) {
-      const running = [...next.values()].find((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir);
-      if (running) {
-        running.generation = d.generation;
-        continue;
-      }
+      if ([...next.values()].some((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir)) continue;
       const info = session(`review:${d.id}`, 'reviewroom', now, {
         cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, reviewId: d.id, branch: d.branch,
         repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, prUrl: d.prUrl,

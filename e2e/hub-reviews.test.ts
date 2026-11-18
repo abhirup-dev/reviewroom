@@ -29,7 +29,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
   await $`git clone -q --bare ${path.join(scratch, 'src')} ${bare}`.quiet();
   await $`git -C ${bare} update-ref refs/pull/7/head refs/heads/feat/upload-rate-limit`.quiet();
   await $`git -C ${bare} update-ref refs/pull/8/head refs/heads/feat/upload-rate-limit~1`.quiet();
-  const { cli, tmp } = setup({
+  const { cli, tmp, repo } = setup({
     REVIEWROOM_TEST_CLONE_ROOT: clones,
     CLAUDE_CODE_EXECUTABLE: path.join(scratch, 'no-claude'),
     PATH: `${bin}:${process.env.PATH}`,
@@ -120,5 +120,17 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
   test('closing it lists it stopped again', async () => {
     expect((await post(`api/sessions/${encodeURIComponent(`reviewroom:${pid}`)}/close`, 'close-session')).status).toBe(202);
     expect(await ours()).toEqual([expect.objectContaining({ id: `review:${id}`, stopped: true })]);
+  }, 60_000);
+
+  test('a running review in a custom --dir shows its generation state too', async () => {
+    const custom = path.join(tmp, 'elsewhere');
+    const d = ['--repo', repo, '--dir', custom];
+    try {
+      expect((await cli(['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0', '--no-agent', ...d])).code).toBe(0);
+      const s = await until(async () => ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).find((x) => x.reviewPath === custom && !x.stopped), { timeout: 10_000, every: 200 });
+      expect(s.generation).toBe('idle');
+    } finally {
+      await cli(['stop', ...d]);
+    }
   }, 60_000);
 });
