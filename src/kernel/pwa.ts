@@ -16,9 +16,9 @@ import type { StateBackend } from './providers/contracts';
 /** What the update flow reads of the review page: its backend's unsent ops and server start (a `ReviewApp` fits). */
 type UpdatesHost = { backend?: Pick<StateBackend, 'pending'> };
 
-/** What makes reloading now lose something: ops not yet stored, a comment being written, a dialog open. */
-export type Busy = { unsent: boolean; composing: boolean; dialog: boolean };
-export const shouldHoldReload = (b: Busy) => b.unsent || b.composing || b.dialog;
+/** What makes reloading now lose something: unsaved work, an open dialog or a running assistant turn. */
+export type Busy = { unsent: boolean; composing: boolean; dialog: boolean; assistant?: boolean };
+export const shouldHoldReload = (b: Busy) => b.unsent || b.composing || b.dialog || !!b.assistant;
 
 /** The worker lives at the hub root (ADR 0001): strip `_rr/<entry>` and, under the hub proxy, `r/<id>/`. */
 export const workerScope = (entry: string) => new URL(entry.replace(/(\/r\/[^/]+)?\/_rr\/[^/]*$/, '/'));
@@ -82,6 +82,7 @@ export function busy(app?: UpdatesHost): Busy {
     composing: [...document.querySelectorAll('.rr-composer__input')].some((el) => text(el).trim() !== ''),
     // a task dialog (send feedback, save layout); the thread popup holds only through its composer, so saving a comment releases it
     dialog: !!document.querySelector('dialog[open].rr-modal--narrow'),
+    assistant: !!document.querySelector('[data-rr-assistant-running]'),
   };
 }
 
@@ -91,6 +92,7 @@ let host: UpdatesHost | undefined;
 let reg: ServiceWorkerRegistration | undefined;
 const before = new Map<string, () => void>();
 const OFFERS: Record<string, [text: string, label: string, title: string]> = {
+  review: ['Review updated. Waiting for your current work to finish.', 'Reload', 'Reload the review now; this interrupts the assistant'],
   update: ['Update ready', 'Reload', 'Reload into the new version of reviewroom'],
   layout: ['This screen suits a different layout.', 'Switch layout', 'Reload into the layout for this screen'],
 };

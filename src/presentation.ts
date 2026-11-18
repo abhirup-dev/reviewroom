@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from './kernel/state/files.shared';
 // What a presentation draws: its header, its panel surface, and its part of each seam (Refactor 3.0, rr-486). main.ts
 // picks one by app.presentation (kernel/presentation.ts) and loads it lazily; this is the desktop's, the phone's is
 // src/phone.ts, a turned phone's src/turned.ts. Only the presentations with a dock import dockview.
@@ -11,6 +12,7 @@ import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
 import type { PhoneFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
+import { registerAssistant } from './assistant/panel';
 
 export interface PresentationModule {
   /** The header above the panels. */
@@ -37,12 +39,15 @@ export const desktop: PresentationModule = {
       beforeLayout: () => [
         ...githubControls(app),
         app.walkthrough || app.walkthroughIssues
-          ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
+          ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `${WALKTHROUGH_FILE} is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
           : null,
         ...threadHeaderControls(app),
       ],
       afterTheme: () => [feedbackButton(app)],
       subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); },
     }),
-  mountSurface: (app, host, { lastLayout }) => app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) }),
+  mountSurface: (app, host, { lastLayout }) => {
+    if (app.meta.assistant) registerAssistant(app); // before the layout restores: a saved layout may show it
+    app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) });
+  },
 };

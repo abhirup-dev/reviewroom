@@ -1,4 +1,5 @@
-// The walkthrough.json contract: a guided walkthrough of the diff, played over the workbench. Defined once
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../kernel/state/files.shared';
+// The walkthrough.json contract: the walkthrough of the diff, played over the workbench. Defined once
 // here; the server, `reviewroom check`, `pr`, `publish-slides` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
 import { z } from 'zod';
@@ -9,7 +10,7 @@ const nonEmpty = z.string().min(1, 'must be a non-empty string');
 // quoted into the agent's feedback markdown: a line break there could forge a heading
 const title = nonEmpty.max(120, 'must be at most 120 characters').regex(/^[^\r\n]*$/, 'must be one line');
 const id = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'must be lowercase letters, digits and dashes');
-const html = z.string().describe('Prose HTML: rr: links, <rr-mermaid>, <rr-code> work as in review.html');
+const html = z.string().describe(`Prose HTML: rr: links, <rr-mermaid>, <rr-code> work as in ${REPORT_FILE}`);
 // a ref the right pane can show: code/file with ordered, positive lines; sym/doc with a name
 const showable = (input: string) => {
   const r = parseRef(input);
@@ -146,7 +147,7 @@ export function decodeWalkthrough(input: unknown): LoadedWalkthrough {
 export const walkthroughJsonSchema = () => ({
   ...z.toJSONSchema(Walkthrough, { target: 'draft-2020-12', io: 'input' }),
   $id: 'reviewroom/walkthrough.schema.json',
-  title: 'reviewroom guided walkthrough (walkthrough.json in the review dir)',
+  title: `reviewroom walkthrough (${WALKTHROUGH_FILE} in the review dir)`,
 });
 
 // ------------------------------------------------------------------ measuring a step (`slide-lint`)

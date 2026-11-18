@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // publish-slides: ship walkthrough.json with the PR, as a comment `reviewroom pr` picks up.
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit, readConfig } from '../lib/config.ts';
@@ -10,7 +11,7 @@ const COMMENT_LIMIT = 65_536; // GitHub's maximum comment body
 
 /** The comment body: the block plus a line for people reading the PR on GitHub. */
 export function publishBody(w: Walkthrough, pr?: number) {
-  const body = `${encodeBlock(w)}\n_A guided walkthrough of this PR: \`reviewroom pr ${pr ?? '<number>'}\` plays it in reviewroom._\n`;
+  const body = `${encodeBlock(w)}\n_A walkthrough of this PR: \`reviewroom pr ${pr ?? '<number>'}\` plays it in reviewroom._\n`;
   if (body.length > COMMENT_LIMIT) fail(`the walkthrough is ${body.length} characters as a comment; GitHub takes at most ${COMMENT_LIMIT}. Shorten the prose (leads and step text).`);
   return body;
 }
@@ -18,7 +19,7 @@ export function publishBody(w: Walkthrough, pr?: number) {
 type WalkthroughOpts = Global & { dryRun?: boolean; allowStale?: boolean };
 
 export async function cmdPublishSlides(repo: string | null, o: WalkthroughOpts) {
-  const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
+  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
   const c = await runCheck(repo, dir, { store: !o.dryRun, notes: false });
   if ('issues' in c) fail(schemaReport(c.issues));
   if (c.bad.length && !o.allowStale) fail(`${c.bad.length} link(s) need attention (fix them, or publish anyway with --allow-stale):\n${report(c.bad)}`);

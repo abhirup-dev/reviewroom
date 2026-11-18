@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 // Each presentation boots: the dock on a computer, the phone shell under ?phone. The guard for Refactor 3.0 (rr-486),
 // which moves the phone behind a contract: before/after looks are checked with scripts/snapshot.ts.
 import { describe, expect, test } from 'bun:test';
@@ -33,7 +34,7 @@ const WORKER = `navigator.serviceWorker.getRegistration().then((r) => r ? (r.ins
 
 describe('presentations boot', () => {
   const { serve, dir } = setup();
-  fs.copyFileSync(path.join(import.meta.dir, '../examples/activity-events/walkthrough.json'), path.join(dir, 'walkthrough.json'));
+  fs.copyFileSync(path.join(import.meta.dir, `../examples/uploads/${WALKTHROUGH_FILE}`), path.join(dir, WALKTHROUGH_FILE));
 
   test.skipIf(!browser)('a computer gets the dock and its player, ?phone the phone shell and the phone player', async () => {
     const url = await serve();

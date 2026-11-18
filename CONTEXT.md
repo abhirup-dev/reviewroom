@@ -1,7 +1,7 @@
 # reviewroom
 
-A local workbench where a reviewer reads a diff with an agent's help: the agent explains the diff in a
-walkthrough beside the live diff, and the two talk it through in rounds.
+A local workbench where a reviewer reads a diff with an agent's help: the agent tells the diff's story in a
+walkthrough played over the live code, keeps the detail in a report, and the two talk it through in rounds.
 
 ## Language
 
@@ -16,8 +16,12 @@ The person reviewing the diff in reviewroom. May be the author, when reviewing t
 _Avoid_: user, you
 
 **Agent**:
-The coding agent that helps the reviewer: it writes the walkthrough and answers the reviewer's threads.
-_Avoid_: author, assistant, bot
+The coding agent that helps the reviewer: it writes the walkthrough and the report, and answers the reviewer's threads.
+_Avoid_: author, bot
+
+**Assistant**:
+The agent built into reviewroom. It can write the walkthrough and report without an outside agent.
+_Avoid_: bot, chat
 
 ### The review
 
@@ -26,27 +30,50 @@ The code under review: everything between a base and a head, whether it comes fr
 _Avoid_: change, changeset, PR (when no PR is involved)
 
 **Review**:
-One reviewer's review of one diff, with its walkthrough, threads and rounds.
+One reviewer's review of one diff, with its walkthrough, report, threads and rounds.
 _Avoid_: session, workspace
 
 **Walkthrough**:
-The agent's freeform explanation of the diff, written for the reviewer to read alongside the diff.
-_Avoid_: narrative, review, review page, review.html
-
-**Guided walkthrough**:
-The optional main story of the diff, played over the workbench: chapters of slides, narration beside the code each slide
-shows. The reviewer sees it first; the walkthrough is where they dig in.
-_Avoid_: walkthrough (bare), tour, slideshow, presentation
+The story of the diff, played over the workbench: chapters of slides, narration beside the code each slide shows.
+The reviewer sees it first; the report is where they dig in.
+_Avoid_: guided walkthrough, tour, slideshow, presentation
 
 **Slide**:
-One step of a guided walkthrough: its narration and the code it shows (`steps` in `walkthrough.json`).
+One step of a walkthrough: its narration and the code it shows.
 _Avoid_: page, card
+
+**Report**:
+The agent's detailed record of the review: findings, evidence, questions and later answers. It need not mirror
+the walkthrough.
+_Avoid_: walkthrough, narrative, review page
+
+**Risks chapter**:
+The final chapter of a walkthrough: the main risks as one-liners with severities, each linking to its finding in
+the report. Detailed findings stay out of the slides.
+
+**Finding**:
+An actionable problem in the diff, with a severity, where it is, why it matters and a suggested direction. Each has
+its own place in the report, so the Risks chapter can link to it.
+_Avoid_: issue, comment
+
+**Flagged question**:
+A question the agent flags in the report for the reviewer to settle; it may be partly or fully settled over the
+review.
+_Avoid_: open question, check, sign-off, checklist item
+
+**Report profile**:
+What a review looks for and the sections its report starts with. A review uses one, chosen when it is created.
+_Avoid_: review profile, template, checklist
+
+**Generation**:
+The agent writing a review's walkthrough and report. The reviewer follows it on a loading screen until the
+walkthrough is ready.
 
 **GitHub review**:
 The reviewer's pending or submitted review on the PR in GitHub. Separate from the review in reviewroom.
 
 **Round**:
-One cycle of the agent presenting the walkthrough and the reviewer responding. It ends when the reviewer sends feedback
+One cycle of the agent presenting the review and the reviewer responding. It ends when the reviewer sends feedback
 or approves.
 _Avoid_: iteration, pass
 
@@ -54,10 +81,12 @@ _Avoid_: iteration, pass
 Everything the reviewer sends the agent when a round closes, together with the verdict: changes wanted, or approve.
 _Avoid_: round summary
 
-**Open question**:
-A question in the walkthrough that the agent and reviewer have no settled answer to yet; it may be partly or fully
-answered over the review.
-_Avoid_: check, sign-off, checklist item
+### Modes
+
+**Peer review**:
+Reviewing someone else's PR: the walkthrough first, then the report. The agent explains and reviews but never
+changes the code, in any round. The mode reviewroom is built around; reviewing your own work is not described yet.
+_Avoid_: team review
 
 ### Conversation
 
@@ -66,7 +95,7 @@ A conversation the reviewer starts about one anchor, or about the review as a wh
 _Avoid_: comment (for the whole conversation)
 
 **Anchor**:
-What a thread is about: a quote in the walkthrough, a line range in the diff, or a symbol.
+What a thread is about: a quote in the report, a line range in the diff, or a symbol.
 _Avoid_: target, location
 
 **Agent thread**:
@@ -79,16 +108,16 @@ _Avoid_: GitHub comment
 ### Serving
 
 **Hub**:
-The one page per machine that lists every running review (reviewroom, Crit, Plannotator), served by `reviewroom hub`.
+The one page per machine that lists every running review (reviewroom, Crit, Plannotator).
 _Avoid_: dashboard, index
 
 **Hub proxy**:
-The hub forwarding `/r/<review id>/...` to that review's own server, so every review is reachable from one origin.
+The hub forwarding requests to each review's own server, so every review is reachable from one address.
 _Avoid_: gateway, router
 
 **Public origin**:
-The one HTTPS URL the reviewer configures (`publicOrigin`) at which a front outside reviewroom makes the hub reachable
-from a phone, for example `https://mac.tailnet.ts.net`. See `docs/adr/0001-phone-origin.md`.
+The one HTTPS address the reviewer configures at which something outside reviewroom makes the hub reachable from a
+phone.
 _Avoid_: remote URL, tunnel URL
 
 ### Outside reviewroom

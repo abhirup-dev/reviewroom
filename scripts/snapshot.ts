@@ -44,8 +44,8 @@ async function capture(out: string) {
   const env = { ...process.env, REVIEWROOM_HOME: path.join(tmp, 'home') };
   const cli = (args: string[]) => $`${process.execPath} ${path.join(root, 'dist/cli/reviewroom.js')} ${args}`.env(env).quiet();
   await $`bash ${path.join(root, 'examples/make-demo-repo.sh')} ${repo}`.quiet();
-  fs.cpSync(path.join(root, 'examples/activity-events'), dir, { recursive: true });
-  const url = (await cli(['pr', 'feat/activity-events', '--repo', repo, '--dir', dir, '--detach', '--no-open', '--port', '0'])).stdout.toString().trim();
+  fs.cpSync(path.join(root, 'examples/uploads'), dir, { recursive: true });
+  const url = (await cli(['pr', 'feat/upload-rate-limit', '--repo', repo, '--dir', dir, '--detach', '--no-open', '--port', '0'])).stdout.toString().trim();
   const snap: Snapshot = {};
   const runs = FORMS.flatMap(([form, query, vp]) => ['light', 'dark'].flatMap((theme) => STATES.map(([state, js]) => ({ name: `${form}/${theme}/${state}`, url: url + query, vp, theme, js }))));
   try {

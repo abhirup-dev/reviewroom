@@ -1,4 +1,5 @@
 // Contracts shared by provider implementations and their callers. No runtime dependencies.
+import type { Progress } from '../state/progress.shared';
 import type { ChangedFile, Commit, ReviewMeta, ReviewState, Rev, SearchHit, DiffRange, GitHubSnapshot } from '../state/model.shared';
 import type { GitHubAction } from '../state/schema.shared';
 import type { LayoutStore } from '../layouts/layout.shared';
@@ -28,7 +29,7 @@ export interface StateBackend {
   apply(op: Op, next: ReviewState): void;
   /** Resolves once every applied op is stored; false if some are still unsaved. */
   flush?(): Promise<boolean>;
-  /** Live updates (agent replied, review.html changed, GitHub threads refetched) and save problems. */
+  /** Live updates (agent replied, report.html changed, GitHub threads refetched) and save problems. */
   subscribe?(on: BackendEvents): void;
   /** End round `round`: send feedback to the agent, or approve. */
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;
@@ -43,10 +44,13 @@ export interface StateBackend {
   /** Raw walkthrough transport: server JSON (including 422 `{ issues }`), embedded text, or null if absent.
    * Schema parsing belongs to the walkthrough feature. Other HTTP failures reject. */
   walkthrough?(): Promise<unknown>;
+  /** Generation progress (progress.jsonl, reduced by the server). */
+  progress?(): Promise<Progress>;
   /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
   pending?(): { unsent: boolean; started: string | null };
 }
 export interface BackendEvents {
+  progress?(p: Progress): void;
   state(s: ReviewState): void;
   review(): void;
   error(text: string): void;

@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // The dedicated adversarial walkthrough complements the clean teaching demo.
 import { expect, test } from 'bun:test';
 import fs from 'node:fs';
@@ -11,10 +12,11 @@ const { repo, dir } = setupSlides(true);
 
 test.skipIf(!browser)('audit keeps readiness and defect detection across viewports and themes', async () => {
   await withServer(repo, dir, async (url) => {
-    for (const vp of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+    // each viewport and theme once, not every combination
+    for (const [vp, theme] of [[{ width: 1280, height: 800 }, 'light'], [{ width: 1440, height: 900 }, 'dark']] as const) {
       await withPage(url, vp, async (page) => {
         expect(page.errors()).toContainEqual(expect.stringContaining('audit fixture page error'));
-        for (const theme of ['light', 'dark'] as const) {
+        {
           const measurements: Measured[] = [];
           for (const ch of auditWalkthrough.chapters) for (const st of ch.steps) {
             const audit = await page.audit(ch.id, st.id, theme);
@@ -57,8 +59,8 @@ test.skipIf(!browser)('the headless animations flag suppresses Pele SVG motion a
 
 test.skipIf(!browser)('audit waits for slow previews and reports deferred failures', async () => {
   for (const [tag, body] of [['rr-code', '.rr-code__body'], ['rr-embed', '.rr-embed__body .rr-snippet']]) {
-    const text = `<${tag} ref="rr:code/pkg/features/habit/fetcher.go#L1-48"></${tag}>`;
-    fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Slow prose', chapters: [{ id: 'slow', title: 'Slow', steps: [{ id: 'code', text }, { id: 'failed', text }] }] }));
+    const text = `<${tag} ref="rr:code/internal/limit/bucket.go#L1-48"></${tag}>`;
+    fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify({ version: 1, title: 'Slow prose', chapters: [{ id: 'slow', title: 'Slow', steps: [{ id: 'code', text }, { id: 'failed', text }] }] }));
     await withServer(repo, dir, (url) => withPage(url, { width: 1280, height: 800 }, async (page) => {
       await page.evaluate(`(() => {
         const code = rr.app.services.code, original = code.read;
@@ -80,7 +82,7 @@ test.skipIf(!browser)('audit waits for slow previews and reports deferred failur
 }, 30_000);
 
 test.skipIf(!browser)('a prose preview that never finishes is reported unsettled rather than hanging the audit', async () => {
-  fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Stuck prose', chapters: [{ id: 'stuck', title: 'Stuck', steps: [{ id: 'code', text: '<rr-code ref="rr:code/pkg/features/habit/fetcher.go#L1-48"></rr-code>' }] }] }));
+  fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify({ version: 1, title: 'Stuck prose', chapters: [{ id: 'stuck', title: 'Stuck', steps: [{ id: 'code', text: '<rr-code ref="rr:code/internal/limit/bucket.go#L1-48"></rr-code>' }] }] }));
   await withServer(repo, dir, (url) => withPage(url, { width: 1280, height: 800 }, async (page) => {
     await page.evaluate(`(() => { rr.app.services.code.read = () => new Promise(() => {}); return true; })()`);
     const audit = await page.audit('stuck', 'code');

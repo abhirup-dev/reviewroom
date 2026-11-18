@@ -2,21 +2,35 @@
 
 Pass `--dir <dir>` to every command below. Use command-specific `--help` for other flags.
 
-## Before handover
+## Write and validate in order
+
+If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
+Use it as is and go straight to filling the report; do not regenerate it.
+
+Otherwise write the walkthrough (the order is in SKILL.md, Step 4), then:
 
 ```bash
-reviewroom check --fix --dir <dir>
 reviewroom slide-lint --dir <dir>
 ```
 
-`check --fix` validates links and schema, updating links moved within five lines. Inspect remaining
-changed or broken links and update the explanation. Use `check --accept` only after verifying changed targets.
-`reviewroom check --help` prints the walkthrough schema path for editor validation.
+Fix issues and repeat the **full** run until it passes, before filling the report. It includes
+schema and link validation, checks every slide at 1280×800 and 1440×900, and reports coverage,
+pacing, focus, overflow, hidden code, stripped prose and page errors. A passing full run clears the
+reviewer's loading screen. Scoped runs do not count.
 
-**For guided walkthroughs, full `slide-lint` is the main final check.** It includes schema and link
-validation, checks every slide at 1280×800 and 1440×900, and reports coverage, pacing, focus,
-overflow, hidden code, stripped prose and page errors. Run it once for the whole walkthrough,
-rather than invoking it separately for every slide. Skip it when there is no `walkthrough.json`.
+Then fill the report and run:
+
+```bash
+reviewroom check --fix --dir <dir>
+```
+
+`check --fix` validates links and schema, updating links moved within five lines. Inspect remaining
+changed or broken links and update the explanation; repeat until it passes. Use `check --accept`
+only after verifying changed targets. The report panel stays in its writing state until
+`check` passes. `reviewroom check --help` prints the walkthrough schema path for editor validation.
+
+On later rounds, recheck edited content. If you edit the walkthrough, pass full `slide-lint` again;
+the loading screen returns until it passes. Finish edits to the report with `check`.
 
 ## While iterating
 
@@ -39,8 +53,8 @@ validated. Startup still costs time. Finish with an unscoped run.
 
 | Command | Use |
 | --- | --- |
-| `reviewroom shot [section]` | Walkthrough screenshots. |
-| `reviewroom shot services/s1` | One guided slide. |
+| `reviewroom shot [section]` | Report screenshots. |
+| `reviewroom shot services/s1` | One walkthrough slide. |
 | `reviewroom shot services/s1 --prose-only` | Exact left-pane crop; skips right-hand code. |
 
 Screenshots default to a 480-pixel height cap; add `--native` when text is blurry or detail matters.
@@ -56,4 +70,5 @@ when inspecting those presentations (`--viewport` is for slides).
 - Start with about 25 highlighted lines, or 10 per stacked ref; at most two refs. Rendered findings decide fit.
 - Coverage counts files linked in slide prose too; changes under 10 lines, tests, generated files, dependencies, locks and docs get informational notes.
 - Headless audits disable motion automatically; no manual animation waits are needed.
-- Slide lint and screenshots do not modify the review. `check` records fingerprints; `--fix` may rewrite links.
+- Slide lint does not rewrite the authored files; a full passing run records validation. Screenshots
+  do not modify the review. `check` records fingerprints and validation; `--fix` may rewrite links.

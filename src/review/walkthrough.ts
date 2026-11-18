@@ -6,6 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
+import { pendingArtifact } from '../kernel/state/progress.shared';
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
 import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
@@ -91,7 +92,15 @@ class WalkthroughPanel implements PanelInstance {
     this.banner = h('div', { class: 'rr-banner', hidden: true });
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail);
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
-    this.element = h('div', { class: 'rr-narrative' }, this.scroller);
+    const writing = h('div', { class: 'rr-empty' }, 'The report is being written');
+    this.element = h('div', { class: 'rr-narrative' }, writing, this.scroller);
+    const progress = () => {
+      const waiting = !isDesc && pendingArtifact(app.progress.report);
+      writing.hidden = !waiting;
+      this.scroller.hidden = waiting;
+    };
+    progress();
+    this.offs.push(app.bus.on('progress', progress));
     // what the presentation adds (the phone's Contents button, walkthrough.phone.ts); not on the description
     if (!isDesc) extension?.(app, this.element);
 
@@ -101,6 +110,7 @@ class WalkthroughPanel implements PanelInstance {
       resolve: (el) => resolveWalkthroughBlock(this.doc, this.rootId, el),
       label: (reference) => app.label(reference),
       comment: (block) => app.compose(block.anchor, block.excerpt),
+      ask: app.commands.get('assistant.ask') ? (block) => app.bus.emit('ask-assistant', { anchor: block.anchor, quote: block.excerpt }) : undefined,
       copy: (block) => {
         void copyText(block.reference);
         app.toast(`Link to ${app.label(block.reference)} copied - paste it into any comment`);

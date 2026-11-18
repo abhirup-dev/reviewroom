@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,7 +34,7 @@ test('declaration lookup batches languages, qualifies before limits and preserve
   expect(result.coverage.unverifiedFiles).toContain('unsupported.custom');
   expect(result.results[6].declarations[0].range.start.character).toBe(files['unicode.ts'].indexOf('function'));
   const refs = ['Worker.Process', 'symbols.py:process', 'Target.run', 'Second', 'supported.rs:Fallback', 'unsupported.custom:Legacy'];
-  fs.writeFileSync(path.join(dir, 'review.html'), `<rr-app><rr-review>${refs.map((r) => `<a href="rr:sym/${r}">${r}</a>`).join('')}</rr-review></rr-app>`);
+  fs.writeFileSync(path.join(dir, REPORT_FILE), `<rr-app><rr-review>${refs.map((r) => `<a href="rr:sym/${r}">${r}</a>`).join('')}</rr-review></rr-app>`);
   const checked = await cli(['check', '--json', ...d]);
   expect([checked.code, JSON.parse(checked.stdout).links]).toEqual([0, []]);
   expect(checked.stderr).not.toContain('fell back');
@@ -44,7 +45,7 @@ test('declaration lookup batches languages, qualifies before limits and preserve
   const cfg = JSON.parse(fs.readFileSync(config, 'utf8'));
   fs.writeFileSync(config, JSON.stringify({ ...cfg, head: 'worktree' }));
   fs.writeFileSync(path.join(repo, 'untracked.py'), 'class NewlyAdded: pass\n');
-  fs.appendFileSync(path.join(dir, 'review.html'), '<a href="rr:sym/NewlyAdded">new</a><a href="rr:sym/ActuallyMissing">missing</a>');
+  fs.appendFileSync(path.join(dir, REPORT_FILE), '<a href="rr:sym/NewlyAdded">new</a><a href="rr:sym/ActuallyMissing">missing</a>');
   const changed = await cli(['check', '--json', ...d]);
   const links = JSON.parse(changed.stdout).links;
   expect(changed.code).toBe(1);

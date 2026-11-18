@@ -1,4 +1,7 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // HTTP server: review page, client bundle, JSON API, SSE live updates.
+import { readProgress, recordArtifact } from './progress.ts';
+import { pendingArtifact } from '../../src/kernel/state/progress.shared.ts';
 import { execFile } from 'node:child_process';
 import open from 'open';
 import fs from 'node:fs';
@@ -25,6 +28,7 @@ import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../.
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 import { buildId, serveClient, withHead } from './pwa.ts';
+import { assistantEnabled, assistantRoutes, VIA_HUB } from './assistant.ts';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
@@ -41,18 +45,18 @@ export interface Finished {
   round: number;
 }
 
-/** Watch the review dir for review.html, walkthrough.json and assets (debounced); `edited` = review.html or walkthrough.json changed.
+/** Watch the review dir for report.html, walkthrough.json assets and progress.jsonl (debounced).
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
-function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
-  let t: NodeJS.Timeout | undefined, edited = false;
+function watchNarrative(dir: string, onChange: (files: Set<string>) => void) {
+  let t: NodeJS.Timeout | undefined, changed = new Set<string>();
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
-    if (f === 'review.html' || f === 'walkthrough.json' || (f && /\.(css|js|svg|png)$/.test(f))) {
-      edited ||= f === 'review.html' || f === 'walkthrough.json';
+    if (f === 'progress.jsonl' || f === REPORT_FILE || f === WALKTHROUGH_FILE || (f && /\.(css|js|svg|png)$/.test(f))) {
+      changed.add(f);
       clearTimeout(t);
       t = setTimeout(() => {
-        onChange(edited);
-        edited = false;
+        onChange(changed);
+        changed = new Set<string>();
       }, 150);
     }
   });
@@ -61,9 +65,9 @@ function watchNarrative(dir: string, onChange: (edited: boolean) => void) {
   return watcher;
 }
 
-/** Stale-link check of review.html and walkthrough.json: fingerprint new links, tell the agent (stderr) when the report changes. */
+/** Stale-link check of report.html and walkthrough.json: fingerprint new links, tell the agent (stderr) when the report changes. */
 function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
-  const reviewFile = path.join(dir, 'review.html');
+  const reviewFile = path.join(dir, REPORT_FILE);
   let lastReport = '';
   return () => {
     try {
@@ -78,7 +82,7 @@ function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (o
       const links = w && !w.ok ? { ...known, ...checked.links } : checked.links;
       if (JSON.stringify(links) !== JSON.stringify(known)) commit([{ op: 'setLinks', links }]);
       const bad = problems(results);
-      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in review.html or walkthrough.json; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
+      const text = bad.length ? `reviewroom: ${bad.length} stale link${bad.length > 1 ? 's' : ''} in ${REPORT_FILE} or ${WALKTHROUGH_FILE}; \`reviewroom check --fix\` heals the moved ones:\n${report(bad)}` : '';
       if (text && text !== lastReport) console.error(text);
       lastReport = text;
     } catch (e) {
@@ -127,13 +131,15 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
-  const reviewFile = path.join(dir, 'review.html');
+  const reviewFile = path.join(dir, REPORT_FILE);
   // what a reconnecting client compares: a change to either file while it was away reloads the page
-  const hash = () => {
-    const h = crypto.createHash('sha1');
-    for (const f of [reviewFile, walkthroughPath(dir)]) h.update(fs.existsSync(f) ? fs.readFileSync(f) : '\0');
-    return h.digest('hex').slice(0, 12);
+  // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
+  const parts = () => {
+    const progress = readProgress(dir);
+    return ([['report', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
+      pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex') : '');
   };
+  const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
   const send = (event: string, data: unknown) => {
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
@@ -161,13 +167,22 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
   // read-only: no live reload, and no link check that would write state.json
+  let last = parts();
   const watcher = readOnly
     ? null
-    : watchNarrative(dir, (edited) => {
-        send('review', { hash: hash() });
-        if (edited) checkNarrative();
+    : watchNarrative(dir, (files) => {
+        const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
+        if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
+        if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
+        send('progress', readProgress(dir));
+        // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
+        const next = parts();
+        if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
+        last = next;
+        if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
       });
 
+  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
   const app = new Hono();
   app.use(localOnly);
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies
@@ -181,14 +196,16 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   });
 
   const page = (c: Context) => {
-    const html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', 'review.html'), 'utf8');
+    const html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', REPORT_FILE), 'utf8');
     return c.html(withHead(html), 200, { 'cache-control': 'no-cache' });
   };
   app.get('/', page);
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir) })); // id: the same for direct and proxied access
+  // id: the same for direct and proxied access; the assistant only for direct access
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
+  if (assistant) app.route('/api/assistant', assistant.app);
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
@@ -203,6 +220,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     return json(c, prov.search(q.q, q.rev || prov.head, !!q.symbol, +q.limit || 60));
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
+  // A headless audit reads incomplete artifacts on purpose; generation must not cover its player.
+  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, report: { state: 'none' } } : readProgress(dir)));
   app.get('/api/state', (c) => json(c, read()));
   // The diff's size for the hub's rows. shortcut: recomputed at most every 30 s (the hub asks every 2 s and git runs
   // synchronously), so a working-tree review's numbers lag edits by up to 30 s; key it on a file watcher if that matters.
@@ -238,7 +257,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   });
   app.get('/api/walkthrough', (c) => {
     const r = readWalkthrough(dir);
-    return !r ? json(c, { error: 'no walkthrough.json' }, 404) : r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
+    return !r ? json(c, { error: `no ${WALKTHROUGH_FILE}` }, 404) : r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);
   });
   // the hub: every review running on this machine; started on first use
   app.get('/api/hub', async (c) => {
@@ -306,6 +325,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
       await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
+      if (!readOnly) await stream.writeSSE({ event: 'progress', data: JSON.stringify(readProgress(dir)) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
       onClient?.();
@@ -322,7 +342,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
-    if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, 'review.html'));
+    if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));
     fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
     writeState(dir, s);
     send('state', s);
@@ -330,8 +350,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     onFinish?.({ kind, md, round: n }); // serve.ts exits 150 ms later, after this response is out
     return res;
   });
-  app.get('/api/rounds/:n{[0-9]+}/review.html', serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
-  // anything else: static files next to review.html (images, extra css/js the agent wrote). serveStatic refuses
+  app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
+  // anything else: static files next to report.html (images, extra css/js the agent wrote). serveStatic refuses
   // `..`, `//` and `\`; it decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F),
   // so `a%231.png` finds `a#1.png`. The review's own state files are never served: checked on the fully decoded path.
   const stateFile = (p: string) => {
@@ -352,7 +372,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   );
 
   // for a server that ends before its process does (`slide-lint`): the watch would keep the process alive
-  const close = () => watcher?.close();
+  const close = () => { watcher?.close(); return assistant?.close(); };
   return { app, prov, commit, github, checkNarrative, close };
 }
 

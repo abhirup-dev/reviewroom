@@ -1,0 +1,7 @@
+flowchart LR
+  a["free plan (rate 2, per account)"] --> m[LoadPlans]
+  b["team plan (rate 0, per account+user)"] --> m
+  m --> g["one Take(account, now)"]
+  g --> r[decision]
+  r -->|allow · free| ok[202 accepted]
+  r -->|deny · free| no[429 retry later]

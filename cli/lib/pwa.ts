@@ -7,8 +7,8 @@ import { DIST } from './paths.ts';
 
 // dist/build-info.json's id, read again when the file changes: a running server serves dist/ while `bun run dev` rebuilds it
 let build: { mtime: number; id?: string } = { mtime: -1 };
-export const buildId = () => {
-  const f = path.join(DIST, 'build-info.json');
+export const buildId = (dist = DIST) => {
+  const f = path.join(dist, 'build-info.json');
   try {
     const mtime = fs.statSync(f).mtimeMs;
     if (mtime !== build.mtime) build = { mtime, id: JSON.parse(fs.readFileSync(f, 'utf8')).id };
@@ -29,7 +29,7 @@ export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#07080a" media="(prefers-color-scheme: dark)">
 `;
 
-/** Adds what a page's <head> lacks (older review.html files): viewport-fit=cover, the PWA tags, the client entry. */
+/** Adds what a page's <head> lacks (older report.html files): viewport-fit=cover, the PWA tags, the client entry. */
 export function withHead(html: string) {
   const end = html.indexOf('</head>');
   if (end < 0) return html;

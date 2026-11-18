@@ -1,3 +1,4 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // Which review: its dir (resolveDir, dirForEdit) and config.json (what it compares, and in which checkout).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,14 +19,14 @@ export function resolveDir(repo: string, dirFlag: string | undefined, { existing
   const root = reviewsOf(repo);
   const own = branchDir(repo, (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim());
   if (!existing || fs.existsSync(own)) return own;
-  const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
+  const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, REPORT_FILE))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
   throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
 /** The dir of an existing review for commands that only edit it: --dir works without a repo. With `needs`, a dir
  *  without that file is an error. */
-export function dirForEdit(repo: string | null, dirFlag: string | undefined, needs?: 'review.html' | 'walkthrough.json') {
+export function dirForEdit(repo: string | null, dirFlag: string | undefined, needs?: typeof REPORT_FILE | typeof WALKTHROUGH_FILE) {
   if (!dirFlag && !repo) throw new ReviewroomError('not inside a git repository (use --dir)');
   const dir = dirFlag ? path.resolve(dirFlag) : resolveDir(repo!, undefined, { existing: true });
   if (needs && !fs.existsSync(path.join(dir, needs))) throw new ReviewroomError(`no ${needs} in ${dir}`);
@@ -33,9 +34,10 @@ export function dirForEdit(repo: string | null, dirFlag: string | undefined, nee
 }
 
 // config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept.
-// repoPath: the checkout the review was made from, so `--dir` alone finds its repo; repo: GitHub's owner/name.
+// repoPath: the checkout the review was made from, so `--dir` alone finds its repo; repo: GitHub's owner/name;
+// profile: the report profile its report.html was made from (skills/reviewroom/references/profiles/<profile>/).
 const text = z.string().optional().catch(undefined);
-const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text });
+const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, repo: text, number: z.union([z.number(), z.string()]).optional().catch(undefined), author: text, url: text, baseLabel: text, headLabel: text, profile: text });
 /** config.json, with --base/--head/--title applied (loadConfig). */
 export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
 export const configPath = (dir: string) => path.join(dir, 'config.json');

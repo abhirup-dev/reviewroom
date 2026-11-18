@@ -1,295 +1,239 @@
 #!/usr/bin/env bash
-# Creates a small Go/proto/SQL repo with a 2-commit feature branch to try reviewroom on.
-#   bash examples/make-demo-repo.sh /tmp/demoapp-demo
+# Creates a tiny Go upload service with a 2-commit feature branch.
+#   bash examples/make-demo-repo.sh /tmp/uploads-demo
 set -euo pipefail
-DIR="${1:-/tmp/demoapp-demo}"
+DIR="${1:-/tmp/uploads-demo}"
 rm -rf "$DIR" && mkdir -p "$DIR" && cd "$DIR"
-git init -q -b main && git config user.email dev@example.com && git config user.name sam
-mkdir -p migrations
-cat > migrations/003_ledger_keys.sql <<'RR_EOF'
-CREATE TABLE ledger_keys (
-  key        TEXT PRIMARY KEY,
-  owner      TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-RR_EOF
-mkdir -p pkg/ranker
-cat > pkg/ranker/errors.go <<'RR_EOF'
-package ranker
+git init -q -b main
+git config user.email dev@example.com
+git config user.name 'Sam Rivera'
+mkdir -p internal/{upload,limit} config client
+cat > go.mod <<'EOF'
+module example.com/uploads
 
-import "errors"
+go 1.22
+EOF
+cat > internal/upload/account.go <<'EOF'
+package upload
 
-var ErrMissingUser = errors.New("ranker: feed request has no user id")
-RR_EOF
-mkdir -p pkg/ranker
-cat > pkg/ranker/request_builder.go <<'RR_EOF'
-package ranker
+import "net/http"
 
-import (
-	"context"
-
-	"github.com/example/demoapp/pkg/ledger"
-	pb "github.com/example/demoapp/proto/feed/v2"
-)
-
-// Builder assembles the request the ranker scores candidates with.
-type Builder struct {
-	ledger *ledger.Client
+// Account is supplied by authentication middleware.
+type Account struct {
+	ID   string
+	Plan string
 }
 
-// Deps are injected by the service wiring in cmd/demoapp.
-type Deps struct {
-	Ledger *ledger.Client
+// AccountFrom reads the identity installed by authentication middleware.
+func AccountFrom(r *http.Request) Account {
+	account, _ := r.Context().Value(accountKey{}).(Account)
+	return account
 }
 
-func NewBuilder(deps Deps) *Builder {
-	return &Builder{
-		ledger: deps.Ledger,
-	}
+type accountKey struct{}
+
+// Store saves one upload and returns its public identifier.
+type Store interface {
+	Save(*http.Request) (string, error)
+}
+EOF
+cat > internal/upload/handler.go <<'EOF'
+package upload
+
+import "net/http"
+
+// Handler accepts authenticated file uploads.
+type Handler struct {
+	Store Store
 }
 
-var baseKeys = []string{"user_lang", "user_city", "affinity_v3", "watch_time_7d"}
-
-// Build fetches the user's base features and wraps them for the ranker.
-func (b *Builder) Build(ctx context.Context, req *pb.FeedRequest) (*pb.RankerRequest, error) {
-	if req.GetUserId() == "" {
-		return nil, ErrMissingUser
-	}
-	feats, err := b.ledger.Fetch(ctx, req.GetUserId(), baseKeys)
+// ServeHTTP stores the body and returns the upload id.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	id, err := h.Store.Save(r)
 	if err != nil {
-		return nil, err
+		http.Error(w, "upload failed", http.StatusInternalServerError)
+		return
 	}
-	rr := &pb.RankerRequest{UserId: req.GetUserId(), Features: feats}
-	return rr, nil
+	w.WriteHeader(http.StatusCreated)
+	_, _ = w.Write([]byte(id))
 }
-RR_EOF
-mkdir -p pkg/ledger
-cat > pkg/ledger/client.go <<'RR_EOF'
-package ledger
+EOF
+cat > config/limits.json <<'EOF'
+{
+  "free": {"max_bytes": 1048576},
+  "pro": {"max_bytes": 104857600},
+  "team": {"max_bytes": 1073741824}
+}
+EOF
+cat > client/send.go <<'EOF'
+package client
 
 import (
-	"context"
-
-	pb "github.com/example/demoapp/proto/feed/v2"
-)
-
-// Client reads online features from Ledger.
-type Client struct{ addr string }
-
-func New(addr string) *Client { return &Client{addr: addr} }
-
-// Fetch returns the requested feature keys for one user.
-func (c *Client) Fetch(ctx context.Context, userID string, keys []string) (map[string]*pb.Feature, error) {
-	out := make(map[string]*pb.Feature, len(keys))
-	for _, k := range keys {
-		out[k] = &pb.Feature{Name: k}
-	}
-	return out, nil
-}
-RR_EOF
-mkdir -p proto/feed/v2
-cat > proto/feed/v2/ranker_request.proto <<'RR_EOF'
-syntax = "proto3";
-
-package feed.v2;
-
-message Feature {
-  string name = 1;
-  bytes value = 2;
-}
-
-message FeedRequest {
-  string user_id = 1;
-  int32 limit = 2;
-}
-
-message RankerRequest {
-  string user_id = 1;
-  map<string, Feature> features = 2;
-}
-RR_EOF
-git add -A && git commit -qm 'demoapp: base ranker request builder'
-git checkout -qb feat/activity-events
-mkdir -p migrations
-cat > migrations/004_activity_events.sql <<'RR_EOF'
-CREATE TABLE activity_events (
-  user_id TEXT        NOT NULL,
-  ts      TIMESTAMPTZ NOT NULL,
-  event   TEXT        NOT NULL,
-  post_id TEXT
-);
-
-CREATE INDEX activity_events_user_ts ON activity_events (user_id, ts DESC);
-RR_EOF
-mkdir -p pkg/features/habit
-cat > pkg/features/habit/fetcher.go <<'RR_EOF'
-package habit
-
-import (
-	"context"
+	"bytes"
 	"fmt"
-	"time"
-
-	tfsv2 "github.com/example/ledger-feature-service-sdk/v2"
-	pb "github.com/example/demoapp/proto/feed/v2"
+	"net/http"
 )
 
-// Fetcher reads a user's recent ACTIVITY events from TFS v2.
-type Fetcher struct {
-	tfs *tfsv2.Client
-}
-
-func NewFetcher(c *tfsv2.Client) *Fetcher { return &Fetcher{tfs: c} }
-
-// RecentEvents returns the user's ACTIVITY events inside window w, newest first.
-func (f *Fetcher) RecentEvents(ctx context.Context, uid string, w time.Duration) ([]*pb.ActivityEvent, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Millisecond)
-	defer cancel()
-	res, err := f.tfs.BatchGet(ctx, habitKeys(uid, w))
-	if err != nil {
-		return nil, fmt.Errorf("habit: batch get: %w", err)
-	}
-	return decode(res), nil
-}
-
-func habitKeys(uid string, w time.Duration) []tfsv2.Key {
-	buckets := int(w / time.Hour)
-	keys := make([]tfsv2.Key, 0, buckets)
-	for i := 0; i < buckets; i++ {
-		keys = append(keys, tfsv2.Key{Entity: uid, Feature: "activity_events", Bucket: i})
-	}
-	return keys
-}
-
-func decode(res *tfsv2.BatchResult) []*pb.ActivityEvent {
-	out := make([]*pb.ActivityEvent, 0, len(res.Rows))
-	for _, r := range res.Rows {
-		out = append(out, &pb.ActivityEvent{Event: r.String("event"), PostId: r.String("post_id"), TsMs: r.Int64("ts")})
-		if len(out) == 50 {
-			break
+// Send retries transient failures with the same payload.
+func Send(c *http.Client, url string, payload []byte) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		res, err := c.Post(url, "application/octet-stream", bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		res.Body.Close()
+		if res.StatusCode == http.StatusCreated {
+			return nil
+		}
+		if res.StatusCode < 500 {
+			return fmt.Errorf("upload: status %d", res.StatusCode)
 		}
 	}
-	return out
+	return fmt.Errorf("upload: attempts exhausted")
 }
-RR_EOF
-mkdir -p pkg/features/habit
-cat > pkg/features/habit/fetcher_test.go <<'RR_EOF'
-package habit
+EOF
+git add -A && git commit -qm 'feat: add authenticated upload handler and retry client'
+git checkout -qb feat/upload-rate-limit
+cat > config/limits.json <<'EOF'
+{
+  "free": {"max_bytes": 1048576, "uploads_per_sec": 1, "upload_burst": 2},
+  "pro": {"max_bytes": 104857600, "uploads_per_sec": 5, "upload_burst": 10},
+  "team": {"max_bytes": 1073741824}
+}
+EOF
+cat > internal/limit/limiter.go <<'EOF'
+// Package limit enforces upload quotas per account.
+package limit
 
 import (
-	"context"
-	"testing"
-	"time"
-
-	"github.com/stretchr/testify/require"
+	"encoding/json"
+	"os"
 )
 
-func TestRecentEvents_Timeout(t *testing.T) {
-	f := newFetcher(stubTFS{delay: 50 * time.Millisecond})
-	_, err := f.RecentEvents(context.Background(), "u1", 7*24*time.Hour)
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+// Plan holds upload settings. A missing rate disables limiting.
+type Plan struct {
+	MaxBytes      int64   `json:"max_bytes"`
+	UploadsPerSec float64 `json:"uploads_per_sec"`
+	UploadBurst   int     `json:"upload_burst"`
 }
 
-func TestRecentEvents_CapsAt50(t *testing.T) {
-	f := newFetcher(stubTFS{rows: 80})
-	got, err := f.RecentEvents(context.Background(), "u1", 24*time.Hour)
-	require.NoError(t, err)
-	require.Len(t, got, 50)
-}
-RR_EOF
-mkdir -p proto/feed/v2
-cat > proto/feed/v2/ranker_request.proto <<'RR_EOF'
-syntax = "proto3";
-
-package feed.v2;
-
-message Feature {
-  string name = 1;
-  bytes value = 2;
-}
-
-message FeedRequest {
-  string user_id = 1;
-  int32 limit = 2;
-}
-
-message ActivityEvent {
-  string event = 1;
-  string post_id = 2;
-  int64 ts_ms = 3;
-}
-
-message RankerRequest {
-  string user_id = 1;
-  map<string, Feature> features = 2;
-  // Recent ACTIVITY events, newest first, at most 50. Empty when the fetch degrades.
-  repeated ActivityEvent activity_events = 12;
-}
-RR_EOF
-git add -A && git commit -qm 'habit: TFS v2 fetcher, ActivityEvent proto, activity_events table'
-mkdir -p pkg/ranker
-cat > pkg/ranker/request_builder.go <<'RR_EOF'
-package ranker
-
-import (
-	"context"
-	"time"
-
-	"github.com/example/demoapp/pkg/features/habit"
-	"github.com/example/demoapp/pkg/log"
-	"github.com/example/demoapp/pkg/metrics"
-	"github.com/example/demoapp/pkg/ledger"
-	pb "github.com/example/demoapp/proto/feed/v2"
-)
-
-// Builder assembles the request the ranker scores candidates with.
-type Builder struct {
-	ledger  *ledger.Client
-	habit   *habit.Fetcher
-	metrics *metrics.Registry
-}
-
-// Deps are injected by the service wiring in cmd/demoapp.
-type Deps struct {
-	Ledger  *ledger.Client
-	Habit   *habit.Fetcher
-	Metrics *metrics.Registry
-}
-
-func NewBuilder(deps Deps) *Builder {
-	return &Builder{
-		ledger:  deps.Ledger,
-		habit:   deps.Habit,
-		metrics: deps.Metrics,
-	}
-}
-
-var baseKeys = []string{"user_lang", "user_city", "affinity_v3", "watch_time_7d"}
-
-// habitWindow is how far back recent ACTIVITY events are read.
-const habitWindow = 7 * 24 * time.Hour
-
-// Build fetches the user's base features and wraps them for the ranker.
-func (b *Builder) Build(ctx context.Context, req *pb.FeedRequest) (*pb.RankerRequest, error) {
-	if req.GetUserId() == "" {
-		return nil, ErrMissingUser
-	}
-	feats, err := b.ledger.Fetch(ctx, req.GetUserId(), baseKeys)
+// Load reads the plan configuration.
+func Load(path string) (map[string]Plan, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	activityEvents, err := b.habit.RecentEvents(ctx, req.GetUserId(), habitWindow)
-	if err != nil {
-		log.Warn(ctx, "habit fetch failed, degrading", log.Err(err))
-		activityEvents = nil
-	}
-	rr := &pb.RankerRequest{
-		UserId:      req.GetUserId(),
-		Features:    feats,
-		ActivityEvents: activityEvents,
-	}
-	return rr, nil
+	var plans map[string]Plan
+	err = json.Unmarshal(data, &plans)
+	return plans, err
 }
-RR_EOF
-git add -A && git commit -qm 'ranker: attach recent ACTIVITY events to RankerRequest'
-echo "demo repo ready: $DIR (branch feat/activity-events)"
+EOF
+cat > internal/limit/bucket.go <<'EOF'
+package limit
+
+import (
+	"math"
+	"sync"
+	"time"
+)
+
+// bucket tracks fractional tokens for one account.
+type bucket struct {
+	tokens float64
+	at     time.Time
+}
+
+// Uploads keeps buckets in memory for the lifetime of this process.
+type Uploads struct {
+	mu      sync.Mutex
+	plans   map[string]Plan
+	buckets map[string]*bucket
+	now     func() time.Time
+}
+
+// NewUploads makes an account-scoped limiter from loaded plans.
+func NewUploads(plans map[string]Plan) *Uploads {
+	return &Uploads{plans: plans, buckets: make(map[string]*bucket), now: time.Now}
+}
+
+// Take spends one token or returns the wait until one is available.
+// All users in an account share that account's allowance.
+func (u *Uploads) Take(account, plan string) (bool, time.Duration) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	p := u.plans[plan]
+	if p.UploadsPerSec <= 0 {
+		return true, 0
+	}
+	now := u.now()
+	b := u.buckets[account]
+	if b == nil {
+		b = &bucket{tokens: float64(p.UploadBurst), at: now}
+		u.buckets[account] = b
+	}
+	elapsed := now.Sub(b.at).Seconds()
+	b.tokens = math.Min(float64(p.UploadBurst), b.tokens+elapsed*p.UploadsPerSec)
+	b.at = now
+	if b.tokens >= 1 {
+		b.tokens--
+		return true, 0
+	}
+	wait := time.Duration(math.Ceil((1-b.tokens)/p.UploadsPerSec*float64(time.Second)))
+	return false, wait
+}
+EOF
+cat > internal/limit/bucket_test.go <<'EOF'
+package limit
+
+import (
+	"testing"
+	"time"
+)
+
+func TestTakeBurst(t *testing.T) {
+	u := NewUploads(map[string]Plan{"free": {UploadsPerSec: 1, UploadBurst: 2}})
+	u.now = func() time.Time { return time.Unix(100, 0) }
+	for i := 0; i < 2; i++ {
+		if ok, _ := u.Take("account-1", "free"); !ok {
+			t.Fatal("initial burst rejected")
+		}
+	}
+	if ok, wait := u.Take("account-1", "free"); ok || wait != time.Second {
+		t.Fatalf("got allowed=%v wait=%s", ok, wait)
+	}
+}
+
+func TestTakeRefill(t *testing.T) {
+	now := time.Unix(100, 0)
+	u := NewUploads(map[string]Plan{"free": {UploadsPerSec: 1, UploadBurst: 1}})
+	u.now = func() time.Time { return now }
+	u.Take("account-1", "free")
+	now = now.Add(time.Second)
+	if ok, _ := u.Take("account-1", "free"); !ok {
+		t.Fatal("refilled token rejected")
+	}
+}
+EOF
+git add -A && git commit -qm 'feat: add per-account upload token buckets and plan limits'
+git mv client/send.go client/upload.go
+python3 - <<'PY'
+from pathlib import Path
+p=Path('internal/upload/handler.go')
+s=p.read_text().replace('import "net/http"', 'import (\n "net/http"\n "math"\n "strconv"\n\n "example.com/uploads/internal/limit"\n)')
+s=s.replace('Store Store','Store Store\n Limits *limit.Uploads')
+s=s.replace('id, err := h.Store.Save(r)', '''account := AccountFrom(r)
+	allowed, wait := h.Limits.Take(account.ID, account.Plan)
+	if !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+		http.Error(w, "upload limit reached", http.StatusTooManyRequests)
+		return
+	}
+	id, err := h.Store.Save(r)''')
+p.write_text(s)
+p=Path('client/upload.go')
+p.write_text(p.read_text().replace('res.StatusCode < 500', 'res.StatusCode < 500 && res.StatusCode != http.StatusTooManyRequests'))
+PY
+# Keep the sample idiomatic when Go is available; the checked-in text is valid without it.
+if command -v gofmt >/dev/null; then gofmt -w internal client; fi
+git add -A && git commit -qm 'feat: enforce upload limits and retry throttled requests'
+echo "demo repo ready: $DIR (branch feat/upload-rate-limit)"

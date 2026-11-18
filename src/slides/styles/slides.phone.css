@@ -803,3 +803,10 @@
     transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves */
   }
 }
+
+.rr-tour__writing {
+  padding: var(--rr-space-24);
+}
+.rr-tour__writing button {
+  min-height: var(--rr-touch);
+}

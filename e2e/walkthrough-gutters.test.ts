@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,8 +15,8 @@ describe('walkthrough gutters in the built client', () => {
     <button id="author-action">Authored action</button>
     <figure id="pipeline"><svg width="160" height="60"><rect width="160" height="60" /></svg></figure>
   </section>`;
-  const template = read(import.meta.dir, '..', 'templates', 'review.html');
-  fs.writeFileSync(path.join(dir, 'review.html'), template.replace(/\n  <rr-review>[\s\S]*?<\/rr-review>/, `\n  <rr-review>${authored}</rr-review>`));
+  const template = read(import.meta.dir, '..', 'templates', REPORT_FILE);
+  fs.writeFileSync(path.join(dir, REPORT_FILE), template.replace(/\n  <rr-review>[\s\S]*?<\/rr-review>/, `\n  <rr-review>${authored}</rr-review>`));
 
   test.skipIf(!browser)('shared gutters preserve anchors, native interactions, and dismissal across widths and themes', async () => {
     const page = await openPage(await serve(), { width: 1280, height: 800 });

@@ -1,5 +1,7 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../state/files.shared';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import type { ReviewState } from '../state/model.shared';
+import type { Progress } from '../state/progress.shared';
 import { roundStatus, syncMachine, unsent } from './sync.machine';
 import { builtinLayouts, type LastLayout, type Layout, type LayoutScope, type LayoutsOf, type LayoutStore, type SavedLayouts } from '../layouts/layout.shared';
 import type { GitHubAction } from '../state/schema.shared';
@@ -12,6 +14,7 @@ export class ServerState implements StateBackend {
   readonly kind = 'server';
   private sync?: ActorRefFrom<typeof syncMachine>;
   private disposed = false;
+  private onProgress?: (p: Progress) => void;
   private loading?: AbortController;
   private subscriptions: { unsubscribe(): void }[] = [];
   private readonly beforeUnload = (e: BeforeUnloadEvent) => {
@@ -29,6 +32,7 @@ export class ServerState implements StateBackend {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.onProgress = undefined;
     removeEventListener('beforeunload', this.beforeUnload);
     this.loading?.abort();
     this.loading = undefined;
@@ -64,6 +68,7 @@ export class ServerState implements StateBackend {
           fetchState: fromPromise(({ signal }) => this.fetchState(signal)),
           stream: fromCallback(({ sendBack }) => {
             const es = new EventSource(`${api}/events`);
+            es.addEventListener('progress', (e) => this.onProgress?.(JSON.parse(e.data)));
             es.addEventListener('hello', (e) => sendBack({ type: 'hello', ...JSON.parse(e.data) }));
             es.addEventListener('state', (e) => sendBack({ type: 'state', state: JSON.parse(e.data) }));
             es.addEventListener('review', () => sendBack({ type: 'review' }));
@@ -92,6 +97,7 @@ export class ServerState implements StateBackend {
   }
   subscribe(on: BackendEvents) {
     const sync = this.sync!;
+    this.onProgress = (p) => on.progress?.(p);
     this.subscriptions.push(
       sync.on('state', (e) => on.state(e.state)),
       sync.on('error', (e) => on.error(e.text)),
@@ -121,7 +127,7 @@ export class ServerState implements StateBackend {
     return { ok: true };
   }
   async snapshot(n: number) {
-    const r = await fetch(`${this.api}/rounds/${n}/review.html`);
+    const r = await fetch(`${this.api}/rounds/${n}/${REPORT_FILE}`);
     return r.ok ? r.text() : null;
   }
   // files kept by the server (ports change, so localStorage wouldn't follow)
@@ -140,11 +146,12 @@ export class ServerState implements StateBackend {
       return (await (layout ? sendJSON(`${this.api}/layouts/${id}`, 'PUT', layout) : fetch(`${this.api}/layouts/${id}`, { method: 'DELETE' }))).ok;
     },
   };
+  progress(): Promise<Progress> { return fetch(`${this.api}/progress`).then(json); }
   async walkthrough(): Promise<unknown> {
     const r = await fetch(`${this.api}/walkthrough`);
     if (r.status === 404) return null;
     if (r.ok || r.status === 422) return r.json();
-    throw new Error(`walkthrough.json: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
+    throw new Error(`${WALKTHROUGH_FILE}: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
   }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);

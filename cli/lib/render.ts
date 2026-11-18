@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // The review page in a headless browser, for `slide-lint` and `shot`: a fresh Chrome (never the
 // user's own, even with remote debugging on) at an exact viewport, else on macOS the system WebKit. Bun.WebView is
 // experimental: every use of it stays in this file.
@@ -42,7 +43,7 @@ export async function withServer<T>(repo: string | null, dir: string, fn: (url: 
   try {
     return await fn(`http://127.0.0.1:${server.port}/`);
   } finally {
-    close();
+    await close();
     void server.stop(true);
   }
 }
@@ -97,7 +98,7 @@ export async function openPage(url: string, vp: Viewport, scale = 1, options: Re
     // load waits for every image and script: a stalled one must not stall us; the app may be up before it
     await Promise.race([view.navigate(url), new Promise((r) => setTimeout(r, 20_000).unref())]); // unref: the timer must not keep the process up
     const started = await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`), 25_000, 'waiting for the page');
-    if (!started) fail(`the review page did not start in 20 s (review.html must wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
+    if (!started) fail(`the review page did not start in 20 s (${REPORT_FILE} must wrap <rr-review> in <rr-app>, as its scaffold does)${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
     // Applied once, before any slide audit. CSS also covers SVGs inserted later by Pele's lazy renderer.
     if (options.animations === false) await within(view.evaluate(NO_MOTION), 10_000, 'disabling render animations');
     // diagrams render after the app starts (Pele loads each type lazily): wait, so their errors count as the page's, not the first slide's

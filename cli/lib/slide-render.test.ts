@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { auditJobs, auditSlides } from '../../cli/lib/slide-render.ts';
-import type { Page } from '../../cli/lib/render.ts';
+import { auditJobs, auditSlides } from './slide-render.ts';
+import type { Page } from './render.ts';
 import type { StepAudit } from '../../src/slides/model.shared.ts';
 
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];

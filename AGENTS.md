@@ -6,11 +6,11 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 - `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, PWA, state, GitHub (Octokit, as the `gh` user); `hub/proxy.ts` serves reviews through the hub.
-- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
+- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in the report.
   `main.ts`, `app.ts` and `services.ts` compose the app. `kernel/` owns infrastructure; `review/`, `threads/`,
   `slides/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
-- The guided walkthrough (`walkthrough.json`): schema and PR block in `src/slides/model.shared.ts`, player in
+- The walkthrough: schema and PR block in `src/slides/model.shared.ts`, player in
   `src/slides/player.ts` (its phone and desktop parts in `player.phone.ts`, `player.desktop.ts`), CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks), `cli/lib/slides-file.ts` (file and PR-block helpers), and `cli/lib/render.ts` (the headless browser,
   `Bun.WebView`: its only user).
@@ -20,28 +20,26 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Where reviews live
 
-By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo.
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo. What the agent writes there:
+`docs/review-artifacts.md`; everything else: `docs/review-state.md`.
 
 ## Contracts (change deliberately, update the skill when you do)
 
-- **The walkthrough is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
+- **Review artifacts** (`docs/review-artifacts.md`): what the agent writes, and the constant that names each file.
+  Code uses the constants, never the file names.
+- **The report is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
   (CSS Highlight API, overlays, data attributes).
 - **`rr:` links** (`src/kernel/refs/refs.shared.ts`) address everything in HTML, threads, the CLI and agent replies. Keep old forms
   parsing.
-- **`walkthrough.json`** (the guided walkthrough) follows `schema/walkthrough.schema.json`, generated from
+- **The walkthrough** follows `schema/walkthrough.schema.json`, generated from
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
-- **`state.json`** is written by the CLI, browser and agents. Change it in `src/kernel/state/schema.shared.ts`, then `bun run schema`
-  to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
-  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
-  `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the shipped ones
-  in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
-  reviewer's settings, so far `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts.
+- **Review state** (`docs/review-state.md`): what reviewroom keeps per review and in `~/.reviewroom/`, and how to
+  change it.
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,
   `build-info.json`) `no-cache`, the API `no-store`; every response carries `x-reviewroom-build`. Keep
-  `_rr/reviewroom.js` unhashed (agent `review.html` names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
+  `_rr/reviewroom.js` unhashed (every agent's report names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
   `start_url` and `scope` `./` (either change orphans installed icons). `src/kernel/pwa.ts` reloads only on
   `controllerchange`, never while a worker installs, and holds the reload over unsent work. The worker never intercepts
   `/api/` or `/r/<id>/api/`. The build writes a Brotli copy (`<file>.br`) of each client file; `serveClient()` sends it
@@ -79,9 +77,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).
 - No raw `rr:` strings, ids or CSS paths in visible text: use `app.label()` / `describeElement()`.
 
-- Use `walkthrough` for the freeform explanation (`src/review/walkthrough.ts`) and `slides` for guided-walkthrough
-  modules (`src/slides/`). Preserve the existing `narrative` panel/scope/CSS identifiers, `narrative-focus` layout
-  key, `walkthrough.json`, `rr:tour` links and public API names for compatibility.
+- Code identifiers predate the vocabulary: `src/review/walkthrough.ts` and the `narrative` panel are the report, and
+  `slides` modules (`src/slides/`) are the walkthrough. Preserve the existing `narrative`
+  panel/scope/CSS identifiers, `narrative-focus` layout key, the walkthrough's file name, `rr:tour` links and public API names
+  for compatibility.
 - Runtime dependencies flow `threads`/`slides` -> `review` -> `kernel`; `hub` -> `kernel`.
   Root composition modules may import all features. `bun run check` rejects runtime cycles and layer violations.
 - Type-only dependencies may reference `ReviewApp` at the composition root or shared contracts; otherwise follow layers.
@@ -93,15 +92,25 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 ## Working on it
 
 Bun (>= 1.3.12) installs, builds, tests and runs the built CLI. Libraries are bundled into `dist/` (not
-committed). The AST-grep CLI remains a runtime dependency for platform-specific binary selection;
-other libraries are `devDependencies`.
+committed). The AST-grep CLI remains a runtime dependency for platform-specific binary selection; so are the
+assistant's server packages (`ai`, `@ai-sdk/harness*`, `ai-sdk-sandbox-local`), which the CLI bundle leaves external
+(the harness reads its bridge files beside its module); other libraries are `devDependencies`.
 
 ```bash
 bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep` on PATH
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
-bun run check       # typecheck, lint, tests, e2e: run before committing
+bun run check       # typecheck, lint, unit tests, no build: run before committing
+bun run smoke       # build + e2e: the built CLI against the demo repo
+bun run test:slides # build + the slide browser suite (slide-lint, shot, audit)
+bun run check:full  # all of the above: run before a PR, or after touching the CLI, server or slides
 bun run demo        # demo repo + live review
 ```
+
+Commit both lockfiles: root `bun.lock` makes development and CI reproducible; the shipped
+`cli/lib/assistant-agent/pnpm-lock.yaml` pins the assistant's runtime bootstrap. When upgrading the ACP harness,
+sync the agent manifest's bridge dependencies with `@ai-sdk/harness-acp/dist/bridge/package.json`, then regenerate
+the agent lock with `bunx --bun pnpm@10.11.0 --dir cli/lib/assistant-agent install --lockfile-only`.
+pnpm is only needed for this maintainer command; users bootstrap through Bun.
 
 A refactor that must not change how anything looks: `bun scripts/snapshot.ts before.json` on the old build, again on
 the new one, then `bun scripts/snapshot.ts --diff before.json after.json` (computed styles of the demo on a phone and

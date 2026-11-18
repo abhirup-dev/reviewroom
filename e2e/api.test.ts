@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE, REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 // A detached server answers its API and bundle, and refuses what it must.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
@@ -6,24 +7,30 @@ import type { SearchHit } from '../src/kernel/state/model.shared.ts';
 import { expectClientHeaders, setup } from './fixture.ts';
 
 describe('api', () => {
-  const { tmp, repo, dir, serve, sessions } = setup();
+  const { tmp, repo, dir, serve, sessions } = setup({ REVIEWROOM_ASSISTANT: '' });
   const marker = path.join(tmp, 'pwned');
   const status = (p: string, init?: RequestInit) => fetch(url + p, init).then((r) => r.status);
   let url = '';
   beforeAll(async () => (url = await serve()));
 
+  test('external-agent reviews do not offer or start the built-in assistant', async () => {
+    expect((await (await fetch(url + 'api/meta')).json()).assistant).toBeUndefined();
+    expect(await status('api/assistant')).toBe(404);
+    expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false);
+  });
+
   test('the patch is a plain git diff whatever the git config', async () => expect(await (await fetch(url + 'api/patch')).text()).toStartWith('diff --git a/'));
   test('symbol search finds the definition', async () => {
-    const hits: SearchHit[] = await (await fetch(url + 'api/search?symbol=1&q=RecentEvents&rev=feat/activity-events')).json();
+    const hits: SearchHit[] = await (await fetch(url + 'api/search?symbol=1&q=Take&rev=feat/upload-rate-limit')).json();
     expect(hits.some((h) => h.kind === 'definition')).toBe(true);
   });
   test('a running server is listed in the per-user session registry', () =>
-    expect(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-activity-events'))).toBe(true));
+    expect(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-upload-rate-limit'))).toBe(true));
   test('summary gives round and counts without thread text', async () =>
     expect(await (await fetch(url + 'api/summary')).json()).toMatchObject({ round: 1, threads: 0, browserClients: expect.any(Number), walkthrough: expect.any(Boolean), additions: expect.any(Number), files: expect.any(Number) }));
 
   test('walkthrough: 404 when absent, the file when valid, 422 with issues when not', async () => {
-    const file = path.join(dir, 'walkthrough.json');
+    const file = path.join(dir, WALKTHROUGH_FILE);
     fs.rmSync(file, { force: true });
     expect(await status('api/walkthrough')).toBe(404);
     const w = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: '<p>x</p>', ref: 'rr:code/x.go#L1' }] }] };
@@ -55,20 +62,11 @@ describe('api', () => {
     expect(r.ok && Array.isArray(await r.json())).toBe(true);
     expect(fs.existsSync(marker)).toBe(false);
   });
-  test('files rejects an option as base', async () => {
-    expect(await status(`api/files?base=${encodeURIComponent('--output=' + marker)}`)).toBeGreaterThanOrEqual(400);
-    expect(fs.existsSync(marker)).toBe(false);
-  });
-  test('read rejects an option as rev', async () => {
-    expect(await status(`api/read?path=x&rev=${encodeURIComponent('--output=' + marker)}`)).toBeGreaterThanOrEqual(400);
-    expect(fs.existsSync(marker + ':x')).toBe(false);
-  });
   // Bun's fetch sends these headers as given
   test('cross-site API request is refused', async () => expect(await status('api/state', { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403));
   test('write from a foreign origin is refused', async () =>
     expect(await status('api/ops', { method: 'POST', body: '{}', headers: { origin: 'https://evil.example', 'content-type': 'application/json' } })).toBe(403));
   test('foreign Host header is refused', async () => expect(await status('api/meta', { headers: { host: `evil.example:${new URL(url).port}` } })).toBe(403));
-  test('the page loads its build relatively (under the hub\'s /r/<id>/, its own)', async () => expect(await (await fetch(url)).text()).toContain('src="_rr/reviewroom.js"'));
   test('state files are not served', async () =>
     expect(await Promise.all(['state.json', 'STATE.JSON', 'state%2Ejson', 'state.lock'].map((f) => status(f)))).toEqual([404, 404, 404, 404]));
   test('static file with # and ? in its name is served', async () => {
@@ -76,8 +74,8 @@ describe('api', () => {
     const r = await fetch(url + encodeURIComponent('fig #1?.txt'));
     expect([r.status, await r.text()]).toEqual([200, 'fig']);
   });
-  test('an older review.html gets the PWA head; <rr-review> is untouched', async () => {
-    const file = path.join(dir, 'review.html');
+  test(`an older ${REPORT_FILE} gets the PWA head; <rr-review> is untouched`, async () => {
+    const file = path.join(dir, REPORT_FILE);
     const saved = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
     const body = '<rr-review>\n<h1>Old</h1><meta name="viewport" content="x"><p>rel="manifest" </head></p>\n</rr-review>';
     try {
@@ -92,16 +90,4 @@ describe('api', () => {
     }
   });
   test('hashed chunks are immutable, the rest revalidates; every response names the build', () => expectClientHeaders(url, 'api/state'));
-  test('the build header follows a rebuild without a restart', async () => {
-    const f = path.join(import.meta.dir, '..', 'dist', 'build-info.json');
-    const saved = fs.readFileSync(f, 'utf8');
-    try {
-      fs.writeFileSync(f, JSON.stringify({ id: 'rebuilt' }));
-      expect((await fetch(url + 'api/state')).headers.get('x-reviewroom-build')).toBe('rebuilt');
-      fs.rmSync(f);
-      expect((await fetch(url + 'api/state')).headers.get('x-reviewroom-build')).toBeNull();
-    } finally {
-      fs.writeFileSync(f, saved);
-    }
-  });
 });

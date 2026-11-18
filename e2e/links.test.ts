@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 // Stale links through the CLI and a running server; the move/fix logic is in cli/lib/links.test.ts.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
@@ -7,13 +8,13 @@ import { until } from '../src/testing/wait.ts';
 
 describe('links', () => {
   const { repo, dir, d, cli, git, state, spawn, url } = setup();
-  const reviewFile = path.join(dir, 'review.html');
+  const reviewFile = path.join(dir, REPORT_FILE);
   const prepend = (lines: string) => fs.writeFileSync(path.join(repo, file), lines + read(repo, file));
   let file = '';
-  beforeAll(async () => (file = (await git('diff', '--name-only', '--diff-filter=d', 'main...feat/activity-events')).text().split('\n')[0]));
+  beforeAll(async () => (file = (await git('diff', '--name-only', '--diff-filter=d', 'main...feat/upload-rate-limit')).text().split('\n')[0]));
 
   test('check fingerprints a new link and reports a broken section link', async () => {
-    fs.writeFileSync(reviewFile, `<rr-review><section id="s"><a href="rr:code/${file}#L3-4">x</a> <a href="rr:sym/RecentEvents">y</a> <a href="rr:doc/nope">z</a></section></rr-review>`);
+    fs.writeFileSync(reviewFile, `<rr-review><section id="s"><a href="rr:code/${file}#L3-4">x</a> <a href="rr:sym/Take">y</a> <a href="rr:doc/nope">z</a></section></rr-review>`);
     expect(await cli(['check', ...d])).toMatchObject({ code: 1, stdout: expect.stringContaining('rr:doc/nope') });
     expect(state().links[`rr:code/${file}#L3-4`]).toBeString();
   });

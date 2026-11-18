@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 import { expect, test } from 'bun:test';
 import { applyFixes, checkLinks, problems, type LinkResult } from './links.ts';
 import type { SearchHit } from '../../src/kernel/state/model.shared.ts';
@@ -63,7 +64,7 @@ test('--fix moves each link once, even when one lands where another was', () => 
   }
 });
 
-test('walkthrough.json: step refs and prose links are checked decoded, located, and fixed in the JSON', () => {
+test(`${WALKTHROUGH_FILE}: step refs and prose links are checked decoded, located, and fixed in the JSON`, () => {
   const w = { version: 1, title: 'T', chapters: [{ id: 'why', title: 'W', lead: '<a href="rr:doc/intro">i</a><!-- <a href="rr:code/old.go#L1"> -->', steps: [{ id: 's1', text: '<p>See rr:code/a.go#L4-6.</p>', ref: 'rr:code/a.go#L4-6' }, { id: 's2', text: 'y', ref: 'rr:doc/nope' }] }] };
   const json = JSON.stringify(w, null, 2).replace(/\//g, '\\/') + '\n'; // escaped slashes are still the same links
   const { links } = checkLinks(html(), prov({ 'a.go': body.join('\n') }), {}, tourText(JSON.parse(json)));
