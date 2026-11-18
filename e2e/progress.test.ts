@@ -94,7 +94,8 @@ test('--no-agent requests nothing; a server start stops pending assistant work a
   const log = path.join(dir, 'progress.jsonl');
   fs.rmSync(log, { force: true });
   expect((await cli([...prArgs, '--force', '--no-agent'])).code).toBe(0);
-  expect(progressLines(dir)).toEqual([]);
+  // (the previous server may still record the rescaffolded report as written: no request, so it stays idle)
+  expect(progressLines(dir).filter((l) => l.event === 'requested')).toEqual([]);
   const url = (await cli(prArgs)).stdout.trim();
   expect(await fetch(url + 'api/progress').then((r) => r.json())).toEqual({ walkthrough: { state: 'idle' }, report: { state: 'idle' } });
   // without the assistant, generate says why
