@@ -149,7 +149,9 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     const { provider, backend } = options.provider ? { provider: options.provider, backend: 'browser' as const } : await pickProvider(root, authored, fixture);
     app.provider = provider;
     const pm = await provider.meta();
-    const meta = { ...pm, ...authored, ...(provider.name === 'local' ? { base: pm.base, head: pm.head } : {}) } as ReviewMeta;
+    // what the server may do here (run the assistant, generate) is the server's to say, never the report's own #rr-meta
+    const { assistant: _assistant, generate: _generate, ...fromReport } = authored;
+    const meta = { ...pm, ...fromReport, ...(provider.name === 'local' ? { base: pm.base, head: pm.head, assistant: pm.assistant, generate: pm.generate } : { assistant: undefined, generate: undefined }) } as ReviewMeta;
     meta.title ||= document.title || 'Code review';
     meta.base ||= 'base';
     meta.head ||= 'head';
