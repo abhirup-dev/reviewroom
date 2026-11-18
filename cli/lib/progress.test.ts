@@ -1,9 +1,9 @@
-import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProgress, artifactHash, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, stopAssistantWork } from './progress.ts';
+import { appendProgress, artifactHash, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts, stopAssistantWork } from './progress.ts';
 
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
@@ -92,3 +92,30 @@ test('the same bytes written again under a new request are recorded: the request
   recordArtifact(dir, 'report', 'written');
   expect(readProgress(dir).report.state).toBe('writing');
 }));
+
+test('stale after the PR moved: each document by its own validation head, never one event for both', () => {
+  const [A, B] = ['a'.repeat(40), 'b'.repeat(40)];
+  const docs = (dir: string) => {
+    fs.writeFileSync(path.join(dir, REPORT_FILE), '<rr-app></rr-app>');
+    fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), '{}');
+  };
+  // the walkthrough still validated at A; the report validated at B, later: only the walkthrough is stale
+  inTemp((dir) => {
+    docs(dir);
+    requestGeneration(dir, 'agent', A);
+    recordArtifact(dir, 'walkthrough', 'validated', { head: A });
+    recordArtifact(dir, 'report', 'validated', { head: B });
+    expect(staleArtifacts(dir, B)).toEqual(['walkthrough']);
+    resetGeneration(dir, staleArtifacts(dir, B));
+    expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['idle', 'validated']);
+  });
+  // the PR's walkthrough imported at B, then a report event for A: the walkthrough stays, only the report is stale
+  inTemp((dir) => {
+    docs(dir);
+    recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', head: B });
+    requestGeneration(dir, 'agent', A, ['report']);
+    recordArtifact(dir, 'report', 'validated', { head: A });
+    expect(staleArtifacts(dir, B)).toEqual(['report']);
+    expect(staleArtifacts(dir, A)).toEqual(['walkthrough']);
+  });
+});

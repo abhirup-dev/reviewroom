@@ -3,7 +3,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { progressLines, recordArtifact, requestGeneration, resetGeneration } from '../lib/progress.ts';
+import { recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
@@ -90,17 +90,20 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
 }
 
 /** A fresh or forced review asks its agent for both documents. --no-agent (the hub) sets up only: generation goes idle
- *  until someone asks (api/generate), and also when a re-add finds the PR moved, since validations of another head no
- *  longer count (the documents stay on disk). True when it moved: the PR's own walkthrough is imported again. */
+ *  until someone asks (api/generate); on a re-add, each document validated for another head goes idle too (it stays on
+ *  disk), the others are kept. True when the walkthrough went stale: the PR's own walkthrough is imported again. */
 function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) {
   if (o.agent !== false) {
     if (fresh || o.force) requestGeneration(dir, 'agent', head);
     return false;
   }
-  const madeFor = progressLines(dir).findLast((l) => l.head)?.head;
-  const moved = !fresh && !!madeFor && madeFor !== head;
-  if (fresh || o.force || moved) resetGeneration(dir);
-  return moved;
+  if (fresh || o.force) {
+    resetGeneration(dir);
+    return false;
+  }
+  const stale = staleArtifacts(dir, head);
+  resetGeneration(dir, stale);
+  return stale.includes('walkthrough');
 }
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
