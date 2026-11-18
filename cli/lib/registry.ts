@@ -53,15 +53,28 @@ export async function stopServer(dir: string, pid?: number) {
 
 /** A review server in the background on an existing review folder (`pr --detach`, the hub's Play): `review --forever`
  *  from the running entry (the source or the bundle), detached so it outlives its caller. Its record, or null when it
- *  did not start (see <dir>/server.log). No setup, no generation request. */
-export async function startDetached(repo: string, dir: string, extra: string[] = [], entry = process.argv[1]): Promise<ServerRecord | null> {
+ *  did not start within `timeoutMs` (see <dir>/server.log): then the child is killed and reaped. No setup, no generation request. */
+export async function startDetached(repo: string, dir: string, extra: string[] = [], entry = process.argv[1], timeoutMs = 30_000): Promise<ServerRecord | null> {
   const out = fs.openSync(path.join(dir, 'server.log'), 'a');
-  spawn(process.execPath, [entry, 'review', '--forever', '--repo', repo, '--dir', dir, ...extra], { detached: true, stdio: ['ignore', out, out] }).unref();
+  const child = spawn(process.execPath, [entry, 'review', '--forever', '--repo', repo, '--dir', dir, ...extra], { detached: true, stdio: ['ignore', out, out] });
   fs.closeSync(out);
-  for (let i = 0; i < 50; i++) {
+  const exit = new Promise<void>((done) => child.once('exit', () => done()));
+  const exited = () => child.exitCode !== null || child.signalCode !== null;
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // ready means this child registered: a server.json naming another process (one stopping, or a stale file) isn't ours
+  for (const end = Date.now() + timeoutMs; !exited() && Date.now() < end; await wait(100)) {
     const rec = liveServer(dir);
-    if (rec) return rec;
-    await new Promise((r) => setTimeout(r, 100));
+    if (rec?.pid === child.pid) {
+      child.unref();
+      return rec;
+    }
+  }
+  // never ready (startup can be slow: `gh pr view`): stop it and reap it, so a failure never leaves a server behind
+  if (!exited()) child.kill('SIGTERM');
+  await Promise.race([exit, wait(3000)]);
+  if (!exited()) {
+    child.kill('SIGKILL');
+    await exit;
   }
   return null;
 }
