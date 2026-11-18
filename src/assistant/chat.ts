@@ -4,6 +4,7 @@
 import { Chat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from 'ai';
 import { errorText } from '../kernel/errors.shared';
+import type { Connection } from '../kernel/providers/contracts';
 import type { AskContext } from './context.shared';
 
 /** GET api/assistant: the saved conversation and the turn it ends in (`activeStreamId`, the AI SDK's resumable stream
@@ -22,6 +23,7 @@ export function createAssistantChat() {
     state = { ...state, ...patch };
     for (const l of listeners) l();
   };
+  let since: string | null = null; // the server's start the store last saw
   // the turn this chat streams or streamed (sent here or followed): never followed twice
   let followed: string | null = null;
   const chat = new Chat<UIMessage>({
@@ -91,11 +93,13 @@ export function createAssistantChat() {
       return () => void listeners.delete(l);
     },
     getState: () => state,
-    /** The page's connection to its server: back, the conversation is taken again (a turn may have ended meanwhile). */
-    connected(live: boolean) {
-      if (live === state.connected) return;
-      set({ connected: live });
-      if (live) {
+    /** The page's event stream to its server (ServerState's): back, or a server started anew, the conversation is
+     *  taken again (a turn may have ended meanwhile). */
+    connected({ live, started }: Connection) {
+      const back = live && (!state.connected || started !== since);
+      since = started;
+      if (live !== state.connected) set({ connected: live });
+      if (back) {
         followed = null;
         void sync();
       }

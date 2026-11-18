@@ -23,7 +23,7 @@ export function registerAssistant(app: ReviewApp) {
   }));
   // it follows what the server does (a turn started, ended or paused, wherever) and the page's connection to it
   app.onDispose(app.bus.on('assistant-turn', () => void chat?.then((c) => c.sync())));
-  app.onDispose(app.bus.on('connection', (live) => void chat?.then((c) => c.connected(live))));
+  app.onDispose(app.bus.on('connection', (c) => void chat?.then((chat) => chat.connected(c))));
   /** A view of the conversation in `host`; returns the unmount. */
   const view = (host: HTMLElement, readOnly: boolean) => {
     let unmount: (() => void) | undefined, gone = false;

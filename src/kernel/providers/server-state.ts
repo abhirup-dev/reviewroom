@@ -114,8 +114,14 @@ export class ServerState implements StateBackend {
     );
     let unsaved = false;
     let status: 'waiting' | 'approved' | 'offline' | null = null;
+    let told = '';
     this.subscriptions.push(sync.subscribe((s) => {
       if ((s.context.failures > 0 && unsent(s.context)) !== unsaved) on.unsaved?.((unsaved = !unsaved));
+      const connection = { live: s.hasTag('live'), started: s.context.started };
+      if (JSON.stringify(connection) !== told) {
+        told = JSON.stringify(connection);
+        on.connection?.(connection);
+      }
       if (s.hasTag('catchingUp')) return;
       // offline: it was live once and isn't now
       const now = roundStatus(s.context) ?? (s.context.hash !== null && !s.hasTag('live') ? 'offline' : null);

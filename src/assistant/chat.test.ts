@@ -83,7 +83,7 @@ test('Stop names the running turn; a reconnect follows it again', async () => {
   await c.sync(); // followed once: the same turn again is not followed twice
   await c.stop();
   expect(stopped).toEqual([{ streamId: 's1' }]);
-  c.connected(false);
-  c.connected(true);
+  c.connected({ live: false, started: null });
+  c.connected({ live: true, started: null });
   await until(() => asked.filter((u) => u.includes('stream')).length === 2);
 });

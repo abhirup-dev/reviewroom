@@ -52,10 +52,14 @@ export interface StateBackend {
   /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
   pending?(): { unsent: boolean; started: string | null };
 }
+/** `started`: null until the first hello. */
+export type Connection = { live: boolean; started: string | null };
 export interface BackendEvents {
   progress?(p: Progress): void;
-  /** The assistant's conversation changed on the server (a turn ended or paused). */
+  /** The assistant's conversation changed on the server (a turn started, ended or paused). */
   assistant?(): void;
+  /** The live event stream to the server: up or down, and when the server it talks to started (its hello). */
+  connection?(c: Connection): void;
   state(s: ReviewState): void;
   review(): void;
   error(text: string): void;

@@ -158,3 +158,17 @@ test('a reload reconciles progress first, but a stalled progress fetch never hol
   await new Promise((r) => setTimeout(r, 60));
   expect(reloads).toBe(1);
 });
+
+test('the event stream\'s own state is published (up, down, the server it says hello from), whatever the round\'s badge says', async () => {
+  using t = fixture();
+  t.global('fetch', async () => Response.json(emptyState()));
+  const { backend } = server(t);
+  await backend.load();
+  const told: unknown[] = [];
+  backend.subscribe({ state: () => {}, error: () => {}, review: () => {}, connection: (c) => void told.push(c) });
+  const stream = Stream.opened[0];
+  stream.dispatchEvent(new MessageEvent('hello', { data: JSON.stringify({ hash: 'h', started: 's1' }) }));
+  await tick();
+  stream.onerror?.();
+  expect(told).toEqual([{ live: false, started: null }, { live: true, started: 's1' }, { live: false, started: 's1' }]);
+});

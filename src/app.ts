@@ -13,7 +13,7 @@ import { renderMarkdown } from './kernel/markdown';
 import { describeElement, findDocElement } from './kernel/refs/describe';
 import { emptyState, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type ReviewMeta, type ReviewState, type SearchHit } from './kernel/state/model.shared';
 import { applyOp } from './kernel/state/ops.shared';
-import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
+import type { CodeProvider, Connection, StateBackend } from './kernel/providers/contracts';
 import { createReviewServices, type ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
 import { presentationFor, type Presentation } from './kernel/presentation';
@@ -87,8 +87,8 @@ export interface AppEvents extends Record<string, unknown> {
   'walkthrough-show': void;
   /** the assistant's conversation changed on the server (a turn started, ended or paused) */
   'assistant-turn': void;
-  /** the page's live connection to its server dropped (false) or came back (true) */
-  connection: boolean;
+  /** the page's live event stream to its server went up or down (ServerState's own, not the round's badge) */
+  connection: Connection;
   /** play the walkthrough at a step (ids; missing: the first) */
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
