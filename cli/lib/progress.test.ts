@@ -119,3 +119,14 @@ test('stale after the PR moved: each document by its own validation head, never 
     expect(staleArtifacts(dir, A)).toEqual(['walkthrough']);
   });
 });
+
+test('a request for an old head is stale on a re-add at a new head: no loading screen for an abandoned request', () => {
+  const [A, B] = ['a'.repeat(40), 'b'.repeat(40)];
+  inTemp((dir) => {
+    requestGeneration(dir, 'agent', A);
+    expect(staleArtifacts(dir, A)).toEqual([]);
+    expect(staleArtifacts(dir, B)).toEqual(['walkthrough', 'report']);
+    resetGeneration(dir, staleArtifacts(dir, B));
+    expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['idle', 'idle']);
+  });
+});

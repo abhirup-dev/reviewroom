@@ -100,7 +100,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
 }
 
 /** A fresh or forced review asks its agent for both documents. --no-agent (the hub) sets up only: generation goes idle
- *  until someone asks (api/generate); on a re-add, each document validated for another head goes idle too (it stays on
+ *  until someone asks (api/generate); on a re-add, each document validated or requested for another head goes idle too (on
  *  disk), the others are kept. True when the walkthrough went stale: the PR's own walkthrough is imported again. */
 function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) {
   if (o.agent !== false) {

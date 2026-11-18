@@ -57,10 +57,11 @@ export function requestGeneration(dir: string, by: Requester, head?: string, art
 }
 /** Documents back to idle (`pr --force --no-agent`: both): nothing requested any more. */
 export const resetGeneration = (dir: string, artifacts: readonly Artifact[] = ARTIFACTS) => artifacts.length && appendProgress(dir, ...artifacts.map((artifact) => ({ artifact, event: 'reset' as const })));
-/** The documents validated for a head other than `head` (each by its own validation's head): stale after the PR moved. */
+/** The documents whose current state (validated, requested, writing or stopped) is for a head other than `head`, each
+ *  by its own last event: stale after the PR moved. A request for an old head is not pending work for the new one. */
 export const staleArtifacts = (dir: string, head: string) => {
   const progress = readProgress(dir);
-  return ARTIFACTS.filter((a) => progress[a].state === 'validated' && !!progress[a].head && progress[a].head !== head);
+  return ARTIFACTS.filter((a) => progress[a].state !== 'idle' && !!progress[a].head && progress[a].head !== head);
 };
 /** Stops the assistant work pending now, each naming its request: a stop that lands after a newer request is ignored.
  *  `interrupted` when a server starts (the previous server's turn died with it) or closes; `failed` when a turn ends. */
