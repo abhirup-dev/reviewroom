@@ -33,10 +33,28 @@ export function mountGeneration(app: ReviewApp) {
     if (r.ok) return actor.send({ type: 'generated', progress: r.progress });
     const error = refused(r);
     actor.send({ type: 'failed', error });
-    app.toast(error, 'error');
+    if (!screenShown(snap())) app.toast(error, 'error'); // the screen shows it already
+  };
+  // Closed stays closed for this request over a reload (the server reloads the page when a document stops or lands):
+  // remembered per tab, by the request it was closed on
+  const KEY = `reviewroom:generation-closed:${app.meta.id}`;
+  const requestOf = () => snap().context.progress.walkthrough.request ?? snap().context.progress.report.request ?? '';
+  const remember = (request: string | null) => {
+    try {
+      if (request) sessionStorage.setItem(KEY, request);
+      else sessionStorage.removeItem(KEY);
+    } catch { /* storage off: it shows again after a reload */ }
+  };
+  const dismiss = () => {
+    actor.send({ type: 'dismiss' });
+    remember(requestOf());
   };
   // in playable the screen has nothing left to show: the indicator plays the walkthrough
-  const show = () => (stageIn(snap()) === 'playable' ? app.bus.emit('walkthrough-open', {}) : actor.send({ type: 'reopen' }));
+  const show = () => {
+    if (stageIn(snap()) === 'playable') return app.bus.emit('walkthrough-open', {});
+    remember(null);
+    actor.send({ type: 'reopen' });
+  };
 
   const heading = h('h1');
   const status = h('p', { class: 'rr-gen__status' });
@@ -73,8 +91,8 @@ export function mountGeneration(app: ReviewApp) {
     actions.replaceChildren(...[
       stopped && generateOffered(s) ? btn('Retry', () => void generate(), true) : null,
       // what was written so far: the walkthrough on its way, or one a stop left behind
-      w.hash && (stage === 'writing' || stopped) ? btn(stopped ? 'Show the walkthrough so far' : 'Show it anyway', () => { actor.send({ type: 'dismiss' }); app.bus.emit('walkthrough-show', undefined); }) : null,
-      btn('Continue to the review', () => actor.send({ type: 'dismiss' }), !stopped),
+      w.hash && (stage === 'writing' || stopped) ? btn(stopped ? 'Show the walkthrough so far' : 'Show it anyway', () => { dismiss(); app.bus.emit('walkthrough-show', undefined); }) : null,
+      btn('Continue to the review', dismiss, !stopped),
     ].filter((b) => b !== null));
     const on = screenShown(s);
     if (on === screen.hidden) {
@@ -96,11 +114,14 @@ export function mountGeneration(app: ReviewApp) {
   });
   actor.start();
   actor.send({ type: 'progress', progress: app.progress });
+  try {
+    if (requestOf() && sessionStorage.getItem(KEY) === requestOf()) actor.send({ type: 'dismiss' });
+  } catch { /* storage off */ }
   app.onDispose(app.bus.on('progress', (progress) => actor.send({ type: 'progress', progress })));
   screen.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     e.stopPropagation();
-    actor.send({ type: 'dismiss' });
+    dismiss();
   });
   app.onDispose(() => { actor.stop(); screen.remove(); });
 
@@ -111,13 +132,14 @@ export function mountGeneration(app: ReviewApp) {
 }
 
 /** The header's indicator: generation under way (or stopped) with the loading screen closed; a click opens it again. */
-export function generationIndicator(app: ReviewApp): HTMLElement | null {
+export function generationIndicator(app: ReviewApp, iconOnly = false): HTMLElement | null {
   const s = app.generation;
   if (!s || !indicatorShown(s)) return null;
   const stage = stageIn(s);
   const label = stage === 'stopped' ? 'Generation stopped' : stage === 'playable' ? 'Writing the report' : 'Generating';
-  return h('button', { class: 'rr-hbtn rr-gen-ind' + (stage === 'stopped' ? ' is-stopped' : ''), title: `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : 'Show the progress'}`, onclick: () => app.commands.run('generation.show') },
-    h('span', { class: 'rr-gen-ind__dot', 'aria-hidden': 'true' }), h('span', { class: 'rr-gen-ind__label' }, label));
+  const dot = h('span', { class: 'rr-gen-ind__dot', 'aria-hidden': 'true' });
+  const attrs = { class: 'rr-hbtn rr-gen-ind' + (iconOnly ? ' rr-hbtn--icon' : '') + (stage === 'stopped' ? ' is-stopped' : ''), title: `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : 'Show the progress'}`, onclick: () => app.commands.run('generation.show') };
+  return iconOnly ? h('button', { ...attrs, 'aria-label': label }, dot) : h('button', attrs, dot, h('span', null, label));
 }
 
 /** Generate, in the header: offered in idle and stopped, where the server can generate. */

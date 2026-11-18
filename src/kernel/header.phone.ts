@@ -15,7 +15,7 @@ export interface PhoneBarContributions {
   /** A tap on the title (the rounds menu); null: the title only shows. */
   titleMenu: () => ((anchor: HTMLElement) => void) | null;
   status: () => HTMLElement[];
-  /** Before send: play the walkthrough. */
+  /** Before send: generation (its indicator, or Generate) and play the walkthrough. */
   actions: () => (HTMLElement | null)[];
   send: () => HTMLElement;
   /** The drawer's facts line, after the repo. */
