@@ -1,4 +1,5 @@
-// The hub's poll: read the three registries, drop dead sessions, then fill in git, agent, counts and health.
+// The hub's poll: read the three registries, drop dead sessions, then fill in git, agent, counts and health; then the
+// review folders on disk, so stopped reviews show too (cli/hub/reviews.ts).
 // reviewroom sessions are first-party: a record counts only while its server answers with its own pid
 // (x-reviewroom-pid), a record whose server is gone is deleted, and counts come from GET /api/summary.
 // Crit and Plannotator sessions are checked with kill -0 and only hidden when dead; their files stay.
@@ -8,6 +9,7 @@ import { classifySession, sessionOpenUrl } from './classify.ts';
 import { GitMetaCache } from './gitmeta.ts';
 import { critLoopbackUrl, sanitizeLoopbackUrl } from './loopback.ts';
 import { type Agent, agentAncestor, lsofCwd, processCommand, runCapture } from './proc.ts';
+import { diskReviews } from './reviews.ts';
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/hub/model.shared.ts';
 import { alive } from '../lib/lock.ts';
@@ -22,6 +24,8 @@ export interface HubOptions {
   plannotatorDataDir?: string;
   healthTimeoutMs?: number;
   gitTtlMs?: number;
+  /** The reviewroom entry Add a PR and Play run (the running one: the source or the bundle). */
+  entry?: string;
 }
 
 const CRIT_MODES = new Set(['review', 'live', 'preview', 'plan']);
@@ -60,6 +64,7 @@ export class Hub {
   readonly pollIntervalMs: number;
   readonly critHome: string;
   readonly plannotatorDataDir: string;
+  readonly entry: string;
   lastPollAtMs = 0;
 
   private readonly healthTimeoutMs: number;
@@ -77,6 +82,7 @@ export class Hub {
     this.critHome = opts.critHome ?? defaultCritHome();
     this.plannotatorDataDir = opts.plannotatorDataDir ?? resolvePlannotatorDataDir();
     this.healthTimeoutMs = opts.healthTimeoutMs ?? 800;
+    this.entry = opts.entry ?? process.argv[1];
     this.git = new GitMetaCache(opts.gitTtlMs ?? 10_000);
   }
 
@@ -207,7 +213,7 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir),
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir), prUrl: r.prUrl,
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
       withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
@@ -244,6 +250,20 @@ export class Hub {
     }
 
     await Promise.allSettled(enrich);
+    // reviews on disk: a running one gets its generation state, the others show as stopped (Play starts them)
+    for (const d of read('reviews on disk', diskReviews)) {
+      const running = [...next.values()].find((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir);
+      if (running) {
+        running.generation = d.generation;
+        continue;
+      }
+      const info = session(`review:${d.id}`, 'reviewroom', now, {
+        cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, reviewId: d.id, branch: d.branch,
+        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, prUrl: d.prUrl,
+      });
+      withClassification(info, classifySession({ tool: 'reviewroom', mode: 'review', label: d.title, pr: d.number, head: d.branch ?? undefined }));
+      next.set(info.id, info);
+    }
     for (const info of next.values()) info.firstSeenAt = this.sessions.get(info.id)?.firstSeenAt ?? info.firstSeenAt;
     this.sessions = next;
     this.lastError = errors.join('; ') || null;
@@ -260,6 +280,11 @@ export class Hub {
       this.polledRegistry = m;
     }
     return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.reviewId === id && s.port && s.pid) ?? null;
+  }
+
+  /** The next look polls again (a review was added or started). */
+  invalidate() {
+    this.lastPollAtMs = 0;
   }
 
   /** SIGTERM one session that a fresh poll still finds; the client names a session, never a pid. A reviewroom

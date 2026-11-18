@@ -9,7 +9,7 @@ A review folder is `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` by default, 
 
 | File | Written by | Holds |
 | --- | --- | --- |
-| `config.json` | the CLI (`reviewroom pr`) | What is reviewed: repo path, base, head, title, the PR (repo, number, author, URL, labels) and the report profile. Schema in `cli/lib/config.ts`. |
+| `config.json` | the CLI (`reviewroom pr`) | What is reviewed: repo path, base, head, title, the PR (repo, number, author, URL, labels) and the report profile. `assistant: true`: this review runs the built-in assistant (its Ask panel and `api/generate`), set by the hub's Play and `pr --assistant`, never by an external agent's `pr`. Schema in `cli/lib/config.ts`. |
 | `state.json` | the CLI, the browser (through the server) and agents (through the CLI) | Threads, rounds, viewed files, sign-offs. |
 | `state.lock` | the CLI and the server | `{pid, port}`. A running server holds it for its lifetime; the CLI holds it for one read-modify-write, and sends its writes to the server while the server holds it. |
 | `server.json` | `reviewroom serve` | The running server, so other commands find it. |
@@ -58,11 +58,12 @@ it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/gene
   and other local tools. `hub.json` is the running hub.
 - `layouts/<name>.json`: the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the
   shipped ones in `src/kernel/layouts/` (whose names they can't take). `default-layout.json` names their default.
-- `config.json`: the reviewer's settings. `assistant: true` turns the built-in assistant on (as `REVIEWROOM_ASSISTANT`
-  does); read when a review server starts. `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the
+- `config.json`: the reviewer's settings. Whether the built-in assistant runs is not one of them: it is chosen per
+  review (`assistant` in the review's own `config.json`, above), read when its server starts. `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the
   hub starts; `defaultAgentHarness` (`claude` only), `defaultReviewModel` (`sonnet` by default) and
   `reviewAgentPromptFile` (optional Markdown prompt path, relative to this file); `claudeExecutable` overrides the
   Claude binary (otherwise the native override environment, `claude` on PATH, then the adapter's bundled binary).
   Model defaults are reread before new questions; restart for other changes.
+- `repos/<owner>/<repo>/`: the clones the hub's Add a PR makes (fetched again when a PR of that repository is added).
 - `assistant/`: the assistant harness's runtime and session files (`.ai-sdk-harness/`). Its setup commands use
   `assistant/` as HOME, while the native agent keeps the reviewer's real HOME and login.

@@ -11,7 +11,7 @@ describe('hub', () => {
   // the review runs the assistant: reaching it through the hub must not reach Claude Code
   const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup({}, { assistant: true });
   let review = '', hub = '';
-  const list = async () => (await (await fetch(hub + 'api/sessions')).json()).sessions as { id: string; tool: string; label: string; reviewRound: number; commentCount: number; health: string }[];
+  const list = async () => (await (await fetch(hub + 'api/sessions')).json()).sessions as { id: string; tool: string; stopped?: boolean; reviewId?: string; label: string; reviewRound: number; commentCount: number; health: string }[];
   beforeAll(async () => {
     review = await serve();
     await cli(['comment', 'general', 'why?', ...d]);
@@ -51,7 +51,7 @@ describe('hub', () => {
   describe('proxy /r/<id>/', () => {
     let r = '';
     beforeAll(async () => {
-      const [s] = (await (await fetch(hub + 'api/sessions')).json()).sessions.filter((x: { tool: string }) => x.tool === 'reviewroom');
+      const [s] = (await (await fetch(hub + 'api/sessions')).json()).sessions.filter((x: { tool: string; stopped?: boolean }) => x.tool === 'reviewroom' && !x.stopped); // stopped reviews are listed too
       r = `${hub}r/${s.reviewId}/`;
     });
 
@@ -149,12 +149,13 @@ describe('hub', () => {
     });
   });
 
-  test('closing a review from the hub stops its server', async () => {
-    const [s] = (await list()).filter((x) => x.tool === 'reviewroom');
+  test('closing a review from the hub stops its server; the review stays listed, stopped', async () => {
+    const [s] = (await list()).filter((x) => x.tool === 'reviewroom' && !x.stopped);
     const r = await fetch(`${hub}api/sessions/${encodeURIComponent(s.id)}/close`, { method: 'POST', headers: { 'x-reviewroom-action': 'close-session' } });
     expect(r.status).toBe(202);
     expect(fs.existsSync(path.join(dir, 'server.json'))).toBe(false);
-    expect((await list()).filter((x) => x.tool === 'reviewroom')).toEqual([]);
+    const now = (await list()).filter((x) => x.tool === 'reviewroom');
+    expect([now.some((x) => !x.stopped), now.some((x) => x.id === `review:${s.reviewId}`)]).toEqual([false, true]);
   });
 
   test('two hubs started at once: both print the one that runs', async () => {
@@ -205,7 +206,7 @@ describe('hub with a public origin', () => {
 
   test('a request on the public origin passes, and its writes reach the review', async () => {
     const as = { host: 'mac.tailnet.ts.net', 'sec-fetch-site': 'same-origin' };
-    const [s] = (await (await fetch(hub + 'api/sessions', { headers: as })).json()).sessions.filter((x: { tool: string }) => x.tool === 'reviewroom');
+    const [s] = (await (await fetch(hub + 'api/sessions', { headers: as })).json()).sessions.filter((x: { tool: string; stopped?: boolean }) => x.tool === 'reviewroom' && !x.stopped); // stopped reviews are listed too
     const r = `${hub}r/${s.reviewId}/`;
     expect((await fetch(r, { headers: as })).status).toBe(200);
     const post = (origin: string, ops: unknown[]) => fetch(r + 'api/ops', { method: 'POST', headers: { ...as, origin, 'content-type': 'application/json' }, body: JSON.stringify({ ops }) }).then((x) => x.status);

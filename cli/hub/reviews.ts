@@ -1,0 +1,149 @@
+// The hub starts reviews: reviews on disk (running or not), Add a PR by URL, Play. Who writes a review is chosen per
+// review: Play is the built-in assistant (it turns it on for that review and generates); the page's "Use my own agent"
+// hands the reviewer a prompt for an external agent instead, and the hub starts nothing for it.
+//   reviews on disk   <home>/reviews/*/* with a config.json, read on each poll (no timer)
+//   Add a PR          clone (or fetch) under <home>/repos/<owner>/<repo>, then `reviewroom pr <url> --no-agent --no-serve`
+//   Play              `assistant: true` in the review's config.json, `review --forever` in the background on the existing
+//                     folder (startDetached), then POST api/generate on its own loopback URL (the proxy refuses it by design)
+import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { configPath, readConfig } from '../lib/config.ts';
+import { answers } from '../lib/lock.ts';
+import { homeDir, reviewsDir } from '../lib/paths.ts';
+import { readProgress } from '../lib/progress.ts';
+import { liveServer, reviewId, startDetached, type ServerRecord } from '../lib/registry.ts';
+import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.shared.ts';
+import type { GenerationState } from '../../src/hub/model.shared.ts';
+
+const run = promisify(execFile);
+
+/** Where generation stands, from the review's progress log: ready once both documents validated. */
+export function generationState({ walkthrough: w, report: r }: Progress): GenerationState {
+  if (w.state === 'validated' && r.state === 'validated') return 'ready';
+  if (pendingArtifact(w) || pendingArtifact(r)) return 'generating';
+  if (w.state === 'stopped' || r.state === 'stopped') return 'stopped';
+  return 'idle';
+}
+
+export type DiskReview = { dir: string; id: string; repo: string; title: string | null; number: number | string | null; prUrl: string | null; branch: string | null; generation: GenerationState; updatedAt: string | null };
+
+/** Every review folder with a config.json (a broken one is skipped: the hub lists, it doesn't repair). */
+export function diskReviews(): DiskReview[] {
+  const dirs = (p: string) => {
+    try {
+      return fs.readdirSync(p, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => path.join(p, d.name));
+    } catch {
+      return [];
+    }
+  };
+  return dirs(reviewsDir()).flatMap(dirs).flatMap((dir) => {
+    const file = path.join(dir, 'config.json');
+    if (!fs.existsSync(file)) return [];
+    try {
+      const c = readConfig(dir);
+      return [{
+        dir, id: reviewId(dir), repo: c.repoPath ?? '', title: c.title ?? null, number: c.number ?? null, prUrl: c.url ?? null, branch: c.headLabel ?? c.head ?? null,
+        generation: generationState(readProgress(dir)), updatedAt: fs.statSync(file).mtime.toISOString(),
+      }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+// ------------------------------------------------------------ Add a PR
+/** A GitHub pull request URL: owner, repo and number, or null. */
+export function parsePrUrl(v: string): { owner: string; repo: string; number: number } | null {
+  const m = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})\/pull\/(\d{1,9})(?:\/[^?#]*)?(?:[?#].*)?$/.exec(v.trim());
+  if (!m || /^\.+$/.test(m[2])) return null; // `.` and `..` would leave repos/<owner>/
+  return { owner: m[1], repo: m[2].replace(/\.git$/, ''), number: +m[3] };
+}
+
+// Test seam: REVIEWROOM_TEST_CLONE_ROOT=<dir> clones <dir>/<owner>/<repo>.git instead of GitHub (e2e has no GitHub).
+// Only the tests set it; nothing documents it for users.
+const cloneSource = (owner: string, repo: string) => (process.env.REVIEWROOM_TEST_CLONE_ROOT ? path.join(process.env.REVIEWROOM_TEST_CLONE_ROOT, owner, `${repo}.git`) : null);
+
+/** What went wrong, readable: the command's last line, without git's or the CLI's prefixes. */
+const why = (e: unknown) => {
+  const err = e as { stderr?: string; message?: string; code?: string };
+  if (err.code === 'ENOENT') return null;
+  const line = (err.stderr ?? err.message ?? String(e)).trim().split('\n').filter(Boolean).at(-1) ?? '';
+  return line.replace(/^(fatal|error|reviewroom):\s*/i, '');
+};
+
+/** Clones (or fetches) the PR's repository and sets its review up without a server or an agent. The review's id. */
+export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok: true; id: string; dir: string } | { ok: false; error: string }> {
+  const pr = parsePrUrl(url);
+  if (!pr) return { ok: false, error: 'That is not a GitHub pull request URL (https://github.com/<owner>/<repo>/pull/<number>).' };
+  const dest = path.join(homeDir(), 'repos', pr.owner, pr.repo);
+  const source = cloneSource(pr.owner, pr.repo);
+  try {
+    if (fs.existsSync(path.join(dest, '.git'))) await run('git', ['-C', dest, 'fetch', '--prune', 'origin']);
+    else {
+      // into a temporary folder first: a failed clone leaves nothing that looks like a clone
+      // shortcut: two adds of the same new repository at once both clone, the second fails; lock it if that happens
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      const tmp = `${dest}.partial-${process.pid}`;
+      fs.rmSync(tmp, { recursive: true, force: true });
+      try {
+        if (source) await run('git', ['clone', '--quiet', source, tmp]);
+        else await run('gh', ['repo', 'clone', `${pr.owner}/${pr.repo}`, tmp, '--', '--quiet']);
+        fs.renameSync(tmp, dest);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    }
+  } catch (e) {
+    const w = why(e);
+    if (w === null) return { ok: false, error: source ? 'git is not installed.' : 'Adding a PR needs the GitHub CLI (gh): install it and sign in with `gh auth login`.' };
+    return { ok: false, error: `Could not get ${pr.owner}/${pr.repo}: ${w}` };
+  }
+  try {
+    const { stdout } = await run(process.execPath, [entry, 'pr', `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 });
+    const dir = stdout.trim().split('\n').at(-1) ?? '';
+    return { ok: true, id: reviewId(dir), dir };
+  } catch (e) {
+    return { ok: false, error: `Could not set up the review: ${why(e) || 'reviewroom pr failed'}` };
+  }
+}
+
+// ------------------------------------------------------------ Play
+export type GenerateResult = { ok: true; started: boolean } | { ok: false; code: string | null; error: string };
+export type PlayResult = { ok: true; url: string; pid: number; started: boolean; generate: GenerateResult | null } | { ok: false; error: string };
+
+/** api/generate on the review's own loopback URL: `starting` (the server is still recovering) is retried a few times. */
+export async function generate(rec: Pick<ServerRecord, 'url'>): Promise<GenerateResult | null> {
+  const meta = (await fetch(`${rec.url}api/meta`).then((r) => r.json()).catch(() => null)) as { generate?: boolean } | null;
+  if (!meta?.generate) return { ok: false, code: 'assistant_off', error: 'The review did not turn the built-in assistant on, so nothing was generated.' };
+  for (let i = 0; ; i++) {
+    const r = await fetch(`${rec.url}api/generate`, { method: 'POST' }).catch((e: Error) => e);
+    if (r instanceof Error) return { ok: false, code: null, error: `The review did not answer: ${r.message}` };
+    const body = (await r.json().catch(() => ({}))) as { started?: boolean; code?: string; error?: string };
+    if (r.ok) return { ok: true, started: !!body.started };
+    if (body.code === 'starting' && i < 20) {
+      await new Promise((res) => setTimeout(res, 250));
+      continue;
+    }
+    return { ok: false, code: body.code ?? null, error: body.error ?? `Generate failed (HTTP ${r.status}).` };
+  }
+}
+
+/** Play, the built-in path: a running review just opens. A stopped one is marked as the built-in assistant's
+ *  (`assistant: true` in its config.json), started, and asked for both documents unless they are validated already.
+ *  ("Use my own agent" is the client's: a prompt to paste, and nothing started here.) */
+export async function play(id: string, entry = process.argv[1]): Promise<PlayResult> {
+  const review = diskReviews().find((r) => r.id === id);
+  if (!review) return { ok: false, error: 'No such review on this machine.' };
+  const live = liveServer(review.dir);
+  const rec = live && (await answers(live.pid, live.port, 1500)) !== false ? live : null;
+  if (rec) return { ok: true, url: rec.url, pid: rec.pid, started: false, generate: null };
+  if (!review.repo || !fs.existsSync(review.repo)) return { ok: false, error: `The review's repository is gone: ${review.repo || 'not recorded'}` };
+  const file = configPath(review.dir);
+  fs.writeFileSync(file, JSON.stringify({ ...(JSON.parse(fs.readFileSync(file, 'utf8')) as object), assistant: true }, null, 2));
+  const started = await startDetached(review.repo, review.dir, ['--no-open'], entry);
+  if (!started) return { ok: false, error: `The review did not start: see ${path.join(review.dir, 'server.log')}` };
+  const gen = review.generation === 'ready' ? null : await generate(started);
+  return { ok: true, url: started.url, pid: started.pid, started: true, generate: gen };
+}
