@@ -144,8 +144,12 @@ export const stageIn = (s: GenerationSnapshot) => STAGES.find((st) => s.matches(
 /** What the tab keeps over a reload. */
 export const remembered = ({ context: c }: GenerationSnapshot): Remembered => ({ closedFor: c.closedFor === PENDING ? null : c.closedFor, waitedFor: c.waitedFor, played: c.played });
 const closed = ({ context: c }: GenerationSnapshot) => c.closedFor === PENDING || (c.closedFor !== null && c.closedFor === requestKey(c.progress));
-/** The loading screen: open, while there is something to wait for or a stop to read, unless closed for this request. */
-export const screenShown = (s: GenerationSnapshot) => ['starting', 'writing', 'stopped'].includes(stageIn(s)) && !closed(s);
+/** The loading screen: open, while there is something to wait for or a stop to read, unless closed for this request.
+ *  A stop once the walkthrough is validated (the report's) never opens it: the report panel and the indicator show it,
+ *  so it can't compete with the walkthrough playing. */
+export const screenShown = (s: GenerationSnapshot) => (['starting', 'writing'].includes(stageIn(s)) || reportStopped(s) === false) && !closed(s);
+/** Stopped: true once the walkthrough is validated (only the report stopped), false before; null when not stopped. */
+export const reportStopped = (s: GenerationSnapshot) => (stageIn(s) === 'stopped' ? s.context.progress.walkthrough.state === 'validated' : null);
 /** The header indicator: generation under way (or stopped) with the loading screen closed. Gone at idle and done. */
 export const indicatorShown = (s: GenerationSnapshot) => ['starting', 'writing', 'playable', 'stopped'].includes(stageIn(s)) && !screenShown(s);
 /** Generate (or Retry) is offered: a document not validated, where the server can generate, and no request on its way. */

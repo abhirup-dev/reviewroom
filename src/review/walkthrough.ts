@@ -6,7 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
-import { reportWaiting } from './generation.machine';
+import { generateOffered, reportStopped, reportWaiting } from './generation.machine';
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
 import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
@@ -93,12 +93,18 @@ class WalkthroughPanel implements PanelInstance {
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail);
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     const writing = h('div', { class: 'rr-empty' }, 'The report is being written');
-    this.element = h('div', { class: 'rr-narrative' }, writing, this.scroller);
-    // generation (generation.ts) says when the report is still being written
+    // a stop of the report alone (the walkthrough validated): said here, not on the loading screen (generation.machine.ts)
+    const retry = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => app.commands.run('generation.generate') }, 'Retry');
+    const stopped = h('div', { class: 'rr-empty' }, h('p', null, 'The report was not finished.'), retry);
+    this.element = h('div', { class: 'rr-narrative' }, writing, stopped, this.scroller);
+    // generation (generation.ts) says when the report is still being written, or stopped
     const progress = () => {
-      const waiting = !isDesc && !!app.generation && reportWaiting(app.generation);
+      const g = !isDesc ? app.generation : undefined;
+      const waiting = !!g && reportWaiting(g), halted = !!g && reportStopped(g) === true;
       writing.hidden = !waiting;
-      this.scroller.hidden = waiting;
+      stopped.hidden = !halted;
+      retry.hidden = !(g && generateOffered(g));
+      this.scroller.hidden = waiting || halted;
     };
     progress();
     this.offs.push(app.bus.on('generation', progress));

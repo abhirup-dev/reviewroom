@@ -5,7 +5,7 @@
 import { createActor } from 'xstate';
 import type { ReviewApp } from '../app';
 import { h, icon } from '../kernel/dom';
-import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, screenShown, stageIn, statusText, type GenerationSnapshot, type Remembered } from './generation.machine';
+import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, reportStopped, screenShown, stageIn, statusText, type GenerationSnapshot, type Remembered } from './generation.machine';
 
 /** api/generate's refusals, readable: never a raw code. */
 const REFUSED: Record<string, string> = {
@@ -28,9 +28,9 @@ const headerOf = (app: ReviewApp) => header.get(app) ?? (header.set(app, { indic
 
 function paintIndicator(el: HTMLButtonElement, s: GenerationSnapshot) {
   const stage = stageIn(s);
-  const label = stage === 'stopped' ? 'Generation stopped' : stage === 'playable' ? 'Writing the report' : 'Generating';
+  const label = stage === 'stopped' ? (reportStopped(s) ? 'Report not finished' : 'Generation stopped') : stage === 'playable' ? 'Writing the report' : 'Generating';
   el.classList.toggle('is-stopped', stage === 'stopped');
-  el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : 'Show the progress'}`;
+  el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : reportStopped(s) ? 'Show the report' : 'Show the progress'}`;
   if (el.classList.contains('rr-hbtn--icon')) el.setAttribute('aria-label', label);
   else el.lastElementChild!.textContent = label;
 }
@@ -54,8 +54,13 @@ export function mountGeneration(app: ReviewApp) {
     if (!screenShown(snap())) app.toast(error, 'error'); // the screen shows it already
   };
   const dismiss = () => actor.send({ type: 'dismiss' });
-  // in playable the screen has nothing left to show: the indicator plays the walkthrough
-  const show = () => (stageIn(snap()) === 'playable' ? app.bus.emit('walkthrough-open', {}) : actor.send({ type: 'reopen' }));
+  // in playable the screen has nothing left to show: the indicator plays the walkthrough; a stopped report is shown
+  // (with Retry) where the report goes
+  const show = () => {
+    if (stageIn(snap()) === 'playable') return app.bus.emit('walkthrough-open', {});
+    if (reportStopped(snap())) return void app.showPanel('narrative');
+    actor.send({ type: 'reopen' });
+  };
 
   // the screen's controls, made once and updated in place
   const heading = h('h1');

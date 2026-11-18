@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createActor } from 'xstate';
 import type { ArtifactProgress, Progress } from '../kernel/state/progress.shared';
-import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, reportWaiting, screenShown, stageIn, stageOf, statusText, type Remembered } from './generation.machine';
+import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, reportStopped, reportWaiting, screenShown, stageIn, stageOf, statusText, type Remembered } from './generation.machine';
 
 const hash = 'a'.repeat(64);
 // each document under request `id` (w1/r1 by default)
@@ -115,7 +115,7 @@ test('P2: the screen is closed per request: a repeated snapshot keeps it closed,
   k.send(p(doc('validated', 'w1', { hash }), doc('requested', 'r2')));
   expect([k.at(), k.shown()]).toEqual(['playable', false]); // playable shows no screen: but closing doesn't carry over
   k.send(p(doc('validated', 'w1', { hash }), doc('stopped', 'r2', { reason: 'failed' })));
-  expect(k.shown()).toBe(true);
+  expect([k.shown(), indicatorShown(k.s())]).toEqual([false, true]); // a report's stop: the report panel says it
   // reopen, from the indicator
   g.a.send({ type: 'reopen' });
   expect(g.shown()).toBe(true);
@@ -200,4 +200,15 @@ test('a late answer to an earlier Generate never cancels the Retry after it', ()
   expect([g.at(), g.s().context.error, generateOffered(g.s())]).toEqual(['starting', null, false]);
   g.a.send({ type: 'failed', attempt: g.s().context.attempt, error: 'busy' }); // the Retry's own answer counts
   expect([g.at(), g.s().context.error]).toEqual(['stopped', 'busy']);
+});
+
+test('a report that stops after the walkthrough validated never opens the stop screen; a stop before it does', () => {
+  const g = start(true, WRITING);
+  g.send(PLAYABLE); // plays
+  g.send(p(doc('validated', 'w1', { hash }), doc('stopped', 'r1', { reason: 'failed' })));
+  expect([g.at(), g.shown(), indicatorShown(g.s()), reportStopped(g.s()), generateOffered(g.s()), g.played]).toEqual(['stopped', false, true, true, true, ['w1']]);
+  const early = start(true, WRITING);
+  early.send(STOPPED);
+  expect([early.shown(), reportStopped(early.s())]).toEqual([true, false]);
+  expect(reportStopped(start(true, WRITING).s())).toBeNull();
 });

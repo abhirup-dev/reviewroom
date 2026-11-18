@@ -104,6 +104,20 @@ describe('generation in the page', () => {
       await page.close();
     }
   }, 60_000);
+  test.skipIf(!browser)('a report stopped after the walkthrough validated: no stop screen; the report panel says it, with Retry', async () => {
+    const page = await open(await serve());
+    try {
+      await page.evaluate(`sessionStorage.clear()`);
+      await feed(page, WRITING(1));
+      await feed(page, { walkthrough: doc('validated', 'w1', { hash }), report: doc('stopped', 'r1', { reason: 'failed' }) });
+      await until(page, `document.querySelector('.rr-gen').hidden && document.querySelector('.rr-gen-ind')`);
+      const placeholder = `[...document.querySelectorAll('.rr-narrative > .rr-empty')].find((e) => !e.hidden)`;
+      expect(await page.evaluate<string>(`${placeholder}?.textContent ?? ''`)).toContain('The report was not finished');
+      expect(page.errors()).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
 });
 
 describe('the assistant panel', () => {
