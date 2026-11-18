@@ -20,8 +20,7 @@ The coding agent that helps the reviewer: it writes the walkthrough and the repo
 _Avoid_: author, bot
 
 **Assistant**:
-The agent built into reviewroom: a Claude Code conversation on the reviewer's machine, in the Assistant panel.
-It can generate the walkthrough and report without an outside agent.
+The agent built into reviewroom. It can write the walkthrough and report without an outside agent.
 _Avoid_: bot, chat
 
 ### The review
@@ -35,36 +34,40 @@ One reviewer's review of one diff, with its walkthrough, report, threads and rou
 _Avoid_: session, workspace
 
 **Walkthrough**:
-The story of the diff, played over the workbench: chapters of slides, narration beside the code each slide shows
-(`walkthrough.json`). The reviewer sees it first; the report is where they dig in.
+The story of the diff, played over the workbench: chapters of slides, narration beside the code each slide shows.
+The reviewer sees it first; the report is where they dig in.
 _Avoid_: guided walkthrough, tour, slideshow, presentation
 
 **Slide**:
-One step of a walkthrough: its narration and the code it shows (`steps` in `walkthrough.json`).
+One step of a walkthrough: its narration and the code it shows.
 _Avoid_: page, card
 
 **Report**:
-The agent's detailed, freeform record of the review (`report.html`): findings, evidence, questions and later answers.
-It need not mirror the walkthrough.
-_Avoid_: walkthrough, narrative, review page, report.html
+The agent's detailed record of the review: findings, evidence, questions and later answers. It need not mirror
+the walkthrough.
+_Avoid_: walkthrough, narrative, review page
 
 **Risks chapter**:
 The final chapter of a walkthrough: the main risks as one-liners with severities, each linking to its finding in
 the report. Detailed findings stay out of the slides.
 
 **Finding**:
-An actionable problem in the diff, with a severity, location, impact, evidence and suggested direction. It is a
-section of the report with a stable id, so the Risks chapter can link to it.
+An actionable problem in the diff, with a severity, where it is, why it matters and a suggested direction. Each has
+its own place in the report, so the Risks chapter can link to it.
 _Avoid_: issue, comment
 
 **Flagged question**:
-A question the agent flags in the report for the reviewer to settle (`<rr-check>`); it may be partly or fully
-settled over the review.
+A question the agent flags in the report for the reviewer to settle; it may be partly or fully settled over the
+review.
 _Avoid_: open question, check, sign-off, checklist item
 
+**Report profile**:
+What a review looks for and the sections its report starts with. A review uses one, chosen when it is created.
+_Avoid_: review profile, template, checklist
+
 **Generation**:
-The agent writing a review's walkthrough and report, followed by the reviewer on the loading screen until the
-walkthrough passes its audit.
+The agent writing a review's walkthrough and report. The reviewer follows it on a loading screen until the
+walkthrough is ready.
 
 **GitHub review**:
 The reviewer's pending or submitted review on the PR in GitHub. Separate from the review in reviewroom.
@@ -84,11 +87,6 @@ _Avoid_: round summary
 Reviewing someone else's PR: the walkthrough first, then the report. The agent explains and reviews but never
 changes the code, in any round. The mode reviewroom is built around; reviewing your own work is not described yet.
 _Avoid_: team review
-
-**Report profile**:
-A folder in the skill holding the report's starting sections (`report.html`) and a guide to what to look for and
-what each section holds. A review uses one, chosen when it is created; `default` is the base.
-_Avoid_: review profile, template, checklist
 
 ### Conversation
 
@@ -110,16 +108,16 @@ _Avoid_: GitHub comment
 ### Serving
 
 **Hub**:
-The one page per machine that lists every running review (reviewroom, Crit, Plannotator), served by `reviewroom hub`.
+The one page per machine that lists every running review (reviewroom, Crit, Plannotator).
 _Avoid_: dashboard, index
 
 **Hub proxy**:
-The hub forwarding `/r/<review id>/...` to that review's own server, so every review is reachable from one origin.
+The hub forwarding requests to each review's own server, so every review is reachable from one address.
 _Avoid_: gateway, router
 
 **Public origin**:
-The one HTTPS URL the reviewer configures (`publicOrigin`) at which a front outside reviewroom makes the hub reachable
-from a phone, for example `https://mac.tailnet.ts.net`. See `docs/adr/0001-phone-origin.md`.
+The one HTTPS address the reviewer configures at which something outside reviewroom makes the hub reachable from a
+phone.
 _Avoid_: remote URL, tunnel URL
 
 ### Outside reviewroom
