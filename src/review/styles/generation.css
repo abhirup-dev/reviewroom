@@ -65,9 +65,10 @@
   gap: var(--rr-space-8);
   margin-top: var(--rr-space-8);
 }
+/* never below 0.75: the dot keeps 3:1 against the header in both themes (4.8:1 dark, 3.1:1 light) */
 @keyframes rr-gen-pulse {
   50% {
-    opacity: 0.3;
+    opacity: 0.75;
   }
 }
 @media (prefers-reduced-motion: reduce) {
