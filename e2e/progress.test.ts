@@ -37,7 +37,7 @@ test('pr requests only on creation/force; watcher pushes progress without reload
   expect(initial.code).toBe(0);
 
   const requested = progressLines(dir).filter((l) => l.event === 'requested');
-  expect(requested.map((l) => l.artifact)).toEqual(['walkthrough', 'review']);
+  expect(requested.map((l) => l.artifact)).toEqual(['walkthrough', 'report']);
   const url = (await cli(prArgs)).stdout.trim();
   expect(progressLines(dir).filter((l) => l.event === 'requested')).toEqual(requested);
   const abort = new AbortController();
@@ -61,14 +61,14 @@ test('pr requests only on creation/force; watcher pushes progress without reload
     await until(() => events.some((e) => e.event === 'hello'));
     for (const text of ['<rr-app><rr-review>', '<rr-app><rr-review><section id="summary"><h1>Summary</h1></section></rr-review></rr-app>']) {
       fs.writeFileSync(path.join(dir, 'review.html'), text);
-      await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).review.state === 'written');
+      await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'written');
     }
     expect(events.filter((e) => e.event === 'review')).toHaveLength(0);
     expect((await cli(['check', ...d])).code).toBe(0);
     await until(() => events.filter((e) => e.event === 'review').length === 1);
-    expect((await fetch(url + 'api/progress').then((r) => r.json())).review.state).toBe('validated');
+    expect((await fetch(url + 'api/progress').then((r) => r.json())).report.state).toBe('validated');
     fs.appendFileSync(path.join(dir, 'review.html'), '<!-- another save -->');
-    await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).review.state === 'written');
+    await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'written');
     expect(events.filter((e) => e.event === 'review')).toHaveLength(1);
   } finally { abort.abort(); await reading; }
 });

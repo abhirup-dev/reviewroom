@@ -1,6 +1,6 @@
-# Authoring reference: the walkthrough
+# Authoring reference: the report
 
-The building blocks of the walkthrough, `review.html`. For what to write and in what order see `review-craft.md`.
+The building blocks of the report (`review.html`). For what to write and in what order see `report-craft.md`.
 
 ## The file
 
@@ -47,18 +47,18 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 | `rr:sym/Take` | A symbol, found by searching the repo (definition first); its preview shows the whole declaration |
 | `rr:sym/Uploads.Take` | A symbol narrowed by its receiver, type or package (`limit.Take`) |
 | `rr:sym/internal/limit/bucket.go:Take` | A symbol narrowed by its file (also a path suffix: `limit/bucket.go:Take`) |
-| `rr:doc/request-path` | A section or element id in the walkthrough |
+| `rr:doc/request-path` | A section or element id in the report |
 | `rr:doc/request-path/<block>` | A block inside it, as feedback anchors give it; copy it from there, don't write it by hand |
 | `rr:thread/t_ab12cd` | An agent thread (`gh_<n>`: a team thread on the PR) |
-| `rr:round/2` | The walkthrough as it was at the end of round 2 |
-| `rr:tour/latency/s3` | A guided walkthrough slide; `<rr-embed>` shows it as a slide card (its text, its code, a play button) |
+| `rr:round/2` | The report as it was at the end of round 2 |
+| `rr:tour/latency/s3` | A walkthrough slide; `<rr-embed>` shows it as a slide card (its text, its code, a play button) |
 
 A file in the diff opens in the diff view; any other file opens whole. (`rr:file/<path>@<rev>` is the
 older spelling and still works.) Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
 `reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
 Hovering any link shows a live preview of its target; clicking it opens the target in the code or
-walkthrough panel. Never show the raw `rr:` string.
+report panel. Never show the raw `rr:` string.
 
 Two ways to write a link:
 
@@ -102,7 +102,7 @@ round (`rr:thread/t_…`) and team threads on the PR (`rr:thread/gh_<n>`, `gh_co
 ```html
 <a href="rr:thread/t_seq01">your question on sequencing</a>          <!-- inline mention: link, hover = preview -->
 <rr-embed ref="rr:thread/gh_812"></rr-embed>                         <!-- the thread itself matters: card -->
-<a href="rr:round/1">the round 1 version of this section</a>         <!-- what the walkthrough said before -->
+<a href="rr:round/1">the round 1 version of this section</a>         <!-- what the report said before -->
 ```
 
 In a reply: `[your question on sequencing](rr:thread/t_seq01)` inline, or `![](rr:thread/gh_812)` on
@@ -128,15 +128,15 @@ Fenced ```` ```mermaid ```` blocks in Markdown (`<rr-markdown>`, thread replies,
 same way. A `click` statement with an `rr:` address opens the code; JavaScript callbacks, images and HTML labels
 are not supported. One class picks a preset (`rr-diagram-delta`, `-baseline`, `-soft`, `-blueprint`, `-warm`,
 `-square`, `-raised`, `-signal`; see `visual-formats.md`); don't hard-code colours, they break the theme switch.
-Give it an `id` so threads can anchor on it. Pele has no animation; the guided walkthrough lights nodes for you.
+Give it an `id` so threads can anchor on it. Pele has no animation; the walkthrough lights nodes for you.
 
 ```html
 <rr-callout kind="risk" title="Silent degradation">…</rr-callout>                      <!-- info note risk question ok -->
-<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- open questions -->
+<rr-checklist><rr-check id="proto-compat">Proto change is append-only</rr-check></rr-checklist>  <!-- flagged questions -->
 <rr-markdown>## Markdown blocks work too</rr-markdown>
 ```
 
-Each `<rr-check>` is one **open question**; the reviewer marks it settled or not, and the feedback
+Each `<rr-check>` is one **flagged question**; the reviewer marks it settled or not, and the feedback
 lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
 characters of its text stand in, and rewording it loses the reviewer's mark.
 
@@ -157,7 +157,7 @@ Interactive widgets can drive the reviewer straight into the code:
 | API | |
 |---|---|
 | `rr.open(ref)` | Navigate to any `rr:` ref |
-| `rr.walkthrough(chapter?, step?)` | Play the guided walkthrough (ids; none: from the start) |
+| `rr.walkthrough(chapter?, step?)` | Play the walkthrough (ids; none: from the start) |
 | `rr.findSymbol(name)` | Jump to a definition (same name forms as `rr:sym`) |
 | `rr.read(path, 'head' \| 'base' \| sha)` | File contents (string) |
 | `rr.files()` / `rr.search(q, symbol?)` | Changed files / repo search hits |
@@ -168,14 +168,14 @@ Interactive widgets can drive the reviewer straight into the code:
 | `rr.layout('reading' \| 'wide-code' \| 'code-focus' \| 'narrative-focus' \| 'tablet' \| <saved name>)` | Switch layout (false if there's no such layout) |
 | `rr.theme()` | `'light'` or `'dark'` |
 
-## Guided walkthrough: `walkthrough.json`
+## Walkthrough: `walkthrough.json`
 
-The guided walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
+The walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
 on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
 review directory and follows `schema/walkthrough.schema.json` in the reviewroom install. Put that path in a top-level
 `"$schema"` key so your editor validates as you type; see [Validation and audit](validation-and-audit.md).
 The demo shows the format: `examples/uploads/walkthrough.json`. The excerpt below is one
-story chapter; follow `guided-walkthrough-craft.md` for the intro and final Risks chapter.
+story chapter; follow `walkthrough-craft.md` for the intro and final Risks chapter.
 
 ```json
 {
@@ -213,16 +213,16 @@ story chapter; follow `guided-walkthrough-craft.md` for the intro and final Risk
 | no `ref` | The pane keeps the chapter's last links; with none yet, the previous chapter's. The lead's diagram stays in the lead, next to the slide |
 | step `focus` | Labels of the diagram nodes (a Mermaid node's label, in the lead or the slide's text; a timeline's or gitGraph's nodes have none) that light up on this slide, as written; the rest dim, and the edges between lit nodes of a Mermaid flowchart or class diagram flow. Omitted: nodes whose `ref` (its `click` link) overlaps the code the pane shows light up; `[]` lights none. `check` flags a label no node has |
 
-Prose is HTML like the walkthrough's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-mermaid>`; a code
-link in the text shows that code in the pane without leaving the slide. It is display-only, since a guided walkthrough can come
+Prose is HTML like the report's, with the same links, `<rr-ref>`, `<rr-code>` and `<rr-mermaid>`; a code
+link in the text shows that code in the pane without leaving the slide. It is display-only, since a walkthrough can come
 from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` (with its preset `class`), `<rr-callout>`,
 `<rr-embed>`; ids, styles, scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). A figure
-that needs more than that (your own HTML or SVG) lives in `review.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `guided-walkthrough-craft.md`.
+that needs more than that (your own HTML or SVG) lives in `review.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `walkthrough-craft.md`.
 
 Use [Validation and audit](validation-and-audit.md) for checks, iteration and screenshots.
 
 - `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a slide,
-  and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the walkthrough.
+  and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the report.
 - `reviewroom publish-slides` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
   comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 

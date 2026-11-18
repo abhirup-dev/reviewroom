@@ -7,18 +7,18 @@ import { appendProgress, artifactHash, progressLines, readProgress, recordArtifa
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
   try {
-    appendProgress(dir, { artifact: 'review', event: 'requested' });
+    appendProgress(dir, { artifact: 'report', event: 'requested' });
     const file = path.join(dir, 'review.html');
     fs.writeFileSync(file, '<rr-app><rr-review><section id="summary"><section id="nested"></section></section></rr-review></rr-app>');
-    recordArtifact(dir, 'review', 'written');
-    recordArtifact(dir, 'review', 'written');
+    recordArtifact(dir, 'report', 'written');
+    recordArtifact(dir, 'report', 'written');
     expect(progressLines(dir)).toHaveLength(2);
-    expect(readProgress(dir).review).toMatchObject({ state: 'written' });
-    const checked = artifactHash(dir, 'review');
+    expect(readProgress(dir).report).toMatchObject({ state: 'written' });
+    const checked = artifactHash(dir, 'report');
     fs.appendFileSync(file, 'changed while checking');
-    recordArtifact(dir, 'review', 'validated', {}, checked);
-    expect(readProgress(dir).review.state).toBe('written');
-    recordArtifact(dir, 'review', 'validated');
-    expect(readProgress(dir).review.state).toBe('validated');
+    recordArtifact(dir, 'report', 'validated', {}, checked);
+    expect(readProgress(dir).report.state).toBe('written');
+    recordArtifact(dir, 'report', 'validated');
+    expect(readProgress(dir).report.state).toBe('validated');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { parseProgress, reduceProgress, ProgressLine, type Artifact } from '../../src/kernel/state/progress.shared.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 
-const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'review' ? 'review.html' : 'walkthrough.json');
+const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'report' ? 'review.html' : 'walkthrough.json');
 export const progressHash = (bytes: string | Buffer) => crypto.createHash('sha256').update(bytes).digest('hex');
 export function artifactHash(dir: string, artifact: Artifact) {
   const file = filename(dir, artifact);
@@ -15,7 +15,7 @@ export function progressLines(dir: string) {
   const file = path.join(dir, 'progress.jsonl');
   return parseProgress(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '');
 }
-export const readProgress = (dir: string) => reduceProgress(progressLines(dir), { walkthrough: artifactHash(dir, 'walkthrough'), review: artifactHash(dir, 'review') });
+export const readProgress = (dir: string) => reduceProgress(progressLines(dir), { walkthrough: artifactHash(dir, 'walkthrough'), report: artifactHash(dir, 'report') });
 export function appendProgress(dir: string, line: Omit<ProgressLine, 'at'> & { hash?: string }) {
   fs.appendFileSync(path.join(dir, 'progress.jsonl'), JSON.stringify(ProgressLine.parse({ ...line, at: new Date().toISOString() })) + '\n');
 }

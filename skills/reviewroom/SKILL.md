@@ -1,16 +1,16 @@
 ---
 name: reviewroom
-description: Run agent-guided code reviews in reviewroom, a local review workbench where you write an interactive walkthrough of a diff (a PR, branch or uncommitted work) next to the live code, a guided walkthrough (chaptered slides played over the code), and answer the reviewer's threads round by round.
+description: Run agent-guided code reviews in reviewroom, a local review workbench where you write a walkthrough of a diff (a PR, branch or uncommitted work: chaptered slides played over the live code), a report beside it, and answer the reviewer's threads round by round.
 ---
 
 # Review with reviewroom
 
-reviewroom is a local, browser-based code review workbench. You write the **walkthrough**: an HTML
-page that explains the **diff** under review, where every claim links to the real code. reviewroom
-shows it next to the live diff of the local clone. The **reviewer** (the person reviewing, who may
+reviewroom is a local, browser-based code review workbench. You write the **report** (`review.html`):
+an HTML page that explains the **diff** under review, where every claim links to the real code.
+reviewroom shows it next to the live diff of the local clone. The **reviewer** (the person reviewing, who may
 also be the PR's author) starts threads on any sentence, block or code line, and at the end of each
 **round** sends you their **feedback**; you answer, and the next round begins. Every thread, reply,
-open question and round is kept from one round to the next.
+flagged question and round is kept from one round to the next.
 
 The CLI's help is the command reference: `reviewroom --help`, and `reviewroom <command> --help`
 for flags and notes. Read it before your first command. If `reviewroom` is not on PATH, use
@@ -44,7 +44,7 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 ## Step 1: Start the review in the background
 
 Read "Start the review server" in `references/review-rounds.md` and launch the review as it
-instructs. Keep the command running in the background while writing the walkthrough.
+instructs. Keep the command running in the background while writing the walkthrough and the report.
 
 ## Step 2: Relay the URL
 
@@ -53,7 +53,7 @@ outside the repo) and the URL.
 `reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
-> **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the guided walkthrough first."**
+> **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the walkthrough first."**
 
 ## Step 3: Understand the diff
 
@@ -82,32 +82,32 @@ For `--head worktree`, pass the file path instead of piping (`ast-grep outline <
 reviewroom's setup installs `ast-grep` (the `ast-grep` skill, when installed, has the pattern
 syntax). To show a whole declaration, `rr:sym/<name>` needs no numbers.
 
-## Step 4: Outline, then write the guided walkthrough first
+## Step 4: Outline, then write the walkthrough first
 
-Read `references/guided-walkthrough-craft.md` for the story, `references/review-craft.md` for the
+Read `references/walkthrough-craft.md` for the story, `references/report-craft.md` for the
 record, and `references/profiles/index.md` for the default profile and any additions the review needs.
 Read `references/authoring.md` for the format and `references/visual-formats.md` when writing visuals.
 
-Always provide a guided walkthrough. If `reviewroom pr` pulled one shipped with the PR, use it as is;
+Always provide a walkthrough. If `reviewroom pr` pulled one shipped with the PR, use it as is;
 it was validated before publication. Go to Step 4b without replacing it. Otherwise:
 
 1. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
    Each main risk is one line with a severity and an `rr:doc/<section id>` link to its finding in
-   `review.html`; keep detailed findings out of the slides.
-2. As part of the outline, write a minimal `review.html`: the top-level `<section id>` parts plus
+   the report; keep detailed findings out of the slides.
+2. As part of the outline, write a minimal report: the top-level `<section id>` parts plus
    one finding section per risk, each with just a heading. Keep these ids stable for the Risks links.
 3. Write `walkthrough.json` in the review directory.
 4. Run a full `reviewroom slide-lint --dir <dir>`, fix issues and repeat until it passes.
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).
 
-## Step 4b: Fill the walkthrough (`review.html`)
+## Step 4b: Fill the report
 
-Only after the guided walkthrough passes, fill `review.html`. For someone else's PR, use the
+Only after the walkthrough passes, fill the report. For someone else's PR, use the
 suggested outline in `references/profiles/default.md`: Summary, Findings, Questions for the author,
 Evidence, Your questions. Each top-level part is a `<section id>`; the HTML inside is yours.
 
-The guided walkthrough tells the story; the walkthrough keeps the detailed review and later answers.
+The walkthrough tells the story; the report keeps the detailed review and later answers.
 They need not mirror each other. Both are read in a narrow panel (about 400px) or on a phone:
 design every diagram, table and widget for that width. Prefer Mermaid for diagrams.
 
@@ -117,8 +117,8 @@ Run `reviewroom check --fix --dir <dir>`, fix remaining issues and repeat until 
 
 Once both documents are done and clean, tell the reviewer:
 
-> **"The review is ready. Start with the guided walkthrough: <url>?walkthrough= — then leave
-> comments on slides or the walkthrough, and click Send feedback (or Approve)."**
+> **"The review is ready. Start with the walkthrough: <url>?walkthrough= — then leave
+> comments on slides or the report, and click Send feedback (or Approve)."**
 
 `?walkthrough=` opens the player at the first slide.
 
@@ -134,6 +134,6 @@ and starting the next round. Follow that loop until the reviewer approves or ask
 - Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
   any round, team thread, earlier round) in plain text, and do not paraphrase or quote a thread:
   link or embed it. Follow the link-placement guidance in `references/authoring.md`, under "Links: `rr:` refs".
-- Do not paste diff code into the walkthrough or replies; link or embed it.
+- Do not paste diff code into the report or replies; link or embed it.
 - Do not cite a line number you have not checked against the head revision (ast-grep, Step 3).
 - Do not guess flags; run `reviewroom <command> --help`.

@@ -10,7 +10,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
   `main.ts`, `app.ts` and `services.ts` compose the app. `kernel/` owns infrastructure; `review/`, `threads/`,
   `slides/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
-- The guided walkthrough (`walkthrough.json`): schema and PR block in `src/slides/model.shared.ts`, player in
+- The walkthrough (`walkthrough.json`): schema and PR block in `src/slides/model.shared.ts`, player in
   `src/slides/player.ts` (its phone and desktop parts in `player.phone.ts`, `player.desktop.ts`), CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks), `cli/lib/slides-file.ts` (file and PR-block helpers), and `cli/lib/render.ts` (the headless browser,
   `Bun.WebView`: its only user).
@@ -24,11 +24,11 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 
 ## Contracts (change deliberately, update the skill when you do)
 
-- **The walkthrough is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
+- **The report (`review.html`) is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
   (CSS Highlight API, overlays, data attributes).
 - **`rr:` links** (`src/kernel/refs/refs.shared.ts`) address everything in HTML, threads, the CLI and agent replies. Keep old forms
   parsing.
-- **`walkthrough.json`** (the guided walkthrough) follows `schema/walkthrough.schema.json`, generated from
+- **`walkthrough.json`** (the walkthrough) follows `schema/walkthrough.schema.json`, generated from
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/kernel/state/schema.shared.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
@@ -91,9 +91,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).
 - No raw `rr:` strings, ids or CSS paths in visible text: use `app.label()` / `describeElement()`.
 
-- Use `walkthrough` for the freeform explanation (`src/review/walkthrough.ts`) and `slides` for guided-walkthrough
-  modules (`src/slides/`). Preserve the existing `narrative` panel/scope/CSS identifiers, `narrative-focus` layout
-  key, `walkthrough.json`, `rr:tour` links and public API names for compatibility.
+- Code identifiers predate the vocabulary: `src/review/walkthrough.ts` and the `narrative` panel are the report, and
+  `slides` modules (`src/slides/`) are the walkthrough. Preserve the existing `narrative`
+  panel/scope/CSS identifiers, `narrative-focus` layout key, `walkthrough.json`, `rr:tour` links and public API names
+  for compatibility.
 - Runtime dependencies flow `threads`/`slides` -> `review` -> `kernel`; `hub` -> `kernel`.
   Root composition modules may import all features. `bun run check` rejects runtime cycles and layer violations.
 - Type-only dependencies may reference `ReviewApp` at the composition root or shared contracts; otherwise follow layers.

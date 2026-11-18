@@ -1,5 +1,5 @@
 // shot: the review (review.html as the Review panel shows it) as PNGs, for an agent to look at without a browser
-// (`shot <chapter>/<step>`: one guided-walkthrough slide instead, in slides.ts).
+// (`shot <chapter>/<step>`: one walkthrough slide instead, in slides.ts).
 // One picture when it is short; else one per section (the Contents' sections), a tall section cut between its blocks.
 import fs from 'node:fs';
 import os from 'node:os';

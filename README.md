@@ -1,6 +1,6 @@
 # reviewroom
 
-An agent-driven code review workbench. The agent writes a **freeform HTML walkthrough** of a diff;
+An agent-driven code review workbench. The agent writes a **freeform HTML report** (`review.html`) of a diff;
 reviewroom puts it next to a **live diff of your local clone** and gives you everything around it:
 docking panels, contents, a file tree, symbol search, anchored comment threads, and Crit-style
 **review rounds** with the agent.
@@ -63,13 +63,13 @@ sheets, touch commenting). Install it from **More › Install app** or the palet
 unsent. Pick the origin for good: an installed app is tied to it. Anyone the front lets through can read and write
 every running review.
 
-## Guided walkthroughs
+## Walkthroughs
 
-An agent can also write a guided walkthrough, `walkthrough.json`: chapters of slides the reviewer plays
+An agent can also write a walkthrough, `walkthrough.json`: chapters of slides the reviewer plays
 over the workbench, narration on the left, the slide's code (one chunk or several, across files) on the
 right, ← → between slides, pause to a pill to dig around, and **Comment** on a slide to start a thread
-anchored to it. It tells the main story; the walkthrough (`review.html`) is where the reviewer digs in,
-and a slide that draws questions gets a walkthrough section of its own with the slide embedded
+anchored to it. It tells the main story; the report is where the reviewer digs in,
+and a slide that draws questions gets a report section of its own with the slide embedded
 (`<rr-embed ref="rr:tour/…">`).
 The agent plays every slide in a headless browser to check it fits the screen. A PR author can ship one
 with the PR, and a review of that PR pulls it. The demo has one (**Guided walkthrough** in the header).
@@ -81,24 +81,24 @@ up in the diff and in **Threads › GitHub**, with avatars, drafts, outdated mar
 github.com. Reply, edit, delete and resolve there as on GitHub. The header's **Agent / Team** switch
 picks where your new code and general comments go: to the agent (round by round), or into your
 pending GitHub review, posted with **Submit review** (comment, approve or request changes).
-Narrative comments always go to the agent. The agent sees GitHub threads read-only and can link
+Comments on the report always go to the agent. The agent sees GitHub threads read-only and can link
 them (`rr:thread/gh_<n>`).
 
 Thread markers tell the two apart: GitHub's mark for threads on the PR, Clawd for threads with the
 agent, each with its message count; they turn grey once resolved.
 The PR's own **Description** sits above the agent's review: read-only (edit it on GitHub), but you can
-comment on it like the walkthrough, and those threads go to the agent.
+comment on it like the report, and those threads go to the agent.
 The **CI** tab (next to Threads) shows the latest commit's checks, from GitHub Actions or any CI that
 reports a commit status (Jenkins, TeamCity, …). When it failed or is still running, it also shows the
 last commit on the PR that passed; while checks run it refreshes every 30 seconds.
 
 ## Commenting
 
-- **Select text** in the walkthrough → Comment / Copy link / Pin.
+- **Select text** in the report → Comment / Copy link / Pin.
 - **Hover any block** (paragraph, list item, table, diagram, widget) → gutter handle → comment on the whole block.
 - **Hold Alt** (or press `x`, or the target button) to pick **any element**, devtools-style.
 - **Code:** click/drag line numbers to select a range, or the `+` in the gutter.
-- Threads render as passive highlights + chips in the margin (walkthrough) or compact rows (code),
+- Threads render as passive highlights + chips in the margin (report) or compact rows (code),
   open as a centred markdown popup, and can be **docked** as a panel.
 - In the composer, `[[` links anything (sections, files, lines, symbols, threads); a pasted `rr:` link becomes a chip;
   `![](rr:…)` embeds a live preview.
@@ -108,13 +108,13 @@ last commit on the PR that passed; while checks run it refreshes every 30 second
 | | |
 |---|---|
 | `⌘K` / `Ctrl K` | Go to anything (files, sections, threads, commands; `#` symbols, `/` search code) |
-| `g n` `g c` `g f` `g t` `g o` | Focus walkthrough / code / files / threads / contents |
-| `n` `p` or `]` `[` | Next / previous section (walkthrough) |
+| `g n` `g c` `g f` `g t` `g o` | Focus report / code / files / threads / contents |
+| `n` `p` or `]` `[` | Next / previous section (report) |
 | `j` `k`, `J` `K` / `] f` `[ f` | Next / previous change, file (code) |
 | `s` `w` `i` `+` `-` `v` | Split/unified, wrap, ignore whitespace, focus new/old, mark viewed (code) |
 | `c` | Comment on current selection |
 | `x` / hold `Alt` | Pick an element to comment on |
-| `Alt 1–4` | Layouts: reading, wide code, code focus, walkthrough focus (`narrative-focus`) |
+| `Alt 1–4` | Layouts: reading, wide code, code focus, report focus (`narrative-focus`) |
 | `⌘⇧↵` | Finish round & send feedback |
 | hover anything | Tooltip explaining it, with its shortcut |
 | double-click a file, diff header, section or pin | Open it big in a centred window (`Esc` puts it back) |
@@ -138,9 +138,9 @@ src/
   services.ts         composition of narrow code, thread and GitHub services
   kernel/             state/refs, DOM helpers, dock and phone shell, layouts, presentation (device), Back history,
                       sheets, providers, header
-  review/             code/walkthrough/files/contents, elements, previews, navigation
+  review/             code/report/files/contents, elements, previews, navigation
   threads/            local/GitHub threads, composer, controls, CI and docking
-  slides/             guided walkthrough model, player machines, view and audit
+  slides/             walkthrough model, player machines, view and audit
   hub/                standalone hub UI and model
   pwa/                web app manifest and icons
   testing/            DOM fixtures and integration tests

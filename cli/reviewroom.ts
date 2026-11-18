@@ -3,8 +3,8 @@
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
 // The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch) and holds:
-//   review.html            the walkthrough (written by the agent, any HTML)
-//   walkthrough.json       the guided walkthrough, optional (written by the agent)
+//   review.html            the report (written by the agent, any HTML)
+//   walkthrough.json       the walkthrough (written by the agent)
 //   state.json             threads, rounds, viewed files, sign-offs
 //   config.json            repoPath/base/head/title
 //   layout.json            the panel layout as the reviewer left it (written by the browser)
@@ -98,7 +98,7 @@ cli
   .action(run(cmdCheck));
 
 cli
-  .command('slide-lint', 'Audit all or selected guided slides')
+  .command('slide-lint', 'Audit all or selected walkthrough slides')
   .option('--jobs <n>', 'Concurrent pages: 1-8, default 1')
   .option('--chapter <id>', 'Chapter ID; excludes --slide')
   .option('--slide <chapter/step>', 'Slide IDs; excludes --chapter')
@@ -112,14 +112,14 @@ cli
   .action(run(cmdSlideLint));
 
 cli
-  .command('publish-slides', 'Publish guided slides to the PR')
+  .command('publish-slides', 'Publish walkthrough slides to the PR')
   .option('--dry-run', 'Print without posting')
   .option('--allow-stale', 'Allow stale links; schema must pass')
   .example('  reviewroom publish-slides')
   .action(run(cmdPublishSlides));
 
 cli
-  .command('shot [section]', 'Capture review sections or chapter/step slides')
+  .command('shot [section]', 'Capture report sections or chapter/step slides')
   .option('--theme <light|dark>', 'Theme; default light')
   .option('--mobile', 'Review panel width: 390 CSS pixels')
   .option('--viewport <WxH>', 'Slide viewport; default 1280x800')
@@ -218,10 +218,10 @@ cli.help((sections) => {
       ].join('\n'),
     },
     {
-      title: 'A guided walkthrough (when wanted)',
+      title: 'A walkthrough (when wanted)',
       body: [
         '  walkthrough.json sits beside review.html.',
-        '  slide-lint: validate guided slides.',
+        '  slide-lint: validate walkthrough slides.',
         '  shot <chapter>/<step>: inspect one slide.',
         '  publish-slides: publish to the PR.',
       ].join('\n'),

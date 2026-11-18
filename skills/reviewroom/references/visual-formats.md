@@ -1,13 +1,13 @@
-# Pictures for a walkthrough: which one, and in what
+# Pictures for a report: which one, and in what
 
-A walkthrough needs pictures (see "Show it, then say it" in `review-craft.md`). This file is the menu:
+A report needs pictures (see "Show it, then say it" in `report-craft.md`). This file is the menu:
 first the question the picture answers, then the smallest shape that answers it. Choose only the
 formats that help explain the change; this catalog is a menu, not a checklist. Replace every
 illustrative label with a name from the diff, and give each node a link to its code.
 
 ## Two ways to draw
 
-| Draw it as | When | Lights up in a guided walkthrough |
+| Draw it as | When | Lights up in a walkthrough |
 |---|---|---|
 | `<rr-mermaid>` (Mermaid, rendered by Pele) | Anything with nodes and edges: flows, sequences, states, trees, contracts, timelines. Fast to write, themed, clickable | yes, by node label, where the boxes have labels: flowchart, state, class, sequence, treeView, architecture. Not timeline or gitGraph |
 | Your own HTML, SVG or `<table>` | A shape Mermaid has none for: a byte layout, a grid of cases, a before/after of a data structure, a latency budget, a tiny widget the reviewer can poke | no (embed it with `rr:doc/`) |
@@ -128,8 +128,8 @@ tokens and follow light and dark mode.
 | `rr-diagram-square` | monochrome boxes: a data layout, a protocol |
 | `rr-diagram-raised` | offset shadows: a few important boxes |
 | `rr-diagram-signal` | shaded nodes, heavier connectors: a signal path |
-| `rr-diagram-motion` | add to any of the above: connectors flow on hover (off under reduced motion). Not in ordinary walkthroughs |
+| `rr-diagram-motion` | add to any of the above: connectors flow on hover (off under reduced motion). Not in ordinary reports |
 
-Pele has no animation of its own (`animate: true` on an edge parses and renders static). The guided
+Pele has no animation of its own (`animate: true` on an edge parses and renders static). The
 walkthrough animates diagrams for you: the nodes a slide is about light up, the rest dim, and the
 edges between lit nodes flow (in flowcharts and class diagrams). Don't add motion by hand for that.

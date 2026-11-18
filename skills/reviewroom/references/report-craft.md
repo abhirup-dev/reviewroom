@@ -1,15 +1,15 @@
-# Review craft: what makes a walkthrough worth reading
+# Report craft: what makes a report worth reading
 
-The walkthrough (`review.html`) is the long-form review: every claim linked, risks, tests and the open
+The report (`review.html`) is the long-form review: every claim linked, risks, tests and the flagged
 questions, growing round by round as threads come in. This is how to write it; the building blocks are
-in `authoring.md`, and the guided walkthrough (the story told once, before it) is
-`guided-walkthrough-craft.md`.
+in `authoring.md`, and the walkthrough (the story told once, before it) is
+`walkthrough-craft.md`.
 
 ## Who you are writing for
 
-The reviewer: an engineer reviewing at speed, sometimes the author of the diff. The walkthrough exists
+The reviewer: an engineer reviewing at speed, sometimes the author of the diff. The report exists
 so they **understand the diff fast and stay connected to the real code** while doing so. Whenever the
-walkthrough says something, their next thought is "what does that look like in the code? what was
+report says something, their next thought is "what does that look like in the code? what was
 there before? what changed?" Answer that before they ask, by linking every claim.
 
 ## The first sixty seconds
@@ -40,7 +40,7 @@ orders an explanation of the diff for other reviews, or supporting detail within
 - Say what changed **and what was there before** when that's the interesting part (link `@base`).
 - Call out real risks with `<rr-callout kind="risk">`, not every observation. Say what is *not*
   tested.
-- End with the open questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle
+- End with the flagged questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle
   before approving (compatibility, latency, migrations, observability, rollout).
 - Interpret the PR description and connect it to the code; don't restate it.
 - Don't over-build: a lede, the delta diagram, a handful of sections and one checklist cover a typical
@@ -50,7 +50,7 @@ orders an explanation of the diff for other reviews, or supporting detail within
 
 ## Design for a narrow column
 
-The walkthrough usually sits in a side panel about 400px wide, or on a phone.
+The report usually sits in a side panel about 400px wide, or on a phone.
 Write for that width first; a wide window then just has margin.
 
 - Diagrams run top to bottom: `flowchart TD`, tall SVGs rather than wide ones. Pele refits a Mermaid diagram to the panel; it can't
@@ -77,7 +77,7 @@ The reviewer scans before they read. Before handing over, read each section as t
 narrow column and reshape what resists scanning. These four patterns often make scanning harder.
 Each example shows one possible improvement, not a required template. Any shape that keeps the
 meaning, the distinctions and the code links is fine: a shorter paragraph, a one-level list, a
-heading per group, a three-column table, a diagram, or your own HTML. A list that is really a list (steps of a migration, the open questions)
+heading per group, a three-column table, a diagram, or your own HTML. A list that is really a list (steps of a migration, the flagged questions)
 stays a list.
 
 **One paragraph, several independent ideas.** Each idea the reviewer may want to find, link or
@@ -156,14 +156,14 @@ sections; the leaves are one list, or a table when they all have the same fields
 for each plan.</p>
 ```
 
-## With a guided walkthrough
+## With the walkthrough
 
-Read `guided-walkthrough-craft.md` first. Outline the story and create the heading-only sections
-in `review.html`, including a stable finding section for every risk. Write and validate the guided
-walkthrough before filling the walkthrough. The slides tell the story; the walkthrough keeps the
+Read `walkthrough-craft.md` first. Outline the story and create the heading-only sections
+in the report, including a stable finding section for every risk. Write and validate the
+walkthrough before filling the report. The slides tell the story; the report keeps the
 review record. Its sections need not mirror the chapters.
 
 ## Answering threads
 
-For feedback, replies and round-specific walkthrough updates, follow `review-rounds.md`.
+For feedback, replies and round-specific report updates, follow `review-rounds.md`.
 Use `authoring.md` for thread links and embeds.

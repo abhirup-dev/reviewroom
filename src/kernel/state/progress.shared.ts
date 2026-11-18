@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const facts = { head: z.string().optional(), slides: z.number().int().nonnegative().optional(), chapters: z.number().int().nonnegative().optional(), source: z.literal('pr').optional() };
-const identity = { at: z.iso.datetime(), artifact: z.enum(['walkthrough', 'review']), ...facts };
+const identity = { at: z.iso.datetime(), artifact: z.enum(['walkthrough', 'report']), ...facts };
 export const ProgressLine = z.discriminatedUnion('event', [
   z.object({ ...identity, event: z.literal('requested') }),
   z.object({ ...identity, event: z.enum(['written', 'validated']), hash: z.string().regex(/^[a-f0-9]{64}$/) }),
@@ -19,7 +19,7 @@ export function parseProgress(text: string): ProgressLine[] {
   });
 }
 export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Artifact, string>>): Progress {
-  const result: Progress = { walkthrough: { state: 'none' }, review: { state: 'none' } };
+  const result: Progress = { walkthrough: { state: 'none' }, report: { state: 'none' } };
   for (const line of lines) {
     if (line.event !== 'requested' && result[line.artifact].state === 'none') continue;
     result[line.artifact] = { ...line, state: line.event === 'validated' && line.hash !== hashes[line.artifact] ? 'written' : line.event };

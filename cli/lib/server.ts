@@ -135,7 +135,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
   const parts = () => {
     const progress = readProgress(dir);
-    return ([['review', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
+    return ([['report', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
       pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex') : '');
   };
   const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
@@ -172,7 +172,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     : watchNarrative(dir, (files) => {
         const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
         if (files.has('walkthrough.json')) recordArtifact(dir, 'walkthrough', 'written', head);
-        if (files.has('review.html')) recordArtifact(dir, 'review', 'written', head);
+        if (files.has('review.html')) recordArtifact(dir, 'report', 'written', head);
         send('progress', readProgress(dir));
         // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
         const next = parts();
@@ -220,7 +220,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
   // A headless audit reads incomplete artifacts on purpose; generation must not cover its player.
-  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, review: { state: 'none' } } : readProgress(dir)));
+  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, report: { state: 'none' } } : readProgress(dir)));
   app.get('/api/state', (c) => json(c, read()));
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {

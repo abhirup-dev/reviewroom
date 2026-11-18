@@ -137,7 +137,7 @@ test('progress is delivered without requesting a reload and stops at disposal', 
   let updates = 0, reloads = 0;
   backend.subscribe({ state: () => {}, error: () => {}, review: () => reloads++, progress: () => updates++ });
   const stream = Stream.opened[0];
-  const push = () => stream.dispatchEvent(new MessageEvent('progress', { data: JSON.stringify({ walkthrough: { state: 'written' }, review: { state: 'requested' } }) }));
+  const push = () => stream.dispatchEvent(new MessageEvent('progress', { data: JSON.stringify({ walkthrough: { state: 'written' }, report: { state: 'requested' } }) }));
   push();
   expect([updates, reloads]).toEqual([1, 0]);
   backend.dispose();

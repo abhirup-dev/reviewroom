@@ -44,7 +44,7 @@ One step of a walkthrough: its narration and the code it shows (`steps` in `walk
 _Avoid_: page, card
 
 **Report**:
-The agent's detailed, freeform record of the review (`report.html`): findings, evidence, questions and later answers.
+The agent's detailed, freeform record of the review (`review.html`): findings, evidence, questions and later answers.
 It need not mirror the walkthrough.
 _Avoid_: walkthrough, narrative, review page, review.html
 

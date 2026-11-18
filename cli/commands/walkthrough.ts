@@ -10,7 +10,7 @@ const COMMENT_LIMIT = 65_536; // GitHub's maximum comment body
 
 /** The comment body: the block plus a line for people reading the PR on GitHub. */
 export function publishBody(w: Walkthrough, pr?: number) {
-  const body = `${encodeBlock(w)}\n_A guided walkthrough of this PR: \`reviewroom pr ${pr ?? '<number>'}\` plays it in reviewroom._\n`;
+  const body = `${encodeBlock(w)}\n_A walkthrough of this PR: \`reviewroom pr ${pr ?? '<number>'}\` plays it in reviewroom._\n`;
   if (body.length > COMMENT_LIMIT) fail(`the walkthrough is ${body.length} characters as a comment; GitHub takes at most ${COMMENT_LIMIT}. Shorten the prose (leads and step text).`);
   return body;
 }

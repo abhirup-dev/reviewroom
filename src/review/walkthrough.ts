@@ -95,7 +95,7 @@ class WalkthroughPanel implements PanelInstance {
     const writing = h('div', { class: 'rr-empty' }, 'The walkthrough is being written');
     this.element = h('div', { class: 'rr-narrative' }, writing, this.scroller);
     const progress = () => {
-      const waiting = !isDesc && pendingArtifact(app.progress.review);
+      const waiting = !isDesc && pendingArtifact(app.progress.report);
       writing.hidden = !waiting;
       this.scroller.hidden = waiting;
     };

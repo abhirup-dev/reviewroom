@@ -4,10 +4,10 @@ Pass `--dir <dir>` to every command below. Use command-specific `--help` for oth
 
 ## Write and validate in order
 
-If the PR shipped a guided walkthrough pulled by `reviewroom pr`, it was validated before publication.
-Use it as is and go straight to filling `review.html`; do not regenerate it.
+If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
+Use it as is and go straight to filling the report (`review.html`); do not regenerate it.
 
-Outline the story and create a heading-only `review.html` skeleton, with top-level `<section id>`
+Outline the story and create a heading-only report skeleton, with top-level `<section id>`
 parts and a finding section for every risk. This lets the Risks chapter's `rr:doc/<id>` links resolve.
 Write `walkthrough.json`, then:
 
@@ -15,12 +15,12 @@ Write `walkthrough.json`, then:
 reviewroom slide-lint --dir <dir>
 ```
 
-Fix issues and repeat the **full** run until it passes, before filling `review.html`. It includes
+Fix issues and repeat the **full** run until it passes, before filling the report. It includes
 schema and link validation, checks every slide at 1280×800 and 1440×900, and reports coverage,
 pacing, focus, overflow, hidden code, stripped prose and page errors. A passing full run clears the
 reviewer's loading screen. Scoped runs do not count.
 
-Then fill `review.html` and run:
+Then fill the report and run:
 
 ```bash
 reviewroom check --fix --dir <dir>
@@ -28,11 +28,11 @@ reviewroom check --fix --dir <dir>
 
 `check --fix` validates links and schema, updating links moved within five lines. Inspect remaining
 changed or broken links and update the explanation; repeat until it passes. Use `check --accept`
-only after verifying changed targets. The walkthrough panel stays in its writing state until
+only after verifying changed targets. The report panel stays in its writing state until
 `check` passes. `reviewroom check --help` prints the walkthrough schema path for editor validation.
 
 On later rounds, recheck edited content. If you edit `walkthrough.json`, pass full `slide-lint` again;
-the loading screen returns until it passes. Finish edits to `review.html` with `check`.
+the loading screen returns until it passes. Finish edits to the report with `check`.
 
 ## While iterating
 
@@ -55,8 +55,8 @@ validated. Startup still costs time. Finish with an unscoped run.
 
 | Command | Use |
 | --- | --- |
-| `reviewroom shot [section]` | Walkthrough screenshots. |
-| `reviewroom shot services/s1` | One guided slide. |
+| `reviewroom shot [section]` | Report screenshots. |
+| `reviewroom shot services/s1` | One walkthrough slide. |
 | `reviewroom shot services/s1 --prose-only` | Exact left-pane crop; skips right-hand code. |
 
 Screenshots default to a 480-pixel height cap; add `--native` when text is blurry or detail matters.

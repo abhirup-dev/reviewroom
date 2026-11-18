@@ -1,4 +1,4 @@
-// The walkthrough.json contract: a guided walkthrough of the diff, played over the workbench. Defined once
+// The walkthrough.json contract: the walkthrough of the diff, played over the workbench. Defined once
 // here; the server, `reviewroom check`, `pr`, `publish-slides` and the client all validate with it, and
 // schema/walkthrough.schema.json is generated from it. No DOM or Node imports.
 import { z } from 'zod';
@@ -146,7 +146,7 @@ export function decodeWalkthrough(input: unknown): LoadedWalkthrough {
 export const walkthroughJsonSchema = () => ({
   ...z.toJSONSchema(Walkthrough, { target: 'draft-2020-12', io: 'input' }),
   $id: 'reviewroom/walkthrough.schema.json',
-  title: 'reviewroom guided walkthrough (walkthrough.json in the review dir)',
+  title: 'reviewroom walkthrough (walkthrough.json in the review dir)',
 });
 
 // ------------------------------------------------------------------ measuring a step (`slide-lint`)

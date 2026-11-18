@@ -108,7 +108,7 @@ export class ReviewApp {
   files: ChangedFile[] = [];
   commits: Commit[] = [];
   /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
-  progress: Progress = { walkthrough: { state: 'none' }, review: { state: 'none' } };
+  progress: Progress = { walkthrough: { state: 'none' }, report: { state: 'none' } };
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;
   range!: DiffRange;

@@ -42,15 +42,15 @@ know the reviewer has finished the round.
 ## Read the feedback
 
 The command prints the round's feedback as markdown: one block per thread with new messages, each
-with its anchor, then the state of the walkthrough's open questions (under `Open questions`) and the
-reviewer's overall note. Its opening lines give the
+with its anchor, then the state of the flagged questions in the report (`review.html`), under
+`Open questions`, and the reviewer's overall note. Its opening lines give the
 exact commands to answer and to start the next round.
 
 If its heading says `APPROVED`, tell the reviewer and stop. Leave open threads alone unless they ask.
 
-<important if="a thread's anchor points at code or walkthrough text that has changed since">
+<important if="a thread's anchor points at code or report text that has changed since">
 The anchor is what the thread is about. A code anchor carries the excerpt the reviewer saw; a
-walkthrough anchor carries the quoted text. Find the current position by that excerpt or quote, not
+report anchor carries the quoted text. Find the current position by that excerpt or quote, not
 by line number.
 </important>
 
@@ -60,13 +60,13 @@ For each thread in the feedback:
 
 1. Understand what it asks. For someone else's PR, never change code, even if a later round asks
    for a fix: explain the suggested direction instead. Check the PR author against the authenticated
-   `gh` login as in Step 3 of the skill. In other reviews, change code or the walkthrough if asked.
+   `gh` login as in Step 3 of the skill. In other reviews, change code or the report if asked.
 2. Short answers go in the reply. Substantial ones (tables, diagrams, queries, sketches) go in a new
-   section of `review.html` (under **Your questions** for someone else's PR), and the reply links to it.
-   If the explanation already exists in the walkthrough, link that section instead.
+   section of the report (under **Your questions** for someone else's PR), and the reply links to it.
+   If the explanation already exists in the report, link that section instead.
 3. Mark every section you add or substantially change with `data-round="<next round>"`, and link
    the thread that prompted it at the section's top.
-4. When the answer builds on an earlier thread, a team thread or what the walkthrough said in an
+4. When the answer builds on an earlier thread, a team thread or what the report said in an
    earlier round, link it (`rr:thread/<id>`, `rr:thread/gh_<n>`, `rr:round/<n>`) instead of
    restating it.
 5. Reply with `reviewroom reply <thread-id> --file <reply.md> --dir <dir>`.
@@ -78,9 +78,9 @@ fetched from GitHub, the review's head is the PR as fetched when the review star
 push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
 
-A thread anchored on a guided walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
+A thread anchored on a walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
 the slide) is about that slide. A short answer goes in the reply. When the reviewer wants more (a
-deeper explanation, a table, a sketch), grow the walkthrough instead of the slide: a new `data-round`
+deeper explanation, a table, a sketch), grow the report instead of the slide: a new `data-round`
 section (under **Your questions** for someone else's PR) that embeds the slide
 (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its top and expands on it. The reply
 links that section, and the discussion continues there. Edit the slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
