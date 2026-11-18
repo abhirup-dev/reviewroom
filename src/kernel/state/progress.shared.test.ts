@@ -61,3 +61,10 @@ test('a walkthrough imported from the PR counts while nothing was requested (pr 
   // a request after it still asks for a new one
   expect(reduceProgress([imported(), requested('assistant')], { walkthrough: hash }).walkthrough.state).toBe('requested');
 });
+test('a stop naming a stale validation applies only to that validation; one naming none leaves a validation alone', () => {
+  const stale = (s: string): ProgressLine => ({ at, artifact: 'walkthrough', event: 'stopped', reason: 'failed', request: 'assistant-1', stale: s });
+  const base = [requested('assistant'), line('validated')];
+  expect(reduceProgress([...base, stale(hash)], { walkthrough: 'b'.repeat(64) }).walkthrough.state).toBe('stopped');
+  expect(reduceProgress([...base, stale('c'.repeat(64))], { walkthrough: 'b'.repeat(64) }).walkthrough.state).toBe('writing'); // another validation's
+  expect(reduceProgress(base, { walkthrough: 'b'.repeat(64) }).walkthrough).toMatchObject({ state: 'writing', stale: hash });
+});

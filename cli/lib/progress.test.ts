@@ -61,3 +61,17 @@ test('reset makes both documents idle again', () => inTemp((dir) => {
   resetGeneration(dir);
   expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['idle', 'idle']);
 }));
+
+test('a validated document edited, then its turn ended before the save was recorded, stops; a newer validation wins', () => inTemp((dir) => {
+  const file = path.join(dir, REPORT_FILE);
+  requestGeneration(dir, 'assistant', undefined, ['report']);
+  fs.writeFileSync(file, '<rr-review>one</rr-review>');
+  recordArtifact(dir, 'report', 'validated');
+  fs.writeFileSync(file, '<rr-review>two</rr-review>'); // saved; the watcher has not recorded it
+  expect(readProgress(dir).report.state).toBe('writing');
+  stopAssistantWork(dir, 'failed');
+  expect(readProgress(dir).report).toMatchObject({ state: 'stopped', reason: 'failed' }); // not pending forever
+  expect(progressLines(dir).at(-1)).toMatchObject({ event: 'stopped', stale: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  recordArtifact(dir, 'report', 'validated'); // checked again, after the stop
+  expect(readProgress(dir).report.state).toBe('validated');
+}));

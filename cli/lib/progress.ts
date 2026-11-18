@@ -59,5 +59,5 @@ export const resetGeneration = (dir: string) => appendProgress(dir, ...ARTIFACTS
  *  `interrupted` when a server starts (the previous server's turn died with it) or closes; `failed` when a turn ends. */
 export function stopAssistantWork(dir: string, reason: 'failed' | 'interrupted') {
   const pending = pendingAssistantWork(readProgress(dir));
-  if (pending.length) appendProgress(dir, ...pending.map(({ artifact, request }) => ({ artifact, event: 'stopped' as const, reason, request })));
+  if (pending.length) appendProgress(dir, ...pending.map(({ artifact, request, stale }) => ({ artifact, event: 'stopped' as const, reason, request, ...(stale && { stale }) })));
 }
