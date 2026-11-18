@@ -56,6 +56,13 @@ const stops = (line: Line<'stopped'>, prev: ArtifactProgress) => line.request ==
 /** A walkthrough imported from the PR (`pr --no-agent`) counts with nothing requested. */
 const imported = (line: ProgressLine) => line.event === 'validated' && line.source === 'pr';
 
+/** When it was requested and its passes, after `line`: under a request, new bytes are a new pass (a validation of the
+ *  bytes just written is the same pass). */
+function passesAfter(prev: ArtifactProgress, line: Line<'written' | 'validated'>): Pick<ArtifactProgress, 'since' | 'passes'> {
+  const passes = !prev.since || line.hash === prev.hash ? prev.passes : [...(prev.passes ?? []), { at: line.at, ...(line.slides !== undefined && { slides: line.slides, chapters: line.chapters }) }];
+  return { ...(prev.since && { since: prev.since }), ...(passes && { passes }) };
+}
+
 /** `hashes`: each file's current content hash; `validated` holds only while the file still has the validated bytes. */
 export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Artifact, string>>): Progress {
   const result: Progress = { walkthrough: { state: 'idle' }, report: { state: 'idle' } };
@@ -77,10 +84,8 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
       if (stops(line, prev)) result[line.artifact] = { ...prev, state: 'stopped', reason: line.reason };
       continue;
     }
-    const { at, artifact: _a, event, ...rest } = line;
-    // under a request, new bytes are a new pass (a validation of the bytes just written is the same pass)
-    const passes = !prev.since || line.hash === prev.hash ? prev.passes : [...(prev.passes ?? []), { at, ...(line.slides !== undefined && { slides: line.slides, chapters: line.chapters }) }];
-    const kept = { ...(prev.since && { since: prev.since }), ...(passes && { passes }) };
+    const { at: _at, artifact: _a, event, ...rest } = line;
+    const kept = passesAfter(prev, line);
     // stopped is sticky against saves (nothing is generating any more); only a validation or a new request leaves it
     if (event === 'written' && prev.state === 'stopped') result[line.artifact] = { ...prev, ...rest, ...kept };
     else result[line.artifact] = { ...rest, ...(prev.by && { by: prev.by }), ...(prev.request && { request: prev.request }), ...kept, state: event === 'validated' ? 'validated' : 'writing' };

@@ -7,9 +7,9 @@
   align-content: center;
   justify-items: center;
   padding: var(--rr-space-48);
+  overflow: auto;
   background: var(--rr-surface-doc);
   color: var(--rr-ink);
-  text-align: center;
   outline: none;
 }
 .rr-gen[hidden] {
@@ -17,9 +17,18 @@
 }
 .rr-gen__body {
   display: grid;
-  justify-items: center;
-  gap: var(--rr-space-16);
-  max-width: 36em;
+  gap: var(--rr-space-48);
+  width: min(100%, 30em);
+}
+/* with the assistant's window: steps left, the window right */
+.rr-gen.has-side .rr-gen__body {
+  grid-template-columns: minmax(0, 30em) minmax(0, 36em);
+  width: auto;
+}
+.rr-gen__main {
+  display: grid;
+  align-content: start;
+  gap: var(--rr-space-12);
 }
 .rr-gen h1 {
   margin: 0;
@@ -30,14 +39,168 @@
   margin: 0;
   color: var(--rr-ink-2);
 }
-.rr-gen__facts {
-  font-family: var(--rr-mono);
-  font-size: var(--rr-text-xs);
+.rr-gen__title {
+  font-size: var(--rr-text-lg);
 }
+.rr-gen p.rr-gen__facts {
+  margin-bottom: var(--rr-space-16);
+  color: var(--rr-muted);
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-sm);
+}
+p.rr-gen__note {
+  color: var(--rr-muted);
+  font-size: var(--rr-text-md);
+}
+/* the stepper shows it; kept for screen readers (and as the phone's one line, review.phone.css) */
 .rr-gen__status {
-  display: inline-flex;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* the steps: square markers joined by a thin line, a detail under each (DESIGN.md, Generation steps) */
+.rr-gen-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rr-gen-step {
+  --_mk: 26px; /* the marker box: a step's 16px title line plus its padding */
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--_mk) 1fr;
+  column-gap: var(--rr-space-12);
+  padding-bottom: var(--rr-space-16);
+}
+.rr-gen-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: var(--_mk);
+  bottom: 0;
+  left: calc(var(--_mk) / 2 - 0.5px);
+  width: 1px;
+  background: var(--rr-line-strong);
+}
+.rr-gen-step__mk {
+  display: grid;
+  place-items: center;
+  width: var(--_mk);
+  height: var(--_mk);
+  box-sizing: border-box;
+  border: 1.5px solid var(--rr-line-strong);
+  background: var(--rr-surface-doc);
+  color: var(--rr-faint);
+  font: 600 var(--rr-text-sm) var(--rr-mono);
+}
+.rr-gen-step.is-done .rr-gen-step__mk {
+  border-color: var(--rr-ink);
+  background: var(--rr-ink);
+  color: var(--rr-surface-doc);
+}
+.rr-gen-step.is-current .rr-gen-step__mk {
+  border-color: var(--rr-accent);
+  color: var(--rr-accent);
+  animation: rr-gen-ring 1.6s ease-in-out infinite;
+}
+.rr-gen-step.is-stopped .rr-gen-step__mk {
+  border-color: var(--rr-risk);
+  background: var(--rr-risk-soft);
+  color: var(--rr-risk);
+}
+.rr-gen-step b {
+  display: block;
+  font-size: var(--rr-text-lg);
+  font-weight: 600;
+  line-height: var(--_mk);
+}
+.rr-gen-step.is-upcoming b {
+  color: var(--rr-faint);
+  font-weight: 500;
+}
+.rr-gen-step.is-stopped b {
+  color: var(--rr-risk);
+}
+.rr-gen-step small {
+  display: block;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-md);
+}
+.rr-gen-step.is-stopped small {
+  color: var(--rr-risk);
+}
+.rr-gen-step__passes {
+  margin: var(--rr-space-6) 0 0;
+  padding: 0;
+  color: var(--rr-muted);
+  font: var(--rr-text-sm) / 1.7 var(--rr-mono);
+  list-style: none;
+}
+.rr-gen-step__passes .is-current {
+  color: var(--rr-accent);
+}
+.rr-gen-step__passes .is-stopped {
+  color: var(--rr-risk);
+}
+@keyframes rr-gen-ring {
+  50% {
+    box-shadow: 0 0 0 5px var(--rr-accent-soft); /* the pulse ring's reach */
+  }
+}
+
+/* the assistant's window: a bordered panel on the secondary surface (its contents: the slot, .rr-gen__live) */
+.rr-gen__side {
+  display: flex;
+  flex-direction: column;
+  height: min(32em, 70vh);
+  border: 1px solid var(--rr-line-strong);
+  background: var(--rr-surface-doc-2);
+}
+.rr-gen__side[hidden] {
+  display: none;
+}
+.rr-gen__side header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: var(--rr-space-8);
+  padding: var(--rr-space-8) var(--rr-space-12);
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface-bar);
+  font-size: var(--rr-text-sm);
+  font-weight: 600;
+}
+.rr-gen__side header .rr-link-btn {
+  font-weight: 400;
+}
+.rr-gen__live {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.rr-gen__side footer {
+  padding: var(--rr-space-6) var(--rr-space-12);
+  border-top: 1px solid var(--rr-line);
+  color: var(--rr-faint);
+  font-size: var(--rr-text-sm);
+}
+
+/* after the handover: the header's "Writing the report" opens the steps here */
+.rr-gen-pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: var(--rr-space-12) var(--rr-space-16);
+  border: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-radius-lg);
+  background: var(--rr-surface-overlay);
+  box-shadow: var(--rr-shadow-lg);
+  color: var(--rr-ink);
+}
+.rr-gen-pop .rr-gen-step {
+  padding-bottom: var(--rr-space-8);
 }
 .rr-gen__status.is-busy::before,
 .rr-gen-ind__dot {
@@ -61,7 +224,6 @@
 .rr-gen__actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: var(--rr-space-8);
   margin-top: var(--rr-space-8);
 }
@@ -73,7 +235,15 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-gen__status.is-busy::before,
-  .rr-gen-ind .rr-gen-ind__dot {
+  .rr-gen-ind .rr-gen-ind__dot,
+  .rr-gen-step.is-current .rr-gen-step__mk {
     animation: none;
+  }
+}
+
+/* a laptop that can't fit both columns: the window goes under the steps */
+@media (max-width: 960px) {
+  .rr-gen.has-side .rr-gen__body {
+    grid-template-columns: minmax(0, 36em);
   }
 }

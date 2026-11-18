@@ -6,6 +6,25 @@ import { createActor } from 'xstate';
 import type { ReviewApp } from '../app';
 import { h, icon } from '../kernel/dom';
 import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, reportStopped, screenShown, stageIn, statusText, type GenerationSnapshot, type Remembered } from './generation.machine';
+import { generationSteps, type GenStep } from './generation-steps';
+
+/** "1m 40s": how long ago `iso` was (elapsed only, never an estimate). */
+const ago = (iso: string | undefined) => {
+  if (!iso) return '';
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+};
+const MARK = { done: '✓', current: '●', stopped: '✕' } as const;
+/** The steps as a list: numbered square markers joined by a line, a detail under each, pass rows under checking. */
+export function stepList(steps: GenStep[], first = 1) {
+  return h('ol', { class: 'rr-gen-steps' }, ...steps.map((st, i) =>
+    h('li', { class: `rr-gen-step is-${st.state}`, ...(st.state === 'current' && { 'aria-current': 'step' }) },
+      h('span', { class: 'rr-gen-step__mk', 'aria-hidden': 'true' }, st.state === 'done' ? icon('check', 14) : st.state === 'stopped' ? '!' : String(first + i)),
+      h('div', null,
+        h('b', null, st.title),
+        h('small', null, st.detail),
+        st.passes ? h('ul', { class: 'rr-gen-step__passes' }, ...st.passes.map((p) => h('li', { class: `is-${p.state}` }, `${MARK[p.state]} ${p.text}`))) : null))));
+}
 
 /** api/generate's refusals, readable: never a raw code. */
 const REFUSED: Record<string, string> = {
@@ -30,7 +49,7 @@ function paintIndicator(el: HTMLButtonElement, s: GenerationSnapshot) {
   const stage = stageIn(s);
   const label = stage === 'stopped' ? (reportStopped(s) ? 'Report not finished' : 'Generation stopped') : stage === 'playable' ? 'Writing the report' : 'Generating';
   el.classList.toggle('is-stopped', stage === 'stopped');
-  el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : reportStopped(s) ? 'Show the report' : 'Show the progress'}`;
+  el.title = `${statusText(s)}. ${reportStopped(s) ? 'Show the report' : 'Show the progress'}`;
   if (el.classList.contains('rr-hbtn--icon')) el.setAttribute('aria-label', label);
   else el.lastElementChild!.textContent = label;
 }
@@ -58,30 +77,50 @@ export function mountGeneration(app: ReviewApp) {
   // in playable the screen has nothing left to show: the indicator plays the walkthrough; a stopped report is shown
   // (with Retry) where the report goes
   const show = () => {
-    if (stageIn(snap()) === 'playable') return app.bus.emit('walkthrough-open', {});
+    if (stageIn(snap()) === 'playable') return popSteps();
     if (reportStopped(snap())) return void app.showPanel('narrative');
     actor.send({ type: 'reopen' });
   };
 
   // the screen's controls, made once and updated in place
   const heading = h('h1');
-  const status = h('p', { class: 'rr-gen__status' });
+  // the stepper says it on screen; this line is what a screen reader hears (and the phone's one line)
+  const status = h('p', { class: 'rr-gen__status', role: 'status' });
+  const facts = h('p', { class: 'rr-gen__facts' });
+  const steps = h('div', { class: 'rr-gen__steps' });
+  const external = h('p', { class: 'rr-gen__note' });
   // the overlay is inert-making: close it before the assistant opens, or the panel opens behind it
   const openAssistant = h('button', { class: 'rr-link-btn', onclick: () => { dismiss(); app.commands.run('assistant.open'); } }, 'Open the assistant');
   const approval = h('p', { class: 'rr-gen__note' }, 'The assistant is waiting for your approval. ', openAssistant);
   const error = h('p', { class: 'rr-gen__error', role: 'alert' });
   const btn = (label: string, onclick: () => void) => h('button', { class: 'rr-btn', onclick }, label);
   const retry = btn('Retry', () => void generate());
-  const soFar = btn('Show it anyway', () => { dismiss(); app.bus.emit('walkthrough-show', undefined); });
+  const soFar = btn('Peek at the walkthrough', () => { dismiss(); app.bus.emit('walkthrough-show', undefined); });
   const cont = btn('Continue to the review', dismiss);
   const added = app.files.reduce((n, f) => n + f.additions, 0), deleted = app.files.reduce((n, f) => n + f.deletions, 0);
+  const stats = `${app.files.length} files changed · +${added} / -${deleted} · ${app.commits.length} commits`;
+  // the right column: the built-in assistant's live view goes in `live` (a slot for now); shown only where its stream is
+  const openFull = h('button', { class: 'rr-link-btn', title: 'Open the assistant panel', onclick: () => { dismiss(); app.commands.run('assistant.open'); } }, 'Open full');
+  const live = h('div', { class: 'rr-gen__live' });
+  const side = h('section', { class: 'rr-gen__side', 'aria-label': 'Assistant', hidden: true },
+    h('header', null, h('span', null, 'Assistant'), openFull), live, h('footer', null, 'Read-only here. You can talk to it once the review is open.'));
   const screen = h('div', { class: 'rr-gen', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Generation', tabindex: '-1', hidden: true },
-    h('div', { class: 'rr-gen__body', role: 'status' },
-      heading,
-      h('p', { class: 'rr-gen__title' }, app.meta.title),
-      h('p', { class: 'rr-gen__facts' }, `${app.files.length} files changed · +${added} / -${deleted} · ${app.commits.length} commits`),
-      status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, soFar, cont)));
+    h('div', { class: 'rr-gen__body' },
+      h('div', { class: 'rr-gen__main' },
+        heading,
+        h('p', { class: 'rr-gen__title' }, app.meta.title),
+        facts, steps, external, status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, soFar, cont)),
+      side));
   app.root.append(screen);
+  // elapsed time while the screen is up: since the request, and since the last save
+  const tick = () => {
+    const w = snap().context.progress.walkthrough;
+    facts.textContent = w.since && stageIn(snap()) !== 'stopped' ? `${stats} · started ${ago(w.since)} ago` : stats;
+    const last = w.passes?.at(-1)?.at;
+    external.textContent = `Your own agent is writing this review. Progress shows as it saves.${last ? ` Last saved ${ago(last)} ago.` : ''}`;
+  };
+  let ticking: ReturnType<typeof setInterval> | undefined;
+  app.onDispose(() => clearInterval(ticking));
 
   // shown, the screen is modal: the review behind it can't be clicked, tabbed to or read out
   let back: HTMLElement | null = null;
@@ -101,9 +140,17 @@ export function mountGeneration(app: ReviewApp) {
   };
   const paint = (s: GenerationSnapshot) => {
     const stage = stageIn(s), stopped = stage === 'stopped', w = s.context.progress.walkthrough;
+    // the assistant's stream: only where the built-in assistant writes it and this page reaches it (never through the hub)
+    const stream = w.by === 'assistant' && !!app.meta.assistant;
     heading.textContent = stopped ? 'Generation stopped' : 'Writing your walkthrough';
     status.textContent = statusText(s);
     status.classList.toggle('is-busy', !stopped);
+    steps.replaceChildren(stepList(generationSteps(s.context.progress, { stream, wrote: false })));
+    side.hidden = !stream;
+    openFull.hidden = !app.commands.get('assistant.open');
+    external.hidden = w.by !== 'agent';
+    screen.classList.toggle('has-side', stream);
+    tick();
     approval.hidden = !awaitingApproval(s);
     openAssistant.hidden = !app.commands.get('assistant.open');
     error.textContent = s.context.error ?? '';
@@ -112,14 +159,54 @@ export function mountGeneration(app: ReviewApp) {
     retry.classList.add('rr-btn--primary');
     // what was written so far: the walkthrough on its way, or one a stop left behind
     soFar.hidden = !(w.hash && (stage === 'writing' || stopped));
-    soFar.textContent = stopped ? 'Show the walkthrough so far' : 'Show it anyway';
+    soFar.textContent = stopped ? 'Show the walkthrough so far' : 'Peek at the walkthrough';
     cont.classList.toggle('rr-btn--primary', !stopped);
     for (const el of Object.values(headerOf(app).indicator)) paintIndicator(el, s);
+    if (pop.matches(':popover-open')) {
+      if (stage === 'playable') paintPop(s);
+      else pop.hidePopover();
+    }
     const on = screenShown(s);
-    if (on === screen.hidden) {
+    if (on === screen.hidden && !leaving) {
+      clearInterval(ticking);
+      if (on) ticking = setInterval(tick, 1000);
+      // the walkthrough passed: the screen gives way to the player, its assistant window folding into the header's
+      // "Writing the report" (top right)
+      if (!on && stage === 'playable' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        leaving = true;
+        modal(false);
+        side.animate([{ transform: 'none' }, { transform: 'translate(40%, -60%) scale(0.1)', opacity: 0 }], { duration: 300, easing: 'ease-in' });
+        void screen.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300 }).finished.finally(() => {
+          leaving = false;
+          screen.hidden = true;
+        });
+        return;
+      }
       screen.hidden = !on;
       modal(on);
     }
+  };
+  let leaving = false;
+
+  // after the handover, the header's "Writing the report" opens the same steps: 1 to 4 done in one row, the report live
+  const pop = h('div', { class: 'rr-gen-pop', popover: 'auto', role: 'dialog', 'aria-label': 'Generation progress' });
+  app.root.append(pop);
+  app.onDispose(() => pop.remove());
+  const paintPop = (s: GenerationSnapshot) => {
+    const all = generationSteps(s.context.progress, { stream: false, wrote: false }), ready = all.at(-2)!;
+    pop.replaceChildren(
+      stepList([{ ...ready, title: 'Reading · Writing · Checking · Ready' }, all.at(-1)!], 4),
+      h('button', { class: 'rr-link-btn', onclick: () => { pop.hidePopover(); app.bus.emit('walkthrough-open', {}); } }, 'Play the walkthrough'));
+  };
+  const popSteps = () => {
+    const { indicator } = headerOf(app);
+    const anchor = [indicator.full, indicator.icon].find((el) => el?.isConnected && el.offsetParent);
+    if (!anchor) return app.bus.emit('walkthrough-open', {});
+    paintPop(snap());
+    const r = anchor.getBoundingClientRect();
+    pop.style.top = `${r.bottom + 6}px`;
+    pop.style.right = `${Math.max(8, innerWidth - r.right)}px`;
+    pop.showPopover();
   };
   let saved = '';
   actor.subscribe((s) => {
