@@ -29,7 +29,9 @@ export function registerAssistant(app: ReviewApp) {
         suggest.hidden = !(app.generation?.matches({ stage: 'idle' }) && c && (!c.when || c.when()));
       };
       paintSuggest();
-      const element = h('div', { class: 'rr-side rr-assistant' }, suggest, island);
+      // a failed load says why here, beside the chat: a refresh that fails keeps the chat and its draft as they are
+      const failure = h('div', { class: 'rr-assistant__error', role: 'alert', hidden: true });
+      const element = h('div', { class: 'rr-side rr-assistant' }, suggest, failure, island);
       let chat: { unmount(): void; draft(): Draft } | undefined, gone = false, loading = false, stale = false;
       const load = () => {
         loading = true;
@@ -41,6 +43,7 @@ export function registerAssistant(app: ReviewApp) {
           if (gone) return;
           // checked again on arrival: a turn may have started, or the reviewer started typing, while this was out
           if (chat && busy()) return void (stale = true);
+          failure.hidden = true;
           const draft = chat?.draft(); // the reviewer's text and attached context carry over
           chat?.unmount();
           chat = m.mount(island, (fn) => {
@@ -50,7 +53,9 @@ export function registerAssistant(app: ReviewApp) {
             return () => (take = take === fn ? undefined : take);
           }, initial, draft);
         }).catch((error: unknown) => {
-          if (!gone) island.textContent = error instanceof Error ? error.message : String(error);
+          if (gone) return;
+          failure.textContent = error instanceof Error ? error.message : String(error);
+          failure.hidden = false;
         }).finally(() => {
           loading = false;
           refresh();

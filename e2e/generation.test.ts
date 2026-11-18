@@ -162,6 +162,22 @@ describe('the assistant panel', () => {
     }
   }, 60_000);
 
+  test.skipIf(!browser)('a refresh that fails keeps the chat and its draft, and says why beside it', async () => {
+    const page = await open(await serve());
+    try {
+      await page.evaluate(`rr.app.commands.run('assistant.open')`);
+      await until(page, box, 15_000);
+      await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'kept draft'), document.activeElement.blur(), window.__box = ${box})`);
+      await page.evaluate(`(() => { const f = window.fetch; window.fetch = (u, ...a) => String(u).endsWith('api/assistant') ? Promise.resolve(new Response('the conversation was moved aside', { status: 409 })) : f(u, ...a); })()`);
+      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`);
+      await until(page, `!document.querySelector('.rr-assistant > .rr-assistant__error').hidden`);
+      expect(await page.evaluate<string>(`JSON.stringify([document.querySelector('.rr-assistant > .rr-assistant__error').textContent, ${box} === window.__box, ${box}.value])`))
+        .toBe(JSON.stringify(['the conversation was moved aside', true, 'kept draft']));
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
   test.skipIf(!browser)('a conversation changed elsewhere waits while the reviewer types, then shows with their draft kept', async () => {
     const page = await open(await serve());
     try {
