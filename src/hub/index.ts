@@ -1,11 +1,12 @@
-// The hub's page (`reviewroom hub`): every review running on this machine, refreshed every 2 s from the hub's
-// own server (a review server refuses requests from other ports). Filter, sort, open, close.
+// The hub's page (`reviewroom hub`): every review on this machine, running or stopped, refreshed every 2 s from the
+// hub's own server (a review server refuses requests from other ports). Filter, sort, open, close; add a PR by URL and
+// Play a stopped review (cli/hub/reviews.ts).
 import { installButton } from '../kernel/install'; // first: it listens for Chrome's install prompt
 import { backdropCloses, h, icon, relTime } from '../kernel/dom';
 import { mountTooltips } from '../kernel/tooltip';
 import { startUpdates } from '../kernel/pwa';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
-import type { HubSnapshot, SessionInfo } from './model.shared';
+import type { GenerationState, HubSnapshot, SessionInfo } from './model.shared';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg' with { type: 'text' };
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg' with { type: 'text' };
@@ -17,7 +18,7 @@ import amp from '@lobehub/icons-static-svg/icons/amp-color.svg' with { type: 'te
 import pi from '@lobehub/icons-static-svg/icons/pi.svg' with { type: 'text' };
 
 type Compat = Record<string, { installed: string | null; verifiedAgainst: string; status: string }>;
-type SortKey = 'tool' | 'subject' | 'author' | 'kind' | 'repository' | 'branch' | 'cwd' | 'pid' | 'origin' | 'commentCount' | 'reviewRound' | 'startedAt';
+type SortKey = 'tool' | 'subject' | 'state' | 'author' | 'kind' | 'repository' | 'branch' | 'cwd' | 'pid' | 'origin' | 'commentCount' | 'reviewRound' | 'startedAt';
 
 /** Agent names as cli/hub/proc.ts reports them -> display name and mark (droid has none: shown as text). */
 const AGENTS: Record<string, [name: string, svg?: string]> = {
@@ -67,6 +68,8 @@ dark.addEventListener('change', applyTheme);
 let data: HubSnapshot | null = null;
 let failed = '';
 let warnings: string[] = [];
+/** What the last Add or Play did: shown above the table until the next one. */
+let notice: { text: string; risk?: boolean; link?: string } | null = null;
 const selected = new Set<string>();
 const sort: { key: SortKey; dir: 1 | -1 } = { key: 'startedAt', dir: -1 };
 let painted = '';
@@ -98,10 +101,69 @@ const selectOptions: [HTMLSelectElement, string, (s: SessionInfo) => string | nu
 ];
 
 const meta = h('div', { class: 'rr-header__meta' });
+// ------------------------------------------------------------ starting reviews: Add a PR
+const action = (name: string, init: RequestInit = {}) => ({ ...init, method: 'POST', headers: { 'content-type': 'application/json', 'x-reviewroom-action': name } });
+const addUrl = h('input', { class: 'rr-input rr-hub__add', type: 'url', required: true, placeholder: 'https://github.com/owner/repo/pull/123', 'aria-label': 'Pull request URL', title: 'A GitHub pull request: the hub clones (or fetches) its repository and sets up its review, stopped until you Play it. Adding one again picks up new commits' });
+const addBtn = h('button', { class: 'rr-btn rr-btn--small rr-btn--primary', type: 'submit', title: 'Set up a review of this pull request' }, 'Add PR');
+const addForm = h('form', { class: 'rr-hub__addform', onsubmit: (e: Event) => { e.preventDefault(); void addPr(); } }, addUrl, addBtn);
+async function addPr() {
+  addBtn.disabled = true;
+  notice = { text: `Adding ${addUrl.value.trim()}: cloning or fetching, then setting up the review…` };
+  paint(true);
+  const r = await fetch('/api/reviews', action('add-review', { body: JSON.stringify({ url: addUrl.value.trim() }) })).catch((e: Error) => e);
+  const body = r instanceof Error ? { error: r.message } : ((await r.json().catch(() => ({}))) as { error?: string });
+  notice = r instanceof Error || !r.ok ? { text: body.error ?? 'Could not add the PR.', risk: true } : { text: 'Added. Play it to start its review.' };
+  if (notice && !notice.risk) addUrl.value = '';
+  addBtn.disabled = false;
+  await refresh();
+}
+// opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
+const remote = !/^(127\.|localhost$|\[::1\]$)/.test(location.hostname);
+/** Play, the built-in path: start a stopped review with the built-in assistant writing it (unless it is written
+ *  already), then open it the way the hub's links open (a new tab; the
+ *  macOS app takes it into its own tab). */
+async function play(s: SessionInfo) {
+  notice = { text: `Starting “${subject(s)}”…` };
+  paint(true);
+  const r = await fetch(`/api/reviews/${encodeURIComponent(s.reviewId ?? '')}/play`, action('play-review')).catch((e: Error) => e);
+  type Played = { error?: string; url?: string; generate?: { ok: boolean; started?: boolean; error?: string } | null };
+  const body = r instanceof Error ? { error: r.message } : ((await r.json().catch(() => ({}))) as Played);
+  if (r instanceof Error || !r.ok || !body.url) {
+    notice = { text: body.error ?? 'The review did not start.', risk: true };
+    return refresh();
+  }
+  const url = remote ? `/r/${s.reviewId}/` : body.url;
+  const g = body.generate;
+  notice = g && !g.ok ? { text: `Started, but the assistant is not writing it: ${g.error}`, risk: true } : { text: g?.started ? 'Started; the built-in assistant is writing the walkthrough and report.' : 'Started.' };
+  // after the request the click's activation may have expired: a blocked tab gets a link instead
+  const tab = window.open(url, '_blank');
+  if (tab) tab.opener = null;
+  else if (!inApp) notice = { ...notice, text: `${notice.text} Your browser blocked the new tab:`, link: url };
+  await refresh();
+}
+/** "Use my own agent": the prompt for an agent the reviewer runs themselves. The hub starts nothing; the agent's own
+ *  `pr --wait` sets the review up and serves it, and the built-in assistant stays off for it. */
+function ownAgent(s: SessionInfo) {
+  const target = s.prUrl ?? s.branch ?? '';
+  const text = `Review ${target} with reviewroom: run \`reviewroom pr ${target} --repo ${s.repoRoot ?? s.cwd ?? '.'} --wait\` and follow the reviewroom skill.`;
+  const close = () => box.close();
+  const copy = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => void navigator.clipboard.writeText(text).then(() => (copy.textContent = 'Copied'), () => (copy.textContent = 'Copy failed: select the text')) }, 'Copy');
+  const box = h(
+    'dialog',
+    { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Use my own agent', onmousedown: backdropCloses, onclose: () => box.remove() },
+    h('header', { class: 'rr-thread__head' }, h('strong', null, 'Use my own agent'), h('span', { class: 'rr-hub__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Cancel', title: 'Cancel', onclick: close }, icon('close', 14))),
+    h('div', { class: 'rr-send__body' }, h('p', { class: 'rr-hub__p' }, 'Paste this into your agent (Claude Code, Codex, …). It writes the review; the built-in assistant stays off for it.'), h('pre', { class: 'rr-hub__prompt' }, text)),
+    h('footer', { class: 'rr-composer__foot rr-hub__foot' }, h('button', { class: 'rr-btn', onclick: close }, 'Close'), copy),
+  );
+  document.body.append(box);
+  box.showModal();
+  copy.focus();
+}
+const stateOf: Record<GenerationState, string> = { idle: 'not generated', generating: 'generating', ready: 'ready', stopped: 'generation stopped' };
 const banners = h('div', { class: 'rr-hub__banners' });
 const count = h('span', { class: 'rr-hub__count' });
 const openBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
-const closeBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
+const closeBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen().filter((s) => !s.stopped)) }, icon('close', 14), 'Close…');
 const all = h('input', { type: 'checkbox', class: 'rr-hub__check', 'aria-label': 'Select all shown', title: 'Select every session shown', onchange: () => { visible().forEach((s) => (all.checked ? selected.add(s.id) : selected.delete(s.id))); paint(); } });
 const body = h('tbody');
 const empty = h('div', { class: 'rr-empty rr-hub__empty' }, 'Looking for running reviews…');
@@ -110,6 +172,7 @@ const columns: [SortKey | null, string, string, string?][] = [
   // where the review stands first; where it runs (repository, directory, processes) after, scrolled to on narrow screens
   ['tool', 'Tool', 'The review tool running the session'],
   ['subject', 'Review', 'What is under review: the title, PR, branch or file'],
+  ['state', 'State', 'reviewroom: running or stopped (Play starts it), and where its walkthrough and report stand'],
   ['author', 'Author', 'Who opened the pull request on GitHub (only for reviews of a PR)'],
   ['reviewRound', 'Round', 'The review round it is on: each round ends when the reviewer sends feedback', 'num'],
   ['commentCount', 'Comments', 'Comment threads so far (hover a number for how many are open)', 'num'],
@@ -142,6 +205,7 @@ document.body.append(
       h('div', { class: 'rr-toolbar__spacer' }),
       installButton(true),
     ),
+    h('div', { class: 'rr-hub__bar rr-hub__adder' }, addForm),
     banners,
     h(
       'div',
@@ -166,13 +230,15 @@ function visible(): SessionInfo[] {
       (!f.comments.value || (s.commentCount ?? -1) >= +f.comments.value) &&
       (!f.round.value || (s.reviewRound ?? -1) >= +f.round.value),
   );
-  const val = (s: SessionInfo) => (sort.key === 'subject' ? subject(s) : sort.key === 'startedAt' ? Date.parse(s.startedAt ?? '') || null : s[sort.key]);
+  const val = (s: SessionInfo) => (sort.key === 'subject' ? subject(s) : sort.key === 'state' ? stateText(s) : sort.key === 'startedAt' ? Date.parse(s.startedAt ?? '') || null : s[sort.key]);
   return rows.sort((a, b) => {
     const [x, y] = [val(a), val(b)];
     if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1; // unknowns last
     return sort.dir * (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y)));
   });
 }
+/** Running or stopped, and where generation stands (reviewroom only). */
+const stateText = (s: SessionInfo) => [s.stopped ? 'Stopped' : 'Running', s.generation && stateOf[s.generation]].filter(Boolean).join(' · ');
 const chosen = () => visible().filter((s) => selected.has(s.id));
 const open = (s: SessionInfo) => s.url && window.open(s.url, '_blank', 'noopener');
 const inApp = 'reviewroomApp' in window; // set by the macOS app (app/src/main.rs), which opens local pages in its tabs
@@ -195,8 +261,9 @@ function row(s: SessionInfo) {
       { class: 'rr-hub__subject', title: s.target ?? subject(s) },
       h('div', { class: 'rr-hub__name' }, subject(s)),
       // what the hidden columns said, under the title on narrow screens
-      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, toolMark(s.tool)), h('span', { class: 'rr-hub__sub-text' }, [s.repository, s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
+      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, toolMark(s.tool)), h('span', { class: 'rr-hub__sub-text' }, [s.stopped && 'Stopped', s.repository, s.target?.startsWith('#') ? s.target : s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
     ),
+    h('td', { class: 'c-state' }, h('span', { class: `rr-pill${s.generation === 'ready' ? ' rr-pill--ok' : ''}`, title: s.stopped ? 'No server runs for this review: Play starts it' : 'Its server is running' }, stateText(s))),
     h(
       'td',
       { class: 'c-author' },
@@ -219,31 +286,37 @@ function row(s: SessionInfo) {
       h(
         'div',
         { class: 'rr-hub__actions' },
-          s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : h('span', { class: 'rr-icon-btn', title: `Cannot open: ${s.urlNote ?? 'no loopback URL'}` }, '–'),
+        s.stopped ? h('button', { class: 'rr-icon-btn', title: 'Play: start this review and open it; the built-in assistant writes its walkthrough and report', 'aria-label': `Play ${subject(s)}`, onclick: () => void play(s) }, icon('play', 14)) : null,
+        s.stopped ? h('button', { class: 'rr-icon-btn', title: 'Use my own agent: a prompt to paste into your agent, which writes the review instead', 'aria-label': `Use my own agent for ${subject(s)}`, onclick: () => ownAgent(s) }, icon('copy', 14)) : null,
+        s.stopped ? null : s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : h('span', { class: 'rr-icon-btn', title: `Cannot open: ${s.urlNote ?? 'no loopback URL'}` }, '–'),
         s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the walkthrough', 'aria-label': `Play the walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
         // #rr-browser: the app hands this one to the browser instead
         inApp && s.url ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in the browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
-        h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
+        s.stopped ? null : h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
       ),
     ),
   );
 }
 
-function paint() {
+function paint(force = false) {
+  if (force) painted = '';
   const ids = new Set((data?.sessions ?? []).map((s) => s.id));
   for (const id of selected) if (!ids.has(id)) selected.delete(id);
   const rows = visible();
   const total = data?.sessions.length ?? 0;
   const picked = rows.filter((s) => selected.has(s.id));
   // re-render only on change: a 2 s refresh must not steal focus or a hover
-  const key = JSON.stringify([rows.map((s) => [{ ...s, lastSeenAt: '', updatedAt: '' }, s.startedAt && started(s.startedAt)]), [...selected], sort, failed, warnings, data?.generatedAt && relTime(data.generatedAt)]);
+  const key = JSON.stringify([rows.map((s) => [{ ...s, lastSeenAt: '', updatedAt: '' }, s.startedAt && started(s.startedAt)]), [...selected], sort, failed, warnings, data?.generatedAt && relTime(data.generatedAt), notice]);
   if (key === painted) return;
   painted = key;
-  meta.replaceChildren(h('span', { class: 'rr-pill', title: 'Sessions found across reviewroom, Crit and Plannotator' }, `${total} running`));
+  const stopped = data?.sessions.filter((s) => s.stopped).length ?? 0;
+  meta.replaceChildren(h('span', { class: 'rr-pill', title: 'Sessions found across reviewroom, Crit and Plannotator' }, `${total - stopped} running`));
+  if (stopped) meta.append(h('span', { class: 'rr-pill', title: 'reviewroom reviews on this machine with no server running' }, `${stopped} stopped`));
   if (rows.length !== total) meta.append(h('span', { class: 'rr-pill', title: 'Rows left after the filters' }, `${rows.length} shown`));
   if (data) meta.append(h('span', { class: 'rr-pill', title: `Refreshes every 2 s; last at ${new Date(data.generatedAt).toLocaleTimeString()}` }, `updated ${relTime(data.generatedAt)}`));
   banners.replaceChildren(
     ...(failed ? [h('div', { class: 'rr-hub__banner rr-hub__banner--risk', role: 'alert' }, failed)] : []),
+    ...(notice ? [h('div', { class: `rr-hub__banner${notice.risk ? ' rr-hub__banner--risk' : ''}`, role: notice.risk ? 'alert' : 'status' }, notice.text, notice.link ? h('a', { href: notice.link, target: '_blank', rel: 'noopener' }, ' open it') : null)] : []),
     ...warnings.map((w) => h('div', { class: 'rr-hub__banner' }, w)),
   );
   count.textContent = picked.length ? `${picked.length} selected` : '';
@@ -256,7 +329,7 @@ function paint() {
   for (const s of rows) seen.add(s.id);
   table.hidden = !rows.length;
   empty.hidden = !!rows.length;
-  empty.textContent = total ? 'No sessions match the filters.' : 'No reviews running. Start one with `reviewroom pr`; Crit and Plannotator sessions show up here too.';
+  empty.textContent = total ? 'No sessions match the filters.' : 'No reviews yet. Add a PR above, or start one with `reviewroom pr`; Crit and Plannotator sessions show up here too.';
 }
 
 function fillSelects() {
@@ -302,7 +375,7 @@ async function refresh() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = (await r.json()) as HubSnapshot;
     // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
-    if (!/^(127\.|localhost$|\[::1\]$)/.test(location.hostname)) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
+    if (remote) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId && !s.stopped ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
     const health = hr.ok ? ((await hr.json()) as { compatibility?: Compat }) : null;
     const compat = Object.entries(health?.compatibility ?? {})
       .filter(([tool, c]) => c.status === 'unverified' || (c.status === 'unavailable' && data!.sessions.some((s) => s.tool === tool)))

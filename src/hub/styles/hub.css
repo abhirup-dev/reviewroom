@@ -39,6 +39,35 @@
   border-top: 1px solid var(--rr-line-strong);
   border-bottom: 1px solid var(--rr-line);
 }
+/* starting reviews: Add a PR (src/hub/index.ts) */
+.rr-hub__adder {
+  border-top: none;
+}
+.rr-hub__addform {
+  display: flex;
+  flex: 1 1 24em;
+  gap: var(--rr-space-6);
+  max-width: 40em;
+}
+.rr-hub__add {
+  flex: 1;
+  min-width: 0;
+}
+.rr-hub__prompt {
+  margin: var(--rr-space-8) 0 0;
+  padding: var(--rr-space-8);
+  border-radius: var(--rr-radius);
+  background: var(--rr-surface-bar);
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.rr-hub__banner a {
+  color: inherit;
+  font-weight: 600;
+}
 .rr-hub__bar .rr-select {
   max-width: 160px;
 }
@@ -317,6 +346,7 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
   }
 }
 @media (max-width: 639px) {
+  .rr-hub .c-state,
   .rr-hub .c-tool,
   .rr-hub .c-comments,
   .rr-hub .c-started {
