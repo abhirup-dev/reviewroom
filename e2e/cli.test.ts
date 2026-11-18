@@ -24,6 +24,11 @@ describe('cli', () => {
     expect(JSON.parse(read(local, 'config.json'))).toMatchObject({ head: 'feat/upload-rate-limit', profile: 'explainer' });
     expect(read(local, REPORT_FILE)).toContain('<section id="findings">'); // the explainer profile's sections
   });
+  test('help never shows a negated flag as "(default: true)"', async () => {
+    const help = (await cli(['pr', '--help'])).stdout;
+    expect(help).toContain('--no-serve');
+    expect(help).not.toContain('(default: true)');
+  });
   test('pr with an unknown report profile fails and names the profiles', async () => {
     const r = await cli(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo, '--dir', path.join(tmp, 'no-profile')]);
     expect([r.code, r.stderr]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: explainer')]);

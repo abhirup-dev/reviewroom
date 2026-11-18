@@ -204,8 +204,8 @@ const notes: Record<string, string> = {
 };
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
-  // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
-  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser|generation stays idle) \(default: true\)/g, '$1') } : x));
+  // cac shows each negated flag (--no-open, --no-serve, ...) as "(default: true)", which reads as the opposite of what it does
+  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/^(\s*--no-\S.*?) \(default: true\)$/gm, '$1') } : x));
   const c = cli.matchedCommand?.name;
   if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
   return [
