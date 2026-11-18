@@ -1,6 +1,8 @@
 // The build id and the service worker's precache list (scripts/build.ts).
 import { expect, test } from 'bun:test';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const dist = new URL('../dist/', import.meta.url).pathname;
 const id = () => JSON.parse(fs.readFileSync(dist + 'build-info.json', 'utf8')).id;
@@ -20,9 +22,14 @@ test('the worker carries the build id and precaches only files that exist', () =
 });
 
 test('rebuilding the same source gives the same id', () => {
-  const before = id();
-  // as `bun run build` does: from the package root (chunk hashes follow the cwd) and without bun test's NODE_ENV=test
+  // as `bun run build` does: from the package root (chunk hashes follow the cwd) and without bun test's NODE_ENV=test,
+  // into a temp dir so the dist/ other test files use stays intact
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-build-'));
   const { NODE_ENV: _, ...env } = process.env;
-  expect(Bun.spawnSync(['bun', 'scripts/build.ts'], { cwd: new URL('..', import.meta.url).pathname, env }).exitCode).toBe(0);
-  expect(id()).toBe(before);
+  try {
+    expect(Bun.spawnSync(['bun', 'scripts/build.ts'], { cwd: new URL('..', import.meta.url).pathname, env: { ...env, RR_DIST: out } }).exitCode).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(out, 'build-info.json'), 'utf8')).id).toBe(id());
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 });

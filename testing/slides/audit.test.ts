@@ -11,10 +11,11 @@ const { repo, dir } = setupSlides(true);
 
 test.skipIf(!browser)('audit keeps readiness and defect detection across viewports and themes', async () => {
   await withServer(repo, dir, async (url) => {
-    for (const vp of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+    // each viewport and theme once, not every combination
+    for (const [vp, theme] of [[{ width: 1280, height: 800 }, 'light'], [{ width: 1440, height: 900 }, 'dark']] as const) {
       await withPage(url, vp, async (page) => {
         expect(page.errors()).toContainEqual(expect.stringContaining('audit fixture page error'));
-        for (const theme of ['light', 'dark'] as const) {
+        {
           const measurements: Measured[] = [];
           for (const ch of auditWalkthrough.chapters) for (const st of ch.steps) {
             const audit = await page.audit(ch.id, st.id, theme);

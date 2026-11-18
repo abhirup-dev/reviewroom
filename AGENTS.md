@@ -112,7 +112,10 @@ assistant's server packages (`ai`, `@ai-sdk/harness*`, `ai-sdk-sandbox-local`), 
 ```bash
 bun run setup       # install, build, put `reviewroom` and the pinned `ast-grep` on PATH
 bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ source
-bun run check       # typecheck, lint, tests, e2e: run before committing
+bun run check       # typecheck, lint, unit tests, no build: run before committing
+bun run smoke       # build + e2e: the built CLI against the demo repo
+bun run test:slides # build + the slide browser suite (slide-lint, shot, audit)
+bun run check:full  # all of the above: run before a PR, or after touching the CLI, server or slides
 bun run demo        # demo repo + live review
 ```
 

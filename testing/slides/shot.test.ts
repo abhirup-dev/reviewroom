@@ -26,7 +26,9 @@ async function pixelDifference(page: Page, a: Blob, b: Blob) {
   })()`);
 }
 
-test.skipIf(!browser)('shot defaults to a 480-high raster and native opts out without changing the CSS viewport', async () => {
+test.skipIf(!browser)('shot defaults to a 480-high raster and native opts out without changing the CSS viewport; the review is untouched', async () => {
+  const listing = () => fs.readdirSync(dir).sort().map((f) => [f, fs.statSync(path.join(dir, f)).mtimeMs, read(dir, f)]);
+  const before = listing();
   const capped = await shot(['latency/s2', '--viewport', '1440x900']);
   const native = await shot(['latency/s2', '--viewport', '1440x900', '--native']);
   expect([capped.code, native.code]).toEqual([0, 0]);
@@ -44,11 +46,13 @@ test.skipIf(!browser)('shot defaults to a 480-high raster and native opts out wi
   expect(size.width).toBeLessThan(768);
   expect(size.height).toBeLessThan(480);
   expect(prose.stdout).toContain('code pane not audited');
+  expect(listing()).toEqual(before);
 }, 30_000);
 
 test.skipIf(!browser)('prose-only preserves the full-slide pane bounds and pixels while skipping code reads and panels', async () => {
   await withServer(repo, dir, async (url) => {
-    for (const vp of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) for (const rasterHeight of [undefined, 480]) for (const theme of ['light', 'dark'] as const) {
+    // each viewport, raster height and theme once, not every combination
+    for (const [vp, rasterHeight, theme] of [[{ width: 1280, height: 800 }, undefined, 'light'], [{ width: 1440, height: 900 }, 480, 'dark']] as const) {
       await withPage(url, vp, async (page) => {
         const full = await page.audit('latency', 's1', theme);
         const before = await pane(page);

@@ -54,33 +54,7 @@ describe('slides', () => {
   });
 
   const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
-  if (!browser) console.log('skipping slide-lint/shot: no browser (Chrome or Chromium) to render in');
-  const listing = () => fs.readdirSync(dir).sort().map((f) => `${f} ${fs.statSync(path.join(dir, f)).mtimeMs}`);
-  test.skipIf(!browser)('slide-lint measures every step on screen; shot writes one step\'s PNG; neither touches the review', async () => {
-    // a script of the agent's that throws, and a diagram Pele can't parse: the reviewer would hit both, so lint reports them
-    fs.writeFileSync(path.join(dir, 'review.html'), walkthrough.replace('</rr-review>', '<script>throw new Error("author boom")</script><rr-mermaid id="bad">flowchart TD\n  A --&gt;\n  ((( x</rr-mermaid></rr-review>'));
-    // Exercise overflow deliberately, independently of how well the demo fits.
-    const file = path.join(dir, 'walkthrough.json');
-    const tour = JSON.parse(read(file));
-    tour.chapters.find((chapter: { id: string }) => chapter.id === 'latency').steps[2].text += `<p>${'Oversized narration. '.repeat(300)}</p>`;
-    fs.writeFileSync(file, JSON.stringify(tour));
-    const before = listing();
-    const lint = await cli(['slide-lint', '--viewport', '1280x720', '--json', ...d]);
-    if (!lint.stdout) throw new Error(lint.stderr);
-    const out = JSON.parse(lint.stdout);
-    expect(out).toMatchObject({ viewports: ['1280x720'], links: [] });
-    // The oversized step needs scrolling, and the report names it and explains the fix.
-    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s3', fix: expect.stringContaining('Shorten or split the slide') }));
-    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
-    expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('rr-mermaid#bad: the diagram could not be rendered') }));
-    expect(lint.code).toBe(1);
-    const png = path.join(dir, '..', 'shots', 'latency-s2-1280x800-light.png');
-    const shot = await cli(['shot', 'latency/s2', '--out', path.dirname(png), ...d]);
-    expect([shot.code, shot.stdout.split('\n')[0]]).toEqual([0, png]);
-    expect([...fs.readFileSync(png).subarray(1, 4)].map((c) => String.fromCharCode(c)).join('')).toBe('PNG');
-    expect(listing()).toEqual(before);
-  }, 60_000);
-
+  if (!browser) console.log('skipping the narration check: no browser (Chrome or Chromium) to render in');
   // the desktop player's chapter heading is as tall as the code's toolbar and file band (slides.css), so a slide's text
   // starts level with the code, with a chapter intro above it (why) or without (fetcher), whatever the tokens become
   test.skipIf(!browser)('the narration starts level with the code, with or without a chapter intro', async () => {

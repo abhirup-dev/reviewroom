@@ -23,22 +23,29 @@ test.skipIf(!browser)('partial checks ignore unrelated links, focus and overflow
   w.chapters[1].steps[0] = { id: 's1', ref: 'rr:code/pkg/gone.go#L1', text: `<p>${'Unrelated overflow. '.repeat(300)}</p><rr-mermaid>flowchart TD\n A -->\n ((( bad</rr-mermaid>`, focus: ['Missing node'] };
   fs.writeFileSync(file, JSON.stringify(w));
   fs.appendFileSync(path.join(dir, 'review.html'), '<a href="rr:sym/UnrelatedMissingSymbol">Unrelated</a>');
-  const before = fs.readdirSync(dir).sort().map((f) => [f, fs.statSync(path.join(dir, f)).mtimeMs, read(dir, f)]);
+  const listing = () => fs.readdirSync(dir).sort().map((f) => [f, fs.statSync(path.join(dir, f)).mtimeMs, read(dir, f)]);
+  const before = listing();
   const single = await lint(['--slide', 'latency/s2']);
   expect(single.code).toBe(0);
   expect(JSON.parse(single.stdout)).toMatchObject({ selection: { kind: 'slide', chapter: 'latency', step: 's2' }, coverage: { partial: true, totalSlides: 15, measured: ['latency/s2'] }, links: [], findings: [] });
   const chapter = await lint(['--chapter', 'latency']);
   expect(chapter.code).toBe(0);
   expect(JSON.parse(chapter.stdout)).toMatchObject({ selection: { kind: 'chapter', chapter: 'latency' }, coverage: { partial: true, totalSlides: 15, measured: ['latency/s1', 'latency/s2', 'latency/s3', 'latency/s4', 'latency/s5'] }, findings: [] });
-  const full = await lint([]);
+  expect(listing()).toEqual(before); // partial checks touch nothing
+  // a script of the agent's that throws, and a diagram Pele can't parse: the reviewer would hit both, so a full lint reports them
+  fs.writeFileSync(path.join(dir, 'review.html'), read(dir, 'review.html').replace('</rr-review>', '<script>throw new Error("author boom")</script><rr-mermaid id="bad">flowchart TD\n  A --&gt;\n  ((( x</rr-mermaid></rr-review>'));
+  const unchanged = listing();
+  const full = await lint(['--viewport', '1280x720']);
   expect(full.code).toBe(1);
   const out = JSON.parse(full.stdout);
-  expect(out.coverage.partial).toBe(false);
+  expect(out).toMatchObject({ viewports: ['1280x720'], coverage: { partial: false } });
   expect(out.coverage.measured).toHaveLength(15);
   expect(out.links).toContainEqual(expect.objectContaining({ ref: 'rr:code/pkg/gone.go#L1' }));
-  expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'fetcher/s1' }));
+  expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'fetcher/s1', fix: expect.stringContaining('Shorten or split the slide') }));
   expect(out.findings).toContainEqual(expect.objectContaining({ check: 'unknown-focus', where: 'fetcher/s1' }));
-  expect(fs.readdirSync(dir).sort().map((f) => [f, fs.statSync(path.join(dir, f)).mtimeMs, read(dir, f)])).toEqual(before);
+  expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('author boom') }));
+  expect(out.findings).toContainEqual(expect.objectContaining({ check: 'page-error', message: expect.stringContaining('rr-mermaid#bad: the diagram could not be rendered') }));
+  expect(listing()).toEqual(unchanged);
 }, 30_000);
 
 test.skipIf(!browser)('a selected slide keeps cross-chapter inherited code and reports its hidden lines', async () => {
@@ -54,17 +61,11 @@ test.skipIf(!browser)('a selected slide keeps cross-chapter inherited code and r
   expect(out.findings).toContainEqual(expect.objectContaining({ check: 'hidden-lines', where: 'after/inherited' }));
   expect(out.findings.some((f: { check: string }) => ['chapter-size', 'unshown-file', 'no-code'].includes(f.check))).toBe(false);
   w.chapters[0].steps[0].ref = 'rr:code/pkg/gone.go#L1';
+  // a selected slide also takes its chapter's lead: its links and its size
+  w.chapters[1].lead = `<p>${'An oversized shared lead. '.repeat(300)}</p><a href="rr:doc/missing">Missing</a>`;
   fs.writeFileSync(file, JSON.stringify(w));
   const broken = JSON.parse((await lint(['--slide', 'after/inherited'])).stdout);
   expect(broken.links).toContainEqual(expect.objectContaining({ ref: 'rr:code/pkg/gone.go#L1', where: ['after/inherited'] }));
-}, 30_000);
-
-test.skipIf(!browser)('selected slides include their chapter lead', async () => {
-  const w = JSON.parse(read(file));
-  w.chapters[3].lead = `<p>${'An oversized shared lead. '.repeat(300)}</p><a href="rr:doc/missing">Missing</a>`;
-  fs.writeFileSync(file, JSON.stringify(w));
-  const r = JSON.parse((await lint(['--slide', 'latency/s2'])).stdout);
-  expect(r.links).toContainEqual(expect.objectContaining({ ref: 'rr:doc/missing', where: ['latency'] }));
-  expect(r.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'latency/s2' }));
-
+  expect(broken.links).toContainEqual(expect.objectContaining({ ref: 'rr:doc/missing', where: ['after'] }));
+  expect(broken.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'after/inherited' }));
 }, 30_000);

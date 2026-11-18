@@ -7,8 +7,8 @@ import { DIST } from './paths.ts';
 
 // dist/build-info.json's id, read again when the file changes: a running server serves dist/ while `bun run dev` rebuilds it
 let build: { mtime: number; id?: string } = { mtime: -1 };
-export const buildId = () => {
-  const f = path.join(DIST, 'build-info.json');
+export const buildId = (dist = DIST) => {
+  const f = path.join(dist, 'build-info.json');
   try {
     const mtime = fs.statSync(f).mtimeMs;
     if (mtime !== build.mtime) build = { mtime, id: JSON.parse(fs.readFileSync(f, 'utf8')).id };

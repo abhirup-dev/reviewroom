@@ -30,8 +30,9 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p cli && tsc --noEmit -p scripts && tsc --noEmit -p tsconfig.shared.json && tsc --noEmit -p src/sw.tsconfig.json",
     "lint": "oxlint --type-aware --deny-warnings && ast-grep scan && stylelint \"src/**/*.css\" && knip && jscpd && bun scripts/ascii.ts && bun scripts/css-usage.ts && bun scripts/features.ts",
     "test": "bun test ./src ./cli ./scripts",
-    "smoke": "bun run build && bun test ./e2e ./testing/slides --timeout 30000",
-    "check": "bun run typecheck && bun run lint && bun run test && bun run smoke",
+    "smoke": "bun run build && bun test ./e2e --timeout 30000 --parallel",
+    "check": "bun run --parallel --no-exit-on-error typecheck lint test",
+    "check:full": "bun run check && bun run build && bun test ./e2e ./testing/slides --timeout 30000 --parallel",
     "schema": "bun scripts/schema.ts",
     "demo": "bun run build && bash examples/make-demo-repo.sh .demo/demoapp && bun dist/cli/reviewroom.js pr feat/activity-events --repo .demo/demoapp --dir examples/activity-events",
     "demo-page": "bun run build && bash examples/make-demo-repo.sh .demo/demoapp && bun scripts/build-demo.ts .demo/demoapp main feat/activity-events examples/activity-events .demo/reviewroom-demo.html",
@@ -40,7 +41,7 @@
     "prepack": "bun scripts/build.ts",
     "app-install": "bun scripts/app-install.ts",
     "setup-phone": "bun scripts/phone-setup.ts",
-    "test:slides": "bun run build && bun test ./testing/slides --timeout 30000",
+    "test:slides": "bun run build && bun test ./testing/slides --timeout 30000 --parallel",
     "bench:slides": "bun testing/slides/benchmark.ts"
   },
   "engines": {

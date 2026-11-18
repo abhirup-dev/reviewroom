@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
-import { selectSlides } from '../../cli/lib/slide-selection.ts';
+import { selectSlides } from './slide-selection.ts';
 
 const w: Walkthrough = {
   version: 1, title: 'Selection', chapters: [
