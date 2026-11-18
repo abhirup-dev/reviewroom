@@ -45,11 +45,12 @@ export function mountGeneration(app: ReviewApp) {
   const generate = async () => {
     if (!generateOffered(snap()) || !app.backend.generate) return;
     actor.send({ type: 'generate' });
+    const { attempt } = snap().context;
     const r = await app.backend.generate().catch(() => ({ ok: false as const, code: undefined }));
     // the answer only settles the request: what happens to it comes over SSE
-    if (r.ok) return actor.send({ type: 'generated', started: r.started });
+    if (r.ok) return actor.send({ type: 'generated', attempt, started: r.started });
     const error = refused(r);
-    actor.send({ type: 'failed', error });
+    actor.send({ type: 'failed', attempt, error });
     if (!screenShown(snap())) app.toast(error, 'error'); // the screen shows it already
   };
   const dismiss = () => actor.send({ type: 'dismiss' });

@@ -20,7 +20,8 @@
 //
 //   progress { progress }    the reduced documents' states (and `generation` where the assistant runs)
 //   generate                 Generate / Retry: starting at once, until the new request shows
-//   generated { started }    the request was taken (started: false: nothing to write); failed { error }: refused
+//   generated { attempt, started }  the request was taken (started: false: nothing to write); failed { attempt, error }:
+//                            refused. Only the latest press's answer counts.
 //   dismiss / reopen         close the loading screen to the bare review / open it again (the header indicator)
 import { enqueueActions, setup, type SnapshotFrom } from 'xstate';
 import { pendingArtifact, type Progress } from '../kernel/state/progress.shared';
@@ -48,12 +49,14 @@ export type GenerationContext = {
   waitedFor: string | null;
   /** the walkthrough request already played */
   played: string | null;
+  /** Generate presses so far: a POST's answer counts only for the latest one (an earlier one's late failure is old news) */
+  attempt: number;
 };
 export type GenerationEvent =
   | { type: 'progress'; progress: Progress }
   | { type: 'generate' }
-  | { type: 'generated'; started: boolean }
-  | { type: 'failed'; error: string }
+  | { type: 'generated'; attempt: number; started: boolean }
+  | { type: 'failed'; attempt: number; error: string }
   | { type: 'dismiss' }
   | { type: 'reopen' };
 
@@ -70,10 +73,11 @@ export function stageOf({ progress, requesting }: Pick<GenerationContext, 'progr
 
 /** The context an event leaves. Pure: the guards route on it and the update action assigns it. */
 export function next(c: GenerationContext, e: GenerationEvent): GenerationContext {
-  let { progress, requesting, error, closedFor, waitedFor, played } = c;
+  if ((e.type === 'generated' || e.type === 'failed') && e.attempt !== c.attempt) return c; // an earlier press's answer
+  let { progress, requesting, error, closedFor, waitedFor, played, attempt } = c;
   switch (e.type) {
     case 'progress': progress = e.progress; break;
-    case 'generate': requesting = requestKey(progress); error = null; break;
+    case 'generate': requesting = requestKey(progress); error = null; attempt++; break;
     case 'generated': if (!e.started) requesting = null; break; // taken: the progress ends the bridge
     case 'failed': requesting = null; error = e.error; break;
     case 'dismiss': closedFor = requesting !== null ? PENDING : requestKey(progress); break;
@@ -89,7 +93,7 @@ export function next(c: GenerationContext, e: GenerationEvent): GenerationContex
   if (requesting === null && closedFor === PENDING) closedFor = requestKey(progress); // closed on the request that answered
   if (pendingArtifact(w) && w.request) waitedFor = w.request;
   if (w.state === 'validated' && w.request && w.request === waitedFor && played !== w.request) played = w.request;
-  return { ...c, progress, requesting, error, closedFor, waitedFor, played };
+  return { ...c, progress, requesting, error, closedFor, waitedFor, played, attempt };
 }
 
 type Ctx = { context: GenerationContext; event: GenerationEvent };
@@ -115,7 +119,7 @@ export const generationMachine = setup({
   id: 'generation',
   type: 'parallel',
   context: ({ input }) => ({
-    progress: { walkthrough: { state: 'idle' }, report: { state: 'idle' } }, canGenerate: input.canGenerate, requesting: null, error: null,
+    progress: { walkthrough: { state: 'idle' }, report: { state: 'idle' } }, canGenerate: input.canGenerate, requesting: null, error: null, attempt: 0,
     closedFor: input.closedFor ?? null, waitedFor: input.waitedFor ?? null, played: input.played ?? null,
   }),
   states: {

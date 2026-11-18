@@ -55,12 +55,12 @@ test('P1: a stop of the new request, delivered while the POST is out, wins over 
   const { REQUESTED: R2, STOPPED: S2 } = at(2);
   g.send(R2); // SSE: the new request
   g.send(S2); // SSE: its turn ended at once (Claude failed to start)
-  g.a.send({ type: 'generated', started: true }); // the POST's answer, last
+  g.a.send({ type: 'generated', attempt: g.s().context.attempt, started: true }); // the POST's answer, last
   expect([g.at(), g.shown(), generateOffered(g.s())]).toEqual(['stopped', true, true]);
   // the answer first, then the SSE lines: the same end
   const h = start(true, STOPPED);
   h.a.send({ type: 'generate' });
-  h.a.send({ type: 'generated', started: true });
+  h.a.send({ type: 'generated', attempt: h.s().context.attempt, started: true });
   h.send(STOPPED); // a repeat of the old state: still the bridge
   expect(h.at()).toBe('starting');
   h.send(R2);
@@ -71,11 +71,11 @@ test('P1: a stop of the new request, delivered while the POST is out, wins over 
 test('Generate: refused goes back with its message; nothing to write ends the bridge at once', () => {
   const refused = start(true, STOPPED);
   refused.a.send({ type: 'generate' });
-  refused.a.send({ type: 'failed', error: 'The assistant is answering a question.' });
+  refused.a.send({ type: 'failed', attempt: refused.s().context.attempt, error: 'The assistant is answering a question.' });
   expect([refused.at(), refused.s().context.error]).toEqual(['stopped', 'The assistant is answering a question.']);
   const nothing = start(true, IDLE);
   nothing.a.send({ type: 'generate' });
-  nothing.a.send({ type: 'generated', started: false });
+  nothing.a.send({ type: 'generated', attempt: nothing.s().context.attempt, started: false });
   expect(nothing.at()).toBe('idle');
 });
 
@@ -126,7 +126,7 @@ test('P2: closed before Generate\'s request showed: stays closed for the request
   g.a.send({ type: 'generate' });
   g.a.send({ type: 'dismiss' });
   expect([g.shown(), indicatorShown(g.s())]).toEqual([false, true]);
-  g.a.send({ type: 'generated', started: true });
+  g.a.send({ type: 'generated', attempt: g.s().context.attempt, started: true });
   g.send(at(2).REQUESTED);
   g.send(at(2).WRITING);
   expect([g.at(), g.shown()]).toEqual(['writing', false]);
@@ -135,7 +135,7 @@ test('P2: closed before Generate\'s request showed: stays closed for the request
   const r = start(true, STOPPED);
   r.a.send({ type: 'generate' });
   r.a.send({ type: 'dismiss' });
-  r.a.send({ type: 'failed', error: 'x' });
+  r.a.send({ type: 'failed', attempt: r.s().context.attempt, error: 'x' });
   expect([r.at(), r.shown()]).toEqual(['stopped', false]);
 });
 
@@ -188,3 +188,16 @@ test('Generate is offered whenever a document is not validated: a PR\'s walkthro
   expect(generateOffered(start(false, imported).s())).toBe(false);
 });
 
+test('a late answer to an earlier Generate never cancels the Retry after it', () => {
+  const g = start(true, STOPPED);
+  g.a.send({ type: 'generate' });
+  const first = g.s().context.attempt;
+  const { REQUESTED: R2, STOPPED: S2 } = at(2);
+  g.send(R2);
+  g.send(S2); // SSE: the first press's request stopped at once; its POST is still out
+  g.a.send({ type: 'generate' }); // Retry
+  g.a.send({ type: 'failed', attempt: first, error: 'late' }); // the first POST, failing late
+  expect([g.at(), g.s().context.error, generateOffered(g.s())]).toEqual(['starting', null, false]);
+  g.a.send({ type: 'failed', attempt: g.s().context.attempt, error: 'busy' }); // the Retry's own answer counts
+  expect([g.at(), g.s().context.error]).toEqual(['stopped', 'busy']);
+});
