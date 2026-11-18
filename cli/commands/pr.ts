@@ -49,8 +49,18 @@ function prNumberTarget(repo: string, o: PrOpts, n: string, given?: string): Tar
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
   const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url ?? given, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
-  // by number, never the head branch: two fork PRs from branches of one name (patch-1) are two reviews
-  return { dir: branchDir(repo, `pr-${n}`), cfg };
+  return { dir: prDir(repo, +n, info?.headRefName, cfg.url), cfg };
+}
+
+/** By number, never the head branch: two fork PRs from branches of one name (patch-1) are two reviews. But a review of
+ *  this PR made before that lives in its head branch's folder: it is kept (its threads, rounds) while no pr-<n> exists. */
+function prDir(repo: string, n: number, headRefName?: string, url?: string) {
+  const own = branchDir(repo, `pr-${n}`);
+  const legacy = headRefName && branchDir(repo, headRefName);
+  if (fs.existsSync(own) || !legacy || !fs.existsSync(configPath(legacy))) return own;
+  const c = readConfig(legacy);
+  const repoOf = (u?: string) => u?.replace(/\/pull\/.*$/, '').toLowerCase();
+  return c.number === n && (!c.url || !url || repoOf(c.url) === repoOf(url)) ? legacy : own; // the same PR of the same repository
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */

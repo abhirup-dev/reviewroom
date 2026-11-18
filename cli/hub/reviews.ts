@@ -133,8 +133,11 @@ export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok:
     return { ok: false, error: `Could not get ${pr.owner}/${pr.repo}: ${w}` };
   }
   try {
-    // the folder `pr` sets up (pr-<n>): a re-add stops its server, so it waits for a Play or close of it, and they for it
-    const { stdout } = await serialized(branchDir(dest, `pr-${pr.number}`), () =>
+    // the folder `pr` sets up (pr-<n>, or a legacy review of this PR in its head branch's folder: pr.ts prDir): a re-add
+    // stops its server, so it waits for a Play or close of it, and they for it
+    const own = branchDir(dest, `pr-${pr.number}`);
+    const folder = fs.existsSync(own) ? own : (diskReviews().find((r) => Number(r.number) === pr.number && r.repo === dest)?.dir ?? own);
+    const { stdout } = await serialized(folder, () =>
       run(process.execPath, [entry, 'pr', `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 }));
     const dir = stdout.trim().split('\n').at(-1) ?? '';
     return { ok: true, id: reviewId(dir), dir };

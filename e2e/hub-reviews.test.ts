@@ -11,6 +11,7 @@ import { recordArtifact, requestGeneration } from '../cli/lib/progress.ts';
 import { WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import { setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
+import { reviewId } from '../cli/lib/registry.ts';
 
 const root = path.resolve(import.meta.dir, '..');
 
@@ -29,6 +30,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
   await $`git clone -q --bare ${path.join(scratch, 'src')} ${bare}`.quiet();
   await $`git -C ${bare} update-ref refs/pull/7/head refs/heads/feat/upload-rate-limit`.quiet();
   await $`git -C ${bare} update-ref refs/pull/8/head refs/heads/feat/upload-rate-limit~1`.quiet();
+  await $`git -C ${bare} update-ref refs/pull/9/head refs/heads/feat/upload-rate-limit`.quiet();
   const { cli, tmp, repo } = setup({
     REVIEWROOM_TEST_CLONE_ROOT: clones,
     CLAUDE_CODE_EXECUTABLE: path.join(scratch, 'no-claude'),
@@ -87,6 +89,20 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/8' })).status).toBe(201);
     const all = ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((s) => s.target === '#7' || s.target === '#8');
     expect(all.map((s) => path.basename(s.reviewPath!)).sort()).toEqual(['pr-7', 'pr-8']);
+  }, 60_000);
+
+  test('a review of the PR made before pr-<n> folders (in its head branch\'s folder) is reused, not split in two', async () => {
+    const [s] = await ours();
+    const legacy = path.join(path.dirname(s.reviewPath!), 'patch-1');
+    fs.mkdirSync(legacy);
+    const clone = path.join(tmp, 'home', 'repos', 'acme', 'demo');
+    fs.writeFileSync(path.join(legacy, 'config.json'), JSON.stringify({ number: 9, url: 'https://github.com/acme/demo/pull/9', repoPath: clone, base: 'origin/main', head: 'refs/reviewroom/pr-9' }));
+    fs.writeFileSync(path.join(legacy, 'keep.txt'), 'threads and rounds');
+    const r = await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/9' });
+    expect(r.status).toBe(201);
+    expect((await r.json()).id).toBe(reviewId(legacy));
+    expect([fs.existsSync(path.join(path.dirname(legacy), 'pr-9')), fs.existsSync(path.join(legacy, 'keep.txt'))]).toEqual([false, true]);
+    expect(((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((x) => x.target === '#9')).toHaveLength(1);
   }, 60_000);
 
   test('two first Adds of one new repository at once: one clones, the other waits and fetches; both set it up', async () => {
