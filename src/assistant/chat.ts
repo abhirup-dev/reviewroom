@@ -5,7 +5,7 @@ import { Chat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from 'ai';
 import { errorText } from '../kernel/errors.shared';
 import type { Connection } from '../kernel/providers/contracts';
-import type { AskContext } from './context.shared';
+import { TURN_HEADER, type AskContext } from './context.shared';
 
 /** GET api/assistant: the saved conversation and the turn it ends in (`activeStreamId`, the AI SDK's resumable stream
  *  id; `origin`: any page can stop a question's turn, none a generation's). */
@@ -16,6 +16,29 @@ export type AssistantState = Omit<Conversation, 'messages'> & { connected: boole
 
 const text = (m: UIMessage) => m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
 
+/** `body`, telling `done` once when it ends, fails or its reader leaves. */
+function whileRead(body: ReadableStream<Uint8Array>, done: () => void) {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(c) {
+      try {
+        const x = await reader.read();
+        if (x.done) {
+          done();
+          c.close();
+        } else c.enqueue(x.value);
+      } catch (e) {
+        done();
+        c.error(e);
+      }
+    },
+    cancel: (why) => {
+      done();
+      return reader.cancel(why);
+    },
+  });
+}
+
 export function createAssistantChat() {
   let state: AssistantState = { model: '', status: 'idle', activeStreamId: null, origin: null, connected: true };
   const listeners = new Set<() => void>();
@@ -24,19 +47,40 @@ export function createAssistantChat() {
     for (const l of listeners) l();
   };
   let since: string | null = null; // the server's start the store last saw
-  // the turn this chat streams or streamed (sent here or followed): never followed twice
-  let followed: string | null = null;
+  /** The stream this chat is attached to, from the request it made (a question's POST, a resume) until that response
+   *  ends, fails or is dropped; `turn` once the response names it. Detached, a sync takes the saved history. */
+  let attached: { turn: string | null } | undefined;
+  let want = ''; // the turn the last snapshot named, for the resume request
   const chat = new Chat<UIMessage>({
     id: 'review', // one conversation per review: the server ignores it
     transport: new DefaultChatTransport({
       api: 'api/assistant', // relative: the page's own review server
       // the turn the history named: 204 if it ended meanwhile (or another took its place)
-      prepareReconnectToStreamRequest: ({ api, id }) => ({ api: `${api}/${id}/stream?turn=${encodeURIComponent(followed ?? '')}` }),
+      prepareReconnectToStreamRequest: ({ api, id }) => ({ api: `${api}/${id}/stream?turn=${encodeURIComponent(want)}` }),
+      // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsc with Bun's types needs it (see below)
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const mine = { turn: null as string | null };
+        attached = mine;
+        const release = () => void (attached === mine && (attached = undefined));
+        try {
+          const response = await fetch(input, init);
+          mine.turn = response.headers.get(TURN_HEADER);
+          if (!response.body || !mine.turn) {
+            release(); // refused, or 204: nothing to attach to
+            return response;
+          }
+          return new Response(whileRead(response.body, release), response);
+        } catch (e) {
+          release();
+          throw e;
+        }
+      }) as typeof fetch, // Bun's fetch type adds `preconnect`, which the transport never calls
     }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
     onFinish: () => void sync(), // the saved answer (its model, a stopped one's state)
     onError: (e) => {
-      // refused (another window asked first): the conversation again, the question back in the composer
+      // refused (another window asked first), or the stream dropped: the conversation again; a refused question back in
+      // the composer
       const asked = chat.messages.at(-1);
       void sync().then(() => {
         const gone = asked?.role === 'user' && !chat.messages.some((m) => m.id === asked.id);
@@ -44,23 +88,27 @@ export function createAssistantChat() {
       });
     },
   });
-  const busy = () => chat.status === 'submitted' || chat.status === 'streaming';
 
-  /** The saved history into the chat, then its running turn followed to its end; the history again after. */
+  /** The saved history into the chat, then its running turn followed to its end. Attached to a stream, only what the
+   *  server says of it: that stream's end syncs again. */
   async function once() {
-    const response = await fetch('api/assistant');
-    if (!response.ok) return set({ error: await response.text() }); // a moved-aside conversation, invalid settings
-    const { messages, ...c }: Conversation = await response.json();
-    set({ ...c, error: undefined });
-    if (busy()) {
-      followed = c.activeStreamId ?? followed; // this chat has that turn already: its end syncs again
-      return;
+    let conversation: Conversation;
+    try {
+      const response = await fetch('api/assistant');
+      if (!response.ok) throw new Error(await response.text()); // a moved-aside conversation, invalid settings
+      conversation = await response.json();
+    } catch (e) {
+      // the transcript shown stays; no turn is known to run until a snapshot says so
+      return set({ error: errorText(e), activeStreamId: null, origin: null });
     }
+    const { messages, ...c } = conversation;
+    set({ ...c, error: undefined });
+    if (attached) return;
     chat.messages = messages;
-    if (!c.activeStreamId || c.activeStreamId === followed) return;
-    followed = c.activeStreamId;
-    await chat.resumeStream(); // to its end, or at once (204)
-    again = true;
+    if (!c.activeStreamId) return;
+    want = c.activeStreamId;
+    // to its end (onFinish, onError: the history again), or at once: 204, it ended (the server says so: SSE)
+    await chat.resumeStream();
   }
   // single-flight: one sync out; asked meanwhile, one more after it (the same shape as layouts/save.machine.ts)
   let out: Promise<void> | undefined;
@@ -76,8 +124,6 @@ export function createAssistantChat() {
           again = false;
           await once();
         } while (again);
-      } catch (e) {
-        set({ error: errorText(e) });
       } finally {
         out = undefined;
       }
@@ -99,10 +145,7 @@ export function createAssistantChat() {
       const back = live && (!state.connected || started !== since);
       since = started;
       if (live !== state.connected) set({ connected: live });
-      if (back) {
-        followed = null;
-        void sync();
-      }
+      if (back) void sync();
     },
     /** The composer took the quote or the draft. */
     take: (key: 'quote' | 'draft') => set({ [key]: undefined }),

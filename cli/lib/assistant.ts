@@ -16,7 +16,7 @@ import { PKG, settingsFile, assistantHome } from './paths.ts';
 import { readConfig, type ReviewConfig } from './config.ts';
 import { readState } from './state.ts';
 import { astGrepBinary } from './source/outline.ts';
-import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
+import { AskMetadata, contextPrompt, TURN_HEADER } from '../../src/assistant/context.shared.ts';
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
@@ -265,7 +265,8 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       throw e;
     }
     let release!: () => void;
-    const turn: Running = { name: 'running', origin, model, id: randomUUID(), stream: replayStream(STREAM_HEADERS), abort: new AbortController(), done: new Promise((r) => (release = r)) };
+    const id = randomUUID();
+    const turn: Running = { name: 'running', origin, model, id, stream: replayStream({ ...STREAM_HEADERS, [TURN_HEADER]: id }), abort: new AbortController(), done: new Promise((r) => (release = r)) };
     setPhase(turn);
     EFFECTS[origin].started();
     // after the answer is saved

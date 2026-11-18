@@ -292,7 +292,7 @@ test('the resume route: the named turn\'s stream from its start, even while Clau
   expect((await r.follow('another-turn')).status).toBe(204); // a turn that ended: the page fetches the history again
   const res = await r.follow(id); // before Claude has said anything
   started();
-  expect([res.status, res.headers.get('x-vercel-ai-ui-message-stream'), (await readUntil(res, (said) => said.includes('partial answer'))).said]).toEqual([200, 'v1', expect.stringContaining('"type":"start"')]);
+  expect([res.status, res.headers.get('x-vercel-ai-ui-message-stream'), res.headers.get('x-reviewroom-turn'), (await readUntil(res, (said) => said.includes('partial answer'))).said]).toEqual([200, 'v1', id, expect.stringContaining('"type":"start"')]);
   await r.routes.close();
   expect([await r.turn(), (await r.follow(id)).status]).toEqual([null, 204]);
 
