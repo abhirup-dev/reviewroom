@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE, REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // One adversarial walkthrough over the demo repo, shared by browser regressions and the benchmark.
 // Deliberate defects stay here rather than making the teaching demo a broken review.
 import fs from 'node:fs';
@@ -53,11 +54,11 @@ export const auditReview = `<!doctype html>
 
 const demo = path.join(import.meta.dir, '../../examples/uploads');
 export const slideCases = {
-  demo: { tour: Walkthrough.parse(JSON.parse(fs.readFileSync(path.join(demo, 'walkthrough.json'), 'utf8'))), html: fs.readFileSync(path.join(demo, 'review.html'), 'utf8') },
+  demo: { tour: Walkthrough.parse(JSON.parse(fs.readFileSync(path.join(demo, WALKTHROUGH_FILE), 'utf8'))), html: fs.readFileSync(path.join(demo, REPORT_FILE), 'utf8') },
   audit: { tour: Walkthrough.parse(auditWalkthrough), html: auditReview },
 };
 export function writeSlideCase(dir: string, fixture: { tour: Walkthrough; html: string }) {
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify(fixture.tour));
-  fs.writeFileSync(path.join(dir, 'review.html'), fixture.html);
+  fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify(fixture.tour));
+  fs.writeFileSync(path.join(dir, REPORT_FILE), fixture.html);
 }

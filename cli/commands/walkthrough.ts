@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // publish-slides: ship walkthrough.json with the PR, as a comment `reviewroom pr` picks up.
 import { type Global, fail } from '../lib/args.ts';
 import { dirForEdit, readConfig } from '../lib/config.ts';
@@ -18,7 +19,7 @@ export function publishBody(w: Walkthrough, pr?: number) {
 type WalkthroughOpts = Global & { dryRun?: boolean; allowStale?: boolean };
 
 export async function cmdPublishSlides(repo: string | null, o: WalkthroughOpts) {
-  const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
+  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
   const c = await runCheck(repo, dir, { store: !o.dryRun, notes: false });
   if ('issues' in c) fail(schemaReport(c.issues));
   if (c.bad.length && !o.allowStale) fail(`${c.bad.length} link(s) need attention (fix them, or publish anyway with --allow-stale):\n${report(c.bad)}`);

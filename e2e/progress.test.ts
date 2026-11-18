@@ -1,3 +1,4 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import { afterAll, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -60,14 +61,14 @@ test('pr requests only on creation/force; watcher pushes progress without reload
   try {
     await until(() => events.some((e) => e.event === 'hello'));
     for (const text of ['<rr-app><rr-review>', '<rr-app><rr-review><section id="summary"><h1>Summary</h1></section></rr-review></rr-app>']) {
-      fs.writeFileSync(path.join(dir, 'review.html'), text);
+      fs.writeFileSync(path.join(dir, REPORT_FILE), text);
       await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'written');
     }
     expect(events.filter((e) => e.event === 'review')).toHaveLength(0);
     expect((await cli(['check', ...d])).code).toBe(0);
     await until(() => events.filter((e) => e.event === 'review').length === 1);
     expect((await fetch(url + 'api/progress').then((r) => r.json())).report.state).toBe('validated');
-    fs.appendFileSync(path.join(dir, 'review.html'), '<!-- another save -->');
+    fs.appendFileSync(path.join(dir, REPORT_FILE), '<!-- another save -->');
     await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'written');
     expect(events.filter((e) => e.event === 'review')).toHaveLength(1);
   } finally { abort.abort(); await reading; }
@@ -76,8 +77,8 @@ test('pr requests only on creation/force; watcher pushes progress without reload
 const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
 test.skipIf(!browser)('only a passing full lint validates the requested walkthrough under the writing screen', async () => {
   expect((await cli(prArgs)).code).toBe(0);
-  fs.writeFileSync(path.join(dir, 'review.html'), '<!doctype html><html><head><script type="module" src="/_rr/reviewroom.js"></script></head><body><rr-app><rr-review><section id="summary">Summary</section></rr-review></rr-app></body></html>');
-  fs.writeFileSync(path.join(dir, 'walkthrough.json'), JSON.stringify({ version: 1, title: 'Change the value', chapters: [
+  fs.writeFileSync(path.join(dir, REPORT_FILE), '<!doctype html><html><head><script type="module" src="/_rr/reviewroom.js"></script></head><body><rr-app><rr-review><section id="summary">Summary</section></rr-review></rr-app></body></html>');
+  fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify({ version: 1, title: 'Change the value', chapters: [
     { id: 'change', title: 'Change the value', steps: [{ id: 'value', text: '<p>The value changes from one to two.</p>', ref: 'rr:code/example.ts#L1' }] },
   ] }));
   const log = path.join(dir, 'progress.jsonl');

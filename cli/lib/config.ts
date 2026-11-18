@@ -1,9 +1,11 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // Which review: its dir (resolveDir, dirForEdit) and config.json (what it compares, and in which checkout).
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { git, defaultBase, remoteName } from './git.ts';
 import { reviewsDir } from './paths.ts';
+import { migrateReport } from './migrate-report.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 
 /** Where a repo's reviews live: ~/.reviewroom/reviews/<owner>-<repo>/, shared by all its worktrees. */
@@ -14,20 +16,20 @@ export const branchDir = (repo: string, branch: string) => path.join(reviewsOf(r
 /** The review dir: --dir, else the current branch's. For an existing review (`existing`),
  *  a missing branch dir falls back to the repo's only review. */
 export function resolveDir(repo: string, dirFlag: string | undefined, { existing = false } = {}): string {
-  if (dirFlag) return path.resolve(dirFlag);
+  if (dirFlag) return migrateReport(path.resolve(dirFlag));
   const root = reviewsOf(repo);
   const own = branchDir(repo, (git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true }) || 'review').trim());
-  if (!existing || fs.existsSync(own)) return own;
-  const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(root, d, 'review.html'))) : [];
+  if (!existing || fs.existsSync(own)) return migrateReport(own);
+  const reviews = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => fs.existsSync(path.join(migrateReport(path.join(root, d)), REPORT_FILE))) : [];
   if (reviews.length === 1) return path.join(root, reviews[0]);
   throw new ReviewroomError(reviews.length ? `several reviews in ${root}: ${reviews.join(', ')} - pass --dir` : `no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
 }
 
 /** The dir of an existing review for commands that only edit it: --dir works without a repo. With `needs`, a dir
  *  without that file is an error. */
-export function dirForEdit(repo: string | null, dirFlag: string | undefined, needs?: 'review.html' | 'walkthrough.json') {
+export function dirForEdit(repo: string | null, dirFlag: string | undefined, needs?: typeof REPORT_FILE | typeof WALKTHROUGH_FILE) {
   if (!dirFlag && !repo) throw new ReviewroomError('not inside a git repository (use --dir)');
-  const dir = dirFlag ? path.resolve(dirFlag) : resolveDir(repo!, undefined, { existing: true });
+  const dir = dirFlag ? migrateReport(path.resolve(dirFlag)) : resolveDir(repo!, undefined, { existing: true });
   if (needs && !fs.existsSync(path.join(dir, needs))) throw new ReviewroomError(`no ${needs} in ${dir}`);
   return dir;
 }

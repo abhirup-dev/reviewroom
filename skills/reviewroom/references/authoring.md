@@ -1,10 +1,10 @@
 # Authoring reference: the report
 
-The building blocks of the report (`review.html`). For what to write and in what order see `report-craft.md`.
+The building blocks of the report (`report.html`). For what to write and in what order see `report-craft.md`.
 
 ## The file
 
-`reviewroom pr` scaffolds `review.html` in the review directory. It is ordinary HTML:
+`reviewroom pr` scaffolds `report.html` in the review directory. It is ordinary HTML:
 
 ```html
 <rr-app>
@@ -16,7 +16,7 @@ The building blocks of the report (`review.html`). For what to write and in what
 ```
 
 Inside `<rr-review>` you may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put
-extra assets (images, js, css) next to `review.html` and reference them relatively (`diagram.svg`, never
+extra assets (images, js, css) next to `report.html` and reference them relatively (`diagram.svg`, never
 `/diagram.svg`: the hub also serves the review under `/r/<id>/`). Leave `<rr-app>`'s `api` unset.
 
 `#rr-meta` is optional JSON; leave it `{}` unless you need it. The CLI supplies the repo, PR and
@@ -171,7 +171,7 @@ Interactive widgets can drive the reviewer straight into the code:
 ## Walkthrough: `walkthrough.json`
 
 The walkthrough of the diff, played over the workbench: chapters of slides (`steps`), narration
-on the left, the slide's code on the right, moved through with ← →. It sits next to `review.html` in the
+on the left, the slide's code on the right, moved through with ← →. It sits next to `report.html` in the
 review directory and follows `schema/walkthrough.schema.json` in the reviewroom install. Put that path in a top-level
 `"$schema"` key so your editor validates as you type; see [Validation and audit](validation-and-audit.md).
 The demo shows the format: `examples/uploads/walkthrough.json`. The excerpt below is one
@@ -217,7 +217,7 @@ Prose is HTML like the report's, with the same links, `<rr-ref>`, `<rr-code>` an
 link in the text shows that code in the pane without leaving the slide. It is display-only, since a walkthrough can come
 from a PR: text, http(s) and `rr:` links, `<rr-ref>`, `<rr-code>`, `<rr-mermaid>` (with its preset `class`), `<rr-callout>`,
 `<rr-embed>`; ids, styles, scripts, forms, media and `<rr-check>` are stripped (`slide-lint` names what was). A figure
-that needs more than that (your own HTML or SVG) lives in `review.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `walkthrough-craft.md`.
+that needs more than that (your own HTML or SVG) lives in `report.html` and comes in as `<rr-embed ref="rr:doc/<id>">`. One concept per chapter; the shape is in `walkthrough-craft.md`.
 
 Use [Validation and audit](validation-and-audit.md) for checks, iteration and screenshots.
 

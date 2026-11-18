@@ -1,3 +1,4 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // The CLI/server alone append generation facts. File bytes, never parsed JSON, identify a validation.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -5,7 +6,7 @@ import crypto from 'node:crypto';
 import { parseProgress, reduceProgress, ProgressLine, type Artifact } from '../../src/kernel/state/progress.shared.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 
-const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'report' ? 'review.html' : 'walkthrough.json');
+const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'report' ? REPORT_FILE : WALKTHROUGH_FILE);
 export const progressHash = (bytes: string | Buffer) => crypto.createHash('sha256').update(bytes).digest('hex');
 export function artifactHash(dir: string, artifact: Artifact) {
   const file = filename(dir, artifact);

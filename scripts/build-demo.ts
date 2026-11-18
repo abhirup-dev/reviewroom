@@ -1,3 +1,4 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 // Build a single self-contained demo page (no server): static provider + fixture
 // generated from a git repo + an example review + seeded threads.
 //
@@ -78,13 +79,13 @@ const meta = { title: git('log', '-1', '--format=%s', head).trim(), repo: 'examp
 const fixture = { meta, commits, files, contents };
 
 // 3) page
-const review = fs.readFileSync(path.join(exampleDir, 'review.html'), 'utf8');
+const review = fs.readFileSync(path.join(exampleDir, REPORT_FILE), 'utf8');
 const state = fs.readFileSync(path.join(exampleDir, 'state.json'), 'utf8');
 const pick = (re: RegExp) => (review.match(re) || ['', ''])[1];
 const style = pick(/<style>([\s\S]*?)<\/style>/);
 let app = pick(/(<rr-app[\s\S]*<\/rr-app>)/).replace('<rr-app>', '<rr-app provider="static">');
 const json = (id: string, data: unknown) => `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
-const tourFile = path.join(exampleDir, 'walkthrough.json');
+const tourFile = path.join(exampleDir, WALKTHROUGH_FILE);
 const tour = fs.existsSync(tourFile) ? json('rr-walkthrough', JSON.parse(fs.readFileSync(tourFile, 'utf8'))) : '';
 app = app.replace('</rr-app>', `${json('rr-fixture', fixture)}\n${json('rr-state', JSON.parse(state))}\n${tour}\n</rr-app>`);
 const body = `<style>${style}</style>\n${app}\n<script type="module">${js}</script>`;

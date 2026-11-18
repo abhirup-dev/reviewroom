@@ -1,3 +1,4 @@
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../state/files.shared';
 import type { Progress } from '../state/progress.shared';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import type { ReviewState } from '../state/model.shared';
@@ -126,7 +127,7 @@ export class ServerState implements StateBackend {
     return { ok: true };
   }
   async snapshot(n: number) {
-    const r = await fetch(`${this.api}/rounds/${n}/review.html`);
+    const r = await fetch(`${this.api}/rounds/${n}/${REPORT_FILE}`);
     return r.ok ? r.text() : null;
   }
   // files kept by the server (ports change, so localStorage wouldn't follow)
@@ -150,7 +151,7 @@ export class ServerState implements StateBackend {
     const r = await fetch(`${this.api}/walkthrough`);
     if (r.status === 404) return null;
     if (r.ok || r.status === 422) return r.json();
-    throw new Error(`walkthrough.json: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
+    throw new Error(`${WALKTHROUGH_FILE}: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
   }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);

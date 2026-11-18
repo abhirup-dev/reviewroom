@@ -14,7 +14,7 @@ first and played first; the report follows as the detailed record. Other modes a
 ## Decision
 
 1. **Two documents, two jobs.** The walkthrough (`walkthrough.json`) is the story: slides pinned to one snapshot,
-   played first and regenerated when the reviewed code moves. The report (`review.html`) is the record: findings,
+   played first and regenerated when the reviewed code moves. The report (`report.html`) is the record: findings,
    evidence, flagged questions and later answers. They need not mirror each other's sections.
 2. **Walkthrough first.** Outline the intro and story, ending with a **Risks** chapter. Each main risk is one line
    with a severity and an `rr:doc/<section id>` link to its finding; detailed findings stay in the report. Create a
@@ -51,5 +51,5 @@ first and played first; the report follows as the detailed record. Other modes a
 
 - Every review gets a walkthrough before its report; the loading screen depends on the CLI's progress log, so an
   agent that skips `slide-lint` or `check` leaves the reviewer waiting with a "Show it anyway" escape.
-- Code identifiers predate this vocabulary (`review.html`, the `narrative` panel, `src/review/walkthrough.ts` for
+- Code identifiers predate this vocabulary (`report.html`, the `narrative` panel, `src/review/walkthrough.ts` for
   the report); public names and links stay compatible.

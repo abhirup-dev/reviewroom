@@ -1,14 +1,15 @@
 #!/usr/bin/env bun
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
 // The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch) and holds:
-//   review.html            the report (written by the agent, any HTML)
+//   report.html            the report (written by the agent, any HTML)
 //   walkthrough.json       the walkthrough (written by the agent)
 //   state.json             threads, rounds, viewed files, sign-offs
 //   config.json            repoPath/base/head/title
 //   layout.json            the panel layout as the reviewer left it (written by the browser)
-//   rounds/<n>/            snapshot of review.html + feedback.md for every finished round
+//   rounds/<n>/            snapshot of report.html + feedback.md for every finished round
 import path from 'node:path';
 import { cac } from 'cac';
 import { die } from './lib/args.ts';
@@ -51,7 +52,7 @@ cli
   .option('--head <ref>', 'Head revision; worktree includes uncommitted changes')
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Git remote', { default: 'origin' })
-  .option('--force', 'Replace review.html and PR walkthrough')
+  .option('--force', `Replace ${REPORT_FILE} and PR walkthrough`)
   .option('--detach', 'Serve in background; print URL')
   .option('--wait', 'Wait for the first feedback round')
   .option('--port <n>', 'Port (default: 4848)')
@@ -168,7 +169,7 @@ const notes: Record<string, string> = {
   Skips right-hand code; embedded prose code still renders.
   Prose-only findings exclude right-hand code.
   Nothing is written to the review.`,
-  'pr': `  Loads available PR walkthroughs into missing walkthrough.json files.
+  'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
   Newest author-owned or agent-owned walkthrough wins.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
@@ -186,7 +187,7 @@ const notes: Record<string, string> = {
   Public access requires an HTTPS front and --public-origin.
   The front controls access; Reviewroom checks no identity.
   Allowed visitors can read and modify every running review.`,
-  'check': `  Tracks link fingerprints across review.html and walkthrough.json.
+  'check': `  Tracks link fingerprints across ${REPORT_FILE} and ${WALKTHROUGH_FILE}.
   Moved: within five lines; --fix updates links.
   Changed: inspect code and prose; --accept refreshes fingerprints.
   Broken: fix or remove missing targets.
@@ -220,7 +221,7 @@ cli.help((sections) => {
     {
       title: 'A walkthrough (when wanted)',
       body: [
-        '  walkthrough.json sits beside review.html.',
+        `  ${WALKTHROUGH_FILE} sits beside ${REPORT_FILE}.`,
         '  slide-lint: validate walkthrough slides.',
         '  shot <chapter>/<step>: inspect one slide.',
         '  publish-slides: publish to the PR.',
@@ -230,7 +231,7 @@ cli.help((sections) => {
       title: 'The review dir',
       body: [
         '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/; REVIEWROOM_HOME overrides the root.',
-        '  Author review.html, walkthrough.json, and adjacent assets.',
+        `  Author ${REPORT_FILE}, ${WALKTHROUGH_FILE}, and adjacent assets.`,
         '  Change state, config, layouts, and rounds through CLI commands.',
         '  progress.jsonl records generation requests, writes and successful checks (CLI/server only).',
       ].join('\n'),

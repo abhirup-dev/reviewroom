@@ -1,8 +1,9 @@
+import { WALKTHROUGH_FILE } from '../kernel/state/files.shared';
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { edgeBetween, encodeBlock, findBlocks, inFocus, parseWalkthrough, stepRefs, type Walkthrough } from './model.shared';
 
-const demo = readFileSync(new URL('../../examples/uploads/walkthrough.json', import.meta.url), 'utf8');
+const demo = readFileSync(new URL(`../../examples/uploads/${WALKTHROUGH_FILE}`, import.meta.url), 'utf8');
 const valid = () => ({
   version: 1,
   title: 'T',

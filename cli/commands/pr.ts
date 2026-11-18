@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // pr: the one-step entry point
 import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { execFileSync, spawn } from 'node:child_process';
@@ -93,7 +94,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
   const t = n ? prNumberTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
-  const dir = o.dir ? path.resolve(o.dir) : t.dir;
+  const dir = resolveDir(repo, o.dir || t.dir);
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;
@@ -104,7 +105,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
     for (const artifact of ['walkthrough', 'report'] as const) appendProgress(dir, { artifact, event: 'requested', ...(/^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {}) });
   }
   const files = prov.files(prov.base, prov.head);
-  console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
+  console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
   if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now

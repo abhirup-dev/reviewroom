@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../kernel/state/files.shared';
 import { pendingArtifact } from '../kernel/state/progress.shared';
 // The guided walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
 // paused. walkthroughMachine and its paneMachine child (src/slides/player.machine.ts) own every state and transition;
@@ -533,7 +534,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
    *  landed, measure what is on screen. */
   async function audit(chapter: string, step: string, theme?: 'light' | 'dark', options: SlideAuditOptions = {}): Promise<StepAudit> {
     await loaded;
-    if (!ctx().doc) throw new Error(app.walkthroughIssues ? `walkthrough.json is invalid: ${app.walkthroughIssues[0]}` : 'no walkthrough.json');
+    if (!ctx().doc) throw new Error(app.walkthroughIssues ? `${WALKTHROUGH_FILE} is invalid: ${app.walkthroughIssues[0]}` : `no ${WALKTHROUGH_FILE}`);
     const priorProse = proseAudit;
     proseAudit = !!options.proseOnly;
     audits++;

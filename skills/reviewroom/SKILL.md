@@ -5,7 +5,7 @@ description: Run agent-guided code reviews in reviewroom, a local review workben
 
 # Review with reviewroom
 
-reviewroom is a local, browser-based code review workbench. You write the **report** (`review.html`):
+reviewroom is a local, browser-based code review workbench. You write the **report** (`report.html`):
 an HTML page that explains the **diff** under review, where every claim links to the real code.
 reviewroom shows it next to the live diff of the local clone. The **reviewer** (the person reviewing, who may
 also be the PR's author) starts threads on any sentence, block or code line, and at the end of each
@@ -129,7 +129,7 @@ and starting the next round. Follow that loop until the reviewer approves or ask
 
 ## Do not
 
-- Do not edit anything in the review directory except `review.html`, `walkthrough.json` and assets
+- Do not edit anything in the review directory except `report.html`, `walkthrough.json` and assets
   you add next to them.
 - Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
   any round, team thread, earlier round) in plain text, and do not paraphrase or quote a thread:

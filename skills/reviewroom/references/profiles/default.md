@@ -8,7 +8,7 @@ you could verify. Report actionable problems and their impact, not an inventory 
 
 ## Sections and findings
 
-For someone else's PR, use this suggested outline in the report (`review.html`). Each top-level part
+For someone else's PR, use this suggested outline in the report (`report.html`). Each top-level part
 is a `<section id>` with an `<h2>`: Contents and `]` / `[` navigate those parts. Keep the HTML inside
 loose; no new element or check is needed. For other reviews, follow `../report-craft.md`.
 

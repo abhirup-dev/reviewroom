@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE, REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 // A detached server answers its API and bundle, and refuses what it must.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
@@ -29,7 +30,7 @@ describe('api', () => {
     expect(await (await fetch(url + 'api/summary')).json()).toMatchObject({ round: 1, threads: 0, browserClients: expect.any(Number), walkthrough: expect.any(Boolean) }));
 
   test('walkthrough: 404 when absent, the file when valid, 422 with issues when not', async () => {
-    const file = path.join(dir, 'walkthrough.json');
+    const file = path.join(dir, WALKTHROUGH_FILE);
     fs.rmSync(file, { force: true });
     expect(await status('api/walkthrough')).toBe(404);
     const w = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: '<p>x</p>', ref: 'rr:code/x.go#L1' }] }] };
@@ -82,8 +83,8 @@ describe('api', () => {
     const r = await fetch(url + encodeURIComponent('fig #1?.txt'));
     expect([r.status, await r.text()]).toEqual([200, 'fig']);
   });
-  test('an older review.html gets the PWA head; <rr-review> is untouched', async () => {
-    const file = path.join(dir, 'review.html');
+  test(`an older ${REPORT_FILE} gets the PWA head; <rr-review> is untouched`, async () => {
+    const file = path.join(dir, REPORT_FILE);
     const saved = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
     const body = '<rr-review>\n<h1>Old</h1><meta name="viewport" content="x"><p>rel="manifest" </head></p>\n</rr-review>';
     try {

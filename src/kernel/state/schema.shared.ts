@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from './files.shared';
 // The state.json contract and the ops that change it, defined once. The TS types (src/kernel/state/model.shared.ts),
 // runtime validation (ops in applyOp, state.json in the CLI) and schema/state.schema.json all come from here.
 // No DOM or Node imports, so both the client bundle and the CLI can import it.
@@ -26,7 +27,7 @@ export const Anchor = z.discriminatedUnion('kind', [
   CodeAnchor,
   z.object({ kind: z.literal('symbol'), name: z.string() }),
   z.object({ kind: z.literal('general') }),
-  z.object({ kind: z.literal('tour'), chapter: z.string(), step: z.string() }).describe('A slide of the walkthrough, walkthrough.json (chapter and step ids)'),
+  z.object({ kind: z.literal('tour'), chapter: z.string(), step: z.string() }).describe(`A slide of the walkthrough, ${WALKTHROUGH_FILE} (chapter and step ids)`),
 ]);
 
 export const Author = z.enum(['you', 'agent']);

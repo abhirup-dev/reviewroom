@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../state/files.shared';
 import { expect, test } from 'bun:test';
 import { emptyState } from '../state/model.shared';
 import { ServerState } from './server-state';
@@ -40,7 +41,7 @@ test('walkthrough transport preserves 200 and 422 JSON, returns null on 404, and
   t.global('fetch', async () => new Response('not JSON', { status: 404 }));
   expect(await backend.walkthrough()).toBeNull();
   t.global('fetch', async () => new Response('', { status: 503, statusText: 'Unavailable' }));
-  expect(backend.walkthrough()).rejects.toThrow('walkthrough.json: 503 Unavailable');
+  expect(backend.walkthrough()).rejects.toThrow(`${WALKTHROUGH_FILE}: 503 Unavailable`);
   t.global('fetch', async () => new Response('not JSON', { status: 200 }));
   expect(backend.walkthrough()).rejects.toThrow();
 });

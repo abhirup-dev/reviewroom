@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/upload-service? Keep the narrative short.",
-      "expected_output": "Runs `reviewroom pr 128 --repo \u2026 --wait` in the background with a long timeout, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Reads the default profile. Outlines a short intro and story ending in Risks, creates heading-only review.html sections with stable finding ids, writes walkthrough.json and runs full slide-lint until it passes before filling review.html. Each risk has a severity and rr:doc link to its finding; detailed findings stay in review.html. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
+      "expected_output": "Runs `reviewroom pr 128 --repo \u2026 --wait` in the background with a long timeout, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Reads the default profile. Outlines a short intro and story ending in Risks, creates heading-only report.html sections with stable finding ids, writes walkthrough.json and runs full slide-lint until it passes before filling report.html. Each risk has a severity and rr:doc link to its finding; detailed findings stay in report.html. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
       "files": []
     },
     {
@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "walk me through what https://github.com/example/uploads/pull/412 changes, top-down from the handler",
-      "expected_output": "Uses `reviewroom pr <url> --wait` in the background, checks PR ownership, outlines the story top-down from the handler, writes a heading-only review.html skeleton then walkthrough.json, passes full slide-lint, then fills review.html and passes check. For someone else's PR, uses the default profile outline: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions. Each top-level part is a section with an id. Links every claim to code (rr:sym for functions and types), and never changes code.",
+      "expected_output": "Uses `reviewroom pr <url> --wait` in the background, checks PR ownership, outlines the story top-down from the handler, writes a heading-only report.html skeleton then walkthrough.json, passes full slide-lint, then fills report.html and passes check. For someone else's PR, uses the default profile outline: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions. Each top-level part is a section with an id. Links every claim to code (rr:sym for functions and types), and never changes code.",
       "files": []
     },
     {
@@ -52,13 +52,13 @@
     {
       "id": 9,
       "prompt": "Give me a walkthrough of PR 148 in reviewroom. The description cites a benchmark screenshot; while reading you find it builds on PR 145 and that a review thread made the author drop a bound.",
-      "expected_output": "Outlines the story and creates heading-only review.html sections with stable finding ids. Writes walkthrough.json with context (no diff code yet), threads, convergence on the critical files, reconciliation, then a final Risks chapter. Each main risk is a one-liner with a severity and rr:doc link to its finding, without detailed findings on slides. Passes full slide-lint before filling review.html and running check. The story chapters are parts of the change, not review categories. Attributes the benchmark to the description. PR 145 and the dropped bound are either explained as linked context or omitted, never assumed known or used as evidence for this PR.",
+      "expected_output": "Outlines the story and creates heading-only report.html sections with stable finding ids. Writes walkthrough.json with context (no diff code yet), threads, convergence on the critical files, reconciliation, then a final Risks chapter. Each main risk is a one-liner with a severity and rr:doc link to its finding, without detailed findings on slides. Passes full slide-lint before filling report.html and running check. The story chapters are parts of the change, not review categories. Attributes the benchmark to the description. PR 145 and the dropped bound are either explained as linked context or omitted, never assumed known or used as evidence for this PR.",
       "files": []
     },
     {
       "id": 10,
       "prompt": "Review PR 148 in reviewroom. It already ships a walkthrough, which reviewroom pr pulled into the review directory.",
-      "expected_output": "Uses the pulled walkthrough as is; does not replace it or reshape it to add Risks. Reads the diff and checks ownership, writes the report (review.html) for the reviewer and passes reviewroom check. Does not change code on someone else's PR.",
+      "expected_output": "Uses the pulled walkthrough as is; does not replace it or reshape it to add Risks. Reads the diff and checks ownership, writes the report (report.html) for the reviewer and passes reviewroom check. Does not change code on someone else's PR.",
       "files": []
     },
     {
@@ -69,8 +69,8 @@
     },
     {
       "id": 12,
-      "prompt": "I wrote walkthrough.json for a small PR, and reviewroom slide-lint --chapter risks passed. Can I fill review.html now?",
-      "expected_output": "Requires a full unscoped `reviewroom slide-lint --dir <dir>` run and fixes issues until it passes. Explains that a scoped pass does not clear the loading screen. Only then fills the heading-only review.html skeleton and runs reviewroom check until it passes.",
+      "prompt": "I wrote walkthrough.json for a small PR, and reviewroom slide-lint --chapter risks passed. Can I fill report.html now?",
+      "expected_output": "Requires a full unscoped `reviewroom slide-lint --dir <dir>` run and fixes issues until it passes. Explains that a scoped pass does not clear the loading screen. Only then fills the heading-only report.html skeleton and runs reviewroom check until it passes.",
       "files": []
     },
     {

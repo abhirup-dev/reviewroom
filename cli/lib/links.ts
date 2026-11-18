@@ -1,7 +1,8 @@
-// Stale-link check for the rr: links in review.html and walkthrough.json. A link with a line range is fingerprinted (a hash
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
+// Stale-link check for the rr: links in report.html and walkthrough.json. A link with a line range is fingerprinted (a hash
 // of the lines it points at) the first time it is seen, a symbol link by having a definition; later
 // checks compare against the current code.
-// Used by the server (on start and whenever review.html or walkthrough.json changes) and by `reviewroom check`.
+// Used by the server (on start and whenever report.html or walkthrough.json changes) and by `reviewroom check`.
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import type { Provider } from './git.ts';
@@ -79,8 +80,8 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
       continue;
     }
     if (r.type === 'tour') {
-      if (!tour) out(ref, 'broken', 'no walkthrough.json');
-      else if (!tour.chapters.some((c) => c.id === r.chapter && c.steps.some((s) => s.id === r.step))) out(ref, 'broken', 'no such chapter/step in walkthrough.json');
+      if (!tour) out(ref, 'broken', `no ${WALKTHROUGH_FILE}`);
+      else if (!tour.chapters.some((c) => c.id === r.chapter && c.steps.some((s) => s.id === r.step))) out(ref, 'broken', `no such chapter/step in ${WALKTHROUGH_FILE}`);
       else out(ref, 'ok');
       continue;
     }

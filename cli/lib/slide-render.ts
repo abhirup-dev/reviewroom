@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // Each batch has isolated slide DOM state; workers share one read-only server.
 import { fail } from './args.ts';
 import { openPage, vpName, withPage, type Viewport } from './render.ts';
@@ -60,6 +61,6 @@ function startupFindings(batches: Batch[], starts: { errors: string[] }[]): Find
     const message = `while the page started (${vpName(batches[i].viewport)}): ${e.slice(0, 200)}`;
     if (seen.has(message)) return [];
     seen.add(message);
-    return [{ check: 'page-error', level: 'warn' as const, message, fix: 'A script in review.html or the walkthrough prose failed; the reviewer sees the same.' }];
+    return [{ check: 'page-error', level: 'warn' as const, message, fix: `A script in ${REPORT_FILE} or the walkthrough prose failed; the reviewer sees the same.` }];
   }));
 }

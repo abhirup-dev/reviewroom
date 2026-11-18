@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 // Bare commands find the review (and its server) without --dir; stop releases everything.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
@@ -16,7 +17,7 @@ describe('discovery', () => {
   test('bare `threads` on another branch finds the only review', async () => expect((await cli(['status', '--threads', '--all', '--repo', repo])).stdout).toContain(thread));
   test('bare `threads` with several reviews asks for --dir', async () => {
     fs.mkdirSync(path.join(reviews, 'other'));
-    fs.writeFileSync(path.join(reviews, 'other', 'review.html'), '<rr-review></rr-review>');
+    fs.writeFileSync(path.join(reviews, 'other', REPORT_FILE), '<rr-review></rr-review>');
     expect(await cli(['status', '--threads', '--repo', repo])).toMatchObject({ code: 1, stderr: expect.stringContaining('--dir') });
   });
   test('stop finds and stops the server and releases the lock', async () => {

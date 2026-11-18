@@ -5,7 +5,7 @@ Pass `--dir <dir>` to every command below. Use command-specific `--help` for oth
 ## Write and validate in order
 
 If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
-Use it as is and go straight to filling the report (`review.html`); do not regenerate it.
+Use it as is and go straight to filling the report (`report.html`); do not regenerate it.
 
 Outline the story and create a heading-only report skeleton, with top-level `<section id>`
 parts and a finding section for every risk. This lets the Risks chapter's `rr:doc/<id>` links resolve.

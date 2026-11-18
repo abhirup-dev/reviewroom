@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,7 +9,7 @@ test('writers deduplicate bytes and validation retains the bytes checked, not a 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
   try {
     appendProgress(dir, { artifact: 'report', event: 'requested' });
-    const file = path.join(dir, 'review.html');
+    const file = path.join(dir, REPORT_FILE);
     fs.writeFileSync(file, '<rr-app><rr-review><section id="summary"><section id="nested"></section></section></rr-review></rr-app>');
     recordArtifact(dir, 'report', 'written');
     recordArtifact(dir, 'report', 'written');

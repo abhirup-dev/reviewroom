@@ -1,6 +1,6 @@
 # Report craft: what makes a report worth reading
 
-The report (`review.html`) is the long-form review: every claim linked, risks, tests and the flagged
+The report (`report.html`) is the long-form review: every claim linked, risks, tests and the flagged
 questions, growing round by round as threads come in. This is how to write it; the building blocks are
 in `authoring.md`, and the walkthrough (the story told once, before it) is
 `walkthrough-craft.md`.

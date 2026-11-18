@@ -29,7 +29,7 @@ export interface StateBackend {
   apply(op: Op, next: ReviewState): void;
   /** Resolves once every applied op is stored; false if some are still unsaved. */
   flush?(): Promise<boolean>;
-  /** Live updates (agent replied, review.html changed, GitHub threads refetched) and save problems. */
+  /** Live updates (agent replied, report.html changed, GitHub threads refetched) and save problems. */
   subscribe?(on: BackendEvents): void;
   /** End round `round`: send feedback to the agent, or approve. */
   finish?(kind: 'feedback' | 'approve', note: string | undefined, round: number): Promise<{ ok: boolean; message?: string }>;

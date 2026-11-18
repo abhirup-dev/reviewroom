@@ -1,7 +1,7 @@
 # Walkthrough craft: a story, not a tour of files
 
 How to write `walkthrough.json`, the chaptered slides the reviewer plays before the detailed review. The
-file format and the commands are in `authoring.md` (`walkthrough.json`); the report (`review.html`)
+file format and the commands are in `authoring.md` (`walkthrough.json`); the report (`report.html`)
 is `report-craft.md`.
 
 The walkthrough (`walkthrough.json`) is read before the detailed review. Its job is

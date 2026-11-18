@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
 // CLI surface: resolve without a body, --dir alone, pr without a target.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
@@ -19,7 +20,7 @@ describe('cli', () => {
   test('pr without a target scaffolds from --base/--head and serves', async () => {
     const local = path.join(tmp, 'local-review');
     spawn(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
-    expect((await fetch((await url(local)) + 'api/meta')).ok && fs.existsSync(path.join(local, 'review.html'))).toBe(true);
+    expect((await fetch((await url(local)) + 'api/meta')).ok && fs.existsSync(path.join(local, REPORT_FILE))).toBe(true);
     expect(JSON.parse(read(local, 'config.json')).head).toBe('feat/upload-rate-limit');
   });
 });

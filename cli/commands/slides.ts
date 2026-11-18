@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // slide-lint: `check`, then every slide of the walkthrough measured on screen in a headless browser.
 // shotSlide: one slide's picture (`reviewroom shot <chapter>/<step>`).
 import { artifactHash, recordArtifact } from '../lib/progress.ts';
@@ -17,7 +18,7 @@ type SlideOpts = Global & { viewport?: string; theme?: string; out?: string; jso
 
 export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
   const jobs = auditJobs(o.jobs);
-  const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
+  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
   const checkedHash = artifactHash(dir, 'walkthrough');
   const c = await runCheck(repo, dir, { store: false, estimates: false, select: { chapter: o.chapter, slide: o.slide } });
   if ('issues' in c) fail(schemaReport(c.issues));
@@ -46,10 +47,10 @@ export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
 
 /** `reviewroom shot <chapter>/<step>`: one slide's PNG, and what lint finds on it. */
 export async function shotSlide(repo: string | null, o: SlideOpts, at: string) {
-  const dir = dirForEdit(repo, o.dir, 'walkthrough.json');
+  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
   const [chapter, step] = at.split('/');
   const w = readWalkthrough(dir);
-  if (!w?.ok) fail(w ? schemaReport(w.issues) : `no walkthrough.json in ${dir}`);
+  if (!w?.ok) fail(w ? schemaReport(w.issues) : `no ${WALKTHROUGH_FILE} in ${dir}`);
   const ch = w.value.chapters.find((x) => x.id === chapter);
   if (!ch || !ch.steps.some((s) => s.id === step)) fail(`usage: reviewroom shot <chapter>/<step>; steps: ${w.value.chapters.flatMap((x) => x.steps.map((s) => `${x.id}/${s.id}`)).join(', ')}`, 2);
   const theme = (o.theme ?? 'light') as 'light' | 'dark';
