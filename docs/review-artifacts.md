@@ -1,0 +1,13 @@
+# Review artifacts
+
+What an agent writes into a review folder. Code names each file through its constant in
+`src/kernel/state/files.shared.ts`, never the literal; docs say "the report" or "the walkthrough" and link here.
+
+| Artifact | Constant | File | What it is |
+| --- | --- | --- | --- |
+| Report | `REPORT_FILE` | `report.html` | Agent-written HTML. `reviewroom pr` creates it from `templates/report.html` (the page shell) and the review's report profile. |
+| Walkthrough | `WALKTHROUGH_FILE` | `walkthrough.json` | The slides, following `schema/walkthrough.schema.json`. It can also come from the PR description. |
+| Assets | none | any | Images, CSS or JS the report links, beside it. |
+
+A report profile's sections file (`skills/reviewroom/references/profiles/<name>/`) is also named by `REPORT_FILE`.
+Everything else in the review folder belongs to reviewroom.

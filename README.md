@@ -1,6 +1,6 @@
 # reviewroom
 
-An agent-driven code review workbench. The agent writes a **freeform HTML report** (`report.html`) of a diff;
+An agent-driven code review workbench. The agent writes a **freeform HTML report** of a diff;
 reviewroom puts it next to a **live diff of your local clone** and gives you everything around it:
 docking panels, contents, a file tree, symbol search, anchored comment threads, and Crit-style
 **review rounds** with the agent.
@@ -32,15 +32,14 @@ Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
 
 ## The review loop
 
-1. The agent writes `report.html` and waits for you.
+1. The agent writes the report and waits for you.
 2. You read, jump into code, comment on anything, and press **Send feedback** (or **Approve**).
 3. The agent gets structured feedback, replies per thread, adds `data-round="2"` sections for bigger
    answers, changes code, and waits again. Your open tab reconnects and shows round 2.
 
 Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`:
-`report.html`, `progress.jsonl` (CLI/server generation events), `state.json` (threads, rounds, viewed files, sign-offs), `config.json`, `layout.json`
-(the panels as you left them), and `rounds/<n>/{report.html,feedback.md}` — browse old rounds from the
-**Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
+what the agent writes ([review artifacts](docs/review-artifacts.md)) and reviewroom's own record of threads, rounds,
+viewed files and the panels as you left them. Browse old rounds from the **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 
 ## Use reviewroom from a phone
 
@@ -65,7 +64,7 @@ every running review.
 
 ## Walkthroughs
 
-An agent can also write a walkthrough, `walkthrough.json`: chapters of slides the reviewer plays
+An agent can also write a walkthrough: chapters of slides the reviewer plays
 over the workbench, narration on the left, the slide's code (one chunk or several, across files) on the
 right, ← → between slides, pause to a pill to dig around, and **Comment** on a slide to start a thread
 anchored to it. It tells the main story; the report is where the reviewer digs in,
@@ -148,8 +147,8 @@ src/
   *.shared.ts         DOM-free contracts shared with the CLI (also within folders)
   *.machine.ts        DOM-free XState machines, beside their owning views
 cli/                  CLI (TypeScript, bundled for Bun): server + round commands
-templates/            report.html scaffold
-schema/               JSON schema for state.json (generated from src/kernel/state/schema.shared.ts)
+templates/            the report's page shell
+schema/               JSON schemas (generated from the *.shared.ts contracts by `bun run schema`)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)
 ```
 

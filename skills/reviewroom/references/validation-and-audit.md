@@ -5,9 +5,9 @@ Pass `--dir <dir>` to every command below. Use command-specific `--help` for oth
 ## Write and validate in order
 
 If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
-Use it as is and go straight to filling the report (`report.html`); do not regenerate it.
+Use it as is and go straight to filling the report; do not regenerate it.
 
-Otherwise write `walkthrough.json` (the order is in SKILL.md, Step 4), then:
+Otherwise write the walkthrough (the order is in SKILL.md, Step 4), then:
 
 ```bash
 reviewroom slide-lint --dir <dir>
@@ -29,7 +29,7 @@ changed or broken links and update the explanation; repeat until it passes. Use 
 only after verifying changed targets. The report panel stays in its writing state until
 `check` passes. `reviewroom check --help` prints the walkthrough schema path for editor validation.
 
-On later rounds, recheck edited content. If you edit `walkthrough.json`, pass full `slide-lint` again;
+On later rounds, recheck edited content. If you edit the walkthrough, pass full `slide-lint` again;
 the loading screen returns until it passes. Finish edits to the report with `check`.
 
 ## While iterating

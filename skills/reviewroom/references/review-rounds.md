@@ -42,7 +42,7 @@ know the reviewer has finished the round.
 ## Read the feedback
 
 The command prints the round's feedback as markdown: one block per thread with new messages, each
-with its anchor, then the state of the flagged questions in the report (`report.html`), under
+with its anchor, then the state of the flagged questions in the report, under
 `Open questions`, and the reviewer's overall note. Its opening lines give the
 exact commands to answer and to start the next round.
 

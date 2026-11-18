@@ -6,11 +6,11 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 - `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, PWA, state, GitHub (Octokit, as the `gh` user); `hub/proxy.ts` serves reviews through the hub.
-- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `report.html`.
+- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in the report.
   `main.ts`, `app.ts` and `services.ts` compose the app. `kernel/` owns infrastructure; `review/`, `threads/`,
   `slides/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
-- The walkthrough (`walkthrough.json`): schema and PR block in `src/slides/model.shared.ts`, player in
+- The walkthrough: schema and PR block in `src/slides/model.shared.ts`, player in
   `src/slides/player.ts` (its phone and desktop parts in `player.phone.ts`, `player.desktop.ts`), CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks), `cli/lib/slides-file.ts` (file and PR-block helpers), and `cli/lib/render.ts` (the headless browser,
   `Bun.WebView`: its only user).
@@ -24,11 +24,13 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 
 ## Contracts (change deliberately, update the skill when you do)
 
-- **The report (`report.html`) is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
+- **Review artifacts** (`docs/review-artifacts.md`): what the agent writes, and the constant that names each file.
+  Code uses the constants, never the file names.
+- **The report is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
   (CSS Highlight API, overlays, data attributes).
 - **`rr:` links** (`src/kernel/refs/refs.shared.ts`) address everything in HTML, threads, the CLI and agent replies. Keep old forms
   parsing.
-- **`walkthrough.json`** (the walkthrough) follows `schema/walkthrough.schema.json`, generated from
+- **The walkthrough** follows `schema/walkthrough.schema.json`, generated from
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
 - **`state.json`** is written by the CLI, browser and agents. Change it in `src/kernel/state/schema.shared.ts`, then `bun run schema`
   to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
@@ -53,7 +55,7 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,
   `build-info.json`) `no-cache`, the API `no-store`; every response carries `x-reviewroom-build`. Keep
-  `_rr/reviewroom.js` unhashed (agent `report.html` names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
+  `_rr/reviewroom.js` unhashed (every agent's report names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
   `start_url` and `scope` `./` (either change orphans installed icons). `src/kernel/pwa.ts` reloads only on
   `controllerchange`, never while a worker installs, and holds the reload over unsent work. The worker never intercepts
   `/api/` or `/r/<id>/api/`. The build writes a Brotli copy (`<file>.br`) of each client file; `serveClient()` sends it
@@ -93,7 +95,7 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 
 - Code identifiers predate the vocabulary: `src/review/walkthrough.ts` and the `narrative` panel are the report, and
   `slides` modules (`src/slides/`) are the walkthrough. Preserve the existing `narrative`
-  panel/scope/CSS identifiers, `narrative-focus` layout key, `walkthrough.json`, `rr:tour` links and public API names
+  panel/scope/CSS identifiers, `narrative-focus` layout key, the walkthrough's file name, `rr:tour` links and public API names
   for compatibility.
 - Runtime dependencies flow `threads`/`slides` -> `review` -> `kernel`; `hub` -> `kernel`.
   Root composition modules may import all features. `bun run check` rejects runtime cycles and layer violations.

@@ -1,15 +1,10 @@
 #!/usr/bin/env bun
-import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
-// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch) and holds:
-//   report.html            the report (written by the agent, any HTML)
-//   walkthrough.json       the walkthrough (written by the agent)
-//   state.json             threads, rounds, viewed files, sign-offs
-//   config.json            repoPath/base/head/title
-//   layout.json            the panel layout as the reviewer left it (written by the browser)
-//   rounds/<n>/            snapshot of report.html + feedback.md for every finished round
+// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch). What the agent
+// writes there: docs/review-artifacts.md. The rest is reviewroom's own state.
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import { cac } from 'cac';
 import { die } from './lib/args.ts';
@@ -53,7 +48,7 @@ cli
   .option('--title <text>', 'Review title')
   .option('--remote <name>', 'Git remote', { default: 'origin' })
   .option('--force', `Replace ${REPORT_FILE} and PR walkthrough`)
-  .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: default)')
+  .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: explainer)')
   .option('--detach', 'Serve in background; print URL')
   .option('--wait', 'Wait for the first feedback round')
   .option('--port <n>', 'Port (default: 4848)')
@@ -234,7 +229,6 @@ cli.help((sections) => {
         '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/; REVIEWROOM_HOME overrides the root.',
         `  Author ${REPORT_FILE}, ${WALKTHROUGH_FILE}, and adjacent assets.`,
         '  Change state, config, layouts, and rounds through CLI commands.',
-        '  progress.jsonl records generation requests, writes and successful checks (CLI/server only).',
       ].join('\n'),
     },
     {

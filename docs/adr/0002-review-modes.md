@@ -13,17 +13,17 @@ first and played first; the report follows as the detailed record. Other modes a
 
 ## Decision
 
-1. **Two documents, two jobs.** The walkthrough (`walkthrough.json`) is the story: slides pinned to one snapshot,
-   played first and regenerated when the reviewed code moves. The report (`report.html`) is the record: findings,
+1. **Two documents, two jobs.** The walkthrough is the story: slides pinned to one snapshot,
+   played first and regenerated when the reviewed code moves. The report is the record: findings,
    evidence, flagged questions and later answers. They need not mirror each other's sections.
 2. **Walkthrough first.** Outline the intro and story, ending with a **Risks** chapter. Each main risk is one line
    with a severity and an `rr:doc/<section id>` link to its finding; detailed findings stay in the report. The report
    starts from the profile's sections; the agent adds a heading per finding so the Risks links resolve. Then
-   write `walkthrough.json` and run full `reviewroom slide-lint` until it passes. Only then fill the report and run
+   write the walkthrough and run full `reviewroom slide-lint` until it passes. Only then fill the report and run
    `reviewroom check`. Scoped slide checks do not clear the loading screen. Small diffs use fewer slides. If the
    PR ships a walkthrough, use it as is.
-3. **Generation is visible.** The CLI and server, never the agent, append to `progress.jsonl` in the review dir:
-   `requested`, `written` and `validated` per document, with the content hash. The reviewer sees a loading screen
+3. **Generation is visible.** The CLI and server, never the agent, record each document's generation:
+   requested, written and validated, with the content hash. The reviewer sees a loading screen
    until the walkthrough is validated; `validated` holds only while the file still has that hash.
 4. **The report's shape comes from a report profile.** A profile gives the report its starting sections and a
    guide to what to look for and what each section holds. A review has one, chosen when it is created; the
@@ -48,7 +48,7 @@ first and played first; the report follows as the detailed record. Other modes a
 
 ## Consequences
 
-- Every review gets a walkthrough before its report; the loading screen depends on the CLI's progress log, so an
+- Every review gets a walkthrough before its report; the loading screen depends on what the CLI records, so an
   agent that skips `slide-lint` or `check` leaves the reviewer waiting with a "Show it anyway" escape.
-- Code identifiers predate this vocabulary (`report.html`, the `narrative` panel, `src/review/walkthrough.ts` for
+- Code identifiers predate this vocabulary (the `narrative` panel, `src/review/walkthrough.ts` for
   the report); public names and links stay compatible.

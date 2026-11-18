@@ -5,8 +5,8 @@ description: Run agent-guided code reviews in reviewroom, a local review workben
 
 # Review with reviewroom
 
-reviewroom is a local, browser-based code review workbench. You write the **report** (`report.html`):
-an HTML page that explains the **diff** under review, where every claim links to the real code.
+reviewroom is a local, browser-based code review workbench. You write the **report**: an HTML
+page that explains the **diff** under review, where every claim links to the real code.
 reviewroom shows it next to the live diff of the local clone. The **reviewer** (the person reviewing, who may
 also be the PR's author) starts threads on any sentence, block or code line, and at the end of each
 **round** sends you their **feedback**; you answer, and the next round begins. Every thread, reply,
@@ -16,6 +16,17 @@ The CLI's help is the command reference: `reviewroom --help`, and `reviewroom <c
 for flags and notes. Read it before your first command. If `reviewroom` is not on PATH, use
 `bunx reviewroom …`. This skill covers the usual path; `reviewroom --help` lists every capability
 (screenshots, the hub, …).
+
+## The review directory
+
+`reviewroom pr` creates the review directory and, in it, the report from the review's report profile.
+`reviewroom status --json --dir <dir>` gives the directory and the report's path. You write only:
+
+- The report (`report.html`): the long-form review, starting with the profile's sections.
+- The walkthrough (`walkthrough.json`): the chaptered slides.
+- Assets (images, CSS, JS) beside the report, referenced relatively.
+
+Everything else in it belongs to reviewroom: don't edit it.
 
 ## Built-in or external agent
 
@@ -97,7 +108,7 @@ it was validated before publication. Go to Step 4b without replacing it. Otherwi
    Each main risk is one line with a severity and an `rr:doc/<section id>` link to its finding in
    the report; keep detailed findings out of the slides. For each risk, add a heading-only finding
    section under Findings in the report, with a stable id for the link.
-2. Write `walkthrough.json` in the review directory.
+2. Write the walkthrough in the review directory.
 3. Run a full `reviewroom slide-lint --dir <dir>`, fix issues and repeat until it passes.
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).
@@ -129,8 +140,8 @@ and starting the next round. Follow that loop until the reviewer approves or ask
 
 ## Do not
 
-- Do not edit anything in the review directory except `report.html`, `walkthrough.json` and assets
-  you add next to them.
+- Do not edit anything in the review directory except the report, the walkthrough and assets you add
+  next to them.
 - Do not refer to anything reviewroom can link (a code range, symbol, file, section, thread from
   any round, team thread, earlier round) in plain text, and do not paraphrase or quote a thread:
   link or embed it. Follow the link-placement guidance in `references/authoring.md`, under "Links: `rr:` refs".
