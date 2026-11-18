@@ -200,3 +200,11 @@
   width: var(--rr-touch) !important;
   height: var(--rr-touch) !important;
 }
+
+/* generation's loading screen (generation.css): a phone's margins and touch-size buttons */
+.is-phone .rr-gen {
+  padding: var(--rr-space-24);
+}
+.is-phone .rr-gen button {
+  min-height: var(--rr-touch);
+}

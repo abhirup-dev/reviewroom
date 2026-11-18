@@ -46,11 +46,15 @@ export interface StateBackend {
   walkthrough?(): Promise<unknown>;
   /** Generation progress (progress.jsonl, reduced by the server). */
   progress?(): Promise<Progress>;
+  /** POST api/generate: the assistant writes both documents. Refused: `code` names why (busy, starting, assistant_off, …). */
+  generate?(): Promise<{ ok: true; progress: Progress } | { ok: false; code?: string; error?: string }>;
   /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
   pending?(): { unsent: boolean; started: string | null };
 }
 export interface BackendEvents {
   progress?(p: Progress): void;
+  /** The assistant's conversation changed on the server (a turn ended or paused). */
+  assistant?(): void;
   state(s: ReviewState): void;
   review(): void;
   error(text: string): void;

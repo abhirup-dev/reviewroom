@@ -628,33 +628,3 @@ button.rr-tour__chunk-head:hover {
   font-size: var(--rr-text-xs);
   color: var(--rr-muted);
 }
-
-/* Generation uses the same player root, without showing incomplete slide content. */
-.rr-tour__writing {
-  display: none;
-  position: absolute;
-  inset: 0;
-  padding: var(--rr-space-48);
-  background: var(--rr-surface-doc);
-  color: var(--rr-ink);
-  pointer-events: auto;
-  align-content: center;
-  justify-items: center;
-  text-align: center;
-  gap: var(--rr-space-16);
-}
-.rr-tour__writing h1 {
-  font-family: var(--rr-font-display);
-  font-size: var(--rr-text-3xl);
-}
-.rr-tour__writing p {
-  margin: 0;
-  color: var(--rr-ink-2);
-}
-.rr-tour[data-mode='writing'] .rr-tour__writing {
-  display: grid;
-}
-.rr-tour[data-mode='writing'] .rr-tour__player,
-.rr-tour[data-mode='writing'] .rr-tour__scrim {
-  display: none;
-}

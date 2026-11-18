@@ -1,6 +1,7 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
 // It owns data (meta, files, threads), preferences, navigation and the panel surface (dock or phone shell).
 import type { Progress } from './kernel/state/progress.shared';
+import type { GenerationSnapshot } from './review/generation.machine';
 import { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
 import { Commands } from './kernel/commands';
@@ -80,6 +81,12 @@ export interface AppEvents extends Record<string, unknown> {
   'round-view': number;
   /** generation progress changed (progress.jsonl) */
   progress: Progress;
+  /** where generation stands changed (src/review/generation.ts; `app.generation`) */
+  generation: GenerationSnapshot;
+  /** fetch the walkthrough and play it from slide 1, written or not (generation: playable, or "Show it anyway") */
+  'walkthrough-show': void;
+  /** the assistant's conversation changed on the server (a turn ended or paused) */
+  'assistant-turn': void;
   /** play the walkthrough at a step (ids; missing: the first) */
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
@@ -110,6 +117,8 @@ export class ReviewApp {
   commits: Commit[] = [];
   /** generation progress of the walkthrough and the report */
   progress: Progress = { walkthrough: { state: 'idle' }, report: { state: 'idle' } };
+  /** where generation stands (src/review/generation.ts), once mounted */
+  generation: GenerationSnapshot | null = null;
   /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;

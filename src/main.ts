@@ -42,6 +42,7 @@ import { renderPreview, registerPreviewExtensions } from './review/previews';
 import { provideFocusCode } from './review/focus';
 import { openInNewPanel } from './review/code';
 import { registerWalkthroughExtension } from './review/walkthrough';
+import { mountGeneration } from './review/generation';
 import './review/code';
 import './review/files';
 import './review/contents';
@@ -200,6 +201,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   ui.selection?.(app);
   mountHoverCards(app);
   mountThreadPopup(app);
+  mountGeneration(app); // first: the headers, the player and the report read where it stands
   const tour = mountWalkthrough(app, { phoneForm: ui.player });
   ui.mountSurface(app, dockHost, { lastLayout });
   watchShell(app);
@@ -208,16 +210,12 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.onDispose(app.commands.attach(document));
 
   app.backend.subscribe?.({
+    // generation (review/generation.ts) decides what it means
     progress: (p) => {
-      const before = app.progress.walkthrough.state;
       app.progress = p;
-      if (p.walkthrough.state === 'validated' && (before === 'requested' || before === 'writing')) {
-        const u = new URL(location.href);
-        u.searchParams.set('walkthrough', '/');
-        history.replaceState(history.state, '', u);
-      }
       app.bus.emit('progress', p);
     },
+    assistant: () => app.bus.emit('assistant-turn', undefined),
     state: (s) => {
       app.state = s;
       app.bus.emit('state', s);

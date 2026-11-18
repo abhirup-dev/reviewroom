@@ -6,7 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
-import { pendingArtifact } from '../kernel/state/progress.shared';
+import { reportWaiting } from './generation.machine';
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
 import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
@@ -94,13 +94,14 @@ class WalkthroughPanel implements PanelInstance {
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     const writing = h('div', { class: 'rr-empty' }, 'The report is being written');
     this.element = h('div', { class: 'rr-narrative' }, writing, this.scroller);
+    // generation (generation.ts) says when the report is still being written
     const progress = () => {
-      const waiting = !isDesc && pendingArtifact(app.progress.report);
+      const waiting = !isDesc && !!app.generation && reportWaiting(app.generation);
       writing.hidden = !waiting;
       this.scroller.hidden = waiting;
     };
     progress();
-    this.offs.push(app.bus.on('progress', progress));
+    this.offs.push(app.bus.on('generation', progress));
     // what the presentation adds (the phone's Contents button, walkthrough.phone.ts); not on the description
     if (!isDesc) extension?.(app, this.element);
 

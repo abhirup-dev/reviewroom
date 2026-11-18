@@ -1,0 +1,78 @@
+/* Generation (src/review/generation.ts): the loading screen over the review, and the header's indicator. */
+.rr-gen {
+  position: fixed;
+  inset: 0;
+  z-index: 49; /* under the player (50): "Show it anyway" closes this screen first */
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: var(--rr-space-48);
+  background: var(--rr-surface-doc);
+  color: var(--rr-ink);
+  text-align: center;
+  outline: none;
+}
+.rr-gen[hidden] {
+  display: none;
+}
+.rr-gen__body {
+  display: grid;
+  justify-items: center;
+  gap: var(--rr-space-16);
+  max-width: 36em;
+}
+.rr-gen h1 {
+  margin: 0;
+  font-family: var(--rr-font-display);
+  font-size: var(--rr-text-3xl);
+}
+.rr-gen p {
+  margin: 0;
+  color: var(--rr-ink-2);
+}
+.rr-gen__facts {
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-xs);
+}
+.rr-gen__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-8);
+}
+.rr-gen__status.is-busy::before,
+.rr-gen-ind__dot {
+  content: '';
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--rr-accent);
+}
+.rr-gen__status.is-busy::before,
+.rr-gen-ind:not(.is-stopped) .rr-gen-ind__dot {
+  animation: rr-gen-pulse 1.2s ease-in-out infinite;
+}
+.rr-gen-ind.is-stopped .rr-gen-ind__dot {
+  background: var(--rr-warn);
+}
+.rr-gen p.rr-gen__error {
+  color: var(--rr-warn);
+}
+.rr-gen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--rr-space-8);
+  margin-top: var(--rr-space-8);
+}
+@keyframes rr-gen-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-gen__status.is-busy::before,
+  .rr-gen-ind .rr-gen-ind__dot {
+    animation: none;
+  }
+}

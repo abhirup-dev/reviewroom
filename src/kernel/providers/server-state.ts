@@ -15,6 +15,7 @@ export class ServerState implements StateBackend {
   private sync?: ActorRefFrom<typeof syncMachine>;
   private disposed = false;
   private onProgress?: (p: Progress) => void;
+  private onAssistant?: () => void;
   private loading?: AbortController;
   private subscriptions: { unsubscribe(): void }[] = [];
   private readonly beforeUnload = (e: BeforeUnloadEvent) => {
@@ -32,7 +33,7 @@ export class ServerState implements StateBackend {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    this.onProgress = undefined;
+    this.onProgress = this.onAssistant = undefined;
     removeEventListener('beforeunload', this.beforeUnload);
     this.loading?.abort();
     this.loading = undefined;
@@ -69,6 +70,7 @@ export class ServerState implements StateBackend {
           stream: fromCallback(({ sendBack }) => {
             const es = new EventSource(`${api}/events`);
             es.addEventListener('progress', (e) => this.onProgress?.(JSON.parse(e.data)));
+            es.addEventListener('assistant', () => this.onAssistant?.());
             es.addEventListener('hello', (e) => sendBack({ type: 'hello', ...JSON.parse(e.data) }));
             es.addEventListener('state', (e) => sendBack({ type: 'state', state: JSON.parse(e.data) }));
             es.addEventListener('review', () => sendBack({ type: 'review' }));
@@ -98,6 +100,7 @@ export class ServerState implements StateBackend {
   subscribe(on: BackendEvents) {
     const sync = this.sync!;
     this.onProgress = (p) => on.progress?.(p);
+    this.onAssistant = () => on.assistant?.();
     this.subscriptions.push(
       sync.on('state', (e) => on.state(e.state)),
       sync.on('error', (e) => on.error(e.text)),
@@ -147,6 +150,11 @@ export class ServerState implements StateBackend {
     },
   };
   progress(): Promise<Progress> { return fetch(`${this.api}/progress`).then(json); }
+  async generate() {
+    const r = await fetch(`${this.api}/generate`, { method: 'POST' });
+    const b = await r.json().catch(() => ({}));
+    return r.ok ? { ok: true as const, progress: { walkthrough: b.walkthrough, report: b.report, ...(b.generation && { generation: b.generation }) } } : { ok: false as const, code: b.code, error: b.error };
+  }
   async walkthrough(): Promise<unknown> {
     const r = await fetch(`${this.api}/walkthrough`);
     if (r.status === 404) return null;

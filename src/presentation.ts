@@ -7,6 +7,7 @@ import { buildHeader } from './kernel/header';
 import * as dock from './kernel/dockview';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
+import { generateButton, generationIndicator } from './review/generation';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
@@ -37,6 +38,8 @@ export const desktop: PresentationModule = {
     buildHeader(app, {
       status: roundStatusControls,
       beforeLayout: () => [
+        generationIndicator(app),
+        generateButton(app),
         ...githubControls(app),
         app.walkthrough || app.walkthroughIssues
           ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `${WALKTHROUGH_FILE} is invalid: ${app.walkthroughIssues[0]}` : 'Play the guided walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Guided walkthrough'))
@@ -44,7 +47,7 @@ export const desktop: PresentationModule = {
         ...threadHeaderControls(app),
       ],
       afterTheme: () => [feedbackButton(app)],
-      subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); },
+      subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); app.bus.on('generation', paint); },
     }),
   mountSurface: (app, host, { lastLayout }) => {
     if (app.meta.assistant) registerAssistant(app); // before the layout restores: a saved layout may show it

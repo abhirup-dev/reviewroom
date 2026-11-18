@@ -4,6 +4,7 @@ import { h, icon } from './kernel/dom';
 import { buildPhoneBar, type PhoneBarContributions } from './kernel/header.phone';
 import { mountPhone } from './kernel/phone';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
+import { generateButton, generationIndicator } from './review/generation';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
 import { contentsButton } from './review/walkthrough.phone';
 import { phonePalette } from './review/overlays.phone';
@@ -39,8 +40,8 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
   return {
     sub: () => (team() ? 'Team review' : `Round ${app.viewRound && app.viewRound !== app.state.round ? app.viewRound + ' of ' + app.state.round : app.state.round}`),
     titleMenu: () => (team() ? null : (anchor) => roundMenu(app, anchor)),
-    status: roundStatusControls,
-    actions: () => [app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: 'Play the guided walkthrough: the main story of this diff, slide by slide', onclick: () => app.commands.run('walkthrough.play') }, icon('play', 24)) : null],
+    status: () => [...roundStatusControls(), generationIndicator(app)].filter((x) => x !== null),
+    actions: () => [generateButton(app, true), app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: 'Play the guided walkthrough: the main story of this diff, slide by slide', onclick: () => app.commands.run('walkthrough.play') }, icon('play', 24)) : null],
     // a round ink icon button, its count a badge on the corner (kernel/styles/phone.css)
     send: () => {
       const b = feedbackButton(app);
@@ -73,6 +74,7 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
     subscribe: (paint) => {
       app.onDispose(subscribeThreadHeader(app, paint));
       app.bus.on('walkthrough', paint);
+      app.bus.on('generation', paint);
     },
   };
 }
