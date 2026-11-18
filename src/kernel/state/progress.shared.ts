@@ -52,8 +52,11 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
       result[line.artifact] = { state: 'requested', by, ...(id && { request: id }), ...(head && { head }) };
       continue;
     }
-    // nothing was requested: a legacy review, whatever was validated in it
-    if (prev.state === 'idle') continue;
+    // nothing was requested: a legacy review, whatever was validated in it; but a walkthrough imported from the PR
+    // (`pr --no-agent`) counts as validated while it has those bytes, asked for or not
+    if (prev.state === 'idle' && !(line.event === 'validated' && line.source === 'pr')) continue;
+    // an unrequested import edited since: nobody is writing it, so it is idle again (never pending)
+    if (prev.state === 'validated' && !prev.by && line.event === 'written') { result[line.artifact] = { state: 'idle' }; continue; }
     if (line.event === 'stopped') {
       // only the current request, and only while it is unfinished; it keeps what was written (slides, hash) and who was asked
       if (line.request === prev.request && prev.state !== 'validated') result[line.artifact] = { ...prev, state: 'stopped', reason: line.reason };
@@ -62,10 +65,10 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
     const { at: _at, artifact: _a, event, ...rest } = line;
     // stopped is sticky against saves (nothing is generating any more); only a validation or a new request leaves it
     if (event === 'written' && prev.state === 'stopped') result[line.artifact] = { ...prev, ...rest };
-    else result[line.artifact] = { ...rest, by: prev.by, ...(prev.request && { request: prev.request }), state: event === 'validated' ? 'validated' : 'writing' };
+    else result[line.artifact] = { ...rest, ...(prev.by && { by: prev.by }), ...(prev.request && { request: prev.request }), state: event === 'validated' ? 'validated' : 'writing' };
   }
   for (const a of ARTIFACTS) {
-    if (result[a].state === 'validated' && result[a].hash !== hashes[a]) result[a] = { ...result[a], state: 'writing' };
+    if (result[a].state === 'validated' && result[a].hash !== hashes[a]) result[a] = result[a].by ? { ...result[a], state: 'writing' } : { state: 'idle' };
   }
   return result;
 }

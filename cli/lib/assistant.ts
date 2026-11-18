@@ -389,6 +389,10 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     if (generation) return c.json({ started: false, ...progressNow() });
     if (!isReady) return c.json({ error: 'The review is still starting; generate in a moment.', code: 'starting' }, 409);
     if (turn || paused) return c.json({ error: 'The assistant is answering a question; generate when it is done.', code: 'busy' }, 409);
+    // a validated document (a walkthrough kept from the PR, say) is not asked for again; nothing to do needs no Claude
+    const before = readProgress(dir);
+    const wanted = ARTIFACTS.filter((a) => before[a].state !== 'validated');
+    if (!wanted.length) return c.json({ started: false, ...progressNow() });
     let text: string;
     try {
       text = fs.readFileSync(generatePrompt, 'utf8').trim();
@@ -398,10 +402,6 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e), code: 'assistant_unavailable' }, 503);
     }
-    // a validated document (a walkthrough kept from the PR, say) is not asked for again
-    const before = readProgress(dir);
-    const wanted = ARTIFACTS.filter((a) => before[a].state !== 'validated');
-    if (!wanted.length) return c.json({ started: false, ...progressNow() });
     requestGeneration(dir, 'assistant', cfg.head, wanted); // one write; if it throws, nothing runs and nothing is pending
     generation = { running: true, awaitingApproval: false };
     send('progress', progressNow());

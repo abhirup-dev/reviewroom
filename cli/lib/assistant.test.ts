@@ -402,3 +402,13 @@ test('generate checks what a turn needs before answering started: a configured C
   expect(body.error).toContain('/nonexistent/claude');
   expect(r.events()).toEqual([]);
 });
+
+test('generate with nothing left to write answers started: false before it checks for Claude', async () => {
+  using r = reviewWithAgent(true, () => false, true, () => ({ ...settings, claudeExecutable: '/nonexistent/claude' }));
+  for (const [artifact, file] of [['walkthrough', 'walkthrough.json'], ['report', 'report.html']] as const) {
+    fs.writeFileSync(path.join(r.dir, file), artifact === 'report' ? '<rr-review></rr-review>' : '{}');
+    recordArtifact(r.dir, artifact, 'validated', { source: 'pr' }); // imported, nothing requested (pr --no-agent)
+  }
+  const [status, body] = await r.generate();
+  expect([status, body.started, body.walkthrough.state, body.report.state]).toEqual([200, false, 'validated', 'validated']);
+});

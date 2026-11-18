@@ -7,6 +7,7 @@ const line = (event: 'written' | 'validated', artifact: Doc = 'walkthrough'): Pr
 const requested = (by: 'assistant' | 'agent' = 'agent', artifact: Doc = 'walkthrough', id = `${by}-1`): ProgressLine => ({ at, artifact, event: 'requested', by, id });
 const stopped = (reason: 'failed' | 'interrupted', request: string, artifact: Doc = 'walkthrough'): ProgressLine => ({ at, artifact, event: 'stopped', reason, request });
 const reset = (artifact: Doc = 'walkthrough'): ProgressLine => ({ at, artifact, event: 'reset' });
+const imported = (): ProgressLine => ({ at, artifact: 'walkthrough', event: 'validated', hash, source: 'pr' });
 
 test('absent request preserves legacy behavior, even with validation or stop records', () => {
   expect(reduceProgress([], {}).walkthrough.state).toBe('idle');
@@ -50,4 +51,13 @@ test('a new request resets the artifact; malformed and partial lines are ignored
   expect(reduceProgress([requested(), line('validated'), requested()], {}).walkthrough.state).toBe('requested');
   expect(parseProgress(JSON.stringify(line('written')) + '\n{"at":')).toHaveLength(1);
   expect(parseProgress(JSON.stringify({ at, artifact: 'report', event: 'requested' }))).toEqual([{ at, artifact: 'report', event: 'requested', by: 'agent' }]);
+});
+test('a walkthrough imported from the PR counts while nothing was requested (pr --no-agent), while it has those bytes', () => {
+  expect(reduceProgress([imported()], { walkthrough: hash }).walkthrough).toEqual({ state: 'validated', hash, source: 'pr' });
+  expect(reduceProgress([reset(), imported()], { walkthrough: hash }).walkthrough.state).toBe('validated');
+  // edited since, nobody asked: idle, never pending
+  expect(reduceProgress([imported()], { walkthrough: 'b'.repeat(64) }).walkthrough).toEqual({ state: 'idle' });
+  expect(reduceProgress([imported(), line('written')], { walkthrough: hash }).walkthrough).toEqual({ state: 'idle' });
+  // a request after it still asks for a new one
+  expect(reduceProgress([imported(), requested('assistant')], { walkthrough: hash }).walkthrough.state).toBe('requested');
 });
