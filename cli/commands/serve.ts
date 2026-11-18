@@ -49,13 +49,14 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
   let seen = false; // a page (browser or app tab) connected
-  const { app, commit, checkNarrative, close } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
+  const { app, commit, checkNarrative, close, ready } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
   const server = listen(app, +(portFlag || 4848));
   const port = server.port!;
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
   if (holder) fail(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
   stopAssistantWork(dir, 'interrupted'); // under the lock: an assistant generation left pending died with the previous server
+  ready(); // generation may start now: the lock is held and startup recovery is done
   const startedAt = new Date().toISOString();
   const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));

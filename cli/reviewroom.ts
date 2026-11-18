@@ -239,7 +239,7 @@ cli.help((sections) => {
       body: [
         '  REVIEWROOM_ASSISTANT=1, or "assistant": true in ~/.reviewroom/config.json: an Assistant panel,',
         '  a Claude Code chat on this machine (native login, Bun only), which can also generate both documents.',
-        '  Generation (POST api/generate) approves every tool it asks for; questions keep the panel\'s approvals.',
+        '  Every assistant turn, generation (POST api/generate) or a question, approves every tool it asks for.',
         '  Requires Git and a Claude login. First use downloads the pinned agent runtime; no global plugin, Node or pnpm needed.',
         '  Agent runtime/cache: ~/.reviewroom/assistant/ (under REVIEWROOM_HOME); Claude login/settings stay native.',
         '  claudeExecutable: optional executable name or path (relative to config.json). Restart after changing it.',

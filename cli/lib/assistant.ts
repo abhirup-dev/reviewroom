@@ -18,6 +18,7 @@ import { astGrepBinary } from './source/outline.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
+import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 
 /** REVIEWROOM_ASSISTANT, or `assistant: true` in ~/.reviewroom/config.json. Never throws: bad settings only disable it. */
 export function assistantEnabled(file = settingsFile()) {
@@ -79,12 +80,18 @@ export function instructions(repo: string, dir: string, cfg: ReviewConfig, promp
 type Settings = ReturnType<typeof readAssistantSettings>;
 type Store = ReturnType<typeof assistantStore>;
 
+/** The Claude binary: a configured one must exist; otherwise `claude` on PATH, or none (the adapter's bundled one). */
+function claudeBinary(settings: Settings) {
+  const requested = settings.claudeExecutable ?? process.env.CLAUDE_CODE_EXECUTABLE;
+  const found = Bun.which(requested ?? 'claude');
+  if (requested && !found) throw new Error(`Claude executable not found or not executable: ${requested}. Fix claudeExecutable in ${settingsFile()} or CLAUDE_CODE_EXECUTABLE.`);
+  return found;
+}
+
 /** The review's native session: started on its first question, resumed from the review's saved state when there is one. */
 async function start({ repo, dir, cfg, settings, store, model }: { repo: string; dir: string; cfg: ReviewConfig; settings: Settings; store: Store; model: () => string }) {
   const previous = store.saved.session;
-  const requested = settings.claudeExecutable ?? process.env.CLAUDE_CODE_EXECUTABLE;
-  const claudeExecutable = Bun.which(requested ?? 'claude');
-  if (requested && !claudeExecutable) throw new Error(`Claude executable not found or not executable: ${requested}. Fix claudeExecutable in ${settingsFile()} or CLAUDE_CODE_EXECUTABLE.`);
+  const claudeExecutable = claudeBinary(settings);
   const prompt = instructions(repo, dir, cfg, settings.reviewAgentPromptFile);
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
   // Keep the session's CLI and plugin on the running build, without changing the host PATH.
@@ -207,6 +214,8 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   let paused = false;
   let turnModel = '';
   let closed: Promise<void> | undefined;
+  // generation waits for the server's lock and startup recovery (ready()), or that recovery could stop its own turn
+  let isReady = false;
   const load = () => {
     if (!store) {
       store = assistantStore(dir, repo);
@@ -376,18 +385,25 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   });
   generate.post('/', (c) => {
     // decided and taken synchronously: two requests can't both start one
-    if (generation) return c.json({ started: false, ...progressNow() });
     if (closed) return c.json({ error: 'The review is closing.', code: 'closing' }, 409);
+    if (generation) return c.json({ started: false, ...progressNow() });
+    if (!isReady) return c.json({ error: 'The review is still starting; generate in a moment.', code: 'starting' }, 409);
     if (turn || paused) return c.json({ error: 'The assistant is answering a question; generate when it is done.', code: 'busy' }, 409);
     let text: string;
     try {
       text = fs.readFileSync(generatePrompt, 'utf8').trim();
+      if (!text) throw new Error(`The generate prompt is empty: ${generatePrompt}`);
+      claudeBinary(readSettings());
       load();
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e), code: 'assistant_unavailable' }, 503);
     }
+    // a validated document (a walkthrough kept from the PR, say) is not asked for again
+    const before = readProgress(dir);
+    const wanted = ARTIFACTS.filter((a) => before[a].state !== 'validated');
+    if (!wanted.length) return c.json({ started: false, ...progressNow() });
+    requestGeneration(dir, 'assistant', cfg.head, wanted); // one write; if it throws, nothing runs and nothing is pending
     generation = { running: true, awaitingApproval: false };
-    requestGeneration(dir, 'assistant', cfg.head);
     send('progress', progressNow());
     const ask: UIMessage = { id: randomUUID(), role: 'user', parts: [{ type: 'text', text }] };
     drive([...load().saved.messages, ask], true);
@@ -398,7 +414,13 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   const close = () => (closed ??= (async () => {
     turn?.abort.abort();
     await turn?.done;
+    // a generation paused on an approval has no turn to end it: it stops here
+    if (generation) {
+      generation = undefined;
+      stopAssistantWork(dir, 'interrupted');
+      send('progress', progressNow());
+    }
     await (await live?.catch(() => undefined))?.stop();
   })());
-  return { app, generate, close, progress: progressNow };
+  return { app, generate, close, progress: progressNow, ready: () => void (isReady = true) };
 }

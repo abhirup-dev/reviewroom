@@ -360,7 +360,9 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
 
   // for a server that ends before its process does (`slide-lint`): the watch would keep the process alive
   const close = () => { watcher?.close(); return assistant?.close(); };
-  return { app, prov, commit, github, checkNarrative, close };
+  /** The lock is held and startup recovery done (serve.ts): generation may start. */
+  const ready = () => assistant?.ready();
+  return { app, prov, commit, github, checkNarrative, close, ready };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the `spread` after it. */

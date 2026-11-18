@@ -7,7 +7,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { assistantEnabled, assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext, type Live } from './assistant.ts';
 import { PKG } from './paths.ts';
 import { assistantStore } from './assistant-store.ts';
-import { progressLines } from './progress.ts';
+import { progressLines, readProgress, recordArtifact, requestGeneration } from './progress.ts';
 /** Polls until `fn` holds (CLI tests import only shared modules, so not src/testing/wait.ts). */
 async function until(fn: () => unknown, timeout = 5000) {
   for (const end = Date.now() + timeout; !fn(); await Bun.sleep(10)) if (Date.now() > end) throw new Error('until: timed out');
@@ -98,7 +98,7 @@ test('Bun bridge launch clears only child auth overrides and preserves host PATH
 // The routes below run AI SDK's real stream (a mock model) in place of the native session.
 const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
 /** `unfinished`: what the native session says after a turn (true: it waits on an approval). */
-function reviewWithAgent(finish = true, unfinished = () => false) {
+function reviewWithAgent(finish = true, unfinished = () => false, ready = true, readSettings = () => settings) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-routes-'));
   const calls = { launched: 0, stopped: 0 };
   const model = new MockLanguageModelV4({
@@ -121,8 +121,13 @@ function reviewWithAgent(finish = true, unfinished = () => false) {
     return { agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) }, session: { hasUnfinishedTurn: unfinished }, checkpoint: async () => {}, stop: async () => void calls.stopped++ } as unknown as Live;
   };
   const sent: string[] = [];
-  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings: () => settings, launch, send: (event) => void sent.push(event) });
-  const generate = async (headers: Record<string, string> = {}) => { const res = await routes.generate.request('/', { method: 'POST', headers }); return [res.status, await res.json()] as const; };
+  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings, launch, send: (event) => void sent.push(event) });
+  if (ready) routes.ready(); // as serve.ts does once it holds the lock
+  const generate = async (headers: Record<string, string> = {}) => {
+    const res = await routes.generate.request('/', { method: 'POST', headers });
+    const text = await res.text();
+    return [res.status, (() => { try { return JSON.parse(text); } catch { return { text }; } })()] as const;
+  };
   const events = () => progressLines(dir).map((l) => `${l.artifact} ${l.event}${'by' in l ? ` ${l.by}` : ''}${'reason' in l ? ` ${l.reason}` : ''}`);
   const post = (messages: UIMessage[], init: RequestInit = {}) => routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages }), ...init });
   const saved = () => assistantStore(dir, dir).saved.messages;
@@ -335,4 +340,65 @@ test('closing a generation leaves an agent\'s request made meanwhile (pr --force
   fs.appendFileSync(path.join(r.dir, 'progress.jsonl'), JSON.stringify({ at: new Date().toISOString(), artifact: 'report', event: 'requested', by: 'agent' }) + '\n');
   await r.routes.close();
   expect(r.events().slice(2)).toEqual(['report requested agent', 'walkthrough stopped interrupted']);
+});
+
+test('generate waits for the server to hold its lock and finish startup recovery', async () => {
+  using r = reviewWithAgent(true, () => false, false);
+  const [status, body] = await r.generate();
+  expect([status, body.code]).toEqual([409, 'starting']);
+  expect(r.events()).toEqual([]);
+  expect(fs.existsSync(path.join(r.dir, 'assistant.json'))).toBe(false); // no transcript written either
+  r.routes.ready();
+  expect((await r.generate())[0]).toBe(200);
+  await r.routes.close();
+});
+
+test('a failed log append starts nothing and leaves nothing running or half-requested', async () => {
+  using r = reviewWithAgent(false);
+  fs.mkdirSync(path.join(r.dir, 'progress.jsonl')); // appending fails
+  const [status] = await r.generate();
+  expect(status).toBe(500);
+  expect(r.calls.launched).toBe(0);
+  fs.rmdirSync(path.join(r.dir, 'progress.jsonl'));
+  const [again, body] = await r.generate(); // not wedged as running
+  expect([again, body.started]).toEqual([200, true]);
+  expect(r.events()).toEqual(['walkthrough requested assistant', 'report requested assistant']);
+  await r.routes.close();
+});
+
+test('generate asks only for documents not validated now: a kept PR walkthrough stays validated', async () => {
+  using r = reviewWithAgent();
+  const walkthrough = path.join(r.dir, 'walkthrough.json');
+  fs.writeFileSync(walkthrough, '{}');
+  requestGeneration(r.dir, 'agent', undefined, ['walkthrough']);
+  recordArtifact(r.dir, 'walkthrough', 'validated', { source: 'pr' });
+  const [, body] = await r.generate();
+  expect([body.started, body.walkthrough.state, body.report]).toEqual([true, 'validated', expect.objectContaining({ state: 'requested', by: 'assistant' })]);
+  await until(() => r.events().includes('report stopped failed'));
+  expect(readProgress(r.dir).walkthrough.state).toBe('validated'); // not failed with the turn
+  fs.writeFileSync(path.join(r.dir, 'report.html'), '<rr-review></rr-review>');
+  recordArtifact(r.dir, 'report', 'validated');
+  const [status, both] = await r.generate();
+  expect([status, both.started, both.generation.running]).toEqual([200, false, false]);
+});
+
+test('closing a generation paused on an approval stops it as interrupted; a closing review answers closing, even then', async () => {
+  using r = reviewWithAgent(true, () => true);
+  await r.generate();
+  await until(() => r.sent.includes('assistant'));
+  expect((await r.generate())[1].generation).toEqual({ running: true, awaitingApproval: true });
+  const closing = r.routes.close();
+  const [status, body] = await r.generate();
+  expect([status, body.code]).toEqual([409, 'closing']);
+  await closing;
+  expect(r.events().slice(2)).toEqual(['walkthrough stopped interrupted', 'report stopped interrupted']);
+  expect(readProgress(r.dir).report.state).toBe('stopped');
+});
+
+test('generate checks what a turn needs before answering started: a configured Claude that is missing', async () => {
+  using r = reviewWithAgent(true, () => false, true, () => ({ ...settings, claudeExecutable: '/nonexistent/claude' }));
+  const [status, body] = await r.generate();
+  expect([status, body.code]).toEqual([503, 'assistant_unavailable']);
+  expect(body.error).toContain('/nonexistent/claude');
+  expect(r.events()).toEqual([]);
 });
