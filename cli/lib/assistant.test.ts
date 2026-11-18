@@ -4,9 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { streamText, type UIMessage } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
-import { assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext, type Live } from './assistant.ts';
+import { assistantEnabled, assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext, type Live } from './assistant.ts';
 import { PKG } from './paths.ts';
 import { assistantStore } from './assistant-store.ts';
+import { progressLines } from './progress.ts';
+/** Polls until `fn` holds (CLI tests import only shared modules, so not src/testing/wait.ts). */
+async function until(fn: () => unknown, timeout = 5000) {
+  for (const end = Date.now() + timeout; !fn(); await Bun.sleep(10)) if (Date.now() > end) throw new Error('until: timed out');
+}
 
 const revs = { base: 'b0', head: 'h0' };
 const settings = { defaultAgentHarness: 'claude' as const, defaultReviewModel: 'sonnet', reviewAgentPromptFile: path.join(PKG, 'templates/assistant-prompt.md') };
@@ -92,7 +97,8 @@ test('Bun bridge launch clears only child auth overrides and preserves host PATH
 
 // The routes below run AI SDK's real stream (a mock model) in place of the native session.
 const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
-function reviewWithAgent(finish = true) {
+/** `unfinished`: what the native session says after a turn (true: it waits on an approval). */
+function reviewWithAgent(finish = true, unfinished = () => false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-routes-'));
   const calls = { launched: 0, stopped: 0 };
   const model = new MockLanguageModelV4({
@@ -112,12 +118,15 @@ function reviewWithAgent(finish = true) {
   });
   const launch = async () => {
     calls.launched++;
-    return { agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) }, session: {}, checkpoint: async () => {}, stop: async () => void calls.stopped++ } as unknown as Live;
+    return { agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) }, session: { hasUnfinishedTurn: unfinished }, checkpoint: async () => {}, stop: async () => void calls.stopped++ } as unknown as Live;
   };
-  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings: () => settings, launch });
+  const sent: string[] = [];
+  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings: () => settings, launch, send: (event) => void sent.push(event) });
+  const generate = async (headers: Record<string, string> = {}) => { const res = await routes.generate.request('/', { method: 'POST', headers }); return [res.status, await res.json()] as const; };
+  const events = () => progressLines(dir).map((l) => `${l.artifact} ${l.event}${'by' in l ? ` ${l.by}` : ''}${'reason' in l ? ` ${l.reason}` : ''}`);
   const post = (messages: UIMessage[], init: RequestInit = {}) => routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages }), ...init });
   const saved = () => assistantStore(dir, dir).saved.messages;
-  return { dir, calls, routes, post, saved, [Symbol.dispose]: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  return { dir, calls, routes, post, saved, sent, generate, events, [Symbol.dispose]: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 /** The id the window gets for the answer, once the stream ends. */
 const answerId = async (res: Response) => (await res.text()).match(/"type":"start","messageId":"([^"]+)"/)![1];
@@ -236,4 +245,126 @@ test('the store is private to its review and writes atomically', () => {
   expect(assistantStore(r.dir, r.dir).saved.messages).toEqual(store.saved.messages);
   expect(fs.statSync(path.join(r.dir, 'assistant.json')).mode & 0o777).toBe(0o600);
   expect(fs.readdirSync(r.dir)).toEqual(['assistant.json']);
+});
+
+test('generate requests both documents of the assistant and starts one turn; asking again while it runs starts nothing', async () => {
+  using r = reviewWithAgent(false);
+  const [status, body] = await r.generate();
+  expect([status, body.started, body.generation]).toEqual([200, true, { running: true, awaitingApproval: false }]);
+  expect(body.walkthrough).toEqual({ state: 'requested', by: 'assistant' });
+  expect(r.events()).toEqual(['walkthrough requested assistant', 'report requested assistant']);
+  await until(() => r.calls.launched === 1);
+  const [again, running] = await r.generate();
+  expect([again, running.started, running.generation.running]).toEqual([200, false, true]);
+  expect(r.events()).toHaveLength(2);
+  const chat = await r.post([user('q1')]);
+  expect([chat.status, await chat.text()]).toEqual([409, 'The assistant is writing the review.']);
+  expect(r.saved().map((m) => m.role)).toEqual(['user']); // the generate prompt, in the transcript
+  await r.routes.close(); // the server closing: what the turn did not validate was interrupted, not failed
+  expect(r.events().slice(2)).toEqual(['walkthrough stopped interrupted', 'report stopped interrupted']);
+  expect(r.calls.launched).toBe(1);
+});
+
+test('a generation turn that ends without validating stops its documents as failed and tells the pages', async () => {
+  using r = reviewWithAgent();
+  expect((await r.generate())[0]).toBe(200);
+  await until(() => r.events().length === 4);
+  expect(r.events().slice(2)).toEqual(['walkthrough stopped failed', 'report stopped failed']);
+  expect(r.sent).toContain('assistant');
+  expect(r.sent.at(-2)).toBe('progress');
+  expect(r.saved().map((m) => m.role)).toEqual(['user', 'assistant']);
+  const [, after] = await r.generate(); // a new generation may start
+  expect(after.started).toBe(true);
+});
+
+test('generate is busy while the assistant answers the reviewer, and refused through the hub', async () => {
+  using r = reviewWithAgent(false);
+  const chat = await r.post([user('q1')]);
+  void chat.text();
+  const [status, body] = await r.generate();
+  expect([status, body.code]).toEqual([409, 'busy']);
+  expect(r.events()).toEqual([]);
+  const [hub, refused] = await r.generate({ 'x-reviewroom-via-hub': '1' });
+  expect([hub, refused.code]).toEqual([403, 'via_hub']);
+  await r.routes.close();
+});
+
+test('a generation turn paused with nothing it can approve keeps running until the panel continues it', async () => {
+  let waiting = true;
+  using r = reviewWithAgent(true, () => waiting);
+  await r.generate();
+  await until(() => r.sent.includes('assistant'));
+  const [, paused] = await r.generate();
+  expect([paused.started, paused.generation]).toEqual([false, { running: true, awaitingApproval: true }]);
+  expect(paused.report.state).toBe('requested'); // neither failed nor stopped
+  expect(r.events()).toHaveLength(2);
+  waiting = false;
+  const [ask, answer] = r.saved();
+  const res = await r.post([ask, { ...answer, parts: [...answer.parts, { type: 'text' as const, text: 'approved' }] }]);
+  expect(res.status).toBe(200);
+  await res.text();
+  await until(() => r.events().length === 4);
+  expect(r.events().slice(2)).toEqual(['walkthrough stopped failed', 'report stopped failed']);
+  expect((await r.generate())[1].started).toBe(true);
+});
+
+test('the assistant is on by REVIEWROOM_ASSISTANT or `assistant: true` in the settings; bad settings leave it off', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-on-'));
+  const file = path.join(dir, 'config.json');
+  const env = process.env.REVIEWROOM_ASSISTANT;
+  delete process.env.REVIEWROOM_ASSISTANT;
+  try {
+    expect(assistantEnabled(file)).toBe(false);
+    fs.writeFileSync(file, '{"assistant": true}');
+    expect(assistantEnabled(file)).toBe(true);
+    fs.writeFileSync(file, '{"assistant": "yes", "defaultAgentHarness": "other"}');
+    expect(assistantEnabled(file)).toBe(false);
+    fs.writeFileSync(file, '{broken');
+    expect(assistantEnabled(file)).toBe(false);
+    process.env.REVIEWROOM_ASSISTANT = '1';
+    expect(assistantEnabled(file)).toBe(true);
+  } finally {
+    if (env === undefined) delete process.env.REVIEWROOM_ASSISTANT; else process.env.REVIEWROOM_ASSISTANT = env;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a generation turn approves its own tool requests and finishes without pausing for the reviewer', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-approve-'));
+  const prompts: unknown[] = [];
+  let calls = 0;
+  const model = new MockLanguageModelV4({
+    doStream: async (o) => {
+      prompts.push(o.prompt);
+      const first = calls++ === 0;
+      return { stream: new ReadableStream({ start(c) {
+        c.enqueue({ type: 'stream-start', warnings: [] });
+        if (first) {
+          c.enqueue({ type: 'tool-call', toolCallId: 'c1', toolName: 'Write', input: '{"file_path":"walkthrough.json"}', providerExecuted: true, dynamic: true });
+          c.enqueue({ type: 'tool-approval-request', approvalId: 'a1', toolCallId: 'c1' });
+        } else {
+          c.enqueue({ type: 'text-start', id: 't' });
+          c.enqueue({ type: 'text-delta', id: 't', delta: 'done' });
+          c.enqueue({ type: 'text-end', id: 't' });
+        }
+        c.enqueue({ type: 'finish', finishReason: { unified: first ? 'tool-calls' : 'stop', raw: undefined }, usage });
+        c.close();
+      } }) };
+    },
+  });
+  const sent: unknown[] = [];
+  const launch = async () => ({ agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) }, session: { hasUnfinishedTurn: () => calls === 1 }, checkpoint: async () => {}, stop: async () => {} }) as unknown as Live;
+  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings: () => settings, launch, send: (event, data) => void sent.push([event, data]) });
+  try {
+    expect((await routes.generate.request('/', { method: 'POST' })).status).toBe(200);
+    await until(() => progressLines(dir).length === 4);
+    expect(calls).toBe(2); // the approval continued the same turn
+    expect(JSON.stringify(prompts[1])).toContain('"approved":true');
+    expect(JSON.stringify(sent)).not.toContain('"awaitingApproval":true');
+    const parts = assistantStore(dir, dir).saved.messages.at(-1)!.parts as { type: string; state?: string }[];
+    expect(parts.find((p) => p.type === 'dynamic-tool')?.state).toBe('approval-responded');
+  } finally {
+    await routes.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

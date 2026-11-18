@@ -174,7 +174,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
         if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
         if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
-        send('progress', readProgress(dir));
+        send('progress', progress());
         // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
         const next = parts();
         if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
@@ -182,11 +182,13 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
       });
 
-  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
+  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head }, send }) : undefined;
+  // with the assistant's generation, when one runs here
+  const progress = () => (assistant ? assistant.progress() : readProgress(dir));
   const app = new Hono();
   app.use(localOnly);
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies
-  if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
+  if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server', code: 'read_only' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
     if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
@@ -204,8 +206,12 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
   // id: the same for direct and proxied access; the assistant only for direct access
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
-  if (assistant) app.route('/api/assistant', assistant.app);
+  // the assistant and generation only for direct access (ADR 0001)
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true, generate: true }) }));
+  if (assistant) {
+    app.route('/api/assistant', assistant.app);
+    app.route('/api/generate', assistant.generate);
+  } else app.post('/api/generate', (c) => json(c, { error: 'The built-in assistant is off: set "assistant": true in ~/.reviewroom/config.json (or REVIEWROOM_ASSISTANT=1) and restart the review.', code: 'assistant_off' }, 409));
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
@@ -221,7 +227,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
   // A headless audit reads incomplete artifacts on purpose; generation must not cover its player.
-  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, report: { state: 'none' } } : readProgress(dir)));
+  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'idle' }, report: { state: 'idle' } } : progress()));
   app.get('/api/state', (c) => json(c, read()));
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {
@@ -306,7 +312,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
       await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
-      if (!readOnly) await stream.writeSSE({ event: 'progress', data: JSON.stringify(readProgress(dir)) });
+      if (!readOnly) await stream.writeSSE({ event: 'progress', data: JSON.stringify(progress()) });
       clients.add(stream);
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
       onClient?.();

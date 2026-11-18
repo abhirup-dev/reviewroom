@@ -121,6 +121,12 @@ describe('hub', () => {
       expect(proxied[0]).toBe(403);
       const ask = await fetch(r + 'api/assistant', { method: 'POST', headers: { 'content-type': 'application/json', origin: hub.slice(0, -1) }, body: JSON.stringify({ trigger: 'submit-message', messages: [] }) });
       expect([ask.status, await ask.text()]).toEqual([403, expect.stringContaining('only on this machine')]);
+      const generate = await fetch(r + 'api/generate', { method: 'POST', headers: { origin: hub.slice(0, -1) } });
+      expect([generate.status, (await generate.json()).code]).toEqual([403, 'via_hub']);
+      expect((await (await fetch(r + 'api/meta')).json()).generate).toBeUndefined();
+      expect((await (await fetch(review + 'api/meta')).json()).generate).toBe(true);
+      const log = path.join(dir, 'progress.jsonl');
+      expect(fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '').not.toContain('"assistant"'); // nothing requested
       expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false); // nothing ran
     });
 

@@ -51,6 +51,7 @@ cli
   .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: explainer)')
   .option('--detach', 'Serve in background; print URL')
   .option('--wait', 'Wait for the first feedback round')
+  .option('--no-agent', 'Request no walkthrough or report; generation stays idle')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
@@ -166,7 +167,9 @@ const notes: Record<string, string> = {
   Prose-only findings exclude right-hand code.
   Nothing is written to the review.`,
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
-  Newest author-owned or agent-owned walkthrough wins.`,
+  Newest author-owned or agent-owned walkthrough wins.
+  A new or --force review asks the calling agent for both documents; the page waits for them.
+  --no-agent sets the review up without asking anyone: the built-in assistant can generate later.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.
@@ -198,7 +201,7 @@ const notes: Record<string, string> = {
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
   // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
-  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
+  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser|generation stays idle) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
   if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
   return [
@@ -234,7 +237,9 @@ cli.help((sections) => {
     {
       title: 'Experimental',
       body: [
-        '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
+        '  REVIEWROOM_ASSISTANT=1, or "assistant": true in ~/.reviewroom/config.json: an Assistant panel,',
+        '  a Claude Code chat on this machine (native login, Bun only), which can also generate both documents.',
+        '  Generation (POST api/generate) approves every tool it asks for; questions keep the panel\'s approvals.',
         '  Requires Git and a Claude login. First use downloads the pinned agent runtime; no global plugin, Node or pnpm needed.',
         '  Agent runtime/cache: ~/.reviewroom/assistant/ (under REVIEWROOM_HOME); Claude login/settings stay native.',
         '  claudeExecutable: optional executable name or path (relative to config.json). Restart after changing it.',
