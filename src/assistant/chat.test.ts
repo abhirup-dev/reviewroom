@@ -26,61 +26,68 @@ function serve(routes: Record<string, ((init?: RequestInit) => Response | Promis
 }
 const text = (m: UIMessage | undefined) => m?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
 
-test('sync: the history goes in; the turn it names is followed from the resume route, then the history again at its end', async () => {
-  const q = msg('q', 'user', 'generate');
-  const asked = serve({
-    'api/assistant': [() => history([q], 's1'), () => history([q, msg('a', 'assistant', 'done')])],
-    'api/assistant/review/stream?turn=s1': [() => sse('s1', answer('a', 'done'))],
-  });
+const STREAM = 'api/assistant/review/stream?turn=s1';
+const q = msg('q', 'user', 'question');
+const a = msg('a', 'assistant', 'whole');
+
+test('sync: the history goes in, the turn it names is followed to its end, then the history again; single-flight: asked while one is out, one more runs after it', async () => {
+  const asked = serve({ 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [() => sse('s1', answer('a', 'done'))] });
   const c = createAssistantChat();
   await c.sync();
-  expect([asked, c.chat.messages.map((m) => m.id), text(c.chat.messages[1]), c.getState().activeStreamId]).toEqual([['api/assistant', 'api/assistant/review/stream?turn=s1', 'api/assistant'], ['q', 'a'], 'done', null]);
-});
-
-test('sync: a turn over by the time it is followed (204) is not followed again; its end, told by the server, brings the history', async () => {
-  const q = msg('q', 'user', 'question');
-  const asked = serve({
-    'api/assistant': [() => history([q], 's1'), () => history([q, msg('a', 'assistant', 'answer')])],
-    'api/assistant/review/stream?turn=s1': [none],
-  });
-  const c = createAssistantChat();
-  await c.sync();
-  expect(asked).toEqual(['api/assistant', 'api/assistant/review/stream?turn=s1']);
-  await c.sync(); // SSE `assistant`: the turn ended
-  expect(text(c.chat.messages[1])).toBe('answer');
-});
-
-test('sync is single-flight: asked again while one is out, one more runs after it, and the newest history wins', async () => {
+  await until(() => asked.length === 3);
+  expect([asked, c.chat.messages.map((m) => m.id), text(c.chat.messages[1]), c.getState().activeStreamId]).toEqual([['api/assistant', STREAM, 'api/assistant'], ['q', 'a'], 'whole', null]);
   let release!: () => void;
   const slow = new Promise<void>((r) => (release = r));
-  const asked = serve({ 'api/assistant': [async () => {
+  const again = serve({ 'api/assistant': [async () => {
     await slow;
     return history([msg('old', 'user', 'old')]);
   }, () => history([msg('new', 'user', 'new')])] });
-  const c = createAssistantChat();
   const all = [c.sync(), c.sync(), c.sync()];
   release();
   await Promise.all(all);
-  expect([asked.length, c.chat.messages.map((m) => m.id)]).toEqual([2, ['new']]);
+  expect([again.length, c.chat.messages.map((m) => m.id)]).toEqual([2, ['new']]);
 });
 
-test('a question refused (another window asked first): the history again, the question back in the composer, why shown', async () => {
-  const a = msg('a', 'user', 'from another window');
-  serve({
-    'POST api/assistant': [() => new Response('This conversation changed in another window.', { status: 409 })],
-    'api/assistant': [() => history([a])],
-  });
+const stalls = () => sse('s1', new ReadableStream({ start: (ctl) => ctl.enqueue(new TextEncoder().encode(frames({ type: 'start', messageId: 'a' }))) }));
+const drops = () => sse('s1', new ReadableStream({ start(ctl) {
+  ctl.enqueue(new TextEncoder().encode(frames({ type: 'start', messageId: 'a' }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'part' })));
+  ctl.error(new Error('network'));
+} }));
+type Chat = ReturnType<typeof createAssistantChat>;
+// The snapshot is the truth: whatever goes wrong, the page takes it again once and Send is usable (no turn running).
+test.each([
+  ['a question refused (another window asked first): its text back in the composer, why shown', { 'POST api/assistant': [() => new Response('This conversation changed in another window.', { status: 409 })], 'api/assistant': [() => history([msg('b', 'user', 'theirs')])] },
+    async (c: Chat) => {
+      await c.chat.sendMessage({ text: 'mine' });
+      await until(() => c.getState().draft === 'mine');
+      expect(c.getState().error).toBe('This conversation changed in another window.');
+    }, ['b']],
+  ['its turn over by the time it is followed (204), its end event missed', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [none] }, (c: Chat) => c.sync(), ['q', 'a']],
+  ['a stream that drops while the page\'s event stream stays up', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [drops] }, (c: Chat) => c.sync(), ['q', 'a']],
+  ['a stalled replay while the server ends the turn (its event)', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [stalls] },
+    async (c: Chat) => {
+      await c.sync();
+      await Bun.sleep(30); // attached, its stream stalled
+      await c.sync();
+    }, ['q', 'a']],
+  ['a failed snapshot: the transcript kept, the sync queued behind it still runs', { 'api/assistant': [() => history([q], 's1'), () => new Response('Invalid assistant settings', { status: 503 }), () => history([q])], [STREAM]: [stalls] },
+    async (c: Chat) => {
+      await c.sync();
+      await Promise.all([c.sync(), c.sync()]);
+    }, ['q']],
+] as const)('%s: one resync, Send usable', async (_, routes, act, ids) => {
+  serve(routes as never);
   const c = createAssistantChat();
-  await c.chat.sendMessage({ text: 'mine' });
-  await until(() => c.getState().draft !== undefined);
-  expect([c.chat.messages.map((m) => m.id), c.getState().draft, c.getState().error]).toEqual([['a'], 'mine', 'This conversation changed in another window.']);
+  await act(c);
+  await until(() => c.chat.messages.length === ids.length && !c.getState().activeStreamId);
+  expect(c.chat.messages.map((m) => m.id)).toEqual([...ids]);
 });
 
 test('Stop names the running turn; a reconnect follows it again', async () => {
   const stopped: unknown[] = [];
   const asked = serve({
     'api/assistant': [() => history([], 's1')],
-    'api/assistant/review/stream?turn=s1': [none],
+    [STREAM]: [stalls],
     'POST api/assistant/stop': [(init) => {
       stopped.push(JSON.parse(init?.body as string));
       return new Response(null, { status: 204 });
@@ -92,69 +99,5 @@ test('Stop names the running turn; a reconnect follows it again', async () => {
   expect(stopped).toEqual([{ streamId: 's1' }]);
   c.connected({ live: false, started: null });
   c.connected({ live: true, started: null });
-  await until(() => asked.filter((u) => u.includes('stream')).length === 2);
-});
-
-test('two pages ask at once: the losing page shows its question until refused, then follows the winner\'s turn', async () => {
-  let refuse!: () => void;
-  const refused = new Promise<void>((r) => (refuse = r));
-  const theirs = msg('b', 'user', 'theirs');
-  const asked = serve({
-    'POST api/assistant': [async () => {
-      await refused;
-      return new Response('This conversation changed in another window.', { status: 409 });
-    }],
-    'api/assistant': [() => history([theirs], 'B'), () => history([theirs], 'B'), () => history([theirs, msg('a', 'assistant', 'answered')])],
-    'api/assistant/review/stream?turn=B': [() => sse('B', answer('a', 'answered'))],
-  });
-  const c = createAssistantChat();
-  const sending = c.chat.sendMessage({ text: 'mine' });
-  await until(() => asked.includes('POST api/assistant'));
-  await c.sync(); // SSE: their turn started, while this page's question is out
-  expect([text(c.chat.messages[0]), asked.includes('api/assistant/review/stream?turn=B')]).toEqual(['mine', false]);
-  refuse();
-  await sending;
-  await until(() => c.chat.messages.length === 2 && c.getState().draft === 'mine');
-  expect([c.chat.messages.map((m) => m.id), text(c.chat.messages[1]), asked.filter((u) => u.includes('stream'))]).toEqual([['b', 'a'], 'answered', ['api/assistant/review/stream?turn=B']]);
-});
-
-test('a stream that drops while the page\'s event stream stays up: the history again, and the turn followed again', async () => {
-  const q = msg('q', 'user', 'question');
-  const dropped = new ReadableStream({ start(c) {
-    c.enqueue(new TextEncoder().encode(frames({ type: 'start', messageId: 'a' }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'part' })));
-    c.error(new Error('network'));
-  } });
-  const asked = serve({
-    'api/assistant': [() => history([q], 's1'), () => history([q], 's1'), () => history([q, msg('a', 'assistant', 'whole')])],
-    'api/assistant/review/stream?turn=s1': [() => sse('s1', dropped), () => sse('s1', answer('a', 'whole'))],
-  });
-  const c = createAssistantChat();
-  await c.sync();
-  await until(() => text(c.chat.messages[1]) === 'whole' && asked.length === 5);
-  expect(asked.filter((u) => u.includes('stream'))).toHaveLength(2);
-});
-
-test('a failed snapshot still runs the sync queued behind it', async () => {
-  let fail!: () => void;
-  const failing = new Promise<void>((r) => (fail = r));
-  serve({ 'api/assistant': [async () => {
-    await failing;
-    throw new Error('offline');
-  }, () => history([msg('q', 'user', 'saved')])] });
-  const c = createAssistantChat();
-  const first = c.sync();
-  const queued = c.sync();
-  fail();
-  await Promise.all([first, queued]);
-  expect([c.chat.messages.map((m) => m.id), c.getState().error]).toEqual([['q'], undefined]);
-});
-
-test('a failed sync keeps the transcript and leaves no turn running, so Send is usable', async () => {
-  const q = msg('q', 'user', 'saved');
-  serve({ 'api/assistant': [() => history([q], 's1'), () => new Response('Invalid assistant settings', { status: 503 })], 'api/assistant/review/stream?turn=s1': [none] });
-  const c = createAssistantChat();
-  await c.sync();
-  expect(c.getState().activeStreamId).toBe('s1');
-  await c.sync();
-  expect([c.chat.messages.map((m) => m.id), c.getState().activeStreamId, c.getState().error]).toEqual([['q'], null, 'Invalid assistant settings']);
+  await until(() => asked.filter((u) => u === 'api/assistant').length === 2);
 });
