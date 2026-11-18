@@ -68,3 +68,11 @@ test('serialized: one key runs one at a time, in order, and a failure releases i
   expect(results.map((r) => r.status)).toEqual(['rejected', 'fulfilled', 'fulfilled']);
   expect(log).toEqual(['a1+', 'b1+', 'b1-', 'a1-', 'a2+', 'a2-']);
 });
+
+test('Play\'s generate is bounded: a review that never answers the POST is a Play error, not a held lock', async () => {
+  const s = Bun.serve({ port: 0, fetch: (req) => (new URL(req.url).pathname === '/api/meta' ? Response.json({ generate: true }) : new Promise<Response>(() => {})) });
+  servers.push(s);
+  const t0 = Date.now();
+  expect(await generate({ url: `http://127.0.0.1:${s.port}/` }, 300)).toMatchObject({ ok: false, code: null, error: expect.stringContaining('The review did not answer') });
+  expect(Date.now() - t0).toBeLessThan(2000);
+});
