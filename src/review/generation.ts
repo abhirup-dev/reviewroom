@@ -40,8 +40,9 @@ function refused({ code, error }: { code?: string; error?: string }) {
   return code === 'assistant_unavailable' && error ? error : 'Could not start generating. Try again.'; // the server's own words: Claude Code missing, say
 }
 
-/** The assistant's conversation, mounted read-only in `host`, following its running turn; returns the unmount. The
- *  desktop supplies it (src/presentation.ts) where the server runs the assistant; without it the steps stand alone. */
+/** A read-only view of the page's conversation with the assistant in `host` (it follows the running turn); returns the
+ *  unmount. The desktop supplies it (src/presentation.ts) where the server runs the assistant; without it the steps
+ *  stand alone. */
 export type LiveChat = (host: HTMLElement) => () => void;
 const liveChats = new WeakMap<ReviewApp, { mount?: LiveChat; repaint?: () => void }>();
 const liveOf = (app: ReviewApp) => liveChats.get(app) ?? (liveChats.set(app, {}), liveChats.get(app)!);
@@ -178,17 +179,14 @@ export function mountGeneration(app: ReviewApp) {
       screen.hidden = !on;
       modal(on);
     }
-    paintLive(stream && on ? (w.request ?? '-') : '');
+    paintLive(stream && on);
   };
-  /** The chat, while the screen is up for a request (`key`); mounted again for a new one (it resumes that turn). */
-  const paintLive = (key: string) => {
-    if (key === liveKey) return;
+  /** The conversation's view, while the screen is up; the page's chat follows a new turn itself. */
+  const paintLive = (shown: boolean) => {
+    if (shown === !!unmountLive) return;
     unmountLive?.();
-    const chat = liveOf(app).mount;
-    unmountLive = key && chat ? chat(live) : undefined;
-    liveKey = key;
+    unmountLive = shown ? liveOf(app).mount?.(live) : undefined;
   };
-  let liveKey = '';
   let unmountLive: (() => void) | undefined;
   liveOf(app).repaint = () => paint(snap());
   app.onDispose(() => unmountLive?.());

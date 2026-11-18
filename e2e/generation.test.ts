@@ -139,28 +139,6 @@ describe('the assistant panel', () => {
   const fake = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-claude-')), 'claude');
   fs.writeFileSync(fake, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   const { serve } = setup({ CLAUDE_CODE_EXECUTABLE: fake }, { assistant: true });
-  const fetched = `performance.getEntriesByType('resource').filter((r) => r.name.endsWith('/api/assistant')).length`;
-  const box = `document.querySelector('.rr-assistant__island textarea')`;
-
-  test.skipIf(!browser)('a refresh fetched while idle is held, not applied, if the reviewer starts typing before it arrives', async () => {
-    const page = await open(await serve());
-    try {
-      await page.evaluate(`rr.app.commands.run('assistant.open')`);
-      await until(page, box, 15_000);
-      // the transcript answers slowly: long enough to start typing while it is out
-      await page.evaluate(`(() => { const f = window.fetch; window.fetch = (u, ...a) => String(u).endsWith('api/assistant') ? new Promise((r) => setTimeout(r, 800)).then(() => f(u, ...a)) : f(u, ...a); })()`);
-      await page.evaluate(`void (window.__box = ${box})`);
-      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`); // idle: the fetch starts
-      await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'typed meanwhile'))`);
-      await new Promise((r) => setTimeout(r, 1500)); // the response has arrived
-      expect(await page.evaluate<string>(`JSON.stringify([${box} === window.__box, document.activeElement === window.__box, ${box}.value])`)).toBe(JSON.stringify([true, true, 'typed meanwhile']));
-      await page.evaluate(`document.activeElement.blur()`);
-      await until(page, `${box} && ${box} !== window.__box && ${box}.value === 'typed meanwhile'`, 5000); // applied once safe, the draft kept
-      expect(page.errors()).toEqual([]);
-    } finally {
-      await page.close();
-    }
-  }, 60_000);
 
   test.skipIf(!browser)('a late failure of an earlier Generate shows nothing, not even a toast', async () => {
     const page = await open(await serve());
@@ -184,86 +162,88 @@ describe('the assistant panel', () => {
     }
   }, 60_000);
 
-  test.skipIf(!browser)('a refresh that fails keeps the chat and its draft, and says why beside it', async () => {
-    const page = await open(await serve());
-    try {
-      await page.evaluate(`rr.app.commands.run('assistant.open')`);
-      await until(page, box, 15_000);
-      await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'kept draft'), document.activeElement.blur(), window.__box = ${box})`);
-      await page.evaluate(`(() => { const f = window.fetch; window.fetch = (u, ...a) => String(u).endsWith('api/assistant') ? Promise.resolve(new Response('the conversation was moved aside', { status: 409 })) : f(u, ...a); })()`);
-      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`);
-      await until(page, `!document.querySelector('.rr-assistant > .rr-assistant__error').hidden`);
-      expect(await page.evaluate<string>(`JSON.stringify([document.querySelector('.rr-assistant > .rr-assistant__error').textContent, ${box} === window.__box, ${box}.value])`))
-        .toBe(JSON.stringify(['the conversation was moved aside', true, 'kept draft']));
-    } finally {
-      await page.close();
-    }
-  }, 60_000);
-
-  test.skipIf(!browser)('a conversation changed elsewhere waits while the reviewer types, then shows with their draft kept', async () => {
-    const page = await open(await serve());
-    try {
-      await page.evaluate(`rr.app.commands.run('assistant.open')`);
-      await until(page, box, 15_000);
-      await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'my draft')`);
-      await until(page, `${box}.value === 'my draft'`);
-      const before = await page.evaluate<number>(fetched);
-      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`);
-      await new Promise((r) => setTimeout(r, 500));
-      expect(await page.evaluate<number>(fetched)).toBe(before); // typing: it waits, never dropped
-      await page.evaluate(`document.activeElement.blur()`);
-      await until(page, `${fetched} > ${before} && ${box}?.value === 'my draft'`);
-      expect(page.errors()).toEqual([]);
-    } finally {
-      await page.close();
-    }
-  }, 60_000);
 });
 
-describe('one conversation, start to end', () => {
-  // a scripted assistant that streams (e2e/fake-assistant.ts); the stand-in claude only passes generate's checks
+/** A review whose assistant is scripted (e2e/fake-assistant.ts): a generation turn waits on the test's gates `go-1`
+ *  (the walkthrough) and `go-2` (the report). The stand-in claude only passes generate's checks. */
+function scripted() {
   const gates = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-gates-'));
   const claude = path.join(gates, 'claude');
   fs.writeFileSync(claude, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   const { serve } = setup({ CLAUDE_CODE_EXECUTABLE: claude, REVIEWROOM_TEST_ASSISTANT: path.join(import.meta.dir, 'fake-assistant.ts'), REVIEWROOM_TEST_GATES: gates }, { assistant: true });
-  const live = `(document.querySelector('.rr-gen__live')?.textContent ?? '')`;
-  const panel = `(document.querySelector('.rr-assistant__island')?.textContent ?? '')`;
-  const box = `document.querySelector('.rr-assistant__island textarea')`;
-  // the walkthrough landing reloads the page (main.ts, `review`): a wait that the reload cuts short is asked again
-  const across = async (page: Page, cond: string, ms: number) => {
-    const t0 = Date.now();
-    for (;;) {
-      try {
-        return await until(page, cond, Math.max(500, ms - (Date.now() - t0)));
-      } catch (e) {
-        if ((!String(e).includes('navigated') && !String(e).includes('is not defined')) || Date.now() - t0 > ms) throw e;
-        await Bun.sleep(200);
-      }
+  return { serve, go: (n: 1 | 2) => fs.writeFileSync(path.join(gates, `go-${n}`), '') };
+}
+const live = `(document.querySelector('.rr-gen__live')?.textContent ?? '')`;
+const panel = `(document.querySelector('.rr-assistant__island')?.textContent ?? '')`;
+const box = `document.querySelector('.rr-assistant__island textarea')`;
+const stop = `[...document.querySelectorAll('.rr-assistant__island button')].some((b) => b.textContent === 'Stop')`;
+// the walkthrough landing reloads the page (main.ts, `review`): a wait that the reload cuts short is asked again
+async function across(page: Page, cond: string, ms = 15_000) {
+  const t0 = Date.now();
+  for (;;) {
+    try {
+      return await until(page, cond, Math.max(500, ms - (Date.now() - t0)));
+    } catch (e) {
+      if ((!String(e).includes('navigated') && !String(e).includes('is not defined')) || Date.now() - t0 > ms) throw e;
+      await Bun.sleep(200);
     }
-  };
+  }
+}
+/** The walkthrough passed: out of its player (modal), back to the panel. */
+async function pastPlayer(page: Page) {
+  await across(page, `rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-tour__player')`);
+  await across(page, `rr.app && (document.querySelector('.rr-tour')?.dataset.mode === 'closed' || (document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click(), false))`);
+  await across(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);
+}
+/** The turn ends, then the same conversation answers a question. */
+async function followUp(page: Page) {
+  await across(page, `${panel}.includes('Both pass.') && ${box} && !document.querySelector('[data-rr-assistant-running]')`);
+  await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'what changed?'))`);
+  await across(page, `${box}.value === 'what changed?'`, 5000);
+  await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send').click()`);
+  await across(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`);
+}
 
-  /** `js` once the page is up again: done as `cond` holds, for a reload that comes after the handover. */
-  const act = (page: Page, js: string, cond: string) => across(page, `rr.app && (${cond} || (${js}, false))`, 15_000);
-
-  test.skipIf(!browser)('the loading screen follows the generation live; after the handover the panel shows the same turn, then takes a question', async () => {
+describe('one conversation: the panel and the loading screen show the page\'s one chat', () => {
+  const { serve, go } = scripted();
+  test.skipIf(!browser)('both views follow a generation; dismissed mid-turn it keeps running in the panel (no Stop: not this page\'s turn); then a question', async () => {
     const page = await open(await serve());
     try {
+      await page.evaluate(`rr.app.commands.run('assistant.open')`);
+      await until(page, box, 15_000);
       await page.evaluate(`rr.app.commands.run('generation.generate')`);
-      // a turn the server started: the screen's chat resumes it and shows what it says, while it runs
+      // two views of one chat at once: the screen's (read-only) and the panel behind it
+      await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.') && ${panel}.includes('Reading the diff.')`, 15_000);
+      expect(await page.evaluate<boolean>(`!document.querySelector('.rr-gen__live textarea')`)).toBe(true);
+      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
+      await until(page, `document.querySelector('.rr-gen').hidden && !!document.querySelector('[data-rr-assistant-running]')`);
+      expect(await page.evaluate<boolean>(stop)).toBe(false);
+      go(1);
+      await pastPlayer(page);
+      go(2);
+      await followUp(page);
+      expect(page.errors()).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 90_000);
+});
+
+describe('one conversation: a reload mid-turn', () => {
+  const { serve, go } = scripted();
+  test.skipIf(!browser)('a page reloaded before the walkthrough passes follows the same turn again', async () => {
+    const url = await serve();
+    let page = await open(url);
+    try {
+      await page.evaluate(`rr.app.commands.run('generation.generate')`);
+      await until(page, `${live}.includes('Reading the diff.')`, 15_000);
+      await page.close();
+      page = await open(url);
       await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.')`, 15_000);
-      expect(await page.evaluate<boolean>(`!document.querySelector('.rr-gen__live textarea')`)).toBe(true); // read-only
-      fs.writeFileSync(path.join(gates, 'go-1'), ''); // the walkthrough passes: the screen closes and the player opens
-      await across(page, `rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-gen').hidden && document.querySelector('.rr-tour__player')`, 15_000);
-      // out of the player, then the assistant: a plain window on the same conversation, which resumes the turn
-      await act(page, `document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click()`, `document.querySelector('.rr-tour')?.dataset.mode === 'closed'`);
-      await act(page, `rr.app.commands.run('assistant.open')`, `${panel}.includes('Reading the diff.') && ${panel}.includes('The walkthrough passes.')`);
-      fs.writeFileSync(path.join(gates, 'go-2'), ''); // the report passes: the turn ends
-      await across(page, `${panel}.includes('Both pass.') && ${box} && !document.querySelector('[data-rr-assistant-running]')`, 15_000);
-      // a normal chat now, in the same conversation
-      await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'what changed?'))`);
-      await across(page, `${box}.value === 'what changed?'`, 5000);
-      await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send').click()`);
-      await across(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`, 15_000);
+      go(1);
+      await pastPlayer(page);
+      go(2);
+      await followUp(page);
       expect(page.errors()).toEqual([]);
     } finally {
       await page.close();

@@ -13,7 +13,7 @@ import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
 import type { PhoneFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
-import { mountLiveChat, registerAssistant } from './assistant/panel';
+import { registerAssistant } from './assistant/panel';
 
 export interface PresentationModule {
   /** The header above the panels. */
@@ -51,8 +51,8 @@ export const desktop: PresentationModule = {
     }),
   mountSurface: (app, host, { lastLayout }) => {
     if (app.meta.assistant) {
-      registerAssistant(app); // before the layout restores: a saved layout may show it
-      provideLiveChat(app, mountLiveChat); // the loading screen's window on the same conversation
+      // before the layout restores: a saved layout may show it; the loading screen's window shows the same conversation
+      provideLiveChat(app, registerAssistant(app));
     }
     app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) });
   },

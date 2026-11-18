@@ -1,21 +1,21 @@
-// The assistant's chat: assistant-ui's primitives on its AI SDK runtime. The runtime owns the messages, streaming,
-// stop and approvals; this file owns only which primitives show and their Review Room classes.
-import { useEffect, useRef, useState } from 'react';
+// A view of the page's conversation (chat.ts): assistant-ui's primitives on its AI SDK runtime, over the page's one
+// Chat. The Chat owns the messages, streaming, stop and approvals; this file owns only which primitives show and their
+// Review Room classes. Any number of views show the same Chat.
+import { createContext, useContext, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AssistantRuntimeProvider, AuiIf, ComposerPrimitive, ErrorPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, type QuoteInfo, type TextMessagePartProps, type ToolCallMessagePartProps } from '@assistant-ui/react';
-import { AssistantChatTransport, useAISDKChat, useChatRuntime } from '@assistant-ui/ai-sdk';
-import { lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from 'ai';
+import { useAISDKRuntime } from '@assistant-ui/ai-sdk';
+import { useChat } from '@ai-sdk/react';
 import { renderMarkdown } from '../kernel/markdown';
 import { h } from '../kernel/dom';
 import { wantReload } from '../kernel/pwa';
 import type { AskContext } from './context.shared';
+import type { AgentStatus, AssistantChat } from './chat';
 
 /** Hands the chat each context the reviewer asks about; returns the unsubscribe. */
 type OnAsk = (take: (c: AskContext) => void) => () => void;
-type AgentStatus = { model: string; instance: string; status: 'idle' | 'working' | 'interrupted' | 'failed' };
-type InitialConversation = AgentStatus & { messages: UIMessage[] };
-/** What the reviewer has in the composer: kept when the conversation is shown again from the server. */
-export type Draft = { text: string; quote?: QuoteInfo };
+// a read-only view (the loading screen's): no composer, no approvals
+const ReadOnly = createContext(false);
 
 // Review Room's sanitised Markdown, as in threads
 const Text = ({ text }: TextMessagePartProps) => <div className="rr-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
@@ -23,6 +23,7 @@ const Text = ({ text }: TextMessagePartProps) => <div className="rr-prose" dange
 /** A native tool call: its name and state; a call the native policy asks about waits for Allow or Deny. */
 function Tool({ toolName, args, status, isError, approval, respondToApproval }: ToolCallMessagePartProps) {
   const summary = typeof args?.command === 'string' ? args.command : typeof args?.file_path === 'string' ? args.file_path : '';
+  const readOnly = useContext(ReadOnly);
   const asking = approval && approval.approved === undefined;
   const state = asking ? 'needs approval' : status.type === 'running' ? 'running' : isError || status.type === 'incomplete' ? 'failed' : approval?.approved === false ? 'denied' : 'done';
   return (
@@ -30,7 +31,7 @@ function Tool({ toolName, args, status, isError, approval, respondToApproval }: 
       <span className="rr-assistant__tool-name">{toolName}</span>
       <code title={summary}>{summary}</code>
       <span className="rr-muted">{state}</span>
-      {asking && (
+      {asking && !readOnly && (
         <span className="rr-assistant__approve">
           <button className="rr-btn rr-btn--primary" onClick={() => void respondToApproval({ approved: true }).catch(console.error)}>Allow</button>
           <button className="rr-btn" onClick={() => void respondToApproval({ approved: false, reason: 'The reviewer denied it.' }).catch(console.error)}>Deny</button>
@@ -72,49 +73,15 @@ function AgentLabel({ agent, connected }: { agent: AgentStatus; connected: boole
   const status = !connected ? 'Disconnected. Waiting for the server…' : busy ? 'Working…' : agent.status === 'interrupted' ? 'Interrupted. You can ask it to continue.' : agent.status === 'failed' ? 'Failed. You can try again.' : 'Ready';
   return <div className="rr-assistant__model rr-muted" role="status" data-rr-assistant-running={busy ? '' : undefined}>Model: {agent.model} · {status}</div>;
 }
-
-/** A turn this window didn't start (a generation, or a question asked in another window) runs on the server: the AI
- *  SDK's resumable stream follows it from its start (api/assistant/<id>/stream). With nothing to follow (204: the turn
- *  ended meanwhile, or none runs) the saved history goes into the same chat, so it is never left with a stale one. */
-function Resume({ onHistory }: { onHistory: (c: InitialConversation) => void }) {
-  const chat = useAISDKChat(); // provided after the first render
-  const latest = useRef(chat);
-  latest.current = chat;
-  useEffect(() => {
-    if (!chat) return;
-    const history = async () => {
-      const response = await fetch('api/assistant');
-      if (!response.ok) throw new Error(await response.text());
-      const saved: InitialConversation = await response.json();
-      latest.current?.setMessages(saved.messages);
-      onHistory(saved); // its status: Send waits for it
-    };
-    const before = chat.messages.at(-1)?.id;
-    void chat.resumeStream()
-      .then(() => (latest.current?.messages.at(-1)?.id === before ? history() : undefined))
-      .catch(console.error);
-  }, [!!chat]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the chat is there
-  return null;
-}
-
-function Chat({ onAsk, host, initial, draft, expose, readOnly }: { onAsk: OnAsk; host: HTMLElement; initial: InitialConversation; draft?: Draft; expose: (read: () => Draft) => void; readOnly?: boolean }) {
+function View({ service, onAsk, host, initial, readOnly }: { service: AssistantChat; onAsk?: OnAsk; host: HTMLElement; initial: AgentStatus; readOnly: boolean }) {
   const [agent, setAgent] = useState<AgentStatus>(initial);
   const [connected, setConnected] = useState(true);
-  const runtime = useChatRuntime({
-    messages: initial.messages,
-    transport: new AssistantChatTransport({ api: 'api/assistant' }), // relative: the page's own review server
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
-  });
-  useEffect(() => {
-    const composer = runtime.thread.composer;
-    if (draft?.text) composer.setText(draft.text);
-    if (draft?.quote) composer.setQuote(draft.quote);
-    expose(() => ({ text: composer.getState().text, quote: composer.getState().quote }));
-  }, [runtime]); // eslint-disable-line react-hooks/exhaustive-deps -- once per runtime: the draft it starts with
+  const runtime = useAISDKRuntime(useChat({ chat: service.chat }));
   useEffect(() => runtime.thread.subscribe(() => {
     if (runtime.thread.getState().isRunning) setAgent((current) => current.status === 'working' ? current : { ...current, status: 'working' });
   }), [runtime]);
   useEffect(() => {
+    if (readOnly) return; // its status shows in the composer
     const controller = new AbortController();
     const refresh = async () => {
       try {
@@ -132,14 +99,14 @@ function Chat({ onAsk, host, initial, draft, expose, readOnly }: { onAsk: OnAsk;
     };
     const timer = setInterval(() => void refresh(), 2000);
     return () => { clearInterval(timer); controller.abort(); };
-  }, [initial.instance]);
-  useEffect(() => onAsk((c) => {
+  }, [initial.instance, readOnly]);
+  useEffect(() => onAsk?.((c) => {
     runtime.thread.composer.setQuote(c);
     host.querySelector('textarea')?.focus();
   }), [runtime, onAsk, host]);
   return (
+    <ReadOnly.Provider value={readOnly}>
     <AssistantRuntimeProvider runtime={runtime}>
-      <Resume onHistory={setAgent} />
       <ThreadPrimitive.Root className="rr-assistant__thread">
         <ThreadPrimitive.Viewport className="rr-scroll rr-assistant__viewport">
           <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -161,21 +128,22 @@ function Chat({ onAsk, host, initial, draft, expose, readOnly }: { onAsk: OnAsk;
             <AuiIf condition={(s) => !s.thread.isRunning}>
               <ComposerPrimitive.Send className="rr-btn rr-btn--primary" disabled={!connected || agent.status === 'working'}>Send</ComposerPrimitive.Send>
             </AuiIf>
-            <AuiIf condition={(s) => s.thread.isRunning}>
+            {/* only a turn this page sent: one it follows (a generation's) is not this page's to stop */}
+            <AuiIf condition={(s) => s.thread.isRunning && service.asked()}>
               <ComposerPrimitive.Cancel className="rr-btn" title="Stop Claude's current turn">Stop</ComposerPrimitive.Cancel>
             </AuiIf>
           </div>
         </ComposerPrimitive.Root>}
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>
+    </ReadOnly.Provider>
   );
 }
 
-/** Mounts the chat in `host`, with `draft` in its composer; `draft()` reads what is there now. `readOnly`: no composer
- *  (generation's loading screen). */
-export function mount(host: HTMLElement, onAsk: OnAsk, initial: InitialConversation, draft?: Draft, readOnly = false) {
+/** Shows the page's conversation in `host`; `initial`: its status when last synced. `readOnly`: no composer, approvals
+ *  or sends (generation's loading screen). Returns the unmount. */
+export function mount(host: HTMLElement, service: AssistantChat, initial: AgentStatus, { readOnly = false, onAsk }: { readOnly?: boolean; onAsk?: OnAsk } = {}) {
   const root = createRoot(host);
-  let read: () => Draft = () => draft ?? { text: '' };
-  root.render(<Chat onAsk={onAsk} host={host} initial={initial} draft={draft} expose={(r) => (read = r)} readOnly={readOnly} />);
-  return { unmount: () => root.unmount(), draft: () => read() };
+  root.render(<View service={service} onAsk={onAsk} host={host} initial={initial} readOnly={readOnly} />);
+  return () => root.unmount();
 }
