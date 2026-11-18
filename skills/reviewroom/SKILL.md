@@ -17,7 +17,21 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 `bunx reviewroom …`. This skill covers the usual path; `reviewroom --help` lists every capability
 (screenshots, the hub, …).
 
-## Choose the command
+## Built-in or external agent
+
+If `REVIEWROOM_ASSISTANT_DIR` is set, you are the assistant inside an already running review.
+Run `reviewroom status --json --dir "$REVIEWROOM_ASSISTANT_DIR"` to confirm `role: "assistant"`,
+the review directory, URL and frozen revisions. Use that directory for every review command.
+Do not start, stop or restart this review's server, run `pr` or `review`, or wait for feedback rounds:
+your conversation in the assistant panel is the feedback channel. Answer the current question; when
+asked to author, follow Steps 3–4b and their references, then report the result in the conversation.
+Read `status` again if the review advances. Learn authoring through this skill, its references and
+CLI help; you do not need Review Room's implementation source.
+
+Without that marker, follow the external-agent workflow below, including starting the server and
+continuing across rounds. Both routes use the same authoring rules and validation references.
+
+## Choose the command (external agent)
 
 | The reviewer wants                                        | Run                                                                  |
 | ---                                                       | ---                                                                  |

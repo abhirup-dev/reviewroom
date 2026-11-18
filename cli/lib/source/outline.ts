@@ -16,12 +16,13 @@ const OutlineEntry = z.object({
 });
 const OutlineOutput = z.array(z.object({ path: z.string(), language: z.string(), items: z.array(OutlineEntry) }));
 
+/** The shipped platform binary, independent of a global install or shell PATH. */
+export const astGrepBinary = () => path.join(path.dirname(Bun.resolveSync('@ast-grep/cli/package.json', PKG)), process.platform === 'win32' ? 'ast-grep.exe' : 'ast-grep');
+
 /** One upstream outline invocation for every language/name. No application-owned language extraction rules. */
 export async function declarations(root: string, files: SourceFile[], names: string[]): Promise<{ declarations: Declaration[]; unverified: string[] }> {
   if (!files.length) return { declarations: [], unverified: [] };
-  const pkg = path.dirname(Bun.resolveSync('@ast-grep/cli/package.json', PKG));
-  const binary = path.join(pkg, process.platform === 'win32' ? 'ast-grep.exe' : 'ast-grep');
-  const { stdout } = await execute(binary, ['outline', '.', '--items', 'structure', '--view', 'expanded', '--json=compact',
+  const { stdout } = await execute(astGrepBinary(), ['outline', '.', '--items', 'structure', '--view', 'expanded', '--json=compact',
     '--config', path.join(PKG, 'cli/lib/source/outline.yml'),
     ...['hidden', 'dot', 'vcs', 'global', 'exclude'].flatMap((kind) => ['--no-ignore', kind])],
   { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 30_000 });

@@ -110,6 +110,7 @@ class WalkthroughPanel implements PanelInstance {
       resolve: (el) => resolveWalkthroughBlock(this.doc, this.rootId, el),
       label: (reference) => app.label(reference),
       comment: (block) => app.compose(block.anchor, block.excerpt),
+      ask: app.commands.get('assistant.ask') ? (block) => app.bus.emit('ask-assistant', { anchor: block.anchor, quote: block.excerpt }) : undefined,
       copy: (block) => {
         void copyText(block.reference);
         app.toast(`Link to ${app.label(block.reference)} copied - paste it into any comment`);

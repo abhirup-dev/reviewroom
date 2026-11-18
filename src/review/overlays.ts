@@ -252,8 +252,9 @@ export function mountQuoteComment(app: ReviewApp) {
       if (s?.kind !== 'doc' || !s.anchor.quote) return;
       const button = menuItem('Comment', () => { hide(); app.commands.run('comment.selection'); }, { icon: 'thread', hint: keyLabel('c') });
       button.setAttribute('aria-label', 'Comment on selected text');
-      button.onpointerdown = (e) => e.preventDefault(); // keep the native quote while approaching its action
-      close = popMenu(app.root, () => [button], { point: { x: s.x, y: s.y }, placement: 'top-start', focus: false });
+      const ask = app.commands.get('assistant.ask') ? menuItem('Ask assistant', () => { hide(); app.commands.run('assistant.ask'); }, { icon: 'thread' }) : null;
+      for (const b of [button, ask]) if (b) b.onpointerdown = (e) => e.preventDefault(); // keep the native quote while approaching its action
+      close = popMenu(app.root, () => [button, ask], { point: { x: s.x, y: s.y }, placement: 'top-start', focus: false });
     }),
     app.bus.on('compose-thread', hide),
     app.bus.on('open-thread', hide),

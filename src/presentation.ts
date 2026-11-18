@@ -11,6 +11,7 @@ import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
 import type { PhoneFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
+import { registerAssistant } from './assistant/panel';
 
 export interface PresentationModule {
   /** The header above the panels. */
@@ -44,5 +45,8 @@ export const desktop: PresentationModule = {
       afterTheme: () => [feedbackButton(app)],
       subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); },
     }),
-  mountSurface: (app, host, { lastLayout }) => app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) }),
+  mountSurface: (app, host, { lastLayout }) => {
+    if (app.meta.assistant) registerAssistant(app); // before the layout restores: a saved layout may show it
+    app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) });
+  },
 };

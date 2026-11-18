@@ -24,7 +24,7 @@ import { hubHref, saveLayoutDialog } from './kernel/header';
 import type { PresentationModule } from './presentation';
 import { currentForm, restoreShell, watchShell } from './kernel/device';
 import { presentationFor } from './kernel/presentation';
-import { keepScroll, reloadOnChunkError, restoreScroll, startUpdates } from './kernel/pwa';
+import { keepScroll, reloadOnChunkError, restoreScroll, startUpdates, wantReload } from './kernel/pwa';
 import { sendDialog, submitReviewDialog, onGitHub } from './threads/controls';
 import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
 import { BrowserState } from './kernel/providers/browser-state';
@@ -229,6 +229,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     github: (s) => app.services.github.set(s),
     // the backend has let a save in flight finish first
     review: () => {
+      if (app.meta.assistant && !options.reload) return wantReload('review', 'the walkthrough changed');
       keepScroll();
       (options.reload ?? (() => location.reload()))();
     },

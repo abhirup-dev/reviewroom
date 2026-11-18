@@ -6,11 +6,17 @@ import type { SearchHit } from '../src/kernel/state/model.shared.ts';
 import { expectClientHeaders, setup } from './fixture.ts';
 
 describe('api', () => {
-  const { tmp, repo, dir, serve, sessions } = setup();
+  const { tmp, repo, dir, serve, sessions } = setup({ REVIEWROOM_ASSISTANT: '' });
   const marker = path.join(tmp, 'pwned');
   const status = (p: string, init?: RequestInit) => fetch(url + p, init).then((r) => r.status);
   let url = '';
   beforeAll(async () => (url = await serve()));
+
+  test('external-agent reviews do not offer or start the built-in assistant', async () => {
+    expect((await (await fetch(url + 'api/meta')).json()).assistant).toBeUndefined();
+    expect(await status('api/assistant')).toBe(404);
+    expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false);
+  });
 
   test('the patch is a plain git diff whatever the git config', async () => expect(await (await fetch(url + 'api/patch')).text()).toStartWith('diff --git a/'));
   test('symbol search finds the definition', async () => {

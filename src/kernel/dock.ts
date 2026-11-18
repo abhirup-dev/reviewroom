@@ -29,7 +29,7 @@ export function definePanel(def: PanelDef) {
 export const panelDefs = () => [...registry.values()];
 export const panelDef = (id: string) => registry.get(id);
 /** The panel kinds reviewroom itself defines; any other (an agent's) joins the narrative's tabs, a page of Read on a phone. */
-export const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap'];
+export const ownPanels = ['narrative', 'code', 'files', 'toc', 'threads', 'ci', 'description', 'recap', 'assistant'];
 
 export type Match = (id: string, params: Record<string, unknown> | undefined) => boolean;
 export type DockPlacement = 'right' | 'below' | 'float' | 'center';

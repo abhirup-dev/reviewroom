@@ -46,7 +46,8 @@ export async function stopServer(dir: string, pid?: number) {
   try {
     process.kill(rec.pid, 'SIGTERM');
   } catch {}
-  for (let i = 0; i < 30 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
+  // past the server's shutdown grace (serve.ts: its assistant saves its session and ends its processes first)
+  for (let i = 0; i < 100 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
   return rec;
 }
 

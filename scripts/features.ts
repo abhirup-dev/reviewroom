@@ -15,6 +15,7 @@ const allowed: Record<string, string[]> = {
   threads: ['kernel', 'review', 'threads'],
   slides: ['kernel', 'review', 'slides'],
   hub: ['kernel', 'hub'],
+  assistant: ['kernel', 'assistant'],
 };
 
 // The phone is an extension of the desktop core (Refactor 3.0, rr-486): core code reaches phone code only through the

@@ -27,6 +27,7 @@ import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../.
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 import { buildId, serveClient, withHead } from './pwa.ts';
+import { assistantEnabled, assistantRoutes, VIA_HUB } from './assistant.ts';
 
 function excerpt(prov: Provider, anchor: Anchor) {
   if (anchor.kind !== 'code') return null;
@@ -180,6 +181,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         if (files.has('review.html') || files.has('walkthrough.json')) checkNarrative();
       });
 
+  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
   const app = new Hono();
   app.use(localOnly);
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies
@@ -200,7 +202,9 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir) })); // id: the same for direct and proxied access
+  // id: the same for direct and proxied access; the assistant only for direct access
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
+  if (assistant) app.route('/api/assistant', assistant.app);
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
@@ -348,7 +352,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   );
 
   // for a server that ends before its process does (`slide-lint`): the watch would keep the process alive
-  const close = () => watcher?.close();
+  const close = () => { watcher?.close(); return assistant?.close(); };
   return { app, prov, commit, github, checkNarrative, close };
 }
 

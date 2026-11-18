@@ -1,0 +1,1 @@
+{"name":"claude-acp-agent","private":true,"type":"module","dependencies":{"@agentclientprotocol/claude-agent-acp":"0.107.3","@agentclientprotocol/sdk":"1.9.0","@modelcontextprotocol/sdk":"1.32.2","ws":"8.21.0","zod":"4.4.3"}}

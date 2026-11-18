@@ -70,6 +70,8 @@ export interface AppEvents extends Record<string, unknown> {
   picker: boolean | 'alt';
   'open-thread': { id: string; focusComposer?: boolean };
   'compose-thread': { anchor: Anchor; quote?: string; to?: 'agent' | 'github' };
+  /** ask the assistant (when the server runs one) about a code range or walkthrough block, with its text if known */
+  'ask-assistant': { anchor: Extract<Anchor, { kind: 'code' | 'doc' }>; quote?: string };
   selection: Selection;
   'doc-ready': HTMLElement;
   /** What the reader is in: the deepest section or h3/h4 heading (by id) whose top has passed the reading line. */
