@@ -145,3 +145,16 @@ test('progress is delivered without requesting a reload and stops at disposal', 
   push();
   expect(updates).toBe(1);
 });
+
+test('a reload reconciles progress first, but a stalled progress fetch never holds the reload', async () => {
+  using t = fixture();
+  t.global('fetch', async (url: string) => (url.endsWith('/progress') ? new Promise<Response>(() => {}) : Response.json(emptyState())));
+  const { backend } = server(t);
+  backend.reloadDeadlineMs = 20;
+  await backend.load();
+  let reloads = 0;
+  backend.subscribe({ state: () => {}, error: () => {}, review: () => reloads++ });
+  Stream.opened.at(-1)!.dispatchEvent(new MessageEvent('review', { data: '{}' })); // the server says: reload (newRun, as a new build's hello)
+  await new Promise((r) => setTimeout(r, 60));
+  expect(reloads).toBe(1);
+});
