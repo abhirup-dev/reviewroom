@@ -256,7 +256,7 @@ test('generate requests both documents of the assistant and starts one turn; ask
   using r = reviewWithAgent(false);
   const [status, body] = await r.generate();
   expect([status, body.started, body.generation]).toEqual([200, true, { running: true, awaitingApproval: false }]);
-  expect(body.walkthrough).toEqual({ state: 'requested', by: 'assistant', request: expect.any(String) });
+  expect(body.walkthrough).toEqual({ state: 'requested', by: 'assistant', request: expect.any(String), since: expect.any(String) });
   expect(r.events()).toEqual(['walkthrough requested assistant', 'report requested assistant']);
   await until(() => r.calls.launched === 1);
   const [again, running] = await r.generate();

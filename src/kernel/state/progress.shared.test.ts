@@ -15,7 +15,7 @@ test('absent request preserves legacy behavior, even with validation or stop rec
   expect(reduceProgress([stopped('failed', 'agent-1')], {}).walkthrough.state).toBe('idle');
 });
 test('requested -> writing -> validated, carrying who was asked and the request', () => {
-  expect(reduceProgress([requested('assistant')], {}).walkthrough).toEqual({ state: 'requested', by: 'assistant', request: 'assistant-1' });
+  expect(reduceProgress([requested('assistant')], {}).walkthrough).toEqual({ state: 'requested', by: 'assistant', request: 'assistant-1', since: expect.any(String) });
   expect(reduceProgress([requested('assistant'), line('written')], {}).walkthrough).toMatchObject({ state: 'writing', by: 'assistant', request: 'assistant-1', hash });
   expect(reduceProgress([requested('agent'), line('written'), line('validated')], { walkthrough: hash }).walkthrough).toMatchObject({ state: 'validated', by: 'agent' });
 });
@@ -30,7 +30,7 @@ test('stopped keeps what was written; saves leave it stopped; a validation or a 
   expect(reduceProgress(base, {}).walkthrough).toMatchObject({ state: 'stopped', reason: 'failed', by: 'assistant', hash });
   expect(reduceProgress([...base, line('written')], {}).walkthrough.state).toBe('stopped');
   expect(reduceProgress([...base, line('validated')], { walkthrough: hash }).walkthrough.state).toBe('validated');
-  expect(reduceProgress([...base, requested('agent')], {}).walkthrough).toEqual({ state: 'requested', by: 'agent', request: 'agent-1' });
+  expect(reduceProgress([...base, requested('agent')], {}).walkthrough).toEqual({ state: 'requested', by: 'agent', request: 'agent-1', since: expect.any(String) });
 });
 test('a stop applies only to the request it names, while unfinished: a late one never lands on a newer request', () => {
   // an old server's turn ends after a takeover appended the agent's request
@@ -67,4 +67,12 @@ test('a stop naming a stale validation applies only to that validation; one nami
   expect(reduceProgress([...base, stale(hash)], { walkthrough: 'b'.repeat(64) }).walkthrough.state).toBe('stopped');
   expect(reduceProgress([...base, stale('c'.repeat(64))], { walkthrough: 'b'.repeat(64) }).walkthrough.state).toBe('writing'); // another validation's
   expect(reduceProgress(base, { walkthrough: 'b'.repeat(64) }).walkthrough).toMatchObject({ state: 'writing', stale: hash });
+});
+
+test('each save with new bytes under a request is a pass; validating the same bytes is not; a new request starts over', () => {
+  const save = (h: string, slides: number, event: 'written' | 'validated' = 'written'): ProgressLine => ({ at, artifact: 'walkthrough', event, hash: h.repeat(64), slides, chapters: 3 });
+  const lines = [requested('assistant'), save('a', 7), save('b', 8), save('b', 8, 'validated')];
+  expect(reduceProgress(lines, { walkthrough: 'b'.repeat(64) }).walkthrough).toMatchObject({ state: 'validated', since: at, passes: [{ at, slides: 7, chapters: 3 }, { at, slides: 8, chapters: 3 }] });
+  expect(reduceProgress([...lines, requested('assistant', 'walkthrough', 'assistant-2')], {}).walkthrough.passes).toBeUndefined();
+  expect(reduceProgress([imported()], { walkthrough: hash }).walkthrough.passes).toBeUndefined(); // nothing requested: no passes
 });

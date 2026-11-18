@@ -24,8 +24,11 @@ export type Artifact = ProgressLine['artifact'];
 export type Requester = z.infer<typeof Requester>;
 export type StopReason = z.infer<typeof StopReason>;
 export type GenerationState = 'idle' | 'requested' | 'writing' | 'validated' | 'stopped';
-/** `stale`: writing because the validated file (that hash) was edited since; a stop of it names it. */
-export type ArtifactProgress = { state: GenerationState; by?: Requester; request?: string; reason?: StopReason; hash?: string; stale?: string; slides?: number; chapters?: number; head?: string; source?: 'pr' };
+/** One save of a document under its request (a `written` or `validated` line with new bytes): what the page lists. */
+export type Pass = { at: string; slides?: number; chapters?: number };
+/** `stale`: writing because the validated file (that hash) was edited since; a stop of it names it.
+ *  `since`: when it was requested; `passes`: its saves since, oldest first. */
+export type ArtifactProgress = { state: GenerationState; by?: Requester; request?: string; reason?: StopReason; hash?: string; stale?: string; slides?: number; chapters?: number; head?: string; source?: 'pr'; since?: string; passes?: Pass[] };
 /** `generation`: the built-in assistant's generation turn, from the server (absent where no assistant runs).
  *  `awaitingApproval`: the turn waits for the reviewer in the assistant panel; its documents stay requested/writing. */
 export type Progress = Record<Artifact, ArtifactProgress> & { generation?: { running: boolean; awaitingApproval: boolean } };
@@ -60,8 +63,8 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
     const prev = result[line.artifact];
     if (line.event === 'reset') { result[line.artifact] = { state: 'idle' }; continue; }
     if (line.event === 'requested') {
-      const { id, by, head } = line;
-      result[line.artifact] = { state: 'requested', by, ...(id && { request: id }), ...(head && { head }) };
+      const { id, by, head, at } = line;
+      result[line.artifact] = { state: 'requested', by, ...(id && { request: id }), ...(head && { head }), since: at };
       continue;
     }
     // nothing was requested: a legacy review, whatever was validated in it; but a walkthrough imported from the PR
@@ -74,10 +77,13 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
       if (stops(line, prev)) result[line.artifact] = { ...prev, state: 'stopped', reason: line.reason };
       continue;
     }
-    const { at: _at, artifact: _a, event, ...rest } = line;
+    const { at, artifact: _a, event, ...rest } = line;
+    // under a request, new bytes are a new pass (a validation of the bytes just written is the same pass)
+    const passes = !prev.since || line.hash === prev.hash ? prev.passes : [...(prev.passes ?? []), { at, ...(line.slides !== undefined && { slides: line.slides, chapters: line.chapters }) }];
+    const kept = { ...(prev.since && { since: prev.since }), ...(passes && { passes }) };
     // stopped is sticky against saves (nothing is generating any more); only a validation or a new request leaves it
-    if (event === 'written' && prev.state === 'stopped') result[line.artifact] = { ...prev, ...rest };
-    else result[line.artifact] = { ...rest, ...(prev.by && { by: prev.by }), ...(prev.request && { request: prev.request }), state: event === 'validated' ? 'validated' : 'writing' };
+    if (event === 'written' && prev.state === 'stopped') result[line.artifact] = { ...prev, ...rest, ...kept };
+    else result[line.artifact] = { ...rest, ...(prev.by && { by: prev.by }), ...(prev.request && { request: prev.request }), ...kept, state: event === 'validated' ? 'validated' : 'writing' };
   }
   for (const a of ARTIFACTS) {
     const r = result[a];
