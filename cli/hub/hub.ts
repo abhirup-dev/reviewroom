@@ -35,7 +35,7 @@ function session(id: string, tool: ToolName, now: string, fields: Partial<Sessio
     category: 'other', kind: 'unknown', target: null, classificationSource: '', origin: null, originSource: null, parentAgentPid: null,
     parentAgentGroup: null, author: null, mode: null, label: null, project: null, reviewPath: null, startedAt: null, updatedAt: null, commentCount: null,
     resolvedCommentCount: null, unresolvedCommentCount: null, reviewRound: null, browserClients: null, interacted: null,
-    firstSeenAt: now, lastSeenAt: now, health: 'unknown', notes: [], ...fields,
+    additions: null, deletions: null, changedFiles: null, firstSeenAt: now, lastSeenAt: now, health: 'unknown', notes: [], ...fields,
   };
 }
 
@@ -236,6 +236,11 @@ export class Hub {
           info.resolvedCommentCount = info.commentCount !== null && info.unresolvedCommentCount !== null ? info.commentCount - info.unresolvedCommentCount : null;
           info.browserClients = num(body?.browserClients);
           info.walkthrough = body?.walkthrough === true;
+          info.additions = num(body?.additions);
+          info.deletions = num(body?.deletions);
+          info.changedFiles = num(body?.files);
+          // the registry file is written once at start; state.json changes with every thread and round
+          if (typeof body?.updated === 'string') info.updatedAt = body.updated;
           info.interacted = (info.commentCount ?? 0) > 0 || (info.reviewRound ?? 1) > 1 || (info.browserClients ?? 0) > 0;
         }
         await this.withGit(info, r.repo);
