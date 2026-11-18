@@ -98,7 +98,7 @@ test('Bun bridge launch clears only child auth overrides and preserves host PATH
 // The routes below run AI SDK's real stream (a mock model) in place of the native session.
 const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
 /** `unfinished`: what the native session says after a turn (true: it waits on an approval). */
-function reviewWithAgent(finish = true, unfinished = () => false, ready = true, readSettings = () => settings) {
+function reviewWithAgent(finish = true, unfinished = () => false, ready = true, readSettings = () => settings, starting?: Promise<void>) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-routes-'));
   const calls = { launched: 0, stopped: 0 };
   const model = new MockLanguageModelV4({
@@ -118,6 +118,7 @@ function reviewWithAgent(finish = true, unfinished = () => false, ready = true, 
   });
   const launch = async () => {
     calls.launched++;
+    await starting; // Claude still starting (or failing to)
     return { agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) }, session: { hasUnfinishedTurn: unfinished }, checkpoint: async () => {}, stop: async () => void calls.stopped++ } as unknown as Live;
   };
   const sent: string[] = [];
@@ -136,17 +137,15 @@ function reviewWithAgent(finish = true, unfinished = () => false, ready = true, 
 /** The id the window gets for the answer, once the stream ends. */
 const answerId = async (res: Response) => (await res.text()).match(/"type":"start","messageId":"([^"]+)"/)![1];
 
-test('one question at a time: a second one while the first is still arriving is refused; an invalid one frees the turn', async () => {
-  using r = reviewWithAgent();
-  let send!: ReadableStreamDefaultController<Uint8Array>;
-  const slow = r.routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: new ReadableStream({ start: (c) => void (send = c) }), duplex: 'half' } as RequestInit);
-  await Bun.sleep(10);
-  const second = await r.post([user('q2')]);
+test('one question at a time: a second one while the first is answered is refused; an invalid one takes nothing', async () => {
+  using r = reviewWithAgent(false);
+  expect((await r.routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{broken' })).status).toBe(400);
+  const first = await r.post([user('q1')]);
+  // the reviewer's other windows follow a question's turn too
+  expect([first.status, (await readUntil(await r.routes.app.request('/x/stream'), (said) => said.includes('partial answer'))).ended]).toEqual([200, false]);
+  const second = await r.post([user('q1'), user('q2')]);
   expect([second.status, await second.text()]).toEqual([409, 'The assistant is already answering a question.']);
-  send.enqueue(new TextEncoder().encode('{broken'));
-  send.close();
-  expect((await slow).status).toBe(400);
-  expect((await r.post([user('q3')])).status).toBe(200);
+  await r.routes.close();
 });
 
 test('a stopped answer is saved under the id the window has, and the next question follows it', async () => {
@@ -218,9 +217,9 @@ test('a failed start keeps the question, so the same window can ask again', asyn
   } });
   const ask = (messages: UIMessage[]) => routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages }) });
   const res = await ask([user('q1')]);
-  expect([res.status, await res.text()]).toEqual([503, 'bridge did not start']);
+  expect([res.status, await res.text()]).toEqual([200, expect.stringContaining('"errorText":"bridge did not start"')]); // the chat's error
   fail = false;
-  expect(await (await ask([user('q1'), user('q2')])).text()).toBe('started'); // not "reload": the window was in step
+  expect(await (await ask([user('q1'), user('q2')])).text()).toContain('"errorText":"started"'); // not "reload": the window was in step
 });
 
 test('a broken conversation or settings disable only the assistant, and keep what was saved', async () => {
@@ -274,11 +273,7 @@ test('generate requests both documents of the assistant and starts one turn; ask
 async function readUntil(res: Response, done: (said: string) => boolean = () => false) {
   const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
   let said = '';
-  while (!done(said)) {
-    const { value, done: ended } = await reader.read();
-    if (ended) return { said, ended: true, reader };
-    said += value;
-  }
+  for (let x; !done(said); said += x.value) if ((x = await reader.read()).done) return { said, ended: true, reader };
   return { said, ended: false, reader };
 }
 
@@ -287,7 +282,6 @@ test('a window reconnects to the running turn (the AI SDK\'s resumable stream): 
   const stream = (headers: Record<string, string> = {}) => r.routes.app.request('/any-chat-id/stream', { headers });
   expect((await stream()).status).toBe(204);
   await r.generate(); // started by the server: no window reads it
-  await until(() => r.calls.launched === 1);
   expect((await stream({ 'x-reviewroom-via-hub': '1' })).status).toBe(403);
   const res = await stream();
   expect([res.status, res.headers.get('content-type'), res.headers.get('x-vercel-ai-ui-message-stream')]).toEqual([200, 'text/event-stream', 'v1']);
@@ -301,14 +295,44 @@ test('a window reconnects to the running turn (the AI SDK\'s resumable stream): 
   expect((await stream()).status).toBe(204); // dropped with its turn
 });
 
-test('a question\'s turn is held the same way, for the reviewer\'s other windows', async () => {
+test('the history says whether a turn runs, read with its messages; a window that never reads is still let go at the end', async () => {
   using r = reviewWithAgent(false);
-  const asked = await r.post([user('q1')]);
-  const other = await readUntil(await r.routes.app.request('/x/stream'), (said) => said.includes('partial answer'));
-  expect(other.ended).toBe(false);
-  void asked.body?.cancel();
+  const history = async () => { const h = await (await r.routes.app.request('/')).json(); return [h.running, h.messages.map((m: UIMessage) => m.role)]; };
+  expect(await history()).toEqual([false, []]);
+  await r.generate();
+  expect(await history()).toEqual([true, ['user']]); // the question, before Claude starts
+  const stalled = await r.routes.app.request('/x/stream'); // never read while the turn runs, then closed with it
   await r.routes.close();
+  expect([(await readUntil(stalled)).ended, (await history())[0]]).toEqual([true, false]); // let go at the end
 });
+
+test('a window that reconnects while Claude starts waits for the turn\'s stream (never a 204), or for the start to fail', async () => {
+  let started!: () => void;
+  using r = reviewWithAgent(false, () => false, true, () => settings, new Promise<void>((ok) => (started = ok)));
+  await r.generate();
+  const res = await r.routes.app.request('/x/stream'); // before any of the answer exists
+  started();
+  expect([res.status, (await readUntil(res, (text) => text.includes('partial answer'))).said]).toEqual([200, expect.stringContaining('"type":"start"')]);
+  await r.routes.close();
+
+  let failed!: (e: Error) => void;
+  using f = reviewWithAgent(false, () => false, true, () => settings, new Promise<void>((_, no) => (failed = no)));
+  await f.generate();
+  const waiting = await f.routes.app.request('/x/stream');
+  failed(new Error('Claude did not start'));
+  expect(await readUntil(waiting)).toMatchObject({ said: expect.stringContaining('"errorText":"Claude did not start"'), ended: true });
+  expect(assistantStore(f.dir, f.dir).saved.status).toBe('failed');
+});
+
+test('a turn that ends before a window reconnects: 204, and the saved history already has the whole answer', async () => {
+  using r = reviewWithAgent(); // answers and ends at once
+  await r.generate();
+  await until(() => assistantStore(r.dir, r.dir).saved.status === 'idle');
+  expect((await r.routes.app.request('/x/stream')).status).toBe(204);
+  const { status, messages } = await (await r.routes.app.request('/')).json();
+  expect([status, messages.map((m: UIMessage) => m.role)]).toEqual(['idle', ['user', 'assistant']]);
+});
+
 
 test('a generation turn that ends without validating stops its documents as failed and tells the pages', async () => {
   using r = reviewWithAgent();

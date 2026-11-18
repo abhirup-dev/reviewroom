@@ -74,15 +74,26 @@ function AgentLabel({ agent, connected }: { agent: AgentStatus; connected: boole
 }
 
 /** A turn this window didn't start (a generation, or a question asked in another window) runs on the server: the AI
- *  SDK's resumable stream follows it from its start (api/assistant/<id>/stream; nothing to follow: 204). */
-function Resume() {
+ *  SDK's resumable stream follows it from its start (api/assistant/<id>/stream). With nothing to follow (204: the turn
+ *  ended meanwhile, or none runs) the saved history goes into the same chat, so it is never left with a stale one. */
+function Resume({ onHistory }: { onHistory: (c: InitialConversation) => void }) {
   const chat = useAISDKChat(); // provided after the first render
-  const resumed = useRef(false);
+  const latest = useRef(chat);
+  latest.current = chat;
   useEffect(() => {
-    if (!chat || resumed.current) return;
-    resumed.current = true;
-    void chat.resumeStream().catch(console.error);
-  }, [chat]);
+    if (!chat) return;
+    const history = async () => {
+      const response = await fetch('api/assistant');
+      if (!response.ok) throw new Error(await response.text());
+      const saved: InitialConversation = await response.json();
+      latest.current?.setMessages(saved.messages);
+      onHistory(saved); // its status: Send waits for it
+    };
+    const before = chat.messages.at(-1)?.id;
+    void chat.resumeStream()
+      .then(() => (latest.current?.messages.at(-1)?.id === before ? history() : undefined))
+      .catch(console.error);
+  }, [!!chat]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the chat is there
   return null;
 }
 
@@ -128,7 +139,7 @@ function Chat({ onAsk, host, initial, draft, expose, readOnly }: { onAsk: OnAsk;
   }), [runtime, onAsk, host]);
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <Resume />
+      <Resume onHistory={setAgent} />
       <ThreadPrimitive.Root className="rr-assistant__thread">
         <ThreadPrimitive.Viewport className="rr-scroll rr-assistant__viewport">
           <AuiIf condition={(s) => s.thread.isEmpty}>
