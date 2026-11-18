@@ -109,7 +109,7 @@ export class ReviewApp {
   files: ChangedFile[] = [];
   commits: Commit[] = [];
   /** generation progress of the walkthrough and the report */
-  progress: Progress = { walkthrough: { state: 'none' }, report: { state: 'none' } };
+  progress: Progress = { walkthrough: { state: 'idle' }, report: { state: 'idle' } };
   /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;

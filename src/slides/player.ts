@@ -288,7 +288,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   const progressChanged = () => {
     const p = app.progress.walkthrough;
     status.textContent = p.state === 'requested' ? 'Reading the diff' : `${p.slides ?? 0} slides in ${p.chapters ?? 0} chapters written, checking`;
-    show.hidden = p.state !== 'written';
+    show.hidden = p.state !== 'writing';
     const version = pendingArtifact(p) ? `${p.state}:${p.hash ?? ''}` : null;
     if (version && version !== pendingVersion) actor.send({ type: 'writing', active: true });
     pendingVersion = version;

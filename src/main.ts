@@ -211,7 +211,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     progress: (p) => {
       const before = app.progress.walkthrough.state;
       app.progress = p;
-      if (p.walkthrough.state === 'validated' && (before === 'requested' || before === 'written')) {
+      if (p.walkthrough.state === 'validated' && (before === 'requested' || before === 'writing')) {
         const u = new URL(location.href);
         u.searchParams.set('walkthrough', '/');
         history.replaceState(history.state, '', u);
