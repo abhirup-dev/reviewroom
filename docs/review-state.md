@@ -5,7 +5,7 @@ reviewers don't edit these files; they change them through the CLI and the page.
 
 ## In a review folder
 
-A review folder is `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` by default, never inside the reviewed repo.
+A review folder is `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` by default (`pr-<n>/` for a PR given by number or URL), never inside the reviewed repo.
 
 | File | Written by | Holds |
 | --- | --- | --- |

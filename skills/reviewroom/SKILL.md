@@ -60,7 +60,7 @@ instructs. Keep the command running in the background while writing the walkthro
 
 ## Step 2: Relay the URL
 
-The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`,
+The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`, or `pr-<n>` for a PR,
 outside the repo) and the URL.
 `reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
 verbatim:

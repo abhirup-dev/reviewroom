@@ -17,10 +17,15 @@ describe('the hub starts reviews', async () => {
   const bare = path.join(clones, 'acme', 'demo.git');
   const bin = path.join(scratch, 'bin');
   fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, 'gh'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  // a stand-in `gh`: every PR comes from a fork branch called patch-1; anything else fails
+  fs.writeFileSync(path.join(bin, 'gh'), `#!/bin/sh
+[ "$1 $2" = "pr view" ] || exit 1
+echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"main","url":"https://github.com/acme/demo/pull/'$3'","author":{"login":"x"}}'
+`, { mode: 0o755 });
   await $`bash ${path.join(root, 'examples', 'make-demo-repo.sh')} ${path.join(scratch, 'src')}`.quiet();
   await $`git clone -q --bare ${path.join(scratch, 'src')} ${bare}`.quiet();
   await $`git -C ${bare} update-ref refs/pull/7/head refs/heads/feat/upload-rate-limit`.quiet();
+  await $`git -C ${bare} update-ref refs/pull/8/head refs/heads/feat/upload-rate-limit~1`.quiet();
   const { cli, tmp } = setup({
     REVIEWROOM_TEST_CLONE_ROOT: clones,
     CLAUDE_CODE_EXECUTABLE: path.join(scratch, 'no-claude'),
@@ -59,6 +64,12 @@ describe('the hub starts reviews', async () => {
     expect((await post('api/reviews', 'add-review', { url: PR })).status).toBe(201);
     expect((await $`git -C ${path.join(tmp, 'home', 'repos', 'acme', 'demo')} rev-parse refs/reviewroom/pr-7`.text()).trim()).toBe(sha);
     expect(await ours()).toHaveLength(1);
+  }, 60_000);
+
+  test('two PRs from branches of the same name are two reviews, each in its pr-<n> folder', async () => {
+    expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/8' })).status).toBe(201);
+    const all = ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((s) => s.target === '#7' || s.target === '#8');
+    expect(all.map((s) => path.basename(s.reviewPath!)).sort()).toEqual(['pr-7', 'pr-8']);
   }, 60_000);
 
   let pid = 0;

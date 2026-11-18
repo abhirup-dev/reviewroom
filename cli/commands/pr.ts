@@ -49,7 +49,8 @@ function prNumberTarget(repo: string, o: PrOpts, n: string, given?: string): Tar
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
   const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url ?? given, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
-  return { dir: branchDir(repo, info?.headRefName || `pr-${n}`), cfg }; // pr-<n> only when gh can't name the branch
+  // by number, never the head branch: two fork PRs from branches of one name (patch-1) are two reviews
+  return { dir: branchDir(repo, `pr-${n}`), cfg };
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
