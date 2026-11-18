@@ -45,6 +45,7 @@ const panelsStyles = [
   'src/threads/styles/markers.css',
   'src/kernel/styles/slot.css',
   'src/threads/styles/recap.css',
+  'src/assistant/assistant.css',
 ];
 
 const overlaysStyles = [
@@ -157,7 +158,10 @@ async function build() {
   writeFileSync(at('dist/hub.css'), hubCss());
   const hub = await Bun.build({ entrypoints: [at('src/hub/index.ts')], format: 'esm', target: 'browser', minify: true, define: { __RR_BUILD__: JSON.stringify(BUILD_PLACEHOLDER) }, outdir: at('dist'), naming: 'hub.[ext]' });
   // dist/cli/ sits as deep as cli/lib/, so the CLI's `../..` package-root lookup holds in both
-  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'bun', format: 'esm', outdir: at('dist/cli'), naming: '[name].js' });
+  // the experimental assistant's packages (cli/lib/assistant.ts) load from node_modules: the harness reads its bridge
+  // files beside its own module, which bundling breaks
+  const external = ['ai', '@ai-sdk/*', 'ai-sdk-sandbox-local'];
+  const cli = await Bun.build({ entrypoints: [at('cli/reviewroom.ts')], target: 'bun', format: 'esm', outdir: at('dist/cli'), naming: '[name].js', external });
   for (const r of [res, hub, cli]) {
     if (r.success) continue;
     for (const log of r.logs) console.error(log);

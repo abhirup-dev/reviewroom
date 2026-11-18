@@ -25,47 +25,54 @@ export const validWalkthrough = (dir: string) => {
 /** Missing file = empty review. Unparseable file, or one that breaks the schema = moved aside and an error: never start over silently.
  *  `repair: false` (a read-only reader) never moves anything: the error just says so. */
 export function readState(dir: string, { repair = true } = {}): ReviewState {
-  let raw: string;
-  try {
-    raw = fs.readFileSync(statePath(dir), 'utf8');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    // a moved-aside file means the review isn't empty: stay blocked until it is restored or deleted, never start over
-    const aside = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-')) : [];
-    if (aside.length) throw new ReviewroomError(`${statePath(dir)} was moved aside as ${aside.join(', ')}. Fix one and move it back as state.json, or delete them all to start the review over.`);
-    return emptyState();
-  }
+  const raw = readUnlessAside(statePath(dir));
+  if (raw === null) return emptyState();
   let data: ReviewState;
   try {
     data = JSON.parse(raw);
   } catch (e) {
-    return moveAside(dir, repair, `is not valid JSON (${(e as Error).message})`);
+    return moveAside(statePath(dir), repair, `is not valid JSON (${(e as Error).message})`);
   }
   const checked = StoredState.safeParse(data);
-  if (!checked.success) moveAside(dir, repair, `does not match schema/state.schema.json (${issueText(checked.error)})`);
+  if (!checked.success) moveAside(statePath(dir), repair, `does not match schema/state.schema.json (${issueText(checked.error)})`);
   return { ...checked.data, ...data }; // the file as read (keys this version doesn't know survive), plus the schema's defaults (an older file has no pins)
 }
-function moveAside(dir: string, repair: boolean, why: string): never {
-  if (!repair) throw new ReviewroomError(`${statePath(dir)} ${why}. Fix it or delete it to start the review over.`);
-  const bad = `${statePath(dir)}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+
+/** A file's text; null when it doesn't exist. A copy moved aside (`<file>.corrupt-*`) means its data isn't gone: stay
+ *  blocked until it is restored or deleted, never start over. */
+export function readUnlessAside(file: string): string | null {
   try {
-    fs.renameSync(statePath(dir), bad);
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    const dir = path.dirname(file), name = path.basename(file);
+    const aside = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.startsWith(`${name}.corrupt-`)) : [];
+    if (aside.length) throw new ReviewroomError(`${file} was moved aside as ${aside.join(', ')}. Fix one and move it back as ${name}, or delete them all to start over.`);
+    return null;
+  }
+}
+export function moveAside(file: string, repair: boolean, why: string): never {
+  if (!repair) throw new ReviewroomError(`${file} ${why}. Fix it or delete it to start over.`);
+  const bad = `${file}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  try {
+    fs.renameSync(file, bad);
   } catch {}
-  throw new ReviewroomError(`${statePath(dir)} ${why}; moved it to ${bad}. Fix and move it back, or delete it to start the review over.`);
+  throw new ReviewroomError(`${file} ${why}; moved it to ${bad}. Fix and move it back, or delete it to start over.`);
 }
 /** Atomic: unique temp file in the same dir, fsync, rename. */
-export function writeState(dir: string, s: ReviewState) {
-  fs.mkdirSync(dir, { recursive: true });
-  const tmp = path.join(dir, `.state.json.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`);
+export const writeState = (dir: string, s: ReviewState) => writeAtomic(statePath(dir), JSON.stringify(s, null, 2));
+export function writeAtomic(file: string, text: string, mode = 0o666) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`);
   try {
-    const fd = fs.openSync(tmp, 'w');
+    const fd = fs.openSync(tmp, 'w', mode);
     try {
-      fs.writeFileSync(fd, JSON.stringify(s, null, 2));
+      fs.writeFileSync(fd, text);
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
     }
-    fs.renameSync(tmp, statePath(dir));
+    fs.renameSync(tmp, file);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
     throw e;

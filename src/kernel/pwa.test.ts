@@ -6,10 +6,10 @@ const store = () => {
   return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
 };
 
-test('a reload waits for unsent ops, a comment being written or an open dialog', () => {
+test('a reload waits for unsent work, an open dialog or an active assistant', () => {
   const idle = { unsent: false, composing: false, dialog: false };
   expect(shouldHoldReload(idle)).toBe(false);
-  for (const k of ['unsent', 'composing', 'dialog'] as const) expect(shouldHoldReload({ ...idle, [k]: true })).toBe(true);
+  for (const k of ['unsent', 'composing', 'dialog', 'assistant'] as const) expect(shouldHoldReload({ ...idle, [k]: true })).toBe(true);
 });
 
 test('the worker is the hub root one, at a review server root and under the hub proxy', () => {

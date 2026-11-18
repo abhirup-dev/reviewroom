@@ -48,7 +48,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   let finish!: (f: Finished) => void;
   const done = new Promise<Finished>((r) => (finish = r));
   let seen = false; // a page (browser or app tab) connected
-  const { app, commit, checkNarrative } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
+  const { app, commit, checkNarrative, close } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
   const server = listen(app, +(portFlag || 4848));
   const port = server.port!;
   const url = `http://127.0.0.1:${port}/`;
@@ -66,7 +66,20 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
     } catch {}
   };
   process.on('exit', cleanup);
-  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
+  // the assistant stops its turn, saves its session and ends its processes; a stop that hangs, or a second signal, exits
+  // anyway, first ending its assistant's bridge (which ends the native agent under it; not a hub this server started):
+  // only a crash leaves them running
+  const shutdown = () => Promise.race([Promise.resolve(close()).catch((e: unknown) => console.error(`reviewroom: assistant cleanup failed: ${(e as Error).message}`)), Bun.sleep(8000)]);
+  const exit = () => {
+    Bun.spawnSync(['pkill', '-TERM', '-P', String(process.pid), '-f', 'bridge\\.mjs']);
+    process.exit(0);
+  };
+  let stopping = false;
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => {
+    if (stopping) exit();
+    stopping = true;
+    void shutdown().finally(exit);
+  });
   const s = readState(dir);
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} | round ${s.round} | ${url}`);
   checkNarrative(); // after the lock: it may write state.json
@@ -84,7 +97,8 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
       console.error(`reviewroom: could not record delivery: ${(e as Error).message}`);
     }
     console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} -> ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
+    await shutdown();
     void server.stop(true);
-    process.exit(0); // the review is over: also ends the walkthrough watcher and SSE pings
+    exit(); // the review is over: also ends the walkthrough watcher and SSE pings
   }, 150);
 }

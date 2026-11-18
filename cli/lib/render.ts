@@ -42,7 +42,7 @@ export async function withServer<T>(repo: string | null, dir: string, fn: (url: 
   try {
     return await fn(`http://127.0.0.1:${server.port}/`);
   } finally {
-    close();
+    await close();
     void server.stop(true);
   }
 }
