@@ -107,7 +107,11 @@ export async function cmdHub(o: HubOpts) {
   }
   process.on('exit', () => readHub()?.pid === process.pid && fs.rmSync(hubFile(), { force: true }));
   // a hub that no longer owns hub.json (deleted, its home removed, taken over) is unreachable by `hub --stop`: exit
-  setInterval(() => readHub()?.pid !== process.pid && process.exit(0), 1000);
+  // (only when it is gone or names another hub: a transient read error is no reason to stop serving)
+  setInterval(() => {
+    const owned = fs.existsSync(hubFile()) ? readHub() : null;
+    if (!fs.existsSync(hubFile()) || (owned && owned.pid !== process.pid)) process.exit(0);
+  }, 1000);
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
   console.error(`reviewroom: hub | ${rec.url}${pub ? ` | public: ${pub}/` : ''}`);
   show(rec.url);
