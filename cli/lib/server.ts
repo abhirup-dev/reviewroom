@@ -181,7 +181,11 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
       });
 
-  const assistant = assistantEnabled(dir) && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head }, send }) : undefined;
+  // REVIEWROOM_TEST_ASSISTANT: a module whose `launch` stands in for Claude (e2e only: a scripted, streaming assistant)
+  const fake = process.env.REVIEWROOM_TEST_ASSISTANT;
+  type Launch = NonNullable<Parameters<typeof assistantRoutes>[0]['launch']>;
+  const launch: Launch | undefined = fake ? (o) => import(fake).then((m: { launch: Launch }) => m.launch(o)) : undefined;
+  const assistant = assistantEnabled(dir) && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head }, send, ...(launch && { launch }) }) : undefined;
   // with the assistant's generation, when one runs here
   const progress = () => (assistant ? assistant.progress() : readProgress(dir));
   const app = new Hono();

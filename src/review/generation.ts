@@ -16,10 +16,10 @@ const ago = (iso: string | undefined) => {
 };
 const MARK = { done: '✓', current: '●', stopped: '✕' } as const;
 /** The steps as a list: numbered square markers joined by a line, a detail under each, pass rows under checking. */
-export function stepList(steps: GenStep[], first = 1) {
+function stepList(steps: GenStep[]) {
   return h('ol', { class: 'rr-gen-steps' }, ...steps.map((st, i) =>
     h('li', { class: `rr-gen-step is-${st.state}`, ...(st.state === 'current' && { 'aria-current': 'step' }) },
-      h('span', { class: 'rr-gen-step__mk', 'aria-hidden': 'true' }, st.state === 'done' ? icon('check', 14) : st.state === 'stopped' ? '!' : String(first + i)),
+      h('span', { class: 'rr-gen-step__mk', 'aria-hidden': 'true' }, st.state === 'done' ? icon('check', 14) : st.state === 'stopped' ? '!' : String(i + 1)),
       h('div', null,
         h('b', null, st.title),
         h('small', null, st.detail),
@@ -40,6 +40,17 @@ function refused({ code, error }: { code?: string; error?: string }) {
   return code === 'assistant_unavailable' && error ? error : 'Could not start generating. Try again.'; // the server's own words: Claude Code missing, say
 }
 
+/** The assistant's conversation, mounted read-only in `host`, following its running turn; returns the unmount. The
+ *  desktop supplies it (src/presentation.ts) where the server runs the assistant; without it the steps stand alone. */
+export type LiveChat = (host: HTMLElement) => () => void;
+const liveChats = new WeakMap<ReviewApp, { mount?: LiveChat; repaint?: () => void }>();
+const liveOf = (app: ReviewApp) => liveChats.get(app) ?? (liveChats.set(app, {}), liveChats.get(app)!);
+export function provideLiveChat(app: ReviewApp, mount: LiveChat) {
+  const l = liveOf(app);
+  l.mount = mount;
+  l.repaint?.();
+}
+
 // The header's controls are made once per page and updated in place, so a progress update never takes their focus
 type Variant = 'full' | 'icon';
 const header = new WeakMap<ReviewApp, { indicator: Partial<Record<Variant, HTMLButtonElement>>; generate: Partial<Record<Variant, HTMLButtonElement>> }>();
@@ -49,7 +60,7 @@ function paintIndicator(el: HTMLButtonElement, s: GenerationSnapshot) {
   const stage = stageIn(s);
   const label = stage === 'stopped' ? (reportStopped(s) ? 'Report not finished' : 'Generation stopped') : stage === 'playable' ? 'Writing the report' : 'Generating';
   el.classList.toggle('is-stopped', stage === 'stopped');
-  el.title = `${statusText(s)}. ${reportStopped(s) ? 'Show the report' : 'Show the progress'}`;
+  el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : reportStopped(s) ? 'Show the report' : 'Show the progress'}`;
   if (el.classList.contains('rr-hbtn--icon')) el.setAttribute('aria-label', label);
   else el.lastElementChild!.textContent = label;
 }
@@ -77,7 +88,7 @@ export function mountGeneration(app: ReviewApp) {
   // in playable the screen has nothing left to show: the indicator plays the walkthrough; a stopped report is shown
   // (with Retry) where the report goes
   const show = () => {
-    if (stageIn(snap()) === 'playable') return popSteps();
+    if (stageIn(snap()) === 'playable') return app.bus.emit('walkthrough-open', {});
     if (reportStopped(snap())) return void app.showPanel('narrative');
     actor.send({ type: 'reopen' });
   };
@@ -88,7 +99,7 @@ export function mountGeneration(app: ReviewApp) {
   const status = h('p', { class: 'rr-gen__status', role: 'status' });
   const facts = h('p', { class: 'rr-gen__facts' });
   const steps = h('div', { class: 'rr-gen__steps' });
-  const external = h('p', { class: 'rr-gen__note' });
+  const external = h('p', { class: 'rr-gen__agent' });
   // the overlay is inert-making: close it before the assistant opens, or the panel opens behind it
   const openAssistant = h('button', { class: 'rr-link-btn', onclick: () => { dismiss(); app.commands.run('assistant.open'); } }, 'Open the assistant');
   const approval = h('p', { class: 'rr-gen__note' }, 'The assistant is waiting for your approval. ', openAssistant);
@@ -141,7 +152,7 @@ export function mountGeneration(app: ReviewApp) {
   const paint = (s: GenerationSnapshot) => {
     const stage = stageIn(s), stopped = stage === 'stopped', w = s.context.progress.walkthrough;
     // the assistant's stream: only where the built-in assistant writes it and this page reaches it (never through the hub)
-    const stream = w.by === 'assistant' && !!app.meta.assistant;
+    const stream = w.by === 'assistant' && !!app.meta.assistant && !!liveOf(app).mount;
     heading.textContent = stopped ? 'Generation stopped' : 'Writing your walkthrough';
     status.textContent = statusText(s);
     status.classList.toggle('is-busy', !stopped);
@@ -162,52 +173,28 @@ export function mountGeneration(app: ReviewApp) {
     soFar.textContent = stopped ? 'Show the walkthrough so far' : 'Peek at the walkthrough';
     cont.classList.toggle('rr-btn--primary', !stopped);
     for (const el of Object.values(headerOf(app).indicator)) paintIndicator(el, s);
-    if (pop.matches(':popover-open')) {
-      if (stage === 'playable') paintPop(s);
-      else pop.hidePopover();
-    }
     const on = screenShown(s);
-    if (on === screen.hidden && !leaving) {
+    if (on === screen.hidden) {
       clearInterval(ticking);
       if (on) ticking = setInterval(tick, 1000);
-      // the walkthrough passed: the screen gives way to the player, its assistant window folding into the header's
-      // "Writing the report" (top right)
-      if (!on && stage === 'playable' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        leaving = true;
-        modal(false);
-        side.animate([{ transform: 'none' }, { transform: 'translate(40%, -60%) scale(0.1)', opacity: 0 }], { duration: 300, easing: 'ease-in' });
-        void screen.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300 }).finished.finally(() => {
-          leaving = false;
-          screen.hidden = true;
-        });
-        return;
-      }
       screen.hidden = !on;
       modal(on);
     }
+    paintLive(stream && on ? (w.request ?? '-') : '');
   };
-  let leaving = false;
+  /** The chat, while the screen is up for a request (`key`); mounted again for a new one (it resumes that turn). */
+  const paintLive = (key: string) => {
+    if (key === liveKey) return;
+    unmountLive?.();
+    const chat = liveOf(app).mount;
+    unmountLive = key && chat ? chat(live) : undefined;
+    liveKey = key;
+  };
+  let liveKey = '';
+  let unmountLive: (() => void) | undefined;
+  liveOf(app).repaint = () => paint(snap());
+  app.onDispose(() => unmountLive?.());
 
-  // after the handover, the header's "Writing the report" opens the same steps: 1 to 4 done in one row, the report live
-  const pop = h('div', { class: 'rr-gen-pop', popover: 'auto', role: 'dialog', 'aria-label': 'Generation progress' });
-  app.root.append(pop);
-  app.onDispose(() => pop.remove());
-  const paintPop = (s: GenerationSnapshot) => {
-    const all = generationSteps(s.context.progress, { stream: false, wrote: false }), ready = all.at(-2)!;
-    pop.replaceChildren(
-      stepList([{ ...ready, title: 'Reading · Writing · Checking · Ready' }, all.at(-1)!], 4),
-      h('button', { class: 'rr-link-btn', onclick: () => { pop.hidePopover(); app.bus.emit('walkthrough-open', {}); } }, 'Play the walkthrough'));
-  };
-  const popSteps = () => {
-    const { indicator } = headerOf(app);
-    const anchor = [indicator.full, indicator.icon].find((el) => el?.isConnected && el.offsetParent);
-    if (!anchor) return app.bus.emit('walkthrough-open', {});
-    paintPop(snap());
-    const r = anchor.getBoundingClientRect();
-    pop.style.top = `${r.bottom + 6}px`;
-    pop.style.right = `${Math.max(8, innerWidth - r.right)}px`;
-    pop.showPopover();
-  };
   let saved = '';
   actor.subscribe((s) => {
     app.generation = s;

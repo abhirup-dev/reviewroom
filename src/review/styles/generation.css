@@ -48,7 +48,7 @@
   font-family: var(--rr-mono);
   font-size: var(--rr-text-sm);
 }
-p.rr-gen__note {
+p.rr-gen__agent {
   color: var(--rr-muted);
   font-size: var(--rr-text-md);
 }
@@ -187,21 +187,6 @@ p.rr-gen__note {
   font-size: var(--rr-text-sm);
 }
 
-/* after the handover: the header's "Writing the report" opens the steps here */
-.rr-gen-pop {
-  position: fixed;
-  inset: auto;
-  margin: 0;
-  padding: var(--rr-space-12) var(--rr-space-16);
-  border: 1px solid var(--rr-line-strong);
-  border-radius: var(--rr-radius-lg);
-  background: var(--rr-surface-overlay);
-  box-shadow: var(--rr-shadow-lg);
-  color: var(--rr-ink);
-}
-.rr-gen-pop .rr-gen-step {
-  padding-bottom: var(--rr-space-8);
-}
 .rr-gen__status.is-busy::before,
 .rr-gen-ind__dot {
   content: '';

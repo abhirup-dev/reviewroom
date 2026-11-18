@@ -219,3 +219,54 @@ describe('the assistant panel', () => {
     }
   }, 60_000);
 });
+
+describe('one conversation, start to end', () => {
+  // a scripted assistant that streams (e2e/fake-assistant.ts); the stand-in claude only passes generate's checks
+  const gates = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-gates-'));
+  const claude = path.join(gates, 'claude');
+  fs.writeFileSync(claude, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const { serve } = setup({ CLAUDE_CODE_EXECUTABLE: claude, REVIEWROOM_TEST_ASSISTANT: path.join(import.meta.dir, 'fake-assistant.ts'), REVIEWROOM_TEST_GATES: gates }, { assistant: true });
+  const live = `(document.querySelector('.rr-gen__live')?.textContent ?? '')`;
+  const panel = `(document.querySelector('.rr-assistant__island')?.textContent ?? '')`;
+  const box = `document.querySelector('.rr-assistant__island textarea')`;
+  // the walkthrough landing reloads the page (main.ts, `review`): a wait that the reload cuts short is asked again
+  const across = async (page: Page, cond: string, ms: number) => {
+    const t0 = Date.now();
+    for (;;) {
+      try {
+        return await until(page, cond, Math.max(500, ms - (Date.now() - t0)));
+      } catch (e) {
+        if ((!String(e).includes('navigated') && !String(e).includes('is not defined')) || Date.now() - t0 > ms) throw e;
+        await Bun.sleep(200);
+      }
+    }
+  };
+
+  /** `js` once the page is up again: done as `cond` holds, for a reload that comes after the handover. */
+  const act = (page: Page, js: string, cond: string) => across(page, `rr.app && (${cond} || (${js}, false))`, 15_000);
+
+  test.skipIf(!browser)('the loading screen follows the generation live; after the handover the panel shows the same turn, then takes a question', async () => {
+    const page = await open(await serve());
+    try {
+      await page.evaluate(`rr.app.commands.run('generation.generate')`);
+      // a turn the server started: the screen's chat resumes it and shows what it says, while it runs
+      await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.')`, 15_000);
+      expect(await page.evaluate<boolean>(`!document.querySelector('.rr-gen__live textarea')`)).toBe(true); // read-only
+      fs.writeFileSync(path.join(gates, 'go-1'), ''); // the walkthrough passes: the screen closes and the player opens
+      await across(page, `rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-gen').hidden && document.querySelector('.rr-tour__player')`, 15_000);
+      // out of the player, then the assistant: a plain window on the same conversation, which resumes the turn
+      await act(page, `document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click()`, `document.querySelector('.rr-tour')?.dataset.mode === 'closed'`);
+      await act(page, `rr.app.commands.run('assistant.open')`, `${panel}.includes('Reading the diff.') && ${panel}.includes('The walkthrough passes.')`);
+      fs.writeFileSync(path.join(gates, 'go-2'), ''); // the report passes: the turn ends
+      await across(page, `${panel}.includes('Both pass.') && ${box} && !document.querySelector('[data-rr-assistant-running]')`, 15_000);
+      // a normal chat now, in the same conversation
+      await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'what changed?'))`);
+      await across(page, `${box}.value === 'what changed?'`, 5000);
+      await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send').click()`);
+      await across(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`, 15_000);
+      expect(page.errors()).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 90_000);
+});

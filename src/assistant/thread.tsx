@@ -1,9 +1,9 @@
 // The assistant's chat: assistant-ui's primitives on its AI SDK runtime. The runtime owns the messages, streaming,
 // stop and approvals; this file owns only which primitives show and their Review Room classes.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AssistantRuntimeProvider, AuiIf, ComposerPrimitive, ErrorPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, type QuoteInfo, type TextMessagePartProps, type ToolCallMessagePartProps } from '@assistant-ui/react';
-import { AssistantChatTransport, useChatRuntime } from '@assistant-ui/ai-sdk';
+import { AssistantChatTransport, useAISDKChat, useChatRuntime } from '@assistant-ui/ai-sdk';
 import { lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from 'ai';
 import { renderMarkdown } from '../kernel/markdown';
 import { h } from '../kernel/dom';
@@ -73,7 +73,20 @@ function AgentLabel({ agent, connected }: { agent: AgentStatus; connected: boole
   return <div className="rr-assistant__model rr-muted" role="status" data-rr-assistant-running={busy ? '' : undefined}>Model: {agent.model} · {status}</div>;
 }
 
-function Chat({ onAsk, host, initial, draft, expose }: { onAsk: OnAsk; host: HTMLElement; initial: InitialConversation; draft?: Draft; expose: (read: () => Draft) => void }) {
+/** A turn this window didn't start (a generation, or a question asked in another window) runs on the server: the AI
+ *  SDK's resumable stream follows it from its start (api/assistant/<id>/stream; nothing to follow: 204). */
+function Resume() {
+  const chat = useAISDKChat(); // provided after the first render
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (!chat || resumed.current) return;
+    resumed.current = true;
+    void chat.resumeStream().catch(console.error);
+  }, [chat]);
+  return null;
+}
+
+function Chat({ onAsk, host, initial, draft, expose, readOnly }: { onAsk: OnAsk; host: HTMLElement; initial: InitialConversation; draft?: Draft; expose: (read: () => Draft) => void; readOnly?: boolean }) {
   const [agent, setAgent] = useState<AgentStatus>(initial);
   const [connected, setConnected] = useState(true);
   const runtime = useChatRuntime({
@@ -115,6 +128,7 @@ function Chat({ onAsk, host, initial, draft, expose }: { onAsk: OnAsk; host: HTM
   }), [runtime, onAsk, host]);
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <Resume />
       <ThreadPrimitive.Root className="rr-assistant__thread">
         <ThreadPrimitive.Viewport className="rr-scroll rr-assistant__viewport">
           <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -125,7 +139,7 @@ function Chat({ onAsk, host, initial, draft, expose }: { onAsk: OnAsk; host: HTM
             <div className="rr-assistant__working rr-muted">Working…</div>
           </AuiIf>
         </ThreadPrimitive.Viewport>
-        <ComposerPrimitive.Root className="rr-composer rr-assistant__composer">
+        {!readOnly && <ComposerPrimitive.Root className="rr-composer rr-assistant__composer">
           <ComposerPrimitive.Quote className="rr-assistant__quote">
             <ComposerAbout />
             <ComposerPrimitive.QuoteDismiss className="rr-icon-btn" title="Don't attach this" aria-label="Remove the attached context">×</ComposerPrimitive.QuoteDismiss>
@@ -140,16 +154,17 @@ function Chat({ onAsk, host, initial, draft, expose }: { onAsk: OnAsk; host: HTM
               <ComposerPrimitive.Cancel className="rr-btn" title="Stop Claude's current turn">Stop</ComposerPrimitive.Cancel>
             </AuiIf>
           </div>
-        </ComposerPrimitive.Root>
+        </ComposerPrimitive.Root>}
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>
   );
 }
 
-/** Mounts the chat in `host`, with `draft` in its composer; `draft()` reads what is there now. */
-export function mount(host: HTMLElement, onAsk: OnAsk, initial: InitialConversation, draft?: Draft) {
+/** Mounts the chat in `host`, with `draft` in its composer; `draft()` reads what is there now. `readOnly`: no composer
+ *  (generation's loading screen). */
+export function mount(host: HTMLElement, onAsk: OnAsk, initial: InitialConversation, draft?: Draft, readOnly = false) {
   const root = createRoot(host);
   let read: () => Draft = () => draft ?? { text: '' };
-  root.render(<Chat onAsk={onAsk} host={host} initial={initial} draft={draft} expose={(r) => (read = r)} />);
+  root.render(<Chat onAsk={onAsk} host={host} initial={initial} draft={draft} expose={(r) => (read = r)} readOnly={readOnly} />);
   return { unmount: () => root.unmount(), draft: () => read() };
 }

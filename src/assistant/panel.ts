@@ -10,6 +10,16 @@ import type { Draft } from './thread';
 const PANEL = { id: 'assistant', component: 'assistant', title: 'Assistant', params: {} };
 const open = (app: ReviewApp) => showPanel(app, PANEL.id) || addPanelAt(app, PANEL, 'right');
 
+/** The same conversation, read-only, for generation's loading screen: it follows the running turn live (the chat
+ *  resumes it on mount). Returns the unmount. */
+export function mountLiveChat(host: HTMLElement) {
+  let chat: { unmount(): void } | undefined, gone = false;
+  void Promise.all([import('./thread'), fetch('api/assistant').then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))])
+    .then(([m, initial]) => { if (!gone) chat = m.mount(host, () => () => {}, initial, undefined, true); })
+    .catch((e: unknown) => console.error(`reviewroom: the assistant on the loading screen: ${e instanceof Error ? e.message : String(e)}`));
+  return () => { gone = true; chat?.unmount(); };
+}
+
 export function registerAssistant(app: ReviewApp) {
   // the context asked about last, until the chat takes it (it may still be loading)
   let pending: AskContext | undefined;
@@ -33,7 +43,8 @@ export function registerAssistant(app: ReviewApp) {
       const failure = h('div', { class: 'rr-assistant__error', role: 'alert', hidden: true });
       const element = h('div', { class: 'rr-side rr-assistant' }, suggest, failure, island);
       let chat: { unmount(): void; draft(): Draft } | undefined, gone = false, loading = false, stale = false;
-      const load = () => {
+      // `follow`: shown again even while busy (a generation started: its turn is the server's, and the chat follows it)
+      const load = (follow = false) => {
         loading = true;
         stale = false;
         void import('./thread').then(async (m) => {
@@ -42,7 +53,7 @@ export function registerAssistant(app: ReviewApp) {
           const initial = await response.json();
           if (gone) return;
           // checked again on arrival: a turn may have started, or the reviewer started typing, while this was out
-          if (chat && busy()) return void (stale = true);
+          if (chat && busy() && !follow) return void (stale = true);
           failure.hidden = true;
           const draft = chat?.draft(); // the reviewer's text and attached context carry over
           chat?.unmount();
@@ -77,7 +88,14 @@ export function registerAssistant(app: ReviewApp) {
       // a turn that ends here clears the running mark: apply what waited
       const watch = new MutationObserver(refresh);
       watch.observe(island, { subtree: true, attributes: true, attributeFilter: ['data-rr-assistant-running'], childList: true });
-      const offGen = app.bus.on('generation', paintSuggest);
+      // a generation starting while this is open: shown again, so the chat follows its turn from the start
+      let generating = !!app.generation?.context.progress.generation?.running;
+      const offGen = app.bus.on('generation', (s) => {
+        paintSuggest();
+        const now = !!s.context.progress.generation?.running;
+        if (now && !generating && !gone) load(true);
+        generating = now;
+      });
       const dispose = () => {
         gone = true;
         offTurn();

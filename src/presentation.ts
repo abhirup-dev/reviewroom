@@ -7,13 +7,13 @@ import { buildHeader } from './kernel/header';
 import * as dock from './kernel/dockview';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
-import { generateButton, generationIndicator, onGenerationHeader } from './review/generation';
+import { generateButton, generationIndicator, onGenerationHeader, provideLiveChat } from './review/generation';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
 import type { PhoneFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
-import { registerAssistant } from './assistant/panel';
+import { mountLiveChat, registerAssistant } from './assistant/panel';
 
 export interface PresentationModule {
   /** The header above the panels. */
@@ -50,7 +50,10 @@ export const desktop: PresentationModule = {
       subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); app.onDispose(onGenerationHeader(app, paint)); },
     }),
   mountSurface: (app, host, { lastLayout }) => {
-    if (app.meta.assistant) registerAssistant(app); // before the layout restores: a saved layout may show it
+    if (app.meta.assistant) {
+      registerAssistant(app); // before the layout restores: a saved layout may show it
+      provideLiveChat(app, mountLiveChat); // the loading screen's window on the same conversation
+    }
     app.layout.mount(host, lastLayout, { dock, panelAvailability: githubPanelAvailability(app) });
   },
 };

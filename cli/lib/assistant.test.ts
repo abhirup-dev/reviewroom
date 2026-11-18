@@ -270,6 +270,46 @@ test('generate requests both documents of the assistant and starts one turn; ask
   expect(r.calls.launched).toBe(1);
 });
 
+/** Reads `res` until `done` holds of what it said so far (or it ends). */
+async function readUntil(res: Response, done: (said: string) => boolean = () => false) {
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let said = '';
+  while (!done(said)) {
+    const { value, done: ended } = await reader.read();
+    if (ended) return { said, ended: true, reader };
+    said += value;
+  }
+  return { said, ended: false, reader };
+}
+
+test('a window reconnects to the running turn (the AI SDK\'s resumable stream): replayed, then followed; 204 when none runs; refused through the hub', async () => {
+  using r = reviewWithAgent(false);
+  const stream = (headers: Record<string, string> = {}) => r.routes.app.request('/any-chat-id/stream', { headers });
+  expect((await stream()).status).toBe(204);
+  await r.generate(); // started by the server: no window reads it
+  await until(() => r.calls.launched === 1);
+  expect((await stream({ 'x-reviewroom-via-hub': '1' })).status).toBe(403);
+  const res = await stream();
+  expect([res.status, res.headers.get('content-type'), res.headers.get('x-vercel-ai-ui-message-stream')]).toEqual([200, 'text/event-stream', 'v1']);
+  const first = await readUntil(res, (said) => said.includes('partial answer')); // said before this window came: replayed
+  expect(first.said).toContain('"type":"start"');
+  const closing = r.routes.close(); // the turn goes on to its end, and the window with it
+  let rest = '';
+  for (let x = await first.reader.read(); !x.done; x = await first.reader.read()) rest += x.value;
+  await closing;
+  expect(rest).toContain('"type":"abort"'); // followed: said after the replay
+  expect((await stream()).status).toBe(204); // dropped with its turn
+});
+
+test('a question\'s turn is held the same way, for the reviewer\'s other windows', async () => {
+  using r = reviewWithAgent(false);
+  const asked = await r.post([user('q1')]);
+  const other = await readUntil(await r.routes.app.request('/x/stream'), (said) => said.includes('partial answer'));
+  expect(other.ended).toBe(false);
+  void asked.body?.cancel();
+  await r.routes.close();
+});
+
 test('a generation turn that ends without validating stops its documents as failed and tells the pages', async () => {
   using r = reviewWithAgent();
   expect((await r.generate())[0]).toBe(200);

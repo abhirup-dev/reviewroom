@@ -199,6 +199,9 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
 export type Generation = { running: boolean; awaitingApproval: boolean };
 /** What the server pushes to its pages (SSE): `assistant` when a turn ends or pauses, `progress` when generation moves. */
 type Send = (event: 'assistant' | 'progress', data: unknown) => void;
+/** The running turn's UI message stream (SSE text) so far, and the reconnected windows following it. */
+type ActiveStream = { said: string[]; readers: Set<ReadableStreamDefaultController<string>> };
+const STREAM_HEADERS = { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', 'x-vercel-ai-ui-message-stream': 'v1', 'x-accel-buffering': 'no' };
 type RouteOpts = { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings; launch?: typeof start; send?: Send; generatePrompt?: string };
 
 /**
@@ -212,6 +215,22 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   let turn: { abort: AbortController; done: Promise<void> } | undefined;
   // a generation lasts from api/generate until a turn ends with nothing left to approve (approvals continue it)
   let generation: Generation | undefined;
+  // the running turn's stream, whatever started it (a question, or a generation): only the current one, until it ends
+  let active: ActiveStream | undefined;
+  /** consumeSseStream: holds a turn's stream (its tee'd copy) for windows that reconnect to it, to its end. */
+  const hold = async ({ stream }: { stream: ReadableStream<string> }) => {
+    const turnStream: ActiveStream = { said: [], readers: new Set() };
+    active = turnStream; // a new turn replaces the last
+    try {
+      for await (const text of stream) {
+        turnStream.said.push(text);
+        for (const r of turnStream.readers) try { r.enqueue(text); } catch { turnStream.readers.delete(r); }
+      }
+    } finally {
+      if (active === turnStream) active = undefined;
+      for (const r of turnStream.readers) try { r.close(); } catch { /* that window left */ }
+    }
+  };
   // the native session holds a turn paused on an approval (from the last turn's end)
   let paused = false;
   let turnModel = '';
@@ -265,6 +284,22 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     await next();
   });
   app.get('/model', (c) => c.json(status()));
+  /** The AI SDK's resumable stream (its reconnect URL, `{api}/{chatId}/stream`): the running turn so far, then as it
+   *  goes on; 204 when none runs. One conversation per review, so the chat id is not needed. */
+  app.get('/:chatId/stream', (c) => {
+    const turnStream = active;
+    if (!turnStream) return c.body(null, 204);
+    let reader!: ReadableStreamDefaultController<string>;
+    const body = new ReadableStream<string>({
+      start(ctrl) {
+        reader = ctrl;
+        for (const text of turnStream.said) ctrl.enqueue(text);
+        turnStream.readers.add(ctrl);
+      },
+      cancel: () => void turnStream.readers.delete(reader),
+    });
+    return new Response(body.pipeThrough(new TextEncoderStream()), { headers: STREAM_HEADERS });
+  });
   app.get('/', async (c) => {
     const { saved } = load();
     const { validateUIMessages } = await import('ai');
@@ -300,7 +335,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
         throw error;
       }
       const response = result.toUIMessageStreamResponse({
-        originalMessages: valid, generateMessageId: randomUUID,
+        originalMessages: valid, generateMessageId: randomUUID, consumeSseStream: hold,
         // also when the reviewer stops or leaves: the partial answer is saved under the id their window has
         onEnd: async ({ messages: completed, isAborted, isCancelled, outcome }) => {
           let p = false;
