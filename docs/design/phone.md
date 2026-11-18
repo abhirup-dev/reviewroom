@@ -131,6 +131,9 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
 - **Composer**: extra-large top corners, sits on `--rr-kb`; text field medium radius with accent focus outline.
 - **Toast** (snackbar): medium radius, inverse surface (`--rr-ink` fill, `--rr-bg` text), action in
   `--rr-accent-soft`; sits above the navigation bar.
+- **Generation loading**: the desktop's generation steps alone (the assistant has no panel on the phone, so reading
+  and writing are one step), then one plain line of where it stands (the status, with its pulsing dot) and the
+  touch-size buttons. No assistant window (`review.phone.css`).
 
 ## Icons
 

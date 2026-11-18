@@ -38,14 +38,19 @@ them to a state, and the client reads that state rather than the events:
 Requests and stops of both documents go in one write. Events before the first `requested` are ignored (a review that never asked for generation stays `idle`), except a walkthrough imported from the PR (`validated`, `source: pr`): it counts while the file has those bytes, and edited since, with nobody asked, is `idle` again. `stopped` keeps
 what was written and stays through later saves; a validation or a new request leaves it. An `agent`'s request is never
 stopped by the server, which can't know whether an outside agent is still at work. `/api/progress` and the `progress`
-event add `generation: { running, awaitingApproval }` where the assistant runs.
+event add `generation: { running, awaitingApproval }` where the assistant runs. Each document's reduced state also
+carries `since` (when it was requested) and `passes` (one per save of new bytes under that request: its time, slides and
+chapters), derived from these events for the loading screen's steps; nothing new is written.
 
 **`assistant.json`** stores the review's AI SDK transcript and opaque harness resume state (private, mode 0600).
 Reopening with the same installation restores the transcript and resumes its existing native session. The harness
 owns recovery; changing the installation path or agent dependencies can invalidate native resume. A corrupt one is
 moved aside like `state.json` and blocks the assistant (not the review) until restored or deleted; one started from
 another checkout is kept and refused there. Every assistant turn, a generation (`POST api/generate`) or a reviewer's question,
-runs with every tool approved (`allow-all`), so none waits on the reviewer. The assistant answers
+runs with every tool approved (`allow-all`), so none waits on the reviewer. The running turn's UI message stream,
+whatever started it, is held in memory until it ends (never on disk) and served at the AI SDK's resumable-stream URL,
+`api/assistant/<chatId>/stream` (replayed, then followed; 204 when none runs): every chat window resumes it on mount, so
+the loading screen and the panel follow a generation the server started. The assistant answers
 only the review's own URL: the hub proxy marks what
 it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/generate` included (ADR 0001: no identity yet).
 

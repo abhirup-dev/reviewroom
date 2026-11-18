@@ -176,9 +176,17 @@ p.rr-gen__agent {
   font-weight: 400;
 }
 .rr-gen__live {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  /* older messages fade out at the top; the newest sit at the bottom */
+  mask-image: linear-gradient(transparent, var(--rr-ink) 22%); /* a mask: only its alpha counts */
+}
+.rr-gen__live > * {
+  flex: 1;
+  min-height: 0;
 }
 .rr-gen__side footer {
   padding: var(--rr-space-6) var(--rr-space-12);
