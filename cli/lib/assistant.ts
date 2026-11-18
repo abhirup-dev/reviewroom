@@ -11,8 +11,10 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { UIMessage } from 'ai';
 import type { HarnessAgent } from '@ai-sdk/harness/agent';
-import { PKG, settingsFile } from './paths.ts';
+import { PKG, settingsFile, assistantHome } from './paths.ts';
 import type { ReviewConfig } from './config.ts';
+import { readState } from './state.ts';
+import { astGrepBinary } from './source/outline.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 
@@ -24,6 +26,7 @@ export const VIA_HUB = 'x-reviewroom-via-hub';
 const AssistantSettings = z.object({
   defaultAgentHarness: z.literal('claude', { error: 'Only the claude agent harness is supported.' }).default('claude'),
   defaultReviewModel: z.string().trim().min(1).default('sonnet'),
+  claudeExecutable: z.string().trim().min(1).optional(),
   reviewAgentPromptFile: z.string().trim().min(1).default(path.join(PKG, 'templates/assistant-prompt.md')),
 });
 
@@ -31,7 +34,10 @@ const AssistantSettings = z.object({
 export function readAssistantSettings(file = settingsFile()) {
   try {
     const settings = AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
-    return { ...settings, reviewAgentPromptFile: path.resolve(path.dirname(file), settings.reviewAgentPromptFile) };
+    return { ...settings,
+      ...(settings.claudeExecutable && /[/\\]/.test(settings.claudeExecutable) ? { claudeExecutable: path.resolve(path.dirname(file), settings.claudeExecutable) } : {}),
+      reviewAgentPromptFile: path.resolve(path.dirname(file), settings.reviewAgentPromptFile),
+    };
   } catch (error) {
     throw new Error(`Invalid assistant settings in ${file}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
@@ -42,23 +48,23 @@ const OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_
 
 /** @ai-sdk/harness-acp's bootstrap command (its PNPM_INSTALL_COMMAND, not exported): checked on upgrades by the first start. */
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile --prod --store-dir .pnpm-store';
+const bunCommand = `'${process.execPath.replaceAll("'", "'\\''")}'`;
 
 /** Scope subscription overrides to the bridge process; upstream currently launches it as `node <bridge>`. */
 export function assistantLaunch(command: string) {
-  const bun = `'${process.execPath.replaceAll("'", "'\\''")}'`;
-  return `env ${OVERRIDES.map((key) => `-u ${key}`).join(' ')} ${command.replace(/^node /, `${bun} `)}`;
+  return `env ${OVERRIDES.map((key) => `-u ${key}`).join(' ')} ${command.replace(/^node /, `${bunCommand} `)}`;
 }
 
-/** The native agent's package and lock: the harness installs them once under ~/.ai-sdk-harness and reuses them. */
+/** The native agent's package and lock: the harness installs them once under assistantHome() and reuses them. */
 const agentFile = (f: string) => fs.readFileSync(path.join(PKG, 'cli/lib/assistant-agent', f), 'utf8');
 
 export function instructions(repo: string, dir: string, cfg: ReviewConfig, promptFile = path.join(PKG, 'templates/assistant-prompt.md')) {
   const prompt = fs.readFileSync(promptFile, 'utf8').trim();
   if (!prompt) throw new Error(`The agent prompt file is empty: ${promptFile}`);
-  return `${prompt}\n\nCurrent review: ${cfg.base}..${cfg.head} of ${repo}. The walkthrough is in ${dir}/review.html.` +
-    ` Use \`reviewroom <command> --dir ${dir}\` for this review. Read relative skill references from ${path.join(PKG, 'skills/reviewroom')};` +
-    ` the skill file is ${path.join(PKG, 'skills/reviewroom/SKILL.md')}. The Review Room skill follows.\n\n` +
-    fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8');
+  return `${prompt}\n\nReview instance:\n${JSON.stringify({
+    repository: repo, directory: dir, base: cfg.base, head: cfg.head,
+    title: cfg.title, url: cfg.url, number: cfg.number, round: readState(dir).round,
+  }, null, 2)}\n\nUse the native reviewroom:reviewroom skill before working on this review. Its files are loaded by the session's Review Room plugin.`;
 }
 
 type Settings = ReturnType<typeof readAssistantSettings>;
@@ -66,23 +72,31 @@ type Store = ReturnType<typeof assistantStore>;
 
 /** The review's native session: started on its first question, resumed from the review's saved state when there is one. */
 async function start({ repo, dir, cfg, settings, store, model }: { repo: string; dir: string; cfg: ReviewConfig; settings: Settings; store: Store; model: () => string }) {
+  const previous = store.saved.session;
+  const requested = settings.claudeExecutable ?? process.env.CLAUDE_CODE_EXECUTABLE;
+  const claudeExecutable = Bun.which(requested ?? 'claude');
+  if (requested && !claudeExecutable) throw new Error(`Claude executable not found or not executable: ${requested}. Fix claudeExecutable in ${settingsFile()} or CLAUDE_CODE_EXECUTABLE.`);
   const prompt = instructions(repo, dir, cfg, settings.reviewAgentPromptFile);
   const [{ HarnessAgent }, { createACP }, { createLocalSandbox }] = await Promise.all([import('@ai-sdk/harness/agent'), import('@ai-sdk/harness-acp'), import('ai-sdk-sandbox-local')]);
-  // The bridge names Node explicitly; adapt its launch to Bun without changing the server's environment.
-  // Only a machine without Node needs a private shebang fallback for the native adapter.
-  const bin = Bun.which('node') ? undefined : fs.mkdtempSync(path.join(os.tmpdir(), 'reviewroom-assistant-'));
+  // Keep the session's CLI and plugin on the running build, without changing the host PATH.
+  const home = assistantHome();
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  const bin = fs.mkdtempSync(path.join(home, 'bin-'));
   let local: Awaited<ReturnType<ReturnType<typeof createLocalSandbox>['createSession']>> | undefined;
   const cleanup = async () => {
     await local?.stop(); // the local runner's stop ends every process it spawned (the bridge and, through it, Claude Code)
-    if (bin) fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(bin, { recursive: true, force: true });
   };
   try {
-    if (bin) fs.symlinkSync(process.execPath, path.join(bin, 'node'));
+    fs.symlinkSync(path.join(PKG, 'dist/cli/reviewroom.js'), path.join(bin, 'reviewroom'));
+    fs.symlinkSync(process.execPath, path.join(bin, 'bun'));
+    fs.symlinkSync(astGrepBinary(), path.join(bin, 'ast-grep'));
+    if (!Bun.which('node')) fs.symlinkSync(process.execPath, path.join(bin, 'node'));
     const free = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response() });
     const port = free.port!;
     await free.stop();
     const harness = createACP({
-      harnessId: 'reviewroom-claude', // stable: the installed agent (~/.ai-sdk-harness/.harness-bootstrap/<id>) is keyed by it
+      harnessId: 'reviewroom-claude', // stable: the installed agent's bootstrap is keyed by it
       source: { type: 'npm-locked', packageJson: agentFile('package.json'), pnpmLockYaml: agentFile('pnpm-lock.yaml') },
       executable: 'claude-agent-acp',
       modelMapping: { type: 'session-config-option', path: 'model' }, // the adapter dropped session/set_model
@@ -91,6 +105,9 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
       port,
       portEndpoint: { url: `ws://127.0.0.1:${port}` }, // ai-sdk-sandbox-local lacks getPortEndpoint
       auth: 'direct',
+      session: { meta: { claudeCode: { options: {
+        plugins: [{ type: 'local', path: PKG, skipMcpDiscovery: true }],
+      } } } },
     });
     // allow-reads: only what the native agent asks about (edits, most commands) comes to the reviewer as an AI SDK tool
     // approval, never approved here. Its own permission mode decides first: the reviewer's Claude Code defaultMode
@@ -99,16 +116,24 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
     // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
     // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
     const provider = createLocalSandbox({ cwd: repo });
-    const previous = store.saved.session;
     // resuming creates a new runner with the saved id: it never adopts processes another server started
     local = previous ? await provider.resumeSession!({ sessionId: previous.sandboxId }) : await provider.createSession();
     const runner = local;
+    const launchEnv = (env?: Record<string, string>) => ({ ...env, REVIEWROOM_ASSISTANT_DIR: dir, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` });
     const adapt = (view: ReturnType<typeof runner.restricted>) => Object.assign(Object.create(view) as typeof view, {
-      run: (o: Parameters<typeof view.run>[0]) => view.run(o.command === PNPM_INSTALL ? { ...o, command: 'bun install --frozen-lockfile --production' } : o),
+      run: (o: Parameters<typeof view.run>[0]) => {
+        if (o.command.startsWith('pnpm ') && o.command !== PNPM_INSTALL) throw new Error('The ACP bootstrap command changed. Update the Review Room Bun adapter before upgrading the harness.');
+        // The harness derives its fixed cache/state path from runner HOME. Only its setup commands use this HOME.
+        // Bun writes a migrated lock here; discard it on bootstrap so the shipped pnpm lock remains authoritative on upgrades.
+        return view.run({ ...o, env: { ...launchEnv(o.env), HOME: home }, command: o.command === PNPM_INSTALL ? `rm -f bun.lock && ${bunCommand} install --frozen-lockfile --production` : o.command });
+      },
       spawn: (o: Parameters<typeof view.spawn>[0]) => view.spawn({
         ...o,
         command: assistantLaunch(o.command),
-        ...(bin ? { env: { ...o.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } } : {}),
+        // Claude keeps its native login, plugins and connectors; do not redirect its HOME with the harness state.
+        env: { ...launchEnv(o.env), HOME: process.env.HOME ?? os.homedir(),
+          ...(claudeExecutable ? { CLAUDE_CODE_EXECUTABLE: claudeExecutable } : {}),
+        },
       }),
     });
     const sandbox = Object.assign(adapt(runner), { restricted: () => adapt(runner.restricted()) });
@@ -117,7 +142,7 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
       session = await agent.createSession({ sandboxSession: sandbox, ...(previous ? { sessionId: previous.id, resumeFrom: previous.resume } : {}) });
     } catch (error) {
       if (!previous) throw error;
-      throw new Error(`Could not resume this review's Claude Code session (${error instanceof Error ? error.message : String(error)}). Delete ${store.file} to start a new conversation.`, { cause: error });
+      throw new Error(`Could not resume this review's Claude Code session (${error instanceof Error ? error.message : String(error)}). The conversation is preserved in ${store.file}. Move that file aside to keep it, or delete it to start a new conversation.`, { cause: error });
     }
     const remember = (resume: NonNullable<SavedAssistant['session']>['resume']) => {
       store.saved.session = { id: session.sessionId, sandboxId: runner.id, resume };

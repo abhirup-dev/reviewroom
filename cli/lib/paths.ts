@@ -14,6 +14,8 @@ export const hubLog = () => path.join(homeDir(), 'hub.log');
 export const settingsFile = () => path.join(homeDir(), 'config.json');
 /** Every review on this machine: reviews/<owner>-<repo>/<branch>/ (resolveDir). */
 export const reviewsDir = () => path.join(homeDir(), 'reviews');
+/** HOME for harness bootstrap/state, separate from the native agent's real HOME and login. */
+export const assistantHome = () => path.resolve(homeDir(), 'assistant');
 /** The reviewer's saved layouts (<name>.json), shared by every review on this machine. */
 export const layoutsDir = () => path.join(homeDir(), 'layouts');
 /** Which saved layout is the reviewer's default: { "layout": "<name>" }. */

@@ -238,6 +238,10 @@ cli.help((sections) => {
       title: 'Experimental',
       body: [
         '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
+        '  Requires Git and a Claude login. First use downloads the pinned agent runtime; no global plugin, Node or pnpm needed.',
+        '  Agent runtime/cache: ~/.reviewroom/assistant/ (under REVIEWROOM_HOME); Claude login/settings stay native.',
+        '  claudeExecutable: optional executable name or path (relative to config.json). Restart after changing it.',
+        '  Selection: config override, CLAUDE_CODE_EXECUTABLE, claude on PATH, then the bundled binary.',
         '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet).',
         '  reviewAgentPromptFile: custom Markdown prompt; relative paths resolve beside config.json.',
         '  Model changes apply to the next new question; restart for harness or prompt changes.',

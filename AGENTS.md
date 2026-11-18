@@ -40,7 +40,12 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   `defaultAgentHarness` (`claude` only) / `defaultReviewModel` (`sonnet` by default) / `reviewAgentPromptFile` (optional Markdown
   prompt path, relative to this config file). Model defaults are reread before new questions; restart for other changes.
 - **`assistant.json`** in a review directory stores that review's AI SDK transcript and opaque harness resume state (private,
-  mode 0600). Reopening the review restores the transcript and resumes its existing native session. The harness owns recovery.
+  mode 0600). Reopening with the same installation restores the transcript and resumes its existing native session.
+  The harness owns recovery; changing the installation path or agent dependencies can invalidate native resume.
+  The harness keeps its runtime and session files in `assistant/.ai-sdk-harness/` under `REVIEWROOM_HOME`;
+  its setup commands use `assistant/` as HOME, while the native agent keeps the reviewer's real HOME and login.
+  `claudeExecutable` in the user config overrides the Claude binary; otherwise the native override environment,
+  `claude` on PATH, then the adapter's bundled binary are used. Changing it requires restarting the review server.
   Like `state.json`, a corrupt one is moved aside and blocks the assistant (not the review) until restored or deleted; one
   started from another checkout is kept and refused there. The assistant answers only the review's own URL: the hub proxy
   marks what it forwards (`x-reviewroom-via-hub`) and the review server refuses it (ADR 0001: no identity yet).
@@ -110,6 +115,12 @@ bun run dev         # rebuild on change; `reviewroom` runs dist/, not cli/ sourc
 bun run check       # typecheck, lint, tests, e2e: run before committing
 bun run demo        # demo repo + live review
 ```
+
+Commit both lockfiles: root `bun.lock` makes development and CI reproducible; the shipped
+`cli/lib/assistant-agent/pnpm-lock.yaml` pins the assistant's runtime bootstrap. When upgrading the ACP harness,
+sync the agent manifest's bridge dependencies with `@ai-sdk/harness-acp/dist/bridge/package.json`, then regenerate
+the agent lock with `bunx --bun pnpm@10.11.0 --dir cli/lib/assistant-agent install --lockfile-only`.
+pnpm is only needed for this maintainer command; users bootstrap through Bun.
 
 A refactor that must not change how anything looks: `bun scripts/snapshot.ts before.json` on the old build, again on
 the new one, then `bun scripts/snapshot.ts --diff before.json after.json` (computed styles of the demo on a phone and

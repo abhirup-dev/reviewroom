@@ -5,7 +5,6 @@ import path from 'node:path';
 import { streamText, type UIMessage } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext, type Live } from './assistant.ts';
-import { LINK_IN_TEXT, parseRef } from '../../src/kernel/refs/refs.shared.ts';
 import { PKG } from './paths.ts';
 import { assistantStore } from './assistant-store.ts';
 
@@ -13,6 +12,13 @@ const revs = { base: 'b0', head: 'h0' };
 const settings = { defaultAgentHarness: 'claude' as const, defaultReviewModel: 'sonnet', reviewAgentPromptFile: path.join(PKG, 'templates/assistant-prompt.md') };
 const quote = { text: 'return x;', messageId: '', ref: 'rr:code/src/a.ts#L4-6', label: 'src/a.ts:4-6' };
 const user = (text: string, metadata?: unknown): UIMessage => ({ id: text, role: 'user', parts: [{ type: 'text', text }], metadata });
+
+test('the agent bootstrap includes the pinned harness bridge dependencies', () => {
+  const bridge = path.join(path.dirname(Bun.resolveSync('@ai-sdk/harness-acp', PKG)), 'bridge/package.json');
+  const { dependencies } = JSON.parse(fs.readFileSync(bridge, 'utf8'));
+  const agent = JSON.parse(fs.readFileSync(path.join(PKG, 'cli/lib/assistant-agent/package.json'), 'utf8'));
+  expect(agent.dependencies).toMatchObject(dependencies);
+});
 
 test('machine settings default when absent and accept a model alongside existing settings', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-settings-'));
@@ -32,7 +38,7 @@ test('machine settings default when absent and accept a model alongside existing
   }
 });
 
-test('a configured prompt resolves beside settings and replaces the default while retaining review context and skill', () => {
+test('a configured role replaces the default; instance context references the native skill without embedding it', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-prompt-'));
   const file = path.join(dir, 'config.json');
   const prompt = path.join(dir, 'review-agent.md');
@@ -43,11 +49,16 @@ test('a configured prompt resolves beside settings and replaces the default whil
     const text = instructions('repository', 'review-directory', { base: 'base-sha', head: 'head-sha' }, readAssistantSettings(file).reviewAgentPromptFile);
     expect(text).toStartWith('Explain tradeoffs first. Keep {{literal}} unchanged.');
     expect(text).not.toContain('You are the assistant beside');
-    expect(text).toContain('base-sha..head-sha of repository');
-    expect(text).toContain('review-directory/review.html');
-    expect(text).toContain(fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8'));
+    expect(text).toContain('"base": "base-sha"');
+    expect(text).toContain('"directory": "review-directory"');
+    expect(text).toContain('native reviewroom:reviewroom skill');
+    expect(text).not.toContain(fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8'));
     fs.writeFileSync(file, JSON.stringify({ reviewAgentPromptFile: prompt }));
     expect(readAssistantSettings(file).reviewAgentPromptFile).toBe(prompt);
+    fs.writeFileSync(file, JSON.stringify({ claudeExecutable: './bin/claude-custom' }));
+    expect(readAssistantSettings(file).claudeExecutable).toBe(path.join(dir, 'bin/claude-custom'));
+    fs.writeFileSync(file, JSON.stringify({ claudeExecutable: 'claude-custom' }));
+    expect(readAssistantSettings(file).claudeExecutable).toBe('claude-custom');
     fs.writeFileSync(prompt, '  ');
     expect(() => instructions('r', 'd', { base: 'b', head: 'h' }, prompt)).toThrow('prompt file is empty');
     expect(() => instructions('r', 'd', { base: 'b', head: 'h' }, path.join(dir, 'missing.md'))).toThrow('missing.md');
@@ -65,12 +76,6 @@ test('a new question carries its attached context, once, before the question', (
   // an approval continues the turn that already had its context: nothing is added again
   const continuation = [user('do it', { custom: { quote } }), { id: 'a', role: 'assistant' as const, parts: [] }];
   expect(withContext(continuation, revs)).toEqual(continuation);
-});
-
-test('every link the agent is shown as an example is one Review Room opens', () => {
-  const links = instructions('repo', 'dir', { base: 'main', head: 'HEAD' }).split('The Review Room skill follows')[0].match(LINK_IN_TEXT)!;
-  expect(links.map((l) => parseRef(l)?.type)).toEqual(['code', 'code', 'sym', 'doc']);
-  expect(parseRef(links[1])).toMatchObject({ rev: 'base', start: 8 });
 });
 
 // This runs a real child: subscription overrides and PATH changes must not leak back into the review server.
