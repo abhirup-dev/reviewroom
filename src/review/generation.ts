@@ -155,7 +155,7 @@ export function mountGeneration(app: ReviewApp) {
     heading.textContent = stopped ? 'Generation stopped' : 'Writing your walkthrough';
     status.textContent = statusText(s);
     status.classList.toggle('is-busy', !stopped);
-    steps.replaceChildren(stepList(generationSteps(s.context.progress, { stream, wrote: false })));
+    steps.replaceChildren(stepList(generationSteps(s.context.progress)));
     side.hidden = !stream;
     openFull.hidden = !app.commands.get('assistant.open');
     external.hidden = w.by !== 'agent';
