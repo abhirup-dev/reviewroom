@@ -78,6 +78,8 @@ async function pastPlayer(page: Page, go: () => void, reloads = false) {
   await until(page, `document.querySelector('.rr-tour').dataset.mode === 'closed' && !location.search.includes('walkthrough')`);
   await across(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);
   expect(await page.evaluate<string>(`document.querySelector('.rr-tour').dataset.mode`)).toBe('closed'); // nothing reopened it
+  // the walkthrough passed, the report not yet: its panel says so
+  await until(page, `[...document.querySelectorAll('.rr-narrative > .rr-empty')].some((e) => !e.hidden && e.textContent.includes('The report is being written'))`);
 }
 /** Lets the turn end (`go(2)`), then the same conversation answers a question. The review reload the turn held (main.ts:
  *  the documents changed) comes as it ends: after it, the player closed before stays closed and one send is answered. */
@@ -110,6 +112,12 @@ describe('one conversation: the panel and the loading screen show the page\'s on
       // dismissed: focus on a live control, not the body or anything left inert; no Stop for a generation
       expect(await page.evaluate<string>(`JSON.stringify([document.activeElement === document.body, !!document.activeElement.closest('[inert]'), document.activeElement.isConnected])`)).toBe(JSON.stringify([false, false, true]));
       expect(await page.evaluate<boolean>(stop)).toBe(false);
+      // a draft typed in the panel survives the conversation being taken again (the server's event)
+      await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'half a thought')`);
+      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`);
+      await Bun.sleep(300);
+      expect(await page.evaluate<string>(`${box}.value`)).toBe('half a thought');
+      await page.evaluate(`${box}.select(), document.execCommand('delete')`); // an unsent draft would hold the review's reload
       await pastPlayer(page, () => go(1));
       await followUp(page, () => go(2));
       expect(page.errors()).toEqual([]);

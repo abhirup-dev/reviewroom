@@ -180,7 +180,9 @@ test('everything is refused through the hub: questions, the turn\'s stream, Stop
   await r.generate();
   const id = await r.turn();
   const [status, body] = await r.generate(HUB);
-  expect([status, body.code, (await r.post([user('q')], HUB)).status, (await r.follow(id, HUB)).status, (await r.routes.app.request('/', { headers: HUB })).status]).toEqual([403, 'via_hub', 403, 403, 403]);
+  const stop = await r.routes.app.request('/stop', { method: 'POST', headers: HUB, body: JSON.stringify({ streamId: id }) });
+  expect([status, body.code, (await r.post([user('q')], HUB)).status, (await r.follow(id, HUB)).status, (await r.routes.app.request('/', { headers: HUB })).status, stop.status]).toEqual([403, 'via_hub', 403, 403, 403, 403]);
+  expect(await r.turn()).toBe(id); // nothing stopped
   await r.routes.close();
 });
 
@@ -206,12 +208,15 @@ test('closing stops a running answer and saves it, stops the agent once; the nex
   await r.restart();
   const restored = await r.get();
   expect([restored.status, restored.messages.map((m: UIMessage) => m.id)]).toEqual(['interrupted', r.saved().messages.map((m) => m.id)]);
-  // a server killed mid-turn left it working on disk
+  // a server killed mid-turn left it working on disk: the next one keeps every message, marked interrupted
   const store = assistantStore(r.dir, r.dir);
+  store.saved.messages = [...store.saved.messages, user('asked as it died', { custom: { quote } })];
   store.saved.status = 'working';
   store.write();
+  const before = structuredClone(store.saved.messages);
   await r.restart();
-  expect((await r.get()).status).toBe('interrupted');
+  const after = await r.get();
+  expect([after.status, after.messages, r.saved().messages]).toEqual(['interrupted', before, before]);
 });
 
 test('the store is private to its review and writes atomically', () => {
