@@ -222,7 +222,7 @@ class WalkthroughPanel implements PanelInstance {
     if (this.historic) void this.showRound(0);
     this.app.showPanel(this.isDesc ? 'description' : 'narrative');
     const el = this.app.docElement(id, path);
-    if (!el) return this.app.toast(this.isDesc ? 'That part of the PR description is gone' : `“${id}” is not in the narrative`, 'error');
+    if (!el) return this.app.toast(this.isDesc ? 'That part of the PR description is gone' : `“${id}” is not in the report`, 'error');
     if (el instanceof HTMLDetailsElement) el.open = true;
     el.closest('details')?.setAttribute('open', '');
     const top = el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
