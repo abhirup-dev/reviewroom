@@ -17,13 +17,18 @@
 }
 .rr-gen__body {
   display: grid;
-  gap: var(--rr-space-48);
+  gap: var(--rr-space-32) var(--rr-space-48);
   width: min(100%, 30em);
 }
-/* with the assistant's window: steps left, the window right */
+/* with the assistant: the head across, then two equal columns, steps and the assistant, the same height */
 .rr-gen.has-side .rr-gen__body {
-  grid-template-columns: minmax(0, 30em) minmax(0, 36em);
-  width: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 64em);
+}
+.rr-gen__head {
+  display: grid;
+  gap: var(--rr-space-12);
+  grid-column: 1 / -1;
 }
 .rr-gen__main {
   display: grid;
@@ -43,7 +48,6 @@
   font-size: var(--rr-text-lg);
 }
 .rr-gen p.rr-gen__facts {
-  margin-bottom: var(--rr-space-16);
   color: var(--rr-muted);
   font-family: var(--rr-mono);
   font-size: var(--rr-text-sm);
@@ -151,13 +155,11 @@ p.rr-gen__agent {
   }
 }
 
-/* the assistant's window: a bordered panel on the secondary surface (its contents: the slot, .rr-gen__live) */
+/* the assistant, edgeless: its own chat, read-only, as tall as the steps beside it (it never sets the height) */
 .rr-gen__side {
-  display: flex;
-  flex-direction: column;
-  height: min(32em, 70vh);
-  border: 1px solid var(--rr-line-strong);
-  background: var(--rr-surface-doc-2);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 24em;
 }
 .rr-gen__side[hidden] {
   display: none;
@@ -166,33 +168,40 @@ p.rr-gen__agent {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--rr-space-8) var(--rr-space-12);
-  border-bottom: 1px solid var(--rr-line);
-  background: var(--rr-surface-bar);
+  height: var(--_mk, 26px); /* level with the first step's marker */
+  color: var(--rr-muted);
   font-size: var(--rr-text-sm);
   font-weight: 600;
+  letter-spacing: var(--rr-tracking-caps);
+  text-transform: uppercase;
 }
 .rr-gen__side header .rr-link-btn {
   font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .rr-gen__live {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  position: relative;
   min-height: 0;
-  overflow: hidden;
   /* older messages fade out at the top; the newest sit at the bottom */
-  mask-image: linear-gradient(transparent, var(--rr-ink) 22%); /* a mask: only its alpha counts */
+  mask-image: linear-gradient(transparent, var(--rr-ink) 18%); /* a mask: only its alpha counts */
 }
 .rr-gen__live > * {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
 }
-.rr-gen__side footer {
-  padding: var(--rr-space-6) var(--rr-space-12);
-  border-top: 1px solid var(--rr-line);
-  color: var(--rr-faint);
-  font-size: var(--rr-text-sm);
+/* edgeless: the chat takes the screen's paper, not a panel's, and lines up with the label above it */
+.rr-gen__live .rr-assistant__thread,
+.rr-gen__live .rr-assistant__viewport {
+  background: none;
+}
+/* newest at the bottom: what overflows goes off the top (the panel, Open full, has all of it) */
+.rr-gen__live .rr-assistant__viewport {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-inline: 0;
+  overflow: hidden;
 }
 
 .rr-gen__status.is-busy::before,

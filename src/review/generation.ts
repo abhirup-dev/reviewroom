@@ -114,13 +114,11 @@ export function mountGeneration(app: ReviewApp) {
   const openFull = h('button', { class: 'rr-link-btn', title: 'Open the assistant panel', onclick: () => { dismiss(); app.commands.run('assistant.open'); } }, 'Open full');
   const live = h('div', { class: 'rr-gen__live' });
   const side = h('section', { class: 'rr-gen__side', 'aria-label': 'Assistant', hidden: true },
-    h('header', null, h('span', null, 'Assistant'), openFull), live, h('footer', null, 'Read-only here. You can talk to it once the review is open.'));
+    h('header', null, h('span', null, 'Assistant'), openFull), live);
   const screen = h('div', { class: 'rr-gen', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Generation', tabindex: '-1', hidden: true },
     h('div', { class: 'rr-gen__body' },
-      h('div', { class: 'rr-gen__main' },
-        heading,
-        h('p', { class: 'rr-gen__title' }, app.meta.title),
-        facts, steps, external, status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, soFar, cont)),
+      h('div', { class: 'rr-gen__head' }, heading, h('p', { class: 'rr-gen__title' }, app.meta.title), facts),
+      h('div', { class: 'rr-gen__main' }, steps, external, status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, soFar, cont)),
       side));
   app.root.append(screen);
   // elapsed time while the screen is up: since the request, and since the last save
