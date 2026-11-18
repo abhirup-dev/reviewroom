@@ -118,10 +118,9 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
         plugins: [{ type: 'local', path: PKG, skipMcpDiscovery: true }],
       } } } },
     });
-    // allow-reads: only what the native agent asks about (edits, most commands) comes to the reviewer as an AI SDK tool
-    // approval, never approved here. Its own permission mode decides first: the reviewer's Claude Code defaultMode
-    // (`auto` included) may approve an edit itself, and no permission mode mapping overrides it.
-    const agent: HarnessAgent = new HarnessAgent({ harness, model: model(), prepareCall: (options) => ({ ...options, model: model() }), permissionMode: 'allow-reads', instructions: prompt, sandboxConfig: { workDir: '.' } });
+    // shortcut: allow-all approves every tool, generation and questions alike, so no turn waits on the reviewer;
+    // rr-wd3.17 replaces it with an allowlist aligned with Claude's permission rules.
+    const agent: HarnessAgent = new HarnessAgent({ harness, model: model(), prepareCall: (options) => ({ ...options, model: model() }), permissionMode: 'allow-all', instructions: prompt, sandboxConfig: { workDir: '.' } });
     // the local "sandbox" is the harness's process runner on this machine, not isolation. The harness installs the agent
     // through it (restricted() views) with pnpm; Bun installs the same lock instead (it migrates pnpm-lock.yaml).
     const provider = createLocalSandbox({ cwd: repo });
@@ -187,28 +186,7 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
   return [...messages.slice(0, -1), { ...last, parts: [{ type: 'text', text: contextPrompt(quote, revs) }, ...last.parts] }];
 }
 
-/**
- * Who answers a generation turn's approval requests (an edit, a command the native agent asks about): `approve-all`
- * answers each one yes and continues the turn, as the panel would; `reviewer` leaves it paused for the assistant panel.
- * Questions the reviewer asks keep the session's own policy (allow-reads plus the panel's approvals) either way.
- */
-// shortcut: generation auto-approves every tool; P2 replaces this with an allowlist aligned with Claude's permission rules (bead to follow)
-export const generationApproval = (): 'approve-all' | 'reviewer' => 'approve-all';
-
-type ToolPart = { type: string; state?: string; approval?: { id: string; approved?: boolean; reason?: string } };
-/** `message` with every pending tool approval answered yes (AI SDK's addToolApprovalResponse), or undefined if none. */
-export function approveAll(message: UIMessage | undefined): UIMessage | undefined {
-  let answered = false;
-  const parts = message?.parts.map((part) => {
-    const p = part as ToolPart;
-    if (!(p.type.startsWith('tool-') || p.type === 'dynamic-tool') || p.state !== 'approval-requested' || !p.approval) return part;
-    answered = true;
-    return { ...part, state: 'approval-responded', approval: { ...p.approval, approved: true, reason: 'Review Room generation approves its own tools' } } as typeof part;
-  });
-  return answered && message && parts ? { ...message, parts } : undefined;
-}
-
-/** Where a generation stands: `awaitingApproval` while its turn waits for the reviewer in the assistant panel. */
+/** Where a generation stands: `awaitingApproval` if its turn still pauses (allow-all asks nothing; kept so a pause never reads as failed). */
 export type Generation = { running: boolean; awaitingApproval: boolean };
 /** What the server pushes to its pages (SSE): `assistant` when a turn ends or pauses, `progress` when generation moves. */
 type Send = (event: 'assistant' | 'progress', data: unknown) => void;
@@ -257,14 +235,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       paused = p;
       release();
       if (generation) {
-        const last = store?.saved.messages;
-        const approved = p && generationApproval() === 'approve-all' ? approveAll(last?.at(-1)) : undefined;
-        if (approved && last) {
-          send('assistant', { status: store?.saved.status, generation: generationNow() });
-          drive([...last.slice(0, -1), approved], false); // the same turn, its approvals answered
-          return;
-        }
-        generation.awaitingApproval = p; // the reviewer's to answer (policy `reviewer`, or a pause with nothing to approve)
+        generation.awaitingApproval = p; // the panel's to continue
         if (!generation.awaitingApproval) {
           generation = undefined;
           // whatever the turn did not validate stopped with it; a closing server's turn was interrupted
