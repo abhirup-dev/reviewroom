@@ -100,9 +100,11 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
   cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
   if (o.assistant) cfg.assistant = true; // never cleared here: a later plain `pr` (an external agent) leaves it as it was
-  fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
-  const fresh = scaffold(repo, dir, cfg, !!o.force);
+  // config.json last, once setup has worked: a failed run leaves the previous one (or none, so no playable hub row)
   const prov = makeProvider(repo, cfg);
+  const files = prov.files(prov.base, prov.head);
+  const fresh = scaffold(repo, dir, cfg, !!o.force);
+  fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   // the old server stops first: until it has, it could accept a generation that a reset or request below would race
   const stopped = await stopServer(dir);
   // the next server takes its port (an open tab reconnects): cmdServe's own takeover finds nothing left to stop
@@ -112,7 +114,6 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
     if (o.agent === false) resetGeneration(dir);
     else requestGeneration(dir, 'agent', prov.head);
   }
-  const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 

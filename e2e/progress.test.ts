@@ -144,3 +144,12 @@ test('a --force takeover keeps the old server\'s port (an open tab reconnects)',
   const after = JSON.parse(fs.readFileSync(path.join(dir, 'server.json'), 'utf8')) as { pid: number; port: number };
   expect([after.pid !== before.pid, after.port]).toEqual([true, before.port]);
 });
+
+test('a failed setup writes no config.json: a re-run keeps the old one, a new folder gets none (no playable row)', async () => {
+  const before = fs.readFileSync(path.join(dir, 'config.json'), 'utf8');
+  expect((await cli(['pr', 'feature', '--base', 'no-such-ref', '--no-serve', ...d])).code).not.toBe(0);
+  expect(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')).toBe(before);
+  const fresh = path.join(tmp, 'never-set-up');
+  expect((await cli(['pr', 'feature', '--base', 'no-such-ref', '--no-serve', '--repo', repo, '--dir', fresh])).code).not.toBe(0);
+  expect(fs.existsSync(path.join(fresh, 'config.json'))).toBe(false);
+});
