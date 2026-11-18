@@ -68,6 +68,11 @@ export function createAssistantChat() {
           if (!response.body || !mine.turn) {
             release(); // refused, or 204: nothing to attach to
             if (response.status === 204) void sync(); // the turn ended, its end event perhaps missed: what is it now
+            if (init?.method === 'POST' && !response.ok) {
+              // refused (another window asked first): the conversation again, why, and the question back in the composer
+              const [why, asked] = [await response.clone().text(), (JSON.parse(init.body as string) as { messages: UIMessage[] }).messages.at(-1)!];
+              void sync().then(() => set({ error: why, ...(chat.messages.some((m) => m.id === asked.id) ? {} : { draft: text(asked) }) }));
+            }
             return response;
           }
           return new Response(whileRead(response.body, release), response);
@@ -78,14 +83,8 @@ export function createAssistantChat() {
       }) as typeof fetch, // Bun's fetch type adds `preconnect`, which the transport never calls
     }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
-    // any end: the history again; refused (another window asked first) or dropped, why, a refused question back
-    onFinish: ({ isError }) => {
-      const asked = chat.messages.at(-1);
-      void sync().then(() => {
-        const gone = asked?.role === 'user' && !chat.messages.some((m) => m.id === asked.id);
-        if (isError) set({ error: errorText(chat.error), ...(gone ? { draft: text(asked) } : {}) });
-      });
-    },
+    // a turn's end: the history again. A stream dropped or let go before its turn ended waits for the server's next event
+    onFinish: ({ isError, isAbort }) => void (!isError && !isAbort && sync()),
     onError: (e) => set({ error: errorText(e) }), // a failed replay isn't retried: the next snapshot follows again
   });
 

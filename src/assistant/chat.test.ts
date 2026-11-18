@@ -63,7 +63,13 @@ test.each([
       expect(c.getState().error).toBe('This conversation changed in another window.');
     }, ['b']],
   ['its turn over by the time it is followed (204), its end event missed', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [none] }, (c: Chat) => c.sync(), ['q', 'a']],
-  ['a stream that drops while the page\'s event stream stays up', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [drops] }, (c: Chat) => c.sync(), ['q', 'a']],
+  ['a stream that drops while the page\'s event stream stays up: no retry until the server says more', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [drops] },
+    async (c: Chat) => {
+      await c.sync();
+      await Bun.sleep(30);
+      expect([c.chat.messages.map((m) => m.id), c.getState().activeStreamId]).toEqual([['q'], 's1']); // no snapshot asked again
+      await c.sync(); // the turn's end (SSE)
+    }, ['q', 'a']],
   ['a stalled replay while the server ends the turn (its event)', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [stalls] },
     async (c: Chat) => {
       await c.sync();
