@@ -85,8 +85,10 @@ export interface AppEvents extends Record<string, unknown> {
   generation: GenerationSnapshot;
   /** fetch the walkthrough and play it from slide 1, written or not (generation: playable, or "Show it anyway") */
   'walkthrough-show': void;
-  /** the assistant's conversation changed on the server (a turn ended or paused) */
+  /** the assistant's conversation changed on the server (a turn started, ended or paused) */
   'assistant-turn': void;
+  /** the page's live connection to its server dropped (false) or came back (true) */
+  connection: boolean;
   /** play the walkthrough at a step (ids; missing: the first) */
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */

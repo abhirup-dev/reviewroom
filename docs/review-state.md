@@ -49,9 +49,13 @@ moved aside like `state.json` and blocks the assistant (not the review) until re
 another checkout is kept and refused there. Every assistant turn, a generation (`POST api/generate`) or a reviewer's question,
 runs with every tool approved (`allow-all`), so none waits on the reviewer. A turn starts in one step: its question
 saved and the turn made before Claude launches. Its UI message stream, whatever started it, is held in memory until it
-ends (never on disk) and served at the AI SDK's resumable-stream URL, `api/assistant/<chatId>/stream` (replayed, then
-followed; 204 when none runs); `GET api/assistant` says `running` with the messages. A page keeps one chat and resumes
-it whenever the history says `running`, so the loading screen and the panel follow a generation the server started. The assistant answers
+ends (never on disk) and served at the AI SDK's resumable-stream URL, `api/assistant/<chatId>/stream?turn=<id>`
+(replayed, then followed; 204 when that turn isn't running). `GET api/assistant` names the running turn with the
+messages (`activeStreamId`, null when none runs, and its `origin`: `question` or `generation`), and the server tells
+its pages (SSE `assistant`) whenever a turn starts, ends or pauses. A page keeps one chat and follows the turn the
+history names, so the loading screen and the panel follow a generation the server started. A page that leaves or
+reloads only stops following: the turn runs on. Stop is explicit, `POST api/assistant/stop {streamId}`, and stops only
+a question's turn, from any page; a generation runs until its turn ends or the server closes. The assistant answers
 only the review's own URL: the hub proxy marks what
 it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/generate` included (ADR 0001: no identity yet).
 

@@ -189,19 +189,27 @@ async function across(page: Page, cond: string, ms = 15_000) {
     }
   }
 }
-/** The walkthrough passed: out of its player (modal), back to the panel. */
-async function pastPlayer(page: Page) {
-  await across(page, `rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-tour__player')`);
-  await across(page, `rr.app && (document.querySelector('.rr-tour')?.dataset.mode === 'closed' || (document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click(), false))`);
+const closePlayer = `document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click()`;
+/** Lets the walkthrough pass (`go(1)`), then out of its player (modal), back to the panel. `reloads`: nothing holds the
+ *  review reload it brings (no composer on the page yet), so it is waited for: the player open then opens again after it. */
+async function pastPlayer(page: Page, go: () => void, reloads = false) {
+  await page.evaluate(`window.rrBeforeReload = true`);
+  go();
+  await across(page, `rr.app && ${reloads ? '!window.rrBeforeReload && ' : ''}rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-tour__player')`);
+  // closed, and not about to open: a slide still in the URL opens the player once its document loads
+  await across(page, `rr.app && (document.querySelector('.rr-tour')?.dataset.mode === 'closed' && !location.search.includes('walkthrough') || (${closePlayer}, false))`);
   await across(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);
 }
-/** The turn ends, then the same conversation answers a question. */
-async function followUp(page: Page) {
-  await across(page, `${panel}.includes('Both pass.') && ${box} && !document.querySelector('[data-rr-assistant-running]')`);
-  await page.evaluate(`void (${box}.focus(), document.execCommand('insertText', false, 'what changed?'))`);
-  await across(page, `${box}.value === 'what changed?'`, 5000);
-  await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send').click()`);
-  await across(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`);
+/** Lets the turn end (`go(2)`), then the same conversation answers a question. The review reload the turn held (main.ts:
+ *  the documents changed) comes as it ends: after it, the player closed before stays closed and one send is answered. */
+async function followUp(page: Page, go: () => void) {
+  await page.evaluate(`window.rrBeforeReload = true`);
+  go();
+  await across(page, `rr.app && !window.rrBeforeReload && ${panel}.includes('Both pass.') && !document.querySelector('[data-rr-assistant-running]')`, 20_000);
+  expect(await page.evaluate<boolean>(`document.querySelector('.rr-tour')?.dataset.mode !== 'playing'`)).toBe(true);
+  await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'what changed?')`);
+  await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send' && !b.disabled).click()`);
+  await until(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`, 15_000);
 }
 
 describe('one conversation: the panel and the loading screen show the page\'s one chat', () => {
@@ -218,10 +226,8 @@ describe('one conversation: the panel and the loading screen show the page\'s on
       await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
       await until(page, `document.querySelector('.rr-gen').hidden && !!document.querySelector('[data-rr-assistant-running]')`);
       expect(await page.evaluate<boolean>(stop)).toBe(false);
-      go(1);
-      await pastPlayer(page);
-      go(2);
-      await followUp(page);
+      await pastPlayer(page, () => go(1));
+      await followUp(page, () => go(2));
       expect(page.errors()).toEqual([]);
     } finally {
       await page.close();
@@ -240,10 +246,8 @@ describe('one conversation: a reload mid-turn', () => {
       await page.close();
       page = await open(url);
       await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.')`, 15_000);
-      go(1);
-      await pastPlayer(page);
-      go(2);
-      await followUp(page);
+      await pastPlayer(page, () => go(1), true);
+      await followUp(page, () => go(2));
       expect(page.errors()).toEqual([]);
     } finally {
       await page.close();

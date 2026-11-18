@@ -332,7 +332,7 @@ test('a question\'s turn: pages are told it started and ended, with its id; Stop
   expect([r.sent[2].data.activeStreamId, assistantStore(r.dir, r.dir).saved.status]).toEqual([null, 'interrupted']);
 });
 
-test('Stop never stops a generation (it is stopped from its own screen)', async () => {
+test('Stop never stops a generation (it runs until its turn ends or the server closes)', async () => {
   using r = reviewWithAgent(false);
   await r.generate();
   await r.stop(await r.turn());

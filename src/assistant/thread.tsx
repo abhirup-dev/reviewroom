@@ -1,19 +1,16 @@
 // A view of the page's conversation (chat.ts): assistant-ui's primitives on its AI SDK runtime, over the page's one
 // Chat. The Chat owns the messages, streaming, stop and approvals; this file owns only which primitives show and their
 // Review Room classes. Any number of views show the same Chat.
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AssistantRuntimeProvider, AuiIf, ComposerPrimitive, ErrorPrimitive, MessagePrimitive, ThreadPrimitive, useAuiState, type QuoteInfo, type TextMessagePartProps, type ToolCallMessagePartProps } from '@assistant-ui/react';
 import { useAISDKRuntime } from '@assistant-ui/ai-sdk';
 import { useChat } from '@ai-sdk/react';
 import { renderMarkdown } from '../kernel/markdown';
 import { h } from '../kernel/dom';
-import { wantReload } from '../kernel/pwa';
 import type { AskContext } from './context.shared';
-import type { AgentStatus, AssistantChat } from './chat';
+import type { AssistantChat, AssistantState } from './chat';
 
-/** Hands the chat each context the reviewer asks about; returns the unsubscribe. */
-type OnAsk = (take: (c: AskContext) => void) => () => void;
 // a read-only view (the loading screen's): no composer, no approvals
 const ReadOnly = createContext(false);
 
@@ -75,48 +72,29 @@ const AssistantMessage = () => (
   </MessagePrimitive.Root>
 );
 
-function AgentLabel({ agent, connected }: { agent: AgentStatus; connected: boolean }) {
+function AgentLabel({ state }: { state: AssistantState }) {
   const running = useAuiState((s) => s.thread.isRunning);
   // Stop ends the browser stream before the server has saved/checkpointed it. Hold reload through both.
-  const busy = running || agent.status === 'working';
-  const status = !connected ? 'Disconnected. Waiting for the server…' : busy ? 'Working…' : agent.status === 'interrupted' ? 'Interrupted. You can ask it to continue.' : agent.status === 'failed' ? 'Failed. You can try again.' : 'Ready';
-  return <div className="rr-assistant__model rr-muted" role="status" data-rr-assistant-running={busy ? '' : undefined}>Model: {agent.model} · {status}</div>;
+  const busy = running || !!state.activeStreamId;
+  const status = !state.connected ? 'Disconnected. Waiting for the server…' : busy ? 'Working…' : state.status === 'interrupted' ? 'Interrupted. You can ask it to continue.' : state.status === 'failed' ? 'Failed. You can try again.' : 'Ready';
+  return <div className="rr-assistant__model rr-muted" role="status" data-rr-assistant-running={busy ? '' : undefined}>Model: {state.model} · {status}</div>;
 }
-function View({ service, onAsk, host, initial, readOnly }: { service: AssistantChat; onAsk?: OnAsk; host: HTMLElement; initial: AgentStatus; readOnly: boolean }) {
-  const [agent, setAgent] = useState<AgentStatus>(initial);
-  const [connected, setConnected] = useState(true);
+function View({ service, host, readOnly }: { service: AssistantChat; host: HTMLElement; readOnly: boolean }) {
+  const state = useSyncExternalStore(service.subscribe, service.getState);
   const runtime = useAISDKRuntime(useChat({ chat: service.chat }));
-  useEffect(() => runtime.thread.subscribe(() => {
-    if (runtime.thread.getState().isRunning) setAgent((current) => current.status === 'working' ? current : { ...current, status: 'working' });
-  }), [runtime]);
+  // the composer takes what the store holds for it: the context asked about, a refused question's text
   useEffect(() => {
-    if (readOnly) return; // its status shows in the composer
-    const controller = new AbortController();
-    const refresh = async () => {
-      try {
-        const response = await fetch('api/assistant/model', { signal: controller.signal });
-        if (!response.ok) throw new Error(await response.text());
-        const next: AgentStatus = await response.json();
-        if (controller.signal.aborted) return;
-        setAgent(next);
-        setConnected(next.instance === initial.instance);
-        // The old browser runtime cannot continue a turn from the previous server. Restore the saved transcript.
-        if (next.instance !== initial.instance) wantReload('review', 'the assistant server restarted');
-      } catch {
-        if (!controller.signal.aborted) setConnected(false);
-      }
-    };
-    const timer = setInterval(() => void refresh(), 2000);
-    return () => { clearInterval(timer); controller.abort(); };
-  }, [initial.instance, readOnly]);
-  useEffect(() => onAsk?.((c) => {
-    runtime.thread.composer.setQuote(c);
+    if (readOnly || (!state.quote && state.draft === undefined)) return;
+    if (state.quote) runtime.thread.composer.setQuote(state.quote);
+    if (state.draft !== undefined) runtime.thread.composer.setText(state.draft);
+    service.take(state.quote ? 'quote' : 'draft');
     host.querySelector('textarea')?.focus();
-  }), [runtime, onAsk, host]);
+  }, [runtime, service, host, readOnly, state.quote, state.draft]);
   return (
     <ReadOnly.Provider value={readOnly}>
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadPrimitive.Root className="rr-assistant__thread">
+        {state.error && <div className="rr-assistant__error" role="alert">{state.error}</div>}
         <ThreadPrimitive.Viewport className="rr-scroll rr-assistant__viewport">
           <AuiIf condition={(s) => s.thread.isEmpty}>
             <div className="rr-empty">Ask Claude Code about this review. It runs on this machine with your login, and can read the diff and run git, gh and reviewroom.</div>
@@ -131,16 +109,14 @@ function View({ service, onAsk, host, initial, readOnly }: { service: AssistantC
             <ComposerAbout />
             <ComposerPrimitive.QuoteDismiss className="rr-icon-btn" title="Don't attach this" aria-label="Remove the attached context">×</ComposerPrimitive.QuoteDismiss>
           </ComposerPrimitive.Quote>
-          <AgentLabel agent={agent} connected={connected} />
+          <AgentLabel state={state} />
           <ComposerPrimitive.Input className="rr-composer__input" placeholder="Ask about this change" rows={2} />
           <div className="rr-assistant__actions">
             <AuiIf condition={(s) => !s.thread.isRunning}>
-              <ComposerPrimitive.Send className="rr-btn rr-btn--primary" disabled={!connected || agent.status === 'working'}>Send</ComposerPrimitive.Send>
+              <ComposerPrimitive.Send className="rr-btn rr-btn--primary" disabled={!state.connected || !!state.activeStreamId}>Send</ComposerPrimitive.Send>
             </AuiIf>
-            {/* only a turn this page sent: one it follows (a generation's) is not this page's to stop */}
-            <AuiIf condition={(s) => s.thread.isRunning && service.asked()}>
-              <ComposerPrimitive.Cancel className="rr-btn" title="Stop Claude's current turn">Stop</ComposerPrimitive.Cancel>
-            </AuiIf>
+            {/* a question's turn, from any page; never a generation's */}
+            {state.origin === 'question' && <button type="button" className="rr-btn" title="Stop Claude's current turn" onClick={() => void service.stop().catch(console.error)}>Stop</button>}
           </div>
         </ComposerPrimitive.Root>}
       </ThreadPrimitive.Root>
@@ -149,10 +125,10 @@ function View({ service, onAsk, host, initial, readOnly }: { service: AssistantC
   );
 }
 
-/** Shows the page's conversation in `host`; `initial`: its status when last synced. `readOnly`: no composer, approvals
- *  or sends (generation's loading screen). Returns the unmount. */
-export function mount(host: HTMLElement, service: AssistantChat, initial: AgentStatus, { readOnly = false, onAsk }: { readOnly?: boolean; onAsk?: OnAsk } = {}) {
+/** Shows the page's conversation in `host`. `readOnly`: no composer, approvals or sends (generation's loading screen).
+ *  Returns the unmount. */
+export function mount(host: HTMLElement, service: AssistantChat, { readOnly = false } = {}) {
   const root = createRoot(host);
-  root.render(<View service={service} onAsk={onAsk} host={host} initial={initial} readOnly={readOnly} />);
+  root.render(<View service={service} host={host} readOnly={readOnly} />);
   return () => root.unmount();
 }

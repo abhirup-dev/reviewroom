@@ -299,7 +299,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
    *  named: the turn so far, then as it goes on (waiting while Claude starts); 204 when that turn isn't running (it
    *  ended, or another took its place: the page fetches the history again). One conversation per review: no chat id. */
   app.get('/:chatId/stream', (c) => (phase.name === 'running' && phase.id === c.req.query('turn') ? phase.stream.follow() : c.body(null, 204)));
-  /** Stop: the named turn, if it is still running and a question's (a generation is stopped from its own screen). */
+  /** Stop: the named turn, if it is still running and a question's (a generation runs until its turn ends or the server closes). */
   app.post('/stop', async (c) => {
     const { streamId } = await c.req.json<{ streamId?: string }>().catch(() => ({ streamId: undefined }));
     if (phase.name === 'running' && phase.origin === 'question' && phase.id === streamId) phase.abort.abort();
