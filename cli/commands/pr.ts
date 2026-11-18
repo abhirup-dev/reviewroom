@@ -103,7 +103,9 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
   // the old server stops first: until it has, it could accept a generation that a reset or request below would race
-  await stopServer(dir);
+  const stopped = await stopServer(dir);
+  // the next server takes its port (an open tab reconnects): cmdServe's own takeover finds nothing left to stop
+  const port = o.port || (stopped ? String(stopped.port) : undefined);
   // --no-agent (the hub): set up only; generation is idle (a forced review's old one reset) until someone asks (api/generate)
   if (fresh || o.force) {
     if (o.agent === false) resetGeneration(dir);
@@ -114,8 +116,8 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
   if (o.serve === false) return console.log(dir); // set up only (the hub's Add a PR): its Play starts the server
-  if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
-  const extra = [...(o.port ? ['--port', o.port] : []), ...(o.open ? [] : ['--no-open']), ...(o.browser ? ['--browser'] : [])];
+  if (!o.detach) return cmdServe(repo, { dir, port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
+  const extra = [...(port ? ['--port', port] : []), ...(o.open ? [] : ['--no-open']), ...(o.browser ? ['--browser'] : [])];
   const rec = await startDetached(repo, dir, extra);
   if (rec) {
     console.log(rec.url);

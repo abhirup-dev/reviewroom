@@ -136,3 +136,11 @@ test('--force resets only once the previous server has stopped: it can no longer
   const reset = progressLines(dir).filter((l) => l.event === 'reset').at(-1)!;
   expect(Date.parse(reset.at)).toBeGreaterThanOrEqual(gone - 10); // the 5 ms poll's slack
 });
+
+test('a --force takeover keeps the old server\'s port (an open tab reconnects)', async () => {
+  const before = JSON.parse(fs.readFileSync(path.join(dir, 'server.json'), 'utf8')) as { pid: number; port: number };
+  const r = await cli(prArgs.filter((a, i) => a !== '--port' && prArgs[i - 1] !== '--port').concat('--force', '--no-agent'));
+  expect(r.code).toBe(0);
+  const after = JSON.parse(fs.readFileSync(path.join(dir, 'server.json'), 'utf8')) as { pid: number; port: number };
+  expect([after.pid !== before.pid, after.port]).toEqual([true, before.port]);
+});
