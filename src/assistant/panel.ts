@@ -20,24 +20,46 @@ export function registerAssistant(app: ReviewApp) {
     title: PANEL.title,
     icon: 'thread',
     create: () => {
-      const element = h('div', { class: 'rr-side rr-assistant' });
-      let unmount: (() => void) | undefined, gone = false;
-      void import('./thread').then(async (m) => {
-        const response = await fetch('api/assistant');
-        if (!response.ok) throw new Error(await response.text()); // a moved-aside conversation, invalid settings: why
-        const initial = await response.json();
-        if (gone) return;
-        unmount = m.mount(element, (fn) => {
-          take = fn;
-          if (pending) fn(pending);
-          pending = undefined;
-          return () => (take = take === fn ? undefined : take);
-        }, initial);
-      }).catch((error: unknown) => {
-        if (!gone) element.textContent = error instanceof Error ? error.message : String(error);
+      const island = h('div', { class: 'rr-assistant__island' });
+      // nothing requested yet: the assistant can write the walkthrough and report (generation.generate, review/generation.ts)
+      const suggest = h('div', { class: 'rr-assistant__suggest', hidden: true }, h('span', null, 'No walkthrough or report yet.'), h('button', { class: 'rr-btn rr-btn--primary', onclick: () => app.commands.run('generation.generate') }, 'Generate them'));
+      const paintSuggest = () => {
+        const c = app.commands.get('generation.generate');
+        suggest.hidden = !(app.generation?.matches({ stage: 'idle' }) && c && (!c.when || c.when()));
+      };
+      paintSuggest();
+      const element = h('div', { class: 'rr-side rr-assistant' }, suggest, island);
+      let unmount: (() => void) | undefined, gone = false, loading = false;
+      const load = () => {
+        loading = true;
+        void import('./thread').then(async (m) => {
+          const response = await fetch('api/assistant');
+          if (!response.ok) throw new Error(await response.text()); // a moved-aside conversation, invalid settings: why
+          const initial = await response.json();
+          if (gone) return;
+          unmount?.();
+          unmount = m.mount(island, (fn) => {
+            take = fn;
+            if (pending) fn(pending);
+            pending = undefined;
+            return () => (take = take === fn ? undefined : take);
+          }, initial);
+        }).catch((error: unknown) => {
+          if (!gone) island.textContent = error instanceof Error ? error.message : String(error);
+        }).finally(() => (loading = false));
+      };
+      load();
+      // the conversation changed on the server (a generation's turn, or one asked elsewhere): show it, unless this page's
+      // own turn is running or a draft would be lost
+      const offTurn = app.bus.on('assistant-turn', () => {
+        const draft = island.querySelector<HTMLTextAreaElement>('textarea')?.value.trim();
+        if (!loading && !draft && !island.querySelector('[data-rr-assistant-running]')) load();
       });
+      const offGen = app.bus.on('generation', paintSuggest);
       const dispose = () => {
         gone = true;
+        offTurn();
+        offGen();
         unmount?.();
       };
       return { element, dispose };
