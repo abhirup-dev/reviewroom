@@ -14,6 +14,8 @@ import type { AskContext } from './context.shared';
 type OnAsk = (take: (c: AskContext) => void) => () => void;
 type AgentStatus = { model: string; instance: string; status: 'idle' | 'working' | 'interrupted' | 'failed' };
 type InitialConversation = AgentStatus & { messages: UIMessage[] };
+/** What the reviewer has in the composer: kept when the conversation is shown again from the server. */
+export type Draft = { text: string; quote?: QuoteInfo };
 
 // Review Room's sanitised Markdown, as in threads
 const Text = ({ text }: TextMessagePartProps) => <div className="rr-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
@@ -71,7 +73,7 @@ function AgentLabel({ agent, connected }: { agent: AgentStatus; connected: boole
   return <div className="rr-assistant__model rr-muted" role="status" data-rr-assistant-running={busy ? '' : undefined}>Model: {agent.model} · {status}</div>;
 }
 
-function Chat({ onAsk, host, initial }: { onAsk: OnAsk; host: HTMLElement; initial: InitialConversation }) {
+function Chat({ onAsk, host, initial, draft, expose }: { onAsk: OnAsk; host: HTMLElement; initial: InitialConversation; draft?: Draft; expose: (read: () => Draft) => void }) {
   const [agent, setAgent] = useState<AgentStatus>(initial);
   const [connected, setConnected] = useState(true);
   const runtime = useChatRuntime({
@@ -79,6 +81,12 @@ function Chat({ onAsk, host, initial }: { onAsk: OnAsk; host: HTMLElement; initi
     transport: new AssistantChatTransport({ api: 'api/assistant' }), // relative: the page's own review server
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses, // an Allow or Deny continues the turn
   });
+  useEffect(() => {
+    const composer = runtime.thread.composer;
+    if (draft?.text) composer.setText(draft.text);
+    if (draft?.quote) composer.setQuote(draft.quote);
+    expose(() => ({ text: composer.getState().text, quote: composer.getState().quote }));
+  }, [runtime]); // eslint-disable-line react-hooks/exhaustive-deps -- once per runtime: the draft it starts with
   useEffect(() => runtime.thread.subscribe(() => {
     if (runtime.thread.getState().isRunning) setAgent((current) => current.status === 'working' ? current : { ...current, status: 'working' });
   }), [runtime]);
@@ -138,8 +146,10 @@ function Chat({ onAsk, host, initial }: { onAsk: OnAsk; host: HTMLElement; initi
   );
 }
 
-export function mount(host: HTMLElement, onAsk: OnAsk, initial: InitialConversation) {
+/** Mounts the chat in `host`, with `draft` in its composer; `draft()` reads what is there now. */
+export function mount(host: HTMLElement, onAsk: OnAsk, initial: InitialConversation, draft?: Draft) {
   const root = createRoot(host);
-  root.render(<Chat onAsk={onAsk} host={host} initial={initial} />);
-  return () => root.unmount();
+  let read: () => Draft = () => draft ?? { text: '' };
+  root.render(<Chat onAsk={onAsk} host={host} initial={initial} draft={draft} expose={(r) => (read = r)} />);
+  return { unmount: () => root.unmount(), draft: () => read() };
 }

@@ -5,6 +5,7 @@ import { h } from '../kernel/dom';
 import { addPanelAt, definePanel, showPanel } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 import { askRef, excerptLines, type AskContext } from './context.shared';
+import type { Draft } from './thread';
 
 const PANEL = { id: 'assistant', component: 'assistant', title: 'Assistant', params: {} };
 const open = (app: ReviewApp) => showPanel(app, PANEL.id) || addPanelAt(app, PANEL, 'right');
@@ -29,38 +30,53 @@ export function registerAssistant(app: ReviewApp) {
       };
       paintSuggest();
       const element = h('div', { class: 'rr-side rr-assistant' }, suggest, island);
-      let unmount: (() => void) | undefined, gone = false, loading = false;
+      let chat: { unmount(): void; draft(): Draft } | undefined, gone = false, loading = false, stale = false;
       const load = () => {
         loading = true;
+        stale = false;
         void import('./thread').then(async (m) => {
           const response = await fetch('api/assistant');
           if (!response.ok) throw new Error(await response.text()); // a moved-aside conversation, invalid settings: why
           const initial = await response.json();
           if (gone) return;
-          unmount?.();
-          unmount = m.mount(island, (fn) => {
+          const draft = chat?.draft(); // the reviewer's text and attached context carry over
+          chat?.unmount();
+          chat = m.mount(island, (fn) => {
             take = fn;
             if (pending) fn(pending);
             pending = undefined;
             return () => (take = take === fn ? undefined : take);
-          }, initial);
+          }, initial, draft);
         }).catch((error: unknown) => {
           if (!gone) island.textContent = error instanceof Error ? error.message : String(error);
-        }).finally(() => (loading = false));
+        }).finally(() => {
+          loading = false;
+          refresh();
+        });
       };
+      // the conversation changed on the server (a generation's turn, or one asked elsewhere): shown again once this page's
+      // own turn has finished and no fetch is out; until then it waits, never dropped
+      // nor while the reviewer is typing: a remount would take the caret (the draft itself carries over)
+      const busy = () => !!island.querySelector('[data-rr-assistant-running]') || island.contains(document.activeElement);
+      const refresh = () => {
+        if (stale && !gone && !loading && !busy()) load();
+      };
+      island.addEventListener('focusout', () => setTimeout(refresh));
       load();
-      // the conversation changed on the server (a generation's turn, or one asked elsewhere): show it, unless this page's
-      // own turn is running or a draft would be lost
       const offTurn = app.bus.on('assistant-turn', () => {
-        const draft = island.querySelector<HTMLTextAreaElement>('textarea')?.value.trim();
-        if (!loading && !draft && !island.querySelector('[data-rr-assistant-running]')) load();
+        stale = true;
+        refresh();
       });
+      // a turn that ends here clears the running mark: apply what waited
+      const watch = new MutationObserver(refresh);
+      watch.observe(island, { subtree: true, attributes: true, attributeFilter: ['data-rr-assistant-running'], childList: true });
       const offGen = app.bus.on('generation', paintSuggest);
       const dispose = () => {
         gone = true;
         offTurn();
         offGen();
-        unmount?.();
+        watch.disconnect();
+        chat?.unmount();
       };
       return { element, dispose };
     },
