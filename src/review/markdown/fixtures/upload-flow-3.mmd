@@ -1,7 +1,7 @@
 flowchart LR
-  d1[dataset1 sets] --> u[union + topo]
-  d2[dataset2 sets] --> u
-  u --> f["FetchAllFeatures() · once"]
-  f --> uf[DatasetFeatures]
-  uf -->|GetBatchDatasetExamples d1| e1[Example d1]
-  uf -->|GetBatchDatasetExamples d2| e2[Example d2]
+  c1[client 1 retries] --> q[queue + backoff]
+  c2[client 2 retries] --> q
+  q --> s["Send() · once per wait"]
+  s --> h[UploadHandler]
+  h -->|Retry-After 1s| r1[retry c1]
+  h -->|Retry-After 2s| r2[retry c2]

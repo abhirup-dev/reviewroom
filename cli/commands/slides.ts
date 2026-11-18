@@ -1,10 +1,10 @@
 import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // slide-lint: `check`, then every slide of the walkthrough measured on screen in a headless browser.
 // shotSlide: one slide's picture (`reviewroom shot <chapter>/<step>`).
-import { artifactHash, recordArtifact } from '../lib/progress.ts';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
+import { artifactHash, recordArtifact } from '../lib/progress.ts';
 import { dirForEdit } from '../lib/config.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough } from '../lib/state.ts';

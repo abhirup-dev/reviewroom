@@ -1,9 +1,9 @@
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // pr: the one-step entry point
-import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { scaffold } from '../lib/scaffold.ts';
@@ -94,7 +94,7 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
   const t = n ? prNumberTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
-  const dir = resolveDir(repo, o.dir || t.dir);
+  const dir = o.dir ? path.resolve(o.dir) : t.dir;
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;

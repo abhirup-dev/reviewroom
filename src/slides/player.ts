@@ -1,5 +1,4 @@
 import { WALKTHROUGH_FILE } from '../kernel/state/files.shared';
-import { pendingArtifact } from '../kernel/state/progress.shared';
 // The guided walkthrough player: an overlay over the workbench (narration left, the step's code right), or a pill while
 // paused. walkthroughMachine and its paneMachine child (src/slides/player.machine.ts) own every state and transition;
 // this file renders snapshots and implements the pane's actions (resolve links, mount, glide, settle, unmount); what the
@@ -7,6 +6,7 @@ import { pendingArtifact } from '../kernel/state/progress.shared';
 // A chunk is a code panel pinned to one file (the same CodeView setup as the dock); several stack, under one set of
 // display toggles (split/unified, focus, whitespace, wrap, inline threads). Prose is the
 // author's HTML, sanitized: a walkthrough can come from a PR.
+import { pendingArtifact } from '../kernel/state/progress.shared';
 import { createActor, fromPromise, waitFor, type Actor } from 'xstate';
 import { h, icon, onDrag } from '../kernel/dom';
 import { proseRemoved, sanitizeProse } from '../kernel/markdown';
@@ -293,7 +293,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     if (version && version !== pendingVersion) actor.send({ type: 'writing', active: true });
     pendingVersion = version;
   };
-  app.bus.on('progress', progressChanged);
+  app.onDispose(app.bus.on('progress', progressChanged));
   root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
