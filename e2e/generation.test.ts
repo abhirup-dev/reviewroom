@@ -118,6 +118,20 @@ describe('generation in the page', () => {
       await page.close();
     }
   }, 60_000);
+  test.skipIf(!browser)('closing the screen never takes focus from a control that took it meanwhile', async () => {
+    const page = await open(await serve());
+    try {
+      await feed(page, WRITING(1));
+      await until(page, `!document.querySelector('.rr-gen').hidden`);
+      // something focuses a control as the screen closes (on the same generation event the header repaints on)
+      await page.evaluate(`(() => { const i = document.createElement('input'); i.id = 'probe'; document.body.append(i); const off = rr.app.bus.on('generation', () => { if (document.querySelector('.rr-gen').hidden) { i.focus(); off(); } }); })()`);
+      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
+      await new Promise((r) => setTimeout(r, 100));
+      expect(await page.evaluate<string>(`document.activeElement.id`)).toBe('probe');
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
 });
 
 describe('the assistant panel', () => {

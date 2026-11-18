@@ -92,6 +92,7 @@ export function mountGeneration(app: ReviewApp) {
     // back where it was, if that survived; else the indicator that now stands for the screen, or the report. After the
     // `generation` event: the header puts the indicator in on it
     queueMicrotask(() => {
+      if (document.activeElement && document.activeElement !== document.body) return; // focus went somewhere on purpose
       const { indicator } = headerOf(app);
       const to = [back, indicator.full, indicator.icon, app.root.querySelector<HTMLElement>('.rr-narrative-scroll')].find((el) => el && el !== document.body && el.isConnected && !el.closest('[inert]'));
       to?.focus();
