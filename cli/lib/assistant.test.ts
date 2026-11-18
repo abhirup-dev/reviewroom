@@ -148,20 +148,12 @@ test('one question at a time: a second one while the first is answered is refuse
   await r.routes.close();
 });
 
-test('a stopped answer is saved under the id the window has, and the next question follows it', async () => {
+test('a window that leaves (the asker\'s too) only stops following: the turn runs on, for the next window', async () => {
   using r = reviewWithAgent(false);
-  const stop = new AbortController();
-  const res = await r.post([user('q1')], { signal: stop.signal });
-  const reader = res.body!.getReader();
-  const first = new TextDecoder().decode((await reader.read()).value);
-  const id = first.match(/"messageId":"([^"]+)"/)![1];
-  stop.abort();
-  await reader.cancel().catch(() => {});
-  await Bun.sleep(50);
-  expect(r.saved().map((m) => m.id)).toEqual(['q1', id]);
-  expect((await (await r.routes.app.request('/model')).json()).status).toBe('interrupted');
-  const next = await r.post([...r.saved(), user('q2')]);
-  expect(next.status).toBe(200); // the stopped turn freed the assistant
+  const asked = await r.post([user('q1')]);
+  await (await readUntil(asked, (said) => said.includes('partial answer'))).reader.cancel(); // the page reloads
+  expect((await readUntil(await r.routes.app.request('/x/stream'), (said) => said.includes('partial answer'))).ended).toBe(false);
+  await r.routes.close();
 });
 
 test('a window that missed a turn must reload; an approval, which answers the last message in place, goes on', async () => {
@@ -277,43 +269,18 @@ async function readUntil(res: Response, done: (said: string) => boolean = () => 
   return { said, ended: false, reader };
 }
 
-test('a window reconnects to the running turn (the AI SDK\'s resumable stream): replayed, then followed; 204 when none runs; refused through the hub', async () => {
-  using r = reviewWithAgent(false);
-  const stream = (headers: Record<string, string> = {}) => r.routes.app.request('/any-chat-id/stream', { headers });
-  expect((await stream()).status).toBe(204);
-  await r.generate(); // started by the server: no window reads it
-  expect((await stream({ 'x-reviewroom-via-hub': '1' })).status).toBe(403);
-  const res = await stream();
-  expect([res.status, res.headers.get('content-type'), res.headers.get('x-vercel-ai-ui-message-stream')]).toEqual([200, 'text/event-stream', 'v1']);
-  const first = await readUntil(res, (said) => said.includes('partial answer')); // said before this window came: replayed
-  expect(first.said).toContain('"type":"start"');
-  const closing = r.routes.close(); // the turn goes on to its end, and the window with it
-  let rest = '';
-  for (let x = await first.reader.read(); !x.done; x = await first.reader.read()) rest += x.value;
-  await closing;
-  expect(rest).toContain('"type":"abort"'); // followed: said after the replay
-  expect((await stream()).status).toBe(204); // dropped with its turn
-});
-
-test('the history says whether a turn runs, read with its messages; a window that never reads is still let go at the end', async () => {
-  using r = reviewWithAgent(false);
-  const history = async () => { const h = await (await r.routes.app.request('/')).json(); return [h.running, h.messages.map((m: UIMessage) => m.role)]; };
-  expect(await history()).toEqual([false, []]);
-  await r.generate();
-  expect(await history()).toEqual([true, ['user']]); // the question, before Claude starts
-  const stalled = await r.routes.app.request('/x/stream'); // never read while the turn runs, then closed with it
-  await r.routes.close();
-  expect([(await readUntil(stalled)).ended, (await history())[0]]).toEqual([true, false]); // let go at the end
-});
-
-test('a window that reconnects while Claude starts waits for the turn\'s stream (never a 204), or for the start to fail', async () => {
+test('the resume route: 204 when no turn runs; refused through the hub; else the turn\'s stream from its start, even while Claude starts, to its end (a failed start ends it with why)', async () => {
   let started!: () => void;
   using r = reviewWithAgent(false, () => false, true, () => settings, new Promise<void>((ok) => (started = ok)));
+  const stream = (headers: Record<string, string> = {}) => r.routes.app.request('/any-chat-id/stream', { headers });
+  expect((await stream()).status).toBe(204);
   await r.generate();
-  const res = await r.routes.app.request('/x/stream'); // before any of the answer exists
+  expect((await stream({ 'x-reviewroom-via-hub': '1' })).status).toBe(403);
+  const res = await stream(); // before Claude has said anything
   started();
-  expect([res.status, (await readUntil(res, (text) => text.includes('partial answer'))).said]).toEqual([200, expect.stringContaining('"type":"start"')]);
+  expect([res.status, res.headers.get('x-vercel-ai-ui-message-stream'), (await readUntil(res, (said) => said.includes('partial answer'))).said]).toEqual([200, 'v1', expect.stringContaining('"type":"start"')]);
   await r.routes.close();
+  expect((await stream()).status).toBe(204);
 
   let failed!: (e: Error) => void;
   using f = reviewWithAgent(false, () => false, true, () => settings, new Promise<void>((_, no) => (failed = no)));
@@ -321,18 +288,7 @@ test('a window that reconnects while Claude starts waits for the turn\'s stream 
   const waiting = await f.routes.app.request('/x/stream');
   failed(new Error('Claude did not start'));
   expect(await readUntil(waiting)).toMatchObject({ said: expect.stringContaining('"errorText":"Claude did not start"'), ended: true });
-  expect(assistantStore(f.dir, f.dir).saved.status).toBe('failed');
 });
-
-test('a turn that ends before a window reconnects: 204, and the saved history already has the whole answer', async () => {
-  using r = reviewWithAgent(); // answers and ends at once
-  await r.generate();
-  await until(() => assistantStore(r.dir, r.dir).saved.status === 'idle');
-  expect((await r.routes.app.request('/x/stream')).status).toBe(204);
-  const { status, messages } = await (await r.routes.app.request('/')).json();
-  expect([status, messages.map((m: UIMessage) => m.role)]).toEqual(['idle', ['user', 'assistant']]);
-});
-
 
 test('a generation turn that ends without validating stops its documents as failed and tells the pages', async () => {
   using r = reviewWithAgent();

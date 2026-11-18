@@ -20,6 +20,8 @@ import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.t
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
+import { errorText } from '../../src/kernel/errors.shared.ts';
+import { replayStream, type ReplayStream } from './replay-stream.ts';
 
 /** `assistant: true` in the review's own config.json. Never throws: a bad file only leaves it off. */
 export function assistantEnabled(dir: string) {
@@ -50,7 +52,7 @@ export function readAssistantSettings(file = settingsFile()) {
       reviewAgentPromptFile: path.resolve(path.dirname(file), settings.reviewAgentPromptFile),
     };
   } catch (error) {
-    throw new Error(`Invalid assistant settings in ${file}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    throw new Error(`Invalid assistant settings in ${file}: ${errorText(error)}`, { cause: error });
   }
 }
 
@@ -159,7 +161,7 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
       session = await agent.createSession({ sandboxSession: sandbox, ...(previous ? { sessionId: previous.id, resumeFrom: previous.resume } : {}) });
     } catch (error) {
       if (!previous) throw error;
-      throw new Error(`Could not resume this review's Claude Code session (${error instanceof Error ? error.message : String(error)}). The conversation is preserved in ${store.file}. Move that file aside to keep it, or delete it to start a new conversation.`, { cause: error });
+      throw new Error(`Could not resume this review's Claude Code session (${errorText(error)}). The conversation is preserved in ${store.file}. Move that file aside to keep it, or delete it to start a new conversation.`, { cause: error });
     }
     const remember = (resume: NonNullable<SavedAssistant['session']>['resume']) => {
       store.saved.session = { id: session.sessionId, sandboxId: runner.id, resume };
@@ -199,9 +201,9 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
 export type Generation = { running: boolean; awaitingApproval: boolean };
 /** What the server pushes to its pages (SSE): `assistant` when a turn ends or pauses, `progress` when generation moves. */
 type Send = (event: 'assistant' | 'progress', data: unknown) => void;
-/** The running turn, whatever started it (a question or a generation): its UI message stream (SSE text) so far and the
- *  windows following it. One at a time. */
-type Turn = { abort: AbortController; done: Promise<void>; said: string[]; readers: Set<ReadableStreamDefaultController<string>> };
+/** The running turn, whatever started it (a question or a generation), and its UI message stream told to every window
+ *  that follows it. One at a time. */
+type Turn = { abort: AbortController; done: Promise<void>; stream: ReplayStream };
 const STREAM_HEADERS = { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', 'x-vercel-ai-ui-message-stream': 'v1', 'x-accel-buffering': 'no' };
 type RouteOpts = { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings; launch?: typeof start; send?: Send; generatePrompt?: string };
 
@@ -257,7 +259,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     }
     if (asking || !turnModel) turnModel = readSettings().defaultReviewModel;
     let release!: () => void;
-    const t: Turn = { abort: new AbortController(), done: new Promise((r) => (release = r)), said: [], readers: new Set() };
+    const t: Turn = { abort: new AbortController(), done: new Promise((r) => (release = r)), stream: replayStream(STREAM_HEADERS) };
     turn = t;
     // after the answer is saved: `paused` when the native turn waits on an approval, `aborted` when stopped
     const end = ({ paused: p = false, aborted = false } = {}) => {
@@ -275,45 +277,22 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       }
       send('assistant', { status: store?.saved.status, generation: generationNow() });
     };
-    const say = (text: string) => {
-      t.said.push(text);
-      for (const r of t.readers) try { r.enqueue(text); } catch { t.readers.delete(r); }
-    };
     void (async () => {
       try {
         const res = await runTurn(valid, t.abort.signal, end);
-        for await (const text of res.body!.pipeThrough(new TextDecoderStream())) say(text);
+        for await (const text of res.body!.pipeThrough(new TextDecoderStream())) t.stream.say(text);
       } catch (e) {
-        // a start that failed: the windows following it show why
-        say(`data: ${JSON.stringify({ type: 'error', errorText: e instanceof Error ? e.message : String(e) })}\n\n`);
+        // a start that failed: the windows following it show why (the UI message stream's error part)
+        t.stream.say(`data: ${JSON.stringify({ type: 'error', errorText: errorText(e) })}\n\n`);
       } finally {
-        for (const r of t.readers) try { r.close(); } catch { /* that window left */ }
-        t.readers.clear();
-        t.said.length = 0;
+        t.stream.close();
       }
     })();
     return t;
   };
-  /** A window following `t`: what it said so far, then the rest. `asker`: the window that sent it, whose Stop (or
-   *  leaving) stops the turn. */
-  const follow = (t: Turn, asker = false) => {
-    let reader!: ReadableStreamDefaultController<string>;
-    const body = new ReadableStream<string>({
-      start(ctrl) {
-        reader = ctrl;
-        for (const text of t.said) ctrl.enqueue(text);
-        t.readers.add(ctrl);
-      },
-      cancel: () => {
-        t.readers.delete(reader);
-        if (asker) t.abort.abort();
-      },
-    });
-    return new Response(body.pipeThrough(new TextEncoderStream()), { headers: STREAM_HEADERS });
-  };
   const app = new Hono();
   // errors as text: AI SDK's transport shows a failed request's body as the chat's error
-  app.onError((e, c) => c.text(e instanceof Error ? e.message : String(e), 503));
+  app.onError((e, c) => c.text(errorText(e), 503));
   app.use(async (c, next) => {
     if (c.req.header(VIA_HUB)) return c.text('The assistant runs Claude Code with your login, so it answers only on this machine: open the review from its own URL.', 403);
     await next();
@@ -321,7 +300,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   app.get('/model', (c) => c.json(status()));
   /** The AI SDK's resumable stream (its reconnect URL, `{api}/{chatId}/stream`): the running turn so far, then as it
    *  goes on (waiting for it while Claude starts); 204 when no turn runs. One conversation per review: no chat id. */
-  app.get('/:chatId/stream', (c) => (turn ? follow(turn) : c.body(null, 204)));
+  app.get('/:chatId/stream', (c) => (turn ? turn.stream.follow() : c.body(null, 204)));
   app.get('/', async (c) => {
     // read together: `running` says whether these messages end in a turn to follow
     const { saved } = load();
@@ -369,7 +348,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
             p = !isAborted && !isCancelled && current.session.hasUnfinishedTurn();
             if (!closed) await current.checkpoint();
           } catch (error) {
-            console.error(`reviewroom: assistant: ${error instanceof Error ? error.message : String(error)}`);
+            console.error(`reviewroom: assistant: ${errorText(error)}`);
             live = undefined; // recover from the saved checkpoint on the next question
             p = false;
             await current.stop().catch(() => {});
@@ -377,7 +356,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
             end({ paused: p, aborted: isAborted || isCancelled });
           }
         },
-        onError: (e) => (e instanceof Error ? e.message : String(e)),
+        onError: (e) => errorText(e),
       });
       streaming = true;
       return response;
@@ -405,7 +384,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     try {
       incoming = await validateUIMessages<UIMessage>({ messages: body.messages, metadataSchema: AskMetadata });
     } catch (e) {
-      return c.text(e instanceof Error ? e.message : String(e), 400);
+      return c.text(errorText(e), 400);
     }
     // a new question follows the saved messages; an approval continues the last one (same id, its parts answered)
     const last = incoming.at(-1)!;
@@ -414,7 +393,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     const prior = asking ? incoming.slice(0, -1) : incoming;
     if (prior.length !== saved.length || prior.some((m, i) => m.id !== saved[i].id)) return c.text('This conversation changed in another window. Reload the page to continue it.', 409);
     // checked again with nothing awaited before the start: one turn at a time
-    return busy() ?? follow(startTurn(asking ? [...saved, last] : [...saved.slice(0, -1), last], asking), true);
+    return busy() ?? startTurn(asking ? [...saved, last] : [...saved.slice(0, -1), last], asking).stream.follow();
   });
 
   /**
@@ -446,7 +425,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       instructions(repo, dir, cfg, settings.reviewAgentPromptFile); // the role prompt the turn starts with: there and not empty
       load();
     } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : String(e), code: 'assistant_unavailable' }, 503);
+      return c.json({ error: errorText(e), code: 'assistant_unavailable' }, 503);
     }
     requestGeneration(dir, 'assistant', cfg.head, wanted); // one write; if it throws, nothing runs and nothing is pending
     generation = { running: true, awaitingApproval: false };
@@ -457,7 +436,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     } catch (e) {
       generation = undefined;
       stopAssistantWork(dir, 'failed'); // nothing will write them
-      return c.json({ error: e instanceof Error ? e.message : String(e), code: 'assistant_unavailable' }, 503);
+      return c.json({ error: errorText(e), code: 'assistant_unavailable' }, 503);
     }
     send('progress', progressNow());
     return c.json({ started: true, ...progressNow() });
@@ -476,7 +455,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       }
     } catch (e) {
       // the next server's start stops it as interrupted instead
-      console.error(`reviewroom: could not record the stopped generation: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(`reviewroom: could not record the stopped generation: ${errorText(e)}`);
     } finally {
       // whatever the journal did: the native session saves where it can resume and ends its processes
       await (await live?.catch(() => undefined))?.stop();
