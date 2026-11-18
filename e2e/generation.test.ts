@@ -215,7 +215,7 @@ async function followUp(page: Page, go: () => void) {
 
 describe('one conversation: the panel and the loading screen show the page\'s one chat', () => {
   const { serve, go } = scripted();
-  test.skipIf(!browser)('both views follow a generation; dismissed mid-turn it keeps running in the panel (no Stop: not this page\'s turn); then a question', async () => {
+  test.skipIf(!browser)('both views follow a generation; dismissed mid-turn it keeps running in the panel (no Stop: a generation is never stopped from a page); then a question', async () => {
     const page = await open(await serve());
     try {
       await page.evaluate(`rr.app.commands.run('assistant.open')`);

@@ -92,7 +92,7 @@ let host: UpdatesHost | undefined;
 let reg: ServiceWorkerRegistration | undefined;
 const before = new Map<string, () => void>();
 const OFFERS: Record<string, [text: string, label: string, title: string]> = {
-  review: ['Review updated. Waiting for your current work to finish.', 'Reload', 'Reload the review now; this interrupts the assistant'],
+  review: ['Review updated. Waiting for your current work to finish.', 'Reload', 'Reload the review now; the assistant keeps working, and the page follows it again'],
   update: ['Update ready', 'Reload', 'Reload into the new version of reviewroom'],
   layout: ['This screen suits a different layout.', 'Switch layout', 'Reload into the layout for this screen'],
 };
