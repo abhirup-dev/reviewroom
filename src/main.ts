@@ -159,6 +159,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     if (!document.title) document.title = meta.title;
     app.backend = options.backend ?? (backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.id, seedState ?? undefined, seedTour));
     app.state = { ...emptyState(), ...(await app.backend.load()) };
+    app.progress = await app.backend.progress?.() ?? app.progress;
     const layouts = app.backend.layouts;
     [app.layout.saved, app.layout.defaultId, lastLayout] = await Promise.all([layouts.get('saved').catch(() => ({})), layouts.get('default').catch(() => null), layouts.get('last').catch(() => null)]);
     app.viewRound = app.state.round;
@@ -207,6 +208,16 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.onDispose(app.commands.attach(document));
 
   app.backend.subscribe?.({
+    progress: (p) => {
+      const before = app.progress.walkthrough.state;
+      app.progress = p;
+      if (p.walkthrough.state === 'validated' && (before === 'requested' || before === 'written')) {
+        const u = new URL(location.href);
+        u.searchParams.set('walkthrough', '/');
+        history.replaceState(history.state, '', u);
+      }
+      app.bus.emit('progress', p);
+    },
     state: (s) => {
       app.state = s;
       app.bus.emit('state', s);

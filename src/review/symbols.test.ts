@@ -31,5 +31,5 @@ test('targets may start on a doc comment above the declaration', () => {
   expect(linkedSymbol('GetExamplesForEntityIds', ['/*', 'GetExamplesForEntityIds is …', '*/', 'func (r *B) GetExamplesForEntityIds() {'])).toBe('method');
   expect(linkedSymbol('parse', ['@cache', 'def parse(raw):'])).toBe('function');
   expect(linkedSymbol('Span', ['#[derive(Debug)]', 'pub struct Span {'])).toBe('struct');
-  expect(linkedSymbol('FillTfsFeatureValue', ['\t\terr := h.FillTfsFeatureValue(i, name, v)'])).toBeNull();
+  expect(linkedSymbol('FillUploadMetadata', ['\t\terr := h.FillUploadMetadata(i, name, v)'])).toBeNull();
 });

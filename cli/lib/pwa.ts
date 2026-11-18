@@ -29,7 +29,7 @@ export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#07080a" media="(prefers-color-scheme: dark)">
 `;
 
-/** Adds what a page's <head> lacks (older review.html files): viewport-fit=cover, the PWA tags, the client entry. */
+/** Adds what a page's <head> lacks (older report.html files): viewport-fit=cover, the PWA tags, the client entry. */
 export function withHead(html: string) {
   const end = html.indexOf('</head>');
   if (end < 0) return html;

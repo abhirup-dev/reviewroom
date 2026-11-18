@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
@@ -11,7 +12,7 @@ import { issueText, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { z } from 'zod';
 
 function findThread(s: ReviewState, id: string) {
-  if (id.startsWith('gh_')) fail(`${id} is a GitHub thread: only the reviewer posts there. Link it with rr:thread/${id} in review.html or your reply instead.`);
+  if (id.startsWith('gh_')) fail(`${id} is a GitHub thread: only the reviewer posts there. Link it with rr:thread/${id} in ${REPORT_FILE} or your reply instead.`);
   const t = s.threads.find((x) => x.id === id) || s.threads.filter((x) => x.id.startsWith(id) || x.id === 't_' + id)[0];
   if (!t) fail(`no thread ${id}`);
   return t;

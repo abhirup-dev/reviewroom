@@ -1,10 +1,12 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // pr: the one-step entry point
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
-import { scaffold } from '../lib/scaffold.ts';
+import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
@@ -26,7 +28,7 @@ function gh(repo: string, args: string[]) {
   }
 }
 
-export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean };
+export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string };
 /** Where the review lives and what it compares; base and head are always resolved. */
 type Target = { dir: string; cfg: ReviewConfig };
 
@@ -70,7 +72,7 @@ function localTarget(repo: string, o: PrOpts): Target {
 }
 
 /** A PR's own walkthrough (a ```reviewroom-walkthrough block in a comment or the description) when there is no local one. */
-async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean) {
+async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean, head: string) {
   const file = walkthroughPath(dir);
   const t = prTarget(cfg);
   if (!t || (fs.existsSync(file) && !force)) return;
@@ -78,13 +80,14 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   try {
     pick = pickBlock(await fetchPr(repo, t, null));
   } catch (e) {
-    return console.error(`reviewroom: could not look for a guided walkthrough on the PR: ${(e as Error).message}`);
+    return console.error(`reviewroom: could not look for a walkthrough on the PR: ${(e as Error).message}`);
   }
   if (!pick) return;
   const r = parseWalkthrough(pick.text);
-  if (!r.ok) return console.error(`reviewroom: the guided walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
+  if (!r.ok) return console.error(`reviewroom: the walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
-  console.error(`reviewroom: guided walkthrough from ${pick.from}`);
+  recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(/^[a-f0-9]{40}$/.test(head) ? { head } : {}) });
+  console.error(`reviewroom: walkthrough from ${pick.from}`);
 }
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
@@ -95,12 +98,17 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;
+  if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
+  cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
+  if (fresh || o.force) {
+    for (const artifact of ['walkthrough', 'report'] as const) appendProgress(dir, { artifact, event: 'requested', ...(/^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {}) });
+  }
   const files = prov.files(prov.base, prov.head);
-  console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, 'review.html'))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
-  await pullWalkthrough(repo, dir, cfg, !!o.force);
+  console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
+  await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
   if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
   const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];

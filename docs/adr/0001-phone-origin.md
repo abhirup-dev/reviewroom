@@ -81,7 +81,7 @@ Known consequences, accepted for now:
 | --- | --- | --- |
 | `src/kernel/providers/server-state.ts`, `src/review/providers/local.ts` (`'/api'` defaults, 3), `src/main.ts` (`api` attr default, 2) | absolute `/api` | relative `api` (works at `/` and `/r/<id>/`; prototyped) |
 | `src/kernel/header.ts`, `src/main.ts`: All reviews -> `/api/hub` | review server redirects to `http://127.0.0.1:4847/` | under `/r/`, link `/` (the hub, same origin) |
-| `templates/review.html` and every agent `review.html`: `/_rr/reviewroom.js` | absolute: under the proxy it would load the hub's build | `page()` rewrites that one `src` to `_rr/reviewroom.js`; the entry name stays |
+| `templates/report.html` and every agent `report.html`: `/_rr/reviewroom.js` | absolute: under the proxy it would load the hub's build | `page()` rewrites that one `src` to `_rr/reviewroom.js`; the entry name stays |
 | Root-absolute asset paths in agent HTML (`src="/diagram.svg"`) | work | break (none in examples). Skill: use relative paths; `reviewroom check` can flag them |
 | Lazy chunks, fonts, emoji data | `import.meta.url`-relative | fine |
 | Hub page links (`session.url` = `http://127.0.0.1:<port>/`) | loopback | on the public origin link `/r/<id>/`; on loopback keep per-port URLs (the macOS app keys tabs by port) |

@@ -1,0 +1,73 @@
+{
+  "$schema": "../../schema/walkthrough.schema.json",
+  "version": 1,
+  "title": "Limit file uploads per account",
+  "chapters": [
+    {
+      "id": "why",
+      "title": "An upload needs an allowance",
+      "lead": "<rr-mermaid class=\"rr-diagram-delta\">flowchart TD\n A[Account] --> H[Handler, changed]:::changed\n H --> S[Store]\n click A \"rr:code/internal/upload/account.go\"\n click H \"rr:sym/ServeHTTP\"\n click S \"rr:sym/Store\"</rr-mermaid>",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>The service stores authenticated uploads immediately. <a href=\"rr:code/internal/upload/handler.go\">The handler</a> is the centre of this diff: it will join account identity, the bucket and the HTTP response.</p>",
+          "ref": "rr:code/internal/upload/handler.go@base#L10-19"
+        },
+        {
+          "id": "s2",
+          "text": "<p>Authentication supplies an account and its plan. The new allowance belongs to that account, so its users share one bucket.</p>",
+          "ref": "rr:code/internal/upload/account.go#L5-15"
+        }
+      ]
+    },
+    {
+      "id": "bucket",
+      "title": "Plans feed an account bucket",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>The bucket refills with elapsed time, up to the plan\u2019s burst capacity. Take spends a token or returns the wait for the next one.</p>",
+          "ref": "rr:code/internal/limit/bucket.go#L37-51"
+        },
+        {
+          "id": "s2",
+          "text": "<p>Free allows one upload per second with a burst of two; Pro allows five with a burst of ten. The renamed configuration also lists Team. <a href=\"rr:code/internal/limit/limiter.go\">The loader</a> decodes these settings.</p>",
+          "ref": "rr:code/config/limits.json#L1-5"
+        }
+      ]
+    },
+    {
+      "id": "enforce",
+      "title": "The handler joins the contract",
+      "lead": "<rr-mermaid>flowchart TD\n P[Plan lookup] --> T[Take]\n T --> H[Handler]\n click P \"rr:code/config/limits.json\"\n click T \"rr:sym/Take\"\n click H \"rr:sym/ServeHTTP\"</rr-mermaid>",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>The handler asks Take before storing a body. A rejected request receives 429 and a Retry-After value rounded up to whole seconds.</p>",
+          "ref": "rr:code/internal/upload/handler.go#L18-25"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The client retries a 429 with the same payload. The handler supplies Retry-After, but the loop never waits; together these paths decide whether a rejected upload can recover.</p>",
+          "ref": "rr:code/client/upload.go#L10-25"
+        }
+      ]
+    },
+    {
+      "id": "risks",
+      "title": "Risks",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p><a href=\"rr:doc/finding-team\">High: Team uploads bypass the limit.</a></p>",
+          "ref": "rr:code/config/limits.json#L1-5"
+        },
+        {
+          "id": "s2",
+          "text": "<p><a href=\"rr:doc/finding-retry\">Medium: retries ignore Retry-After.</a></p>",
+          "ref": "rr:code/client/upload.go#L10-25"
+        }
+      ]
+    }
+  ]
+}

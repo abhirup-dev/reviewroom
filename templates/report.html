@@ -21,25 +21,10 @@
 <rr-app>
   <script type="application/json" id="rr-meta">{}</script>
   <rr-review>
-    <!-- Freeform HTML. Building blocks and rr: links: skills/reviewroom/references/authoring.md -->
+    <!-- Freeform HTML. Building blocks and rr: links: skills/reviewroom/references/authoring.md.
+         The sections come from the review's report profile (skills/reviewroom/references/profiles/). -->
     <h1>{{TITLE}}</h1>
-    <p class="rr-lede">One-paragraph summary of what this change does and why.</p>
-
-    <section id="overview">
-      <h2>What changed</h2>
-      <!-- Add a Mermaid diagram of the actual change here; link its nodes to code. -->
-      <ul>
-{{FILES}}
-      </ul>
-    </section>
-
-    <section id="risks">
-      <h2>Open questions</h2>
-      <rr-checklist>
-        <rr-check id="compat">Backwards compatible</rr-check>
-        <rr-check id="tests">Tests cover the new paths</rr-check>
-      </rr-checklist>
-    </section>
+{{BODY}}
   </rr-review>
 </rr-app>
 </body>

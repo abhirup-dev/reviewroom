@@ -6,11 +6,11 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 - `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, PWA, state, GitHub (Octokit, as the `gh` user); `hub/proxy.ts` serves reviews through the hub.
-- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in `review.html`.
+- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in the report.
   `main.ts`, `app.ts` and `services.ts` compose the app. `kernel/` owns infrastructure; `review/`, `threads/`,
   `slides/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
-- The guided walkthrough (`walkthrough.json`): schema and PR block in `src/slides/model.shared.ts`, player in
+- The walkthrough: schema and PR block in `src/slides/model.shared.ts`, player in
   `src/slides/player.ts` (its phone and desktop parts in `player.phone.ts`, `player.desktop.ts`), CLI in `cli/commands/slides.ts` (lint, one slide's shot) and `walkthrough.ts` (publish), with `cli/lib/slide-lint.ts`
   (its checks), `cli/lib/slides-file.ts` (file and PR-block helpers), and `cli/lib/render.ts` (the headless browser,
   `Bun.WebView`: its only user).
@@ -20,40 +20,26 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Where reviews live
 
-By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo.
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo. What the agent writes there:
+`docs/review-artifacts.md`; everything else: `docs/review-state.md`.
 
 ## Contracts (change deliberately, update the skill when you do)
 
-- **The walkthrough is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
+- **Review artifacts** (`docs/review-artifacts.md`): what the agent writes, and the constant that names each file.
+  Code uses the constants, never the file names.
+- **The report is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
   (CSS Highlight API, overlays, data attributes).
 - **`rr:` links** (`src/kernel/refs/refs.shared.ts`) address everything in HTML, threads, the CLI and agent replies. Keep old forms
   parsing.
-- **`walkthrough.json`** (the guided walkthrough) follows `schema/walkthrough.schema.json`, generated from
+- **The walkthrough** follows `schema/walkthrough.schema.json`, generated from
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
-- **`state.json`** is written by the CLI, browser and agents. Change it in `src/kernel/state/schema.shared.ts`, then `bun run schema`
-  to regenerate `schema/state.schema.json`. A `state.json` that breaks the schema is moved aside like a corrupt one.
-- **`~/.reviewroom/`** (`REVIEWROOM_HOME`): `reviews/` (above), `sessions/<pid>.json` per running server, read by
-  `reviewroom hub` (which deletes records whose server is gone) and other local tools; `hub.json` is the running hub;
-  `layouts/<name>.json` are the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the shipped ones
-  in `src/kernel/layouts/` (whose names they can't take); `default-layout.json` names their default; `config.json` holds the
-  reviewer's settings: `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the hub starts, and
-  `defaultAgentHarness` (`claude` only) / `defaultReviewModel` (`sonnet` by default) / `reviewAgentPromptFile` (optional Markdown
-  prompt path, relative to this config file). Model defaults are reread before new questions; restart for other changes.
-- **`assistant.json`** in a review directory stores that review's AI SDK transcript and opaque harness resume state (private,
-  mode 0600). Reopening with the same installation restores the transcript and resumes its existing native session.
-  The harness owns recovery; changing the installation path or agent dependencies can invalidate native resume.
-  The harness keeps its runtime and session files in `assistant/.ai-sdk-harness/` under `REVIEWROOM_HOME`;
-  its setup commands use `assistant/` as HOME, while the native agent keeps the reviewer's real HOME and login.
-  `claudeExecutable` in the user config overrides the Claude binary; otherwise the native override environment,
-  `claude` on PATH, then the adapter's bundled binary are used. Changing it requires restarting the review server.
-  Like `state.json`, a corrupt one is moved aside and blocks the assistant (not the review) until restored or deleted; one
-  started from another checkout is kept and refused there. The assistant answers only the review's own URL: the hub proxy
-  marks what it forwards (`x-reviewroom-via-hub`) and the review server refuses it (ADR 0001: no identity yet).
+- **Review state** (`docs/review-state.md`): what reviewroom keeps per review and in `~/.reviewroom/`, and how to
+  change it.
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,
   `build-info.json`) `no-cache`, the API `no-store`; every response carries `x-reviewroom-build`. Keep
-  `_rr/reviewroom.js` unhashed (agent `review.html` names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
+  `_rr/reviewroom.js` unhashed (every agent's report names it). `src/pwa/manifest.webmanifest`: never add an `id`, keep
   `start_url` and `scope` `./` (either change orphans installed icons). `src/kernel/pwa.ts` reloads only on
   `controllerchange`, never while a worker installs, and holds the reload over unsent work. The worker never intercepts
   `/api/` or `/r/<id>/api/`. The build writes a Brotli copy (`<file>.br`) of each client file; `serveClient()` sends it
@@ -91,9 +77,10 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
 - Controls whose purpose isn't obvious get a `title` (add `data-keys` for a shortcut hint).
 - No raw `rr:` strings, ids or CSS paths in visible text: use `app.label()` / `describeElement()`.
 
-- Use `walkthrough` for the freeform explanation (`src/review/walkthrough.ts`) and `slides` for guided-walkthrough
-  modules (`src/slides/`). Preserve the existing `narrative` panel/scope/CSS identifiers, `narrative-focus` layout
-  key, `walkthrough.json`, `rr:tour` links and public API names for compatibility.
+- Code identifiers predate the vocabulary: `src/review/walkthrough.ts` and the `narrative` panel are the report, and
+  `slides` modules (`src/slides/`) are the walkthrough. Preserve the existing `narrative`
+  panel/scope/CSS identifiers, `narrative-focus` layout key, the walkthrough's file name, `rr:tour` links and public API names
+  for compatibility.
 - Runtime dependencies flow `threads`/`slides` -> `review` -> `kernel`; `hub` -> `kernel`.
   Root composition modules may import all features. `bun run check` rejects runtime cycles and layer violations.
 - Type-only dependencies may reference `ReviewApp` at the composition root or shared contracts; otherwise follow layers.

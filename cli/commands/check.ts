@@ -1,6 +1,8 @@
+import { WALKTHROUGH_FILE, REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
+import { progressHash, recordArtifact } from '../lib/progress.ts';
 import { makeProvider, type Provider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
@@ -11,11 +13,11 @@ import { PKG } from '../lib/paths.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
 import { selectSlides, selectionLinks, type SlideSelector, type SlideSelection } from '../lib/slide-selection.ts';
 
-type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; notes: Finding[]; selection?: SlideSelection };
+type Checked = { issues: string[] } | { tour: Walkthrough | null; results: LinkResult[]; bad: LinkResult[]; healed: boolean; reportHash: string; head?: string; notes: Finding[]; selection?: SlideSelection };
 type CheckOptions = { fix?: boolean; accept?: boolean; store?: boolean; estimates?: boolean; notes?: boolean; select?: SlideSelector };
 
 function checkScope(value: Walkthrough | null, o: CheckOptions, dir: string) {
-  const selection = o.select ? selectSlides(value ?? fail(`no walkthrough.json in ${dir}`), o.select) : undefined;
+  const selection = o.select ? selectSlides(value ?? fail(`no ${WALKTHROUGH_FILE} in ${dir}`), o.select) : undefined;
   const partial = selection && selection.scope.kind !== 'all';
   if (partial && (o.fix || o.accept || o.store !== false)) fail('scoped slide checks must be read-only');
   const selected = partial ? new Set(selection.slides.map((s) => `${s.chapter}/${s.step}`)) : undefined;
@@ -33,14 +35,14 @@ function linkScope(html: string, tour: Walkthrough | null, locations?: Map<strin
   return { extra, refs: typeof extra === 'string' ? extractLinks(uncomment(html + '\n' + extra)) : extra };
 }
 
-/** The stale-link check of review.html (missing: '') and walkthrough.json, which must match its schema first
+/** The stale-link check of report.html (missing: '') and walkthrough.json, which must match its schema first
  *  (else only `issues`), plus the walkthrough's static checks (`notes`; `estimates: false` when rendering measures them).
  *  Stores the new fingerprints unless `store: false`; `fix` rewrites moved links in both files.
  *  `select` scopes slide checks without slicing the full tour; a partial selection requires store:false. */
 export async function runCheck(repo: string | null, dir: string, o: CheckOptions = {}): Promise<Checked> {
   const tour = readWalkthrough(dir);
   if (tour && !tour.ok) return { issues: tour.issues };
-  const file = path.join(dir, 'review.html');
+  const file = path.join(dir, REPORT_FILE);
   const tourFile = walkthroughPath(dir);
   const value = tour?.ok ? tour.value : null; // past the schema check, a walkthrough that is there is valid
   const { selection, selected, locations } = checkScope(value, o, dir);
@@ -64,16 +66,16 @@ export async function runCheck(repo: string | null, dir: string, o: CheckOptions
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const notes = staticNotes(value, prov, o, selected);
   const bad = locations ? problems(results).map((r) => ({ ...r, where: locations.get(r.ref) })) : locate(problems(results), value);
-  return { tour: value, results, bad, healed, notes, selection };
+  return { tour: value, results, bad, healed, reportHash: progressHash(fixed), head: /^[a-f0-9]{40}$/.test(raw.head) ? raw.head : undefined, notes, selection };
 }
 
 export const WALKTHROUGH_SCHEMA = path.join(PKG, 'schema', 'walkthrough.schema.json');
-export const schemaReport = (issues: string[]) => `walkthrough.json does not match ${WALKTHROUGH_SCHEMA}:\n  ${issues.join('\n  ')}`;
+export const schemaReport = (issues: string[]) => `${WALKTHROUGH_FILE} does not match ${WALKTHROUGH_SCHEMA}:\n  ${issues.join('\n  ')}`;
 
-// Stale-link check of review.html and walkthrough.json. --fix rewrites links whose code moved <=5 lines; --accept
+// Stale-link check of report.html and walkthrough.json. --fix rewrites links whose code moved <=5 lines; --accept
 // re-fingerprints every link as it is now (after you've re-read the changed ones). Exit 1 = problems left.
 export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean; accept?: boolean; json?: boolean }) {
-  const dir = dirForEdit(repo, o.dir, 'review.html');
+  const dir = dirForEdit(repo, o.dir, REPORT_FILE);
   const c = await runCheck(repo, dir, o);
   if ('issues' in c) {
     if (o.json) console.log(JSON.stringify({ links: [], walkthrough: [], schema: c.issues }, null, 2));
@@ -85,8 +87,9 @@ export async function cmdCheck(repo: string | null, o: Global & { fix?: boolean;
   if (o.json) console.log(JSON.stringify({ links: bad, walkthrough: notes }, null, 2));
   else {
     if (bad.length) console.log(`${bad.length} of ${results.length} links need attention:\n${report(bad)}`);
-    else console.log(`${results.length} links ok${tour ? ' (review.html and walkthrough.json)' : ''}${healed ? ' (moved links fixed)' : ''}`);
-    if (tour && notes.length) console.log(`\nthe guided walkthrough, walkthrough.json (\`reviewroom slide-lint\` also measures each slide on screen):\n${findingReport(notes, tour)}`);
+    else console.log(`${results.length} links ok${tour ? ` (${REPORT_FILE} and ${WALKTHROUGH_FILE})` : ''}${healed ? ' (moved links fixed)' : ''}`);
+    if (tour && notes.length) console.log(`\nthe walkthrough, ${WALKTHROUGH_FILE} (\`reviewroom slide-lint\` also measures each slide on screen):\n${findingReport(notes, tour)}`);
   }
   if (bad.length) process.exitCode = 1;
+  else recordArtifact(dir, 'report', 'validated', { head: c.head }, c.reportHash);
 }

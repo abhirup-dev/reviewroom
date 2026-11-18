@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // state.json: read (checked against the schema), atomic write, and ops applied under state.lock.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,7 +10,7 @@ import { StoredState, issueText, type Op } from '../../src/kernel/state/schema.s
 import { parseWalkthrough, type Parsed } from '../../src/slides/model.shared.ts';
 
 export const statePath = (dir: string) => path.join(dir, 'state.json');
-export const walkthroughPath = (dir: string) => path.join(dir, 'walkthrough.json');
+export const walkthroughPath = (dir: string) => path.join(dir, WALKTHROUGH_FILE);
 
 /** The review's walkthrough.json, parsed; null when there is none. */
 export function readWalkthrough(dir: string): Parsed | null {

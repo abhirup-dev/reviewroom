@@ -71,15 +71,15 @@ test('lock, generated and doc files are only mentioned; the line budget depends 
 });
 
 test('a step\'s focus must name a diagram node in the chapter lead or the slide', () => {
-  const lead = '<rr-mermaid>flowchart TD\nH[habit.RecentEvents] --&gt; T[TFS]</rr-mermaid>';
-  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['habit.RecentEvents', 'TFS'] }, { id: 's2', text: '<rr-mermaid>flowchart TD\nC[Cache]</rr-mermaid>', focus: ['Cache', 'Ranker'] }];
+  const lead = '<rr-mermaid>flowchart TD\nH[limit.Take] --&gt; T[Storage]</rr-mermaid>';
+  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['limit.Take', 'Storage'] }, { id: 's2', text: '<rr-mermaid>flowchart TD\nC[Cache]</rr-mermaid>', focus: ['Cache', 'Store'] }];
   const fs = lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', lead, steps }] }, [], () => undefined).filter((f) => f.check === 'unknown-focus');
-  expect(fs.map((f) => `${f.where} ${f.message}`)).toEqual(['a/s2 focus names no diagram node: Ranker']);
+  expect(fs.map((f) => `${f.where} ${f.message}`)).toEqual(['a/s2 focus names no diagram node: Store']);
 });
 
 test('a focus may name a Mermaid node by its label', () => {
-  const lead = '<rr-mermaid>flowchart LR\n  A[Fetcher] --&gt; B[Ranker]</rr-mermaid>';
-  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['Fetcher', 'Ranker', 'Cache'] }];
+  const lead = '<rr-mermaid>flowchart LR\n  A[Fetcher] --&gt; B[Store]</rr-mermaid>';
+  const steps = [{ id: 's1', text: '<p>a</p>', ref: 'rr:code/x.go#L1', focus: ['Fetcher', 'Store', 'Cache'] }];
   const fs = lintTour({ version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', lead, steps }] }, [], () => undefined).filter((f) => f.check === 'unknown-focus');
   expect(fs.map((f) => f.message)).toEqual(['focus names no diagram node: Cache']);
 });

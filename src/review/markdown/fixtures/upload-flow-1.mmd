@@ -1,0 +1,6 @@
+flowchart TD
+  h["Handler()"] --> g{plan has a rate?}
+  g -->|yes| b[account bucket — take a token]
+  g -->|no| u[unlimited — skip the bucket]
+  b --> c[write the upload]
+  u --> c

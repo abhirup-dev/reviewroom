@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "rev": 5,
+  "round": 2,
+  "rounds": [
+    {
+      "n": 1,
+      "status": "sent",
+      "startedAt": "2026-10-09T09:02:00Z",
+      "sentAt": "2026-10-09T09:41:00Z",
+      "note": "Please confirm account scope and retry behavior."
+    },
+    {
+      "n": 2,
+      "status": "open",
+      "startedAt": "2026-10-09T09:58:00Z"
+    }
+  ],
+  "threads": [
+    {
+      "id": "t_seq01",
+      "anchor": {
+        "kind": "doc",
+        "target": "request-path"
+      },
+      "status": "open",
+      "createdRound": 1,
+      "messages": [
+        {
+          "id": "m_1",
+          "author": "you",
+          "round": 1,
+          "at": "2026-10-09T09:20:00Z",
+          "body": "Does every user in an account spend the same allowance?"
+        },
+        {
+          "id": "m_2",
+          "author": "agent",
+          "round": 2,
+          "at": "2026-10-09T09:57:00Z",
+          "body": "Yes. [The account-keyed bucket](rr:code/internal/limit/bucket.go#L37-42) shares tokens. See [account scope](rr:doc/shared-account)."
+        }
+      ]
+    },
+    {
+      "id": "t_metric",
+      "anchor": {
+        "kind": "code",
+        "path": "internal/limit/bucket.go",
+        "rev": "head",
+        "start": 33,
+        "end": 36
+      },
+      "status": "open",
+      "createdRound": 1,
+      "messages": [
+        {
+          "id": "m_3",
+          "author": "you",
+          "round": 1,
+          "at": "2026-10-09T09:25:00Z",
+          "body": "Can Team upload without a configured rate?"
+        },
+        {
+          "id": "m_4",
+          "author": "agent",
+          "round": 2,
+          "at": "2026-10-09T09:57:30Z",
+          "body": "Yes. [The zero-rate branch](rr:code/internal/limit/bucket.go#L33-36) permits it. See [the finding](rr:doc/finding-team)."
+        }
+      ]
+    },
+    {
+      "id": "t_rows",
+      "anchor": {
+        "kind": "doc",
+        "target": "retry-header"
+      },
+      "status": "resolved",
+      "createdRound": 1,
+      "messages": [
+        {
+          "id": "m_5",
+          "author": "you",
+          "round": 1,
+          "at": "2026-10-09T09:31:00Z",
+          "body": "Is Retry-After in milliseconds or seconds?"
+        },
+        {
+          "id": "m_6",
+          "author": "agent",
+          "round": 2,
+          "at": "2026-10-09T09:58:00Z",
+          "body": "[The handler](rr:code/internal/upload/handler.go#L22) rounds up to whole seconds. See [the header explanation](rr:doc/retry-header)."
+        }
+      ]
+    },
+    {
+      "id": "t_test",
+      "anchor": {
+        "kind": "code",
+        "path": "internal/limit/bucket_test.go",
+        "rev": "head",
+        "start": 8,
+        "end": 18
+      },
+      "status": "open",
+      "createdRound": 2,
+      "messages": [
+        {
+          "id": "m_7",
+          "author": "you",
+          "round": 2,
+          "at": "2026-10-09T10:12:00Z",
+          "body": "Can we test 429 and Retry-After at the handler boundary?"
+        }
+      ]
+    }
+  ],
+  "viewed": {
+    "internal/limit/bucket_test.go": 2,
+    "config/limits.json": 1
+  },
+  "pins": [
+    "rr:doc/request-path"
+  ],
+  "checks": {
+    "account-scope": "todo",
+    "replicas": "todo",
+    "unlimited": "fail"
+  },
+  "links": {
+    "rr:sym/AccountFrom": "definition",
+    "rr:sym/ServeHTTP": "definition",
+    "rr:sym/Take": "definition",
+    "rr:sym/Store": "definition",
+    "rr:code/internal/upload/handler.go#L21-25": "2fcd9d29b7c3981d",
+    "rr:code/internal/upload/handler.go@base#L10-19": "299691802e875d70",
+    "rr:sym/Account": "definition",
+    "rr:code/config/limits.json#L1-5": "37ed3b20910f362a",
+    "rr:sym/Load": "definition",
+    "rr:code/internal/limit/bucket.go#L33-36": "4b2d76a3def853a3",
+    "rr:code/client/upload.go#L10-25": "bf67acff98186b86",
+    "rr:sym/Uploads": "definition",
+    "rr:sym/TestTakeBurst": "definition",
+    "rr:sym/TestTakeRefill": "definition",
+    "rr:code/internal/limit/bucket.go#L37-42": "34b8d5f211393149",
+    "rr:code/internal/upload/handler.go#L22": "e59f2242707a958f",
+    "rr:code/internal/upload/account.go#L5-15": "69226fa70d52d892",
+    "rr:code/internal/limit/bucket.go#L37-51": "1410c38c75d80fea",
+    "rr:code/internal/upload/handler.go#L18-25": "f99290b956057127"
+  }
+}

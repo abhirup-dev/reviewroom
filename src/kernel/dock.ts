@@ -19,7 +19,7 @@ export interface PanelInstance {
 }
 
 const registry = new Map<string, PanelDef>();
-/** Register a panel kind; agents can add their own (a metrics chart, a query runner...) from review.html. The returned
+/** Register a panel kind; agents can add their own (a metrics chart, a query runner...) from report.html. The returned
  *  function restores what was registered under its id before. */
 export function definePanel(def: PanelDef) {
   const before = registry.get(def.id);

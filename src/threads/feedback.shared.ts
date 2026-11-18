@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../kernel/state/files.shared';
 // Shared by the CLI and the browser: turn the reviewer's round into a prompt the
 // agent can act on. No DOM or Node imports, so both the client bundle and the CLI can import it.
 import type { Message, ReviewState, Thread } from '../kernel/state/model.shared';
@@ -47,7 +48,7 @@ export const anchorText = (a: Anchor, walkthrough?: Walkthrough | null) => descr
 export function githubContext(threads: Thread[] = []) {
   const open = threads.filter((t) => t.status === 'open' && t.messages.length);
   if (!open.length) return [];
-  const lines = ['## Open on GitHub (colleagues; context only, not feedback for you to reply to)', '', 'You cannot post to these. Link one from review.html or a reply with rr:thread/<id> when it bears on your answer.', ''];
+  const lines = ['## Open on GitHub (colleagues; context only, not feedback for you to reply to)', '', `You cannot post to these. Link one from ${REPORT_FILE} or a reply with rr:thread/<id> when it bears on your answer.`, ''];
   for (const t of open) {
     const [first, ...rest] = t.messages;
     const where = t.gh?.conversation ? 'PR conversation' : `${anchorText(t.anchor)}${t.gh?.outdated ? ', outdated' : ''}`;
@@ -91,7 +92,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
     `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
-    `(leave resolving to the reviewer), change code and/or the walkthrough (review.html) as needed,`,
+    `(leave resolving to the reviewer), change code and/or the walkthrough (${REPORT_FILE}) as needed,`,
     `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom review${at}\` again to start round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
     `![](rr:...) on its own line embeds a live preview in the thread.`,

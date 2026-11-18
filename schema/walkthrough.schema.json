@@ -45,7 +45,7 @@
                 "text": {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Prose HTML: rr: links, <rr-mermaid>, <rr-code> work as in review.html"
+                  "description": "Prose HTML: rr: links, <rr-mermaid>, <rr-code> work as in report.html"
                 },
                 "ref": {
                   "description": "What the right pane shows for this step: one link (its whole file, the lines highlighted), or several (each chunk stacked, across files). Omitted: keep the previous target (the pane shows only code)",
@@ -94,5 +94,5 @@
     "chapters"
   ],
   "$id": "reviewroom/walkthrough.schema.json",
-  "title": "reviewroom guided walkthrough (walkthrough.json in the review dir)"
+  "title": "reviewroom walkthrough (walkthrough.json in the review dir)"
 }

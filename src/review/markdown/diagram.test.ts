@@ -1,10 +1,9 @@
 import { expect, test } from 'bun:test';
 import { renderAsync } from 'pele/lazy';
 
-// Sai's PR: https://github.com/Example/ledger-feature-service-sdk/pull/149
 for (const index of [1, 2, 3]) {
-  test(`renders SDK PR #149 diagram ${index} without Mermaid.js`, async () => {
-    const source = await Bun.file(new URL(`./fixtures/sdk-149-${index}.mmd`, import.meta.url)).text();
+  test(`renders upload flow diagram ${index} without Mermaid.js`, async () => {
+    const source = await Bun.file(new URL(`./fixtures/upload-flow-${index}.mmd`, import.meta.url)).text();
     const result = await renderAsync(source, { images: false, links: false, measurer: { width: (text, size) => text.length * size * 0.6 } });
     expect(result.type).toBe('flowchart');
     expect(result.svg).toContain('<svg');

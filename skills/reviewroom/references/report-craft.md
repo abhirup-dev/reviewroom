@@ -1,20 +1,20 @@
-# Review craft: what makes a walkthrough worth reading
+# Report craft: what makes a report worth reading
 
-The walkthrough (`review.html`) is the long-form review: every claim linked, risks, tests and the open
+The report is the long-form review: every claim linked, risks, tests and the flagged
 questions, growing round by round as threads come in. This is how to write it; the building blocks are
-in `authoring.md`, and the guided walkthrough (the story told once, before it) is
-`guided-walkthrough-craft.md`.
+in `authoring.md`, and the walkthrough (the story told once, before it) is
+`walkthrough-craft.md`.
 
 ## Who you are writing for
 
-The reviewer: an engineer reviewing at speed, sometimes the author of the diff. The walkthrough exists
+The reviewer: an engineer reviewing at speed, sometimes the author of the diff. The report exists
 so they **understand the diff fast and stay connected to the real code** while doing so. Whenever the
-walkthrough says something, their next thought is "what does that look like in the code? what was
+report says something, their next thought is "what does that look like in the code? what was
 there before? what changed?" Answer that before they ask, by linking every claim.
 
 ## The first sixty seconds
 
-The opening carries most of the value:
+The opening (the first section, Summary in the explainer profile) carries most of the value:
 
 1. **One paragraph** saying what the diff does and why (`<p class="rr-lede">`).
 2. **One diagram of the delta in context**: the surrounding flow, with the diff marked as added /
@@ -28,26 +28,30 @@ Someone who reads only this should know where to look and what to worry about.
 
 ## The body
 
-- Sections in the order a reviewer traces the diff: entry point → new code → storage / proto /
-  config → failure modes → tests → risks. Each is a `<section id>` with an `<h2>`, short and about
-  one concern, so it can be commented on as a unit.
-- For a big diff, add a "Reading order" section near the top: a numbered list of links into
-  sections and hunks, top-down from the entry point or bottom-up from the leaf changes.
+The report starts with its profile's sections (`profiles/index.md`); keep them. The guidance below
+is for the writing inside them.
+
+- Within a section, follow the order a reviewer traces the diff: entry point → new code → storage /
+  proto / config → failure modes → tests. Split it into `<section id>`s with an `<h3>`, each short
+  and about one concern, so it can be commented on as a unit.
+- For a big diff, open with a reading order: a numbered list of links into sections and hunks,
+  top-down from the entry point or bottom-up from the leaf changes.
 - Every factual claim about the code carries a link. Point at code rather than describing it.
 - Say what changed **and what was there before** when that's the interesting part (link `@base`).
 - Call out real risks with `<rr-callout kind="risk">`, not every observation. Say what is *not*
   tested.
-- End with the open questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle
-  before approving (compatibility, latency, migrations, observability, rollout).
+- Flagged questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle before
+  approving (compatibility, latency, migrations, observability, rollout). The profile's guide says
+  where they go.
 - Interpret the PR description and connect it to the code; don't restate it.
-- Don't over-build: a lede, the delta diagram, a handful of sections and one checklist cover a typical
-  diff. Let the sections follow the change. Match the review's length and depth to the complexity and
+- Don't over-build: a lede, the delta diagram, a handful of subsections and one checklist cover a
+  typical diff. Let the subsections follow the change. Match the review's length and depth to the complexity and
   impact of the change, informed by the code's logic and the PR description. A section is one concern,
   not one file.
 
 ## Design for a narrow column
 
-The walkthrough usually sits in a side panel about 400px wide, or on a phone.
+The report usually sits in a side panel about 400px wide, or on a phone.
 Write for that width first; a wide window then just has margin.
 
 - Diagrams run top to bottom: `flowchart TD`, tall SVGs rather than wide ones. Pele refits a Mermaid diagram to the panel; it can't
@@ -74,23 +78,22 @@ The reviewer scans before they read. Before handing over, read each section as t
 narrow column and reshape what resists scanning. These four patterns often make scanning harder.
 Each example shows one possible improvement, not a required template. Any shape that keeps the
 meaning, the distinctions and the code links is fine: a shorter paragraph, a one-level list, a
-heading per group, a three-column table, a diagram, or your own HTML. A list that is really a list (steps of a migration, the open questions)
+heading per group, a three-column table, a diagram, or your own HTML. A list that is really a list (steps of a migration, the flagged questions)
 stays a list.
 
 **One paragraph, several independent ideas.** Each idea the reviewer may want to find, link or
 comment on gets its own sentence, item or paragraph.
 
 ```html
-<p>The fetcher now retries twice, the builder degrades when the fetch fails instead of
-returning the error, and the ranker request gains an optional events field that the proto marks
-append-only.</p>
+<p>The bucket spends a token, the handler rejects an upload when the bucket is empty,
+and the client retries a rejected request.</p>
 ```
 
 ```html
 <ul>
-  <li><a href="rr:sym/fetchHabit">fetchHabit</a> retries twice.</li>
-  <li><a href="rr:sym/Builder.Build">Builder.Build</a> degrades on a failed fetch instead of returning the error.</li>
-  <li><a href="rr:code/proto/ranker.proto#L12">RankerRequest.events</a> is new and append-only.</li>
+  <li><a href="rr:sym/Take">Take</a> spends one token.</li>
+  <li><a href="rr:sym/ServeHTTP">ServeHTTP</a> returns 429 when no token is available.</li>
+  <li><a href="rr:sym/Send">Send</a> retries rejected uploads.</li>
 </ul>
 ```
 
@@ -100,19 +103,16 @@ more clearly; keep the inventory when individual entries are what the reviewer n
 
 ```html
 <ul>
-  <li><rr-ref ref="rr:sym/TestFetch_RetriesOnce"></rr-ref><br>Retries after one transient error.</li>
-  <li><rr-ref ref="rr:sym/TestFetch_GivesUp"></rr-ref><br>Gives up after the second error.</li>
-  <li><rr-ref ref="rr:sym/TestBuild_Degrades"></rr-ref><br>Builds without events when the fetch fails.</li>
-  <!-- More entries of the same shape. -->
+  <li><rr-ref ref="rr:sym/TestTakeBurst"></rr-ref><br>Rejects uploads after the initial burst.</li>
+  <li><rr-ref ref="rr:sym/TestTakeRefill"></rr-ref><br>Allows an upload after a token refills.</li>
 </ul>
 ```
 
 ```html
-<h3>Retry policy</h3>
-<p>Two attempts, then give up: <rr-ref ref="rr:sym/TestFetch_RetriesOnce"></rr-ref>,
-<rr-ref ref="rr:sym/TestFetch_GivesUp"></rr-ref>.</p>
-<h3>Degraded ranking</h3>
-<p>The request goes out without events: <rr-ref ref="rr:sym/TestBuild_Degrades"></rr-ref>.</p>
+<h3>Bucket behavior</h3>
+<p>Burst exhaustion and timed refill:
+<rr-ref ref="rr:sym/TestTakeBurst"></rr-ref>,
+<rr-ref ref="rr:sym/TestTakeRefill"></rr-ref>.</p>
 ```
 
 A table (behaviour, tests, gap) does the same when every item has the same fields.
@@ -122,21 +122,22 @@ degrades, unless D": consider a picture with a caption ("Show it, then say it"),
 relationships in text. If drawing them, link the relevant code and explain the important relationship.
 
 ```html
-<p>Build calls the fetcher, which calls TFS; a TFS error comes back wrapped, the builder catches
-it and sends the ranker a request without events, while on success the events are attached before
-the request leaves.</p>
+<p>The handler asks the bucket for permission, then either saves the upload or returns
+429 with Retry-After.</p>
 ```
 
 ```html
-<rr-mermaid id="fetch-path">
+<rr-mermaid id="upload-path">
 flowchart TD
-  Build[Builder.Build] --> Fetch[fetchHabit] --> TFS
-  TFS -- error --> Degrade[request without events]
-  TFS -- events --> Attach[request with events]
-  click Fetch "rr:sym/fetchHabit"
-  click Degrade "rr:code/pkg/ranker/request_builder.go#L50-54"
+  Handler[ServeHTTP] --> Bucket[Take]
+  Bucket -- token --> Store
+  Bucket -- wait --> Reject[429 and Retry-After]
+  click Handler "rr:sym/ServeHTTP"
+  click Bucket "rr:sym/Take"
+  click Store "rr:sym/Store"
+  click Reject "rr:code/internal/upload/handler.go#L21-25"
 </rr-mermaid>
-<p>A TFS error never reaches the ranker: the builder degrades at the marked lines.</p>
+<p>The bucket returns a wait without sleeping; the handler communicates it to the client.</p>
 ```
 
 **Lists nested more than one level deep.** The outer level is usually headings or separate
@@ -152,17 +153,17 @@ sections; the leaves are one list, or a table when they all have the same fields
 
 ```html
 <h3>Storage</h3>
-<p>The migration <a href="rr:code/migrations/004_activity_events.sql#L1-9">adds <code>events_json</code></a>
-and backfills nothing.</p>
+<p>The configuration <a href="rr:code/config/limits.json#L1-5">adds upload allowances</a>
+for each plan.</p>
 ```
 
-## With a guided walkthrough
+## With the walkthrough
 
-When the reviewer wants a guided walkthrough too, read `guided-walkthrough-craft.md` first and outline
-the story once: the walkthrough's first sections mirror its chapters, and its risk, test and
-open-question sections are what the last slide points at.
+Read `walkthrough-craft.md` first; the walkthrough is written and validated before the report is
+filled (SKILL.md, Step 4). The slides tell the story; the report keeps the review record. Its
+sections need not mirror the chapters.
 
 ## Answering threads
 
-For feedback, replies and round-specific walkthrough updates, follow `review-rounds.md`.
+For feedback, replies and round-specific report updates, follow `review-rounds.md`.
 Use `authoring.md` for thread links and embeds.

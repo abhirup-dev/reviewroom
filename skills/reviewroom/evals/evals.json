@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/ledger-feature-service-sdk? Keep the narrative short.",
-      "expected_output": "Runs `reviewroom pr 128 --repo \u2026 --wait` in the background with a long timeout, relays the URL from the command's first lines, reads the diff at the head sha, writes a review.html with a lede, a clickable rr-mermaid delta diagram, linked sections and a checklist of open questions, runs `check --fix`, then waits for the command to exit without asking the reviewer to type anything.",
+      "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/upload-service? Keep the narrative short.",
+      "expected_output": "Runs `reviewroom pr 128 --repo \u2026 --wait` in the background with a long timeout, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Reads the explainer profile's guide. Outlines a short intro and story ending in Risks, adds heading-only finding sections under the pre-made Findings section, writes the walkthrough and runs full slide-lint until it passes before filling the report. Each risk has a severity and rr:doc link to its finding; detailed findings stay in the report. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
       "files": []
     },
     {
@@ -15,20 +15,20 @@
     },
     {
       "id": 3,
-      "prompt": "walk me through what https://github.com/example/app-feed-aggregator-service/pull/412 changes, top-down from the handler",
-      "expected_output": "Uses `reviewroom pr <url> --wait` in the background, orders sections top-down from the entry point with a reading-order list, links every claim to code (rr:sym for functions and types).",
+      "prompt": "walk me through what https://github.com/example/uploads/pull/412 changes, top-down from the handler",
+      "expected_output": "Uses `reviewroom pr <url> --wait` in the background, checks PR ownership, outlines the story top-down from the handler, adds heading-only finding sections under the pre-made Findings section, then writes the walkthrough, passes full slide-lint, then fills the report and passes check. Fills the explainer profile's pre-made sections: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions, keeping their ids. Links every claim to code (rr:sym for functions and types), and never changes code.",
       "files": []
     },
     {
       "id": 4,
-      "prompt": "The reviewer asked me to rename the retry helper and move it into its own file. Do it and answer the thread in reviewroom.",
-      "expected_output": "Changes the code, runs `reviewroom check --fix --dir \u2026` and fixes the changed/broken links and the prose around them, replies to the thread linking the new location, does not resolve it, and starts the next round with `reviewroom review` in the background.",
+      "prompt": "In my own PR, the reviewer asked me to rename the retry helper and move it into its own file. Do it and answer the thread in reviewroom.",
+      "expected_output": "Confirms the PR author matches the authenticated gh login, changes the code, runs `reviewroom check --fix --dir \u2026` and fixes the changed/broken links and prose, replies linking the new location, does not resolve the thread, and starts the next round with `reviewroom review` in the background.",
       "files": []
     },
     {
       "id": 5,
       "prompt": "Review my uncommitted changes in reviewroom before I commit.",
-      "expected_output": "Runs `reviewroom pr --head worktree --repo \u2026 --wait` in the background and continues with the normal walkthrough workflow.",
+      "expected_output": "Runs `reviewroom pr --head worktree --repo \u2026 --wait` in the background and continues with the normal walkthrough and report workflow.",
       "files": []
     },
     {
@@ -39,20 +39,38 @@
     },
     {
       "id": 7,
-      "prompt": "In the reviewroom walkthrough for PR 412, point the reviewer at the Build method on the ranker's Builder (there are three Build methods in the repo) and at the existing retry config in pkg/config/retry.go, which the PR doesn't touch.",
+      "prompt": "In the reviewroom report for PR 412, point the reviewer at the Build method on the upload service's Builder (there are three Build methods in the repo) and at the existing retry config in pkg/config/retry.go, which the PR doesn't touch.",
       "expected_output": "Links the method as rr:sym/Builder.Build (or rr:sym/<path>:Build), not a bare rr:sym/Build, and the untouched file as rr:code/pkg/config/retry.go#L\u2026 at head, line numbers checked with git show <head>:<path>. Uses empty <rr-ref> chips or <a> with a phrase, never shows a raw rr: string, and runs check --fix.",
       "files": []
     },
     {
       "id": 8,
-      "prompt": "The reviewer asked me to fix the nil check in PR 412. I committed the fix locally. Answer the thread in reviewroom.",
+      "prompt": "The reviewer asked me to fix the nil check in my own PR 412. I committed the fix locally. Answer the thread in reviewroom.",
       "expected_output": "Replies explaining the fix is committed but not in the review's diff (the head is fixed), links the fixed lines as rr:code/<path>@<new sha>#L\u2026, does not resolve the thread, and starts the next round with reviewroom review in the background.",
       "files": []
     },
     {
       "id": 9,
-      "prompt": "Give me a guided walkthrough of PR 148 in reviewroom. The description cites a benchmark screenshot; while reading you find it builds on PR 145 and that a review thread made the author drop a bound.",
-      "expected_output": "walkthrough.json opens with a context chapter (no diff code yet) that says what exists today and names the critical file, then one chapter per independent change, then a convergence chapter on the critical file(s) (at least one per five changed files), then a reconciliation that re-reads the whole and points at review.html sections. Chapters are parts of the change, not review categories. The benchmark is quoted and attributed to the description. Nothing about PR 145 or the dropped bound is assumed known: it is either explained in the context chapter with a link or left out; no 'as we saw', 'the earlier version' or 'the fix'. No evaluative language on slides.",
+      "prompt": "Give me a walkthrough of PR 148 in reviewroom. The description cites a benchmark screenshot; while reading you find it builds on PR 145 and that a review thread made the author drop a bound.",
+      "expected_output": "Outlines the story and adds heading-only finding sections under the pre-made Findings section. Writes the walkthrough with context (no diff code yet), threads, convergence on the critical files, reconciliation, then a final Risks chapter. Each main risk is a one-liner with a severity and rr:doc link to its finding, without detailed findings on slides. Passes full slide-lint before filling the report and running check. The story chapters are parts of the change, not review categories. Attributes the benchmark to the description. PR 145 and the dropped bound are either explained as linked context or omitted, never assumed known or used as evidence for this PR.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Review PR 148 in reviewroom. It already ships a walkthrough, which reviewroom pr pulled into the review directory.",
+      "expected_output": "Uses the pulled walkthrough as is; does not replace it or reshape it to add Risks. Reads the diff and checks ownership, writes the report for the reviewer and passes reviewroom check. Does not change code on someone else's PR.",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "We are reviewing my teammate's PR. In round 2 I asked you to fix the retry bug and explain why it matters.",
+      "expected_output": "Compares `gh pr view <n | url> --json author --jq .author.login` with `gh api user --jq .login`. Since they differ, never changes code. Explains the bug and suggested direction in a data-round section under Your questions, links the thread, replies without resolving it, validates the authored content and starts the next round in the background.",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "I wrote the walkthrough for a small PR, and reviewroom slide-lint --chapter risks passed. Can I fill the report now?",
+      "expected_output": "Requires a full unscoped `reviewroom slide-lint --dir <dir>` run and fixes issues until it passes. Explains that a scoped pass does not clear the loading screen. Only then fills the report's sections and runs reviewroom check until it passes.",
       "files": []
     }
   ]

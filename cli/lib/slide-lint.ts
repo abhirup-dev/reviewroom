@@ -1,3 +1,4 @@
+import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // Whether a walkthrough works as a walkthrough, beyond the schema and its links: what it leaves out, its pacing, and
 // (rendered, `slide-lint`) whether each step fits the screen. Findings name the step and say how to fix it.
 import { z } from 'zod';
@@ -63,7 +64,7 @@ function unshownFiles(w: Walkthrough, changed: ChangedFile[], symPath: (name: st
 export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name: string) => string | undefined, { estimates = true, selected }: { estimates?: boolean; selected?: ReadonlySet<string> } = {}): Finding[] {
   const out = selected ? [] : unshownFiles(w, changed, symPath);
   const total = w.chapters.reduce((n, c) => n + c.steps.length, 0);
-  if (!selected && total > MAX_TOTAL) out.push({ check: 'too-long', level: 'warn', message: `${total} slides in all`, fix: `Aim for at most ${MAX_TOTAL}: cut slides that restate the code, leave detail to the walkthrough (review.html).` });
+  if (!selected && total > MAX_TOTAL) out.push({ check: 'too-long', level: 'warn', message: `${total} slides in all`, fix: `Aim for at most ${MAX_TOTAL}: cut slides that restate the code, leave detail to the walkthrough (${REPORT_FILE}).` });
   w.chapters.forEach((c) => {
     if (!selected && c.steps.length === 1 && w.chapters.length > 1) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: 'a chapter of one slide', fix: 'Merge it into a neighbouring chapter, or give it the 2 to 5 slides the concept needs.' });
     if (!selected && c.steps.length > MAX_STEPS) out.push({ check: 'chapter-size', level: 'warn', where: c.id, message: `${c.steps.length} slides in one chapter`, fix: 'Split it into two concepts.' });
@@ -77,7 +78,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
       }
       if (!estimates) return;
       const words = plain(s.text).split(' ').filter(Boolean).length;
-      if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: 'Split the slide, or move the detail to the walkthrough (review.html) and link it. `reviewroom slide-lint` measures it.' });
+      if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: `Split the slide, or move the detail to the walkthrough (${REPORT_FILE}) and link it. \`reviewroom slide-lint\` measures it.` });
       const refs = stepRefs(s);
       if (refs.length > 2) out.push({ check: 'short-chunk', level: 'warn', where, message: `${refs.length} refs stacked`, fix: 'Stack at most 2 refs (about 10 lines each), or split the slide.' });
       else for (const ref of refs) {
@@ -112,7 +113,7 @@ export function judge(ms: Measured[]): Finding[] {
     const over = a.left.content - a.left.visible;
     if (over > 2) {
       const lead = a.left.lead / a.left.visible > LEAD_SHARE ? ` The chapter lead takes ${Math.round((a.left.lead / a.left.visible) * 100)}% of it: shorten the lead, or fold its diagram into the slides that need it.` : '';
-      add({ check: 'overflow', level: 'warn', where, message: 'the narration needs scrolling', fix: `Shorten or split the slide; move detail to the walkthrough (review.html) and link it.${lead}` }, viewport, `${over}px more than the ${a.left.visible}px it has`);
+      add({ check: 'overflow', level: 'warn', where, message: 'the narration needs scrolling', fix: `Shorten or split the slide; move detail to the walkthrough (${REPORT_FILE}) and link it.${lead}` }, viewport, `${over}px more than the ${a.left.visible}px it has`);
     }
     // a step without a ref shows the previous pane: its chunk findings are that step's
     for (const c of ownRef && a.settled ? a.chunks : []) {
@@ -127,7 +128,7 @@ export function judge(ms: Measured[]): Finding[] {
       else if (c.code && a.chunks.length > 1 && c.visible < MIN_VISIBLE)
         add({ check: 'short-chunk', level: 'warn', where, message: `${a.chunks.length} stacked chunks leave ${c.ref} too little room`, fix: 'Stack at most 2 or 3 chunks, or split the slide.' }, viewport, `${c.visible} lines visible`);
     }
-    for (const w of a.wide) add({ check: 'too-wide', level: 'warn', where, message: `content wider than its box (${w})`, fix: 'Narrow it (fewer columns or nodes, shorter lines), or move it to review.html.' }, viewport, 'scrolls sideways');
+    for (const w of a.wide) add({ check: 'too-wide', level: 'warn', where, message: `content wider than its box (${w})`, fix: `Narrow it (fewer columns or nodes, shorter lines), or move it to ${REPORT_FILE}.` }, viewport, 'scrolls sideways');
     if (a.stripped.lead.length) add({ check: 'stripped', level: 'warn', where: chapter, message: `the lead loses ${a.stripped.lead.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
     if (a.stripped.text.length) add({ check: 'stripped', level: 'warn', where, message: `the text loses ${a.stripped.text.join(', ')}`, fix: 'Guided walkthrough prose is display-only (it can come from a PR): text, http(s) and rr: links, <rr-ref>, <rr-code>, <rr-mermaid>, <rr-callout>, <rr-embed>; no scripts, styles, forms, media or <rr-check>.' }, viewport, 'removed');
     for (const e of errors) add({ check: 'page-error', level: 'warn', where, message: e.slice(0, 200), fix: 'An error on the page while this slide showed: check its HTML.' }, viewport, 'console');

@@ -1,13 +1,13 @@
-# Pictures for a walkthrough: which one, and in what
+# Pictures for a report: which one, and in what
 
-A walkthrough needs pictures (see "Show it, then say it" in `review-craft.md`). This file is the menu:
+A report needs pictures (see "Show it, then say it" in `report-craft.md`). This file is the menu:
 first the question the picture answers, then the smallest shape that answers it. Choose only the
 formats that help explain the change; this catalog is a menu, not a checklist. Replace every
 illustrative label with a name from the diff, and give each node a link to its code.
 
 ## Two ways to draw
 
-| Draw it as | When | Lights up in a guided walkthrough |
+| Draw it as | When | Lights up in a walkthrough |
 |---|---|---|
 | `<rr-mermaid>` (Mermaid, rendered by Pele) | Anything with nodes and edges: flows, sequences, states, trees, contracts, timelines. Fast to write, themed, clickable | yes, by node label, where the boxes have labels: flowchart, state, class, sequence, treeView, architecture. Not timeline or gitGraph |
 | Your own HTML, SVG or `<table>` | A shape Mermaid has none for: a byte layout, a grid of cases, a before/after of a data structure, a latency budget, a tiny widget the reviewer can poke | no (embed it with `rr:doc/`) |
@@ -48,10 +48,9 @@ and the `rr-diagram-delta` preset, and say it in the label too (colour alone is 
 ```html
 <rr-mermaid class="rr-diagram-delta">
 flowchart TD
-  Req[FeedRequest] --> Fetch[habit.RecentEvents, new]:::added --> Rank[RankerRequest, changed]:::changed
-  Req --> Old[legacy.Events, removed]:::removed
-  click Fetch "rr:code/pkg/features/habit/fetcher.go#L20-28" "fetcher"
-  click Rank "rr:sym/Build" "the builder"
+  Req[Upload] --> Gate[Take, new]:::added --> Handler[ServeHTTP, changed]:::changed
+  click Gate "rr:sym/Take" "the bucket"
+  click Handler "rr:sym/ServeHTTP" "the handler"
 </rr-mermaid>
 ```
 
@@ -63,9 +62,13 @@ Sequence, for a request's path (`click` is not supported on participants; link t
 
 ```mermaid
 sequenceDiagram
-  Builder->>TFS: GetFeatures(user, [habit])
-  TFS-->>Builder: events | error
-  Builder->>Ranker: RankerRequest{events?}
+  Handler->>Bucket: Take(account, plan)
+  Bucket-->>Handler: allowed, wait
+  alt allowed
+    Handler->>Store: Save(request)
+  else empty
+    Handler-->>Client: 429 and Retry-After
+  end
 ```
 
 State machine, for a lifecycle:
@@ -73,42 +76,40 @@ State machine, for a lifecycle:
 ```mermaid
 stateDiagram-v2
   [*] --> Pending
-  Pending --> Fetched: TFS ok
-  Pending --> Degraded: TFS error
-  Degraded --> Ranked
-  Fetched --> Ranked
+  Pending --> Allowed: token available
+  Pending --> Rejected: bucket empty
+  Allowed --> Stored
+  Rejected --> Pending: client waits and retries
 ```
 
 Call tree, numbered in execution order:
 
 ```mermaid
 treeView-beta
-  1 Build()
-    2 fetchHabit()
-      3 tfs.GetFeatures()
-    4 toRankerRequest()
+  1 ServeHTTP()
+    2 AccountFrom()
+    3 Take()
+    4 Store.Save()
 ```
 
-Contract, next to the real signature (`<rr-code ref="rr:sym/RecentEvents">` under it):
+Contract, next to the real signature (`<rr-code ref="rr:sym/Take">` under it):
 
 ```mermaid
 classDiagram
-  class RecentEvents {
-    +user string
-    +window Duration
-    +Fetch(ctx) []Event
+  class Uploads {
+    +Take(account, plan) allowed, wait
   }
-  Builder --> RecentEvents : owns
+  Handler --> Uploads : checks allowance
 ```
 
 Rollout order:
 
 ```mermaid
 timeline
-  title Activity events rollout
-  Week 1 : flag off, fetch in shadow
-  Week 2 : 5% of ranker traffic
-  Week 3 : default on, legacy path removed
+  title Upload limits rollout
+  Week 1 : validate every plan
+  Week 2 : canary upload limits
+  Week 3 : enable for all accounts
 ```
 
 ## Appearance
@@ -127,8 +128,8 @@ tokens and follow light and dark mode.
 | `rr-diagram-square` | monochrome boxes: a data layout, a protocol |
 | `rr-diagram-raised` | offset shadows: a few important boxes |
 | `rr-diagram-signal` | shaded nodes, heavier connectors: a signal path |
-| `rr-diagram-motion` | add to any of the above: connectors flow on hover (off under reduced motion). Not in ordinary walkthroughs |
+| `rr-diagram-motion` | add to any of the above: connectors flow on hover (off under reduced motion). Not in ordinary reports |
 
-Pele has no animation of its own (`animate: true` on an edge parses and renders static). The guided
+Pele has no animation of its own (`animate: true` on an edge parses and renders static). The
 walkthrough animates diagrams for you: the nodes a slide is about light up, the rest dim, and the
 edges between lit nodes flow (in flowcharts and class diagrams). Don't add motion by hand for that.

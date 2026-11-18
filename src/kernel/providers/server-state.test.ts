@@ -1,3 +1,4 @@
+import { WALKTHROUGH_FILE } from '../state/files.shared';
 import { expect, test } from 'bun:test';
 import { emptyState } from '../state/model.shared';
 import { ServerState } from './server-state';
@@ -40,7 +41,7 @@ test('walkthrough transport preserves 200 and 422 JSON, returns null on 404, and
   t.global('fetch', async () => new Response('not JSON', { status: 404 }));
   expect(await backend.walkthrough()).toBeNull();
   t.global('fetch', async () => new Response('', { status: 503, statusText: 'Unavailable' }));
-  expect(backend.walkthrough()).rejects.toThrow('walkthrough.json: 503 Unavailable');
+  expect(backend.walkthrough()).rejects.toThrow(`${WALKTHROUGH_FILE}: 503 Unavailable`);
   t.global('fetch', async () => new Response('not JSON', { status: 200 }));
   expect(backend.walkthrough()).rejects.toThrow();
 });
@@ -127,4 +128,20 @@ test('reloading replaces the previous actor and stream', async () => {
   backend.dispose();
   await tick();
   expect(Stream.opened[1].closed).toBe(true);
+});
+
+test('progress is delivered without requesting a reload and stops at disposal', async () => {
+  using t = fixture();
+  t.global('fetch', async () => Response.json(emptyState()));
+  const { backend } = server(t);
+  await backend.load();
+  let updates = 0, reloads = 0;
+  backend.subscribe({ state: () => {}, error: () => {}, review: () => reloads++, progress: () => updates++ });
+  const stream = Stream.opened[0];
+  const push = () => stream.dispatchEvent(new MessageEvent('progress', { data: JSON.stringify({ walkthrough: { state: 'written' }, report: { state: 'requested' } }) }));
+  push();
+  expect([updates, reloads]).toEqual([1, 0]);
+  backend.dispose();
+  push();
+  expect(updates).toBe(1);
 });
