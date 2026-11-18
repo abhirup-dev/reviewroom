@@ -108,7 +108,8 @@ _Avoid_: GitHub comment
 ### Serving
 
 **Hub**:
-The one page per machine that lists every running review (reviewroom, Crit, Plannotator).
+The one page per machine that lists every running review (reviewroom, Crit, Plannotator), and the stopped reviewroom
+reviews too, so the reviewer can add a PR there and start a stopped review again.
 _Avoid_: dashboard, index
 
 **Hub proxy**:
