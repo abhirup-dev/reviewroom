@@ -18,6 +18,10 @@ test('a hub leaves only when hub.json is gone or names another hub; an unreadabl
     expect(lostHub(2)).toBe(false); // half written
     fs.writeFileSync(file, JSON.stringify({ pid: 'x' }));
     expect(lostHub(2)).toBe(false); // not a record
+    for (const pid of [0, -1, 1.5]) {
+      fs.writeFileSync(file, JSON.stringify({ pid }));
+      expect(lostHub(2)).toBe(false); // not a hub's pid
+    }
     fs.writeFileSync(file, JSON.stringify({ pid: 3 }));
     fs.chmodSync(file, 0o000);
     if (process.getuid?.() !== 0) expect(lostHub(1)).toBe(false); // EACCES

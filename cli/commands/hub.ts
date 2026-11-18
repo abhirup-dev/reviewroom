@@ -56,7 +56,7 @@ export function lostHub(pid: number) {
   }
   try {
     const other = (JSON.parse(raw) as { pid?: unknown }).pid;
-    return Number.isInteger(other) && other !== pid;
+    return Number.isInteger(other) && (other as number) > 0 && other !== pid; // a pid of 0 or less is no hub's record
   } catch {
     return false;
   }
