@@ -73,7 +73,7 @@ p.rr-gen__agent {
   list-style: none;
 }
 .rr-gen-step {
-  --_mk: 26px; /* the marker box: a step's 16px title line plus its padding */
+  --_mk: var(--rr-control); /* the marker box: a step's title line plus its padding */
   position: relative;
   display: grid;
   grid-template-columns: var(--_mk) 1fr;
@@ -168,7 +168,7 @@ p.rr-gen__agent {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: var(--_mk, 26px); /* level with the first step's marker */
+  height: var(--rr-control); /* level with the first step's marker */
   color: var(--rr-muted);
   font-size: var(--rr-text-sm);
   font-weight: 600;
@@ -180,11 +180,10 @@ p.rr-gen__agent {
   letter-spacing: normal;
   text-transform: none;
 }
+/* the ordinary chat, scrolling within the column */
 .rr-gen__live {
   position: relative;
   min-height: 0;
-  /* older messages fade out at the top; the newest sit at the bottom */
-  mask-image: linear-gradient(transparent, var(--rr-ink) 18%); /* a mask: only its alpha counts */
 }
 .rr-gen__live > * {
   position: absolute;
@@ -195,13 +194,8 @@ p.rr-gen__agent {
 .rr-gen__live .rr-assistant__viewport {
   background: none;
 }
-/* newest at the bottom: what overflows goes off the top (the panel, Open full, has all of it) */
 .rr-gen__live .rr-assistant__viewport {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
   padding-inline: 0;
-  overflow: hidden;
 }
 
 .rr-gen__status.is-busy::before,
