@@ -161,8 +161,9 @@ export async function generate(rec: Pick<ServerRecord, 'url'>, timeoutMs = 5000)
       return {};
     }
   };
-  const meta = await call('api/meta').then(({ text }) => parse(text), () => null);
-  if (!meta?.generate) return { ok: false, code: 'assistant_off', error: 'The review did not turn the built-in assistant on, so nothing was generated.' };
+  const meta = await call('api/meta').then(({ text }) => parse(text), (e: Error) => e);
+  if (meta instanceof Error) return { ok: false, code: null, error: `The review did not answer: ${meta.message}` };
+  if (!meta.generate) return { ok: false, code: 'assistant_off', error: 'The review did not turn the built-in assistant on, so nothing was generated.' };
   for (let i = 0; ; i++) {
     const res = await call('api/generate', { method: 'POST' }).catch((e: Error) => e);
     if (res instanceof Error) return { ok: false, code: null, error: `The review did not answer: ${res.message}` };

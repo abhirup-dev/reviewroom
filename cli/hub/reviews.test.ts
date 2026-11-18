@@ -76,3 +76,9 @@ test('Play\'s generate is bounded: a review that never answers the POST is a Pla
   expect(await generate({ url: `http://127.0.0.1:${s.port}/` }, 300)).toMatchObject({ ok: false, code: null, error: expect.stringContaining('The review did not answer') });
   expect(Date.now() - t0).toBeLessThan(2000);
 });
+
+test('Play\'s generate: a review whose metadata never answers is a did-not-answer error, not "assistant off"', async () => {
+  const s = Bun.serve({ port: 0, fetch: () => new Promise<Response>(() => {}) });
+  servers.push(s);
+  expect(await generate({ url: `http://127.0.0.1:${s.port}/` }, 300)).toMatchObject({ ok: false, code: null, error: expect.stringContaining('The review did not answer') });
+});
