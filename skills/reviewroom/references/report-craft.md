@@ -14,7 +14,7 @@ there before? what changed?" Answer that before they ask, by linking every claim
 
 ## The first sixty seconds
 
-The opening carries most of the value:
+The opening (the first section, Summary in the explainer profile) carries most of the value:
 
 1. **One paragraph** saying what the diff does and why (`<p class="rr-lede">`).
 2. **One diagram of the delta in context**: the surrounding flow, with the diff marked as added /
@@ -29,22 +29,23 @@ Someone who reads only this should know where to look and what to worry about.
 ## The body
 
 The report starts with its profile's sections (`profiles/index.md`); keep them. The guidance below
-orders the explanation of the diff and the supporting detail within them.
+is for the writing inside them.
 
-- Sections in the order a reviewer traces the diff: entry point → new code → storage / proto /
-  config → failure modes → tests → risks. Each is a `<section id>` with an `<h2>`, short and about
-  one concern, so it can be commented on as a unit.
-- For a big diff, add a "Reading order" section near the top: a numbered list of links into
-  sections and hunks, top-down from the entry point or bottom-up from the leaf changes.
+- Within a section, follow the order a reviewer traces the diff: entry point → new code → storage /
+  proto / config → failure modes → tests. Split it into `<section id>`s with an `<h3>`, each short
+  and about one concern, so it can be commented on as a unit.
+- For a big diff, open with a reading order: a numbered list of links into sections and hunks,
+  top-down from the entry point or bottom-up from the leaf changes.
 - Every factual claim about the code carries a link. Point at code rather than describing it.
 - Say what changed **and what was there before** when that's the interesting part (link `@base`).
 - Call out real risks with `<rr-callout kind="risk">`, not every observation. Say what is *not*
   tested.
-- End with the flagged questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle
-  before approving (compatibility, latency, migrations, observability, rollout).
+- Flagged questions (`<rr-checklist>`, one `<rr-check>` each): what the reviewer must settle before
+  approving (compatibility, latency, migrations, observability, rollout). The profile's guide says
+  where they go.
 - Interpret the PR description and connect it to the code; don't restate it.
-- Don't over-build: a lede, the delta diagram, a handful of sections and one checklist cover a typical
-  diff. Let the sections follow the change. Match the review's length and depth to the complexity and
+- Don't over-build: a lede, the delta diagram, a handful of subsections and one checklist cover a
+  typical diff. Let the subsections follow the change. Match the review's length and depth to the complexity and
   impact of the change, informed by the code's logic and the PR description. A section is one concern,
   not one file.
 
@@ -158,10 +159,9 @@ for each plan.</p>
 
 ## With the walkthrough
 
-Read `walkthrough-craft.md` first. The report starts with its profile's sections; while outlining
-the story, add a heading-only finding section with a stable id under Findings for every risk.
-Write and validate the walkthrough before filling the report. The slides tell the story; the
-report keeps the review record. Its sections need not mirror the chapters.
+Read `walkthrough-craft.md` first; the walkthrough is written and validated before the report is
+filled (SKILL.md, Step 4). The slides tell the story; the report keeps the review record. Its
+sections need not mirror the chapters.
 
 ## Answering threads
 

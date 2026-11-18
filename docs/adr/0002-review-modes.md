@@ -25,12 +25,11 @@ first and played first; the report follows as the detailed record. Other modes a
 3. **Generation is visible.** The CLI and server, never the agent, append to `progress.jsonl` in the review dir:
    `requested`, `written` and `validated` per document, with the content hash. The reviewer sees a loading screen
    until the walkthrough is validated; `validated` holds only while the file still has that hash.
-4. **The report's shape.** The default profile starts it with Summary (including a verdict), Findings (most
-   serious first), Questions for the author, Evidence, Your questions. Each top-level part is a `<section id>` for Contents and section navigation.
-   Findings give where, what is wrong, why it matters, evidence and a suggested direction. This is agent-written
-   HTML, not a new element or validation contract. Report profiles are folders in the skill, each holding the starting sections of
-   the report's sections and a guide to what to look for and what each section holds; one per review, chosen when
-   it is created (`default` unless told otherwise). Composing profiles is left open.
+4. **The report's shape comes from a report profile.** A profile gives the report its starting sections and a
+   guide to what to look for and what each section holds. A review has one, chosen when it is created; the
+   default, explainer, starts with Summary (including a verdict), Findings (most serious first), Questions for the
+   author, Evidence and Your questions. Inside them the report is agent-written HTML, not a new element or
+   validation contract. Composing profiles is left open.
 5. **The agent explains, never changes code.** In Peer review the agent explains and reviews, in every round. The
    skill tells Peer review apart by comparing the PR author's login (`gh pr view`) with the authenticated login
    (`gh api user`). The reviewer's questions and their answers collect under Your questions.

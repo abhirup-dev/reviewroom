@@ -79,10 +79,6 @@ slides and never named as the centre.
 The walkthrough is the story, pinned to the reviewed snapshot. The report is the record:
 findings, evidence, flagged questions and later answers. They need not share section names or order.
 
-- Outline first. The report already has its profile's sections; add only a heading-only finding
-  section per risk under Findings, with a stable id so the Risks links resolve during slide lint.
-- Write `walkthrough.json`, then run full `reviewroom slide-lint --dir <dir>` until it passes.
-  Only then fill the report and run `reviewroom check --fix --dir <dir>` until it passes.
 - Keep detailed findings, tables and caveats in the report. Link them from the slides with
   `rr:doc/<id>`; the report can link back with `rr:tour/<chapter>/<step>`.
 - Keep the walkthrough stable while the report grows round by round (see

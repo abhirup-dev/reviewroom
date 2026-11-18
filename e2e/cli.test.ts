@@ -21,11 +21,11 @@ describe('cli', () => {
     const local = path.join(tmp, 'local-review');
     spawn(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
     expect((await fetch((await url(local)) + 'api/meta')).ok && fs.existsSync(path.join(local, REPORT_FILE))).toBe(true);
-    expect(JSON.parse(read(local, 'config.json'))).toMatchObject({ head: 'feat/upload-rate-limit', profile: 'default' });
-    expect(read(local, REPORT_FILE)).toContain('<section id="findings">'); // the default profile's sections
+    expect(JSON.parse(read(local, 'config.json'))).toMatchObject({ head: 'feat/upload-rate-limit', profile: 'explainer' });
+    expect(read(local, REPORT_FILE)).toContain('<section id="findings">'); // the explainer profile's sections
   });
   test('pr with an unknown report profile fails and names the profiles', async () => {
     const r = await cli(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo, '--dir', path.join(tmp, 'no-profile')]);
-    expect([r.code, r.stderr]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: default')]);
+    expect([r.code, r.stderr]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: explainer')]);
   });
 });

@@ -6,7 +6,7 @@ import { PKG } from './paths.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 
-export const DEFAULT_PROFILE = 'default';
+export const DEFAULT_PROFILE = 'explainer';
 const profilesDir = () => path.join(PKG, 'skills', 'reviewroom', 'references', 'profiles');
 
 /** A report profile's sections (profiles/<name>/report.html); an unknown name fails with the ones there are. */

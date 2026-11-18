@@ -45,7 +45,7 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 Read "Start the review server" in `references/review-rounds.md` and launch the review as it
 instructs. Keep the command running in the background while writing the walkthrough and the report.
-`--profile <name>` picks the report profile (default `default`; see `references/profiles/index.md`).
+`--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 
 ## Step 2: Relay the URL
 

@@ -7,9 +7,7 @@ Pass `--dir <dir>` to every command below. Use command-specific `--help` for oth
 If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
 Use it as is and go straight to filling the report (`report.html`); do not regenerate it.
 
-The report starts with its profile's sections. Outline the story and add a heading-only finding
-section under Findings for every risk. This lets the Risks chapter's `rr:doc/<id>` links resolve.
-Write `walkthrough.json`, then:
+Otherwise write `walkthrough.json` (the order is in SKILL.md, Step 4), then:
 
 ```bash
 reviewroom slide-lint --dir <dir>
