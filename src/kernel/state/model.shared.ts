@@ -18,7 +18,7 @@ export interface ReviewMeta {
   head: Rev;
   baseLabel?: string;
   headLabel?: string;
-  /** The server runs the experimental assistant (REVIEWROOM_ASSISTANT=1) and this page reached it directly, not through the hub. */
+  /** The server runs the experimental assistant (on for this review: `assistant` in its config.json) and this page reached it directly, not through the hub. */
   assistant?: boolean;
   /** POST api/generate can run here (the assistant runs and this page reached the server directly). */
   generate?: boolean;

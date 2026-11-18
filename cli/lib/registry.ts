@@ -51,6 +51,21 @@ export async function stopServer(dir: string, pid?: number) {
   return rec;
 }
 
+/** A review server in the background on an existing review folder (`pr --detach`, the hub's Play): `review --forever`
+ *  from the running entry (the source or the bundle), detached so it outlives its caller. Its record, or null when it
+ *  did not start (see <dir>/server.log). No setup, no generation request. */
+export async function startDetached(repo: string, dir: string, extra: string[] = [], entry = process.argv[1]): Promise<ServerRecord | null> {
+  const out = fs.openSync(path.join(dir, 'server.log'), 'a');
+  spawn(process.execPath, [entry, 'review', '--forever', '--repo', repo, '--dir', dir, ...extra], { detached: true, stdio: ['ignore', out, out] }).unref();
+  fs.closeSync(out);
+  for (let i = 0; i < 50; i++) {
+    const rec = liveServer(dir);
+    if (rec) return rec;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return null;
+}
+
 /** The hub (`reviewroom hub`), if one answers as the process its hub.json names. */
 export async function liveHub(): Promise<ServerRecord | null> {
   try {

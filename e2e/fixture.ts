@@ -57,8 +57,9 @@ export async function expectClientHeaders(url: string, api: string) {
   }
 }
 
-/** `env`: added to every command and server this test starts. */
-export function setup(extraEnv: Record<string, string> = {}) {
+/** `env`: added to every command and server this test starts. `assistant`: the review runs the built-in assistant
+ *  (`pr --assistant`); point CLAUDE_CODE_EXECUTABLE at a stand-in so nothing can start a real Claude. */
+export function setup(extraEnv: Record<string, string> = {}, { assistant = false } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-'));
   const repo = path.join(tmp, 'repo');
   const home = path.join(tmp, 'home');
@@ -84,7 +85,7 @@ export function setup(extraEnv: Record<string, string> = {}) {
     sessions: () => fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(read(tmp, 'home', 'sessions', f))),
     git: (...args: string[]) => $`git -C ${repo} ${args}`.quiet(),
     /** `pr --detach` on a free port: the URL. */
-    serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
+    serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0', '--repo', repo, ...(assistant ? ['--assistant'] : [])])).stdout.trim(),
     /** A foreground server process (killed in afterAll). */
     spawn: (args: string[]) => procs[procs.push(Bun.spawn([bun, entry, ...args], { env, stdio: ['ignore', 'ignore', 'ignore'] })) - 1],
     /** The URL of the server a foreground command started for a review dir. */

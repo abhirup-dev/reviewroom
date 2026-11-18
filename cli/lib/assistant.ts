@@ -1,4 +1,5 @@
-// Experimental assistant (REVIEWROOM_ASSISTANT=1, rr-2l7): one native Claude Code conversation per review server,
+// Experimental assistant (rr-2l7), on per review (`assistant: true` in its config.json: the hub's Play, `pr --assistant`):
+// one native Claude Code conversation per review server,
 // through AI SDK's ACP harness. The harness owns the ACP protocol and the native session; AI SDK owns message
 // conversion and the UI message stream (`toUIMessageStreamResponse`). This file owns only the session's lifetime and
 // the route. The packages are experimental: pinned runtime dependencies, kept out of the CLI bundle (scripts/build.ts)
@@ -12,7 +13,7 @@ import { z } from 'zod';
 import type { UIMessage } from 'ai';
 import type { HarnessAgent } from '@ai-sdk/harness/agent';
 import { PKG, settingsFile, assistantHome } from './paths.ts';
-import type { ReviewConfig } from './config.ts';
+import { readConfig, type ReviewConfig } from './config.ts';
 import { readState } from './state.ts';
 import { astGrepBinary } from './source/outline.ts';
 import { AskMetadata, contextPrompt } from '../../src/assistant/context.shared.ts';
@@ -20,11 +21,10 @@ import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 
-/** REVIEWROOM_ASSISTANT, or `assistant: true` in ~/.reviewroom/config.json. Never throws: bad settings only disable it. */
-export function assistantEnabled(file = settingsFile()) {
-  if (process.env.REVIEWROOM_ASSISTANT) return true;
+/** `assistant: true` in the review's own config.json. Never throws: a bad file only leaves it off. */
+export function assistantEnabled(dir: string) {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8')).assistant === true;
+    return readConfig(dir).assistant === true;
   } catch {
     return false;
   }

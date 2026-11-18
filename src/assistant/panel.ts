@@ -1,5 +1,5 @@
 // Experimental assistant panel (rr-2l7): on the desktop (src/presentation.ts), when the server runs one for this page
-// (`assistant` in its meta: REVIEWROOM_ASSISTANT=1, reached directly). The chat is a lazy React island (./thread.tsx:
+// (`assistant` in its meta: on for this review, reached directly). The chat is a lazy React island (./thread.tsx:
 // assistant-ui on AI SDK); nothing loads React until it opens. Ask actions elsewhere show only once this registered.
 import { h } from '../kernel/dom';
 import { addPanelAt, definePanel, showPanel } from '../kernel/dock';

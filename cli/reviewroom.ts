@@ -52,6 +52,8 @@ cli
   .option('--detach', 'Serve in background; print URL')
   .option('--wait', 'Wait for the first feedback round')
   .option('--no-agent', 'Request no walkthrough or report; generation stays idle')
+  .option('--no-serve', 'Set up the review only; start no server, print its dir')
+  .option('--assistant', 'Run the built-in assistant for this review (its Ask panel, Generate)')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
@@ -169,7 +171,9 @@ const notes: Record<string, string> = {
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
   Newest author-owned or agent-owned walkthrough wins.
   A new or --force review asks the calling agent for both documents; the page waits for them.
-  --no-agent sets the review up without asking anyone: the built-in assistant can generate later.`,
+  --no-agent sets the review up without asking anyone: the built-in assistant can generate later.
+  --assistant turns the built-in assistant on for this review only (the hub's Play does the same); a plain pr never turns it off.
+  --no-serve stops after setup: the hub's Add a PR runs pr <url> --no-agent --no-serve, and its Play starts the server.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.
@@ -237,7 +241,7 @@ cli.help((sections) => {
     {
       title: 'Experimental',
       body: [
-        '  REVIEWROOM_ASSISTANT=1, or "assistant": true in ~/.reviewroom/config.json: an Assistant panel,',
+        '  Per review: `pr --assistant`, or Play in the hub, sets "assistant": true in the review\'s config.json: an Assistant panel,',
         '  a Claude Code chat on this machine (native login, Bun only), which can also generate both documents.',
         '  Every assistant turn, generation (POST api/generate) or a question, approves every tool it asks for.',
         '  Requires Git and a Claude login. First use downloads the pinned agent runtime; no global plugin, Node or pnpm needed.',

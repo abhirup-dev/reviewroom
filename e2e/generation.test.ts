@@ -110,7 +110,7 @@ describe('the assistant panel', () => {
   // never a real Claude: a stand-in that fails, should anything try to start one (nothing here asks a question)
   const fake = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-claude-')), 'claude');
   fs.writeFileSync(fake, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
-  const { serve } = setup({ REVIEWROOM_ASSISTANT: '1', CLAUDE_CODE_EXECUTABLE: fake });
+  const { serve } = setup({ CLAUDE_CODE_EXECUTABLE: fake }, { assistant: true });
   const fetched = `performance.getEntriesByType('resource').filter((r) => r.name.endsWith('/api/assistant')).length`;
   const box = `document.querySelector('.rr-assistant__island textarea')`;
 

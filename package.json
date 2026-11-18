@@ -34,7 +34,7 @@
     "check": "bun run --parallel --no-exit-on-error typecheck lint test",
     "check:full": "bun run check && bun run build && bun test ./e2e ./testing/slides --timeout 30000 --parallel",
     "schema": "bun scripts/schema.ts",
-    "demo": "bun run build && bash examples/make-demo-repo.sh .demo/uploads && bun dist/cli/reviewroom.js pr feat/upload-rate-limit --repo .demo/uploads --dir examples/uploads",
+    "demo": "bun run build && bash examples/make-demo-repo.sh .demo/uploads && bun dist/cli/reviewroom.js pr feat/upload-rate-limit --repo .demo/uploads --dir examples/uploads --assistant",
     "demo-page": "bun run build && bash examples/make-demo-repo.sh .demo/uploads && bun scripts/build-demo.ts .demo/uploads main feat/upload-rate-limit examples/uploads .demo/reviewroom-demo.html",
     "app": "cd app && tauri dev",
     "app-build": "cd app && tauri build",

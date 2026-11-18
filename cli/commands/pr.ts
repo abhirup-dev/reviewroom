@@ -1,6 +1,6 @@
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // pr: the one-step entry point
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { recordArtifact, requestGeneration, resetGeneration } from '../lib/progress.ts';
@@ -8,7 +8,7 @@ import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
-import { liveServer, stopServer } from '../lib/registry.ts';
+import { startDetached, stopServer } from '../lib/registry.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
 import { walkthroughPath } from '../lib/state.ts';
 import { pickBlock } from '../lib/slides-file.ts';
@@ -17,8 +17,6 @@ import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
 const shortPath = (p: string) => (path.relative(process.cwd(), p).startsWith('..') ? p : path.relative(process.cwd(), p) || '.');
-// --detach respawns the running entry (the source or the bundle)
-const ENTRY = process.argv[1];
 
 function gh(repo: string, args: string[]) {
   try {
@@ -28,12 +26,12 @@ function gh(repo: string, args: string[]) {
   }
 }
 
-export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string; agent?: boolean };
+export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string; agent?: boolean; serve?: boolean; assistant?: boolean };
 /** Where the review lives and what it compares; base and head are always resolved. */
 type Target = { dir: string; cfg: ReviewConfig };
 
 /** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
-function prNumberTarget(repo: string, o: PrOpts, n: string): Target {
+function prNumberTarget(repo: string, o: PrOpts, n: string, given?: string): Target {
   const { remote } = o;
   const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
@@ -50,7 +48,7 @@ function prNumberTarget(repo: string, o: PrOpts, n: string): Target {
   if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-  const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
+  const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url ?? given, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
   return { dir: branchDir(repo, info?.headRefName || `pr-${n}`), cfg }; // pr-<n> only when gh can't name the branch
 }
 
@@ -93,13 +91,14 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
   const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
-  const t = n ? prNumberTarget(repo, o, n) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
+  const t = n ? prNumberTarget(repo, o, n, /^https?:\/\//.test(arg) ? arg : undefined) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
   const dir = o.dir ? path.resolve(o.dir) : t.dir;
   fs.mkdirSync(dir, { recursive: true });
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;
   if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
   cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
+  if (o.assistant) cfg.assistant = true; // never cleared here: a later plain `pr` (an external agent) leaves it as it was
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
@@ -114,21 +113,13 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
+  if (o.serve === false) return console.log(dir); // set up only (the hub's Add a PR): its Play starts the server
   if (!o.detach) return cmdServe(repo, { dir, port: o.port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
-  const args = [ENTRY, 'review', '--forever', '--repo', repo, '--dir', dir];
-  if (o.port) args.push('--port', o.port);
-  if (!o.open) args.push('--no-open');
-  if (o.browser) args.push('--browser');
-  const out = fs.openSync(path.join(dir, 'server.log'), 'a');
-  spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
-  for (let i = 0; i < 50; i++) {
-    const rec = liveServer(dir);
-    if (rec) {
-      console.log(rec.url);
-      console.error(`reviewroom: server running in the background (pid ${rec.pid}) | stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 100));
+  const extra = [...(o.port ? ['--port', o.port] : []), ...(o.open ? [] : ['--no-open']), ...(o.browser ? ['--browser'] : [])];
+  const rec = await startDetached(repo, dir, extra);
+  if (rec) {
+    console.log(rec.url);
+    return console.error(`reviewroom: server running in the background (pid ${rec.pid}) | stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
   }
   fail(`server did not start - see ${path.join(dir, 'server.log')}`);
 }

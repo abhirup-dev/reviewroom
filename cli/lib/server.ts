@@ -181,7 +181,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
         if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
       });
 
-  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head }, send }) : undefined;
+  const assistant = assistantEnabled(dir) && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head }, send }) : undefined;
   // with the assistant's generation, when one runs here
   const progress = () => (assistant ? assistant.progress() : readProgress(dir));
   const app = new Hono();
@@ -210,7 +210,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   if (assistant) {
     app.route('/api/assistant', assistant.app);
     app.route('/api/generate', assistant.generate);
-  } else app.post('/api/generate', (c) => c.req.header(VIA_HUB) ? json(c, { error: 'Generation starts only on this machine: open the review from its own URL.', code: 'via_hub' }, 403) : json(c, { error: 'The built-in assistant is off: set "assistant": true in ~/.reviewroom/config.json (or REVIEWROOM_ASSISTANT=1) and restart the review.', code: 'assistant_off' }, 409));
+  } else app.post('/api/generate', (c) => c.req.header(VIA_HUB) ? json(c, { error: 'Generation starts only on this machine: open the review from its own URL.', code: 'via_hub' }, 403) : json(c, { error: 'The built-in assistant is off for this review: Play it from the hub, or set it up with `reviewroom pr --assistant`.', code: 'assistant_off' }, 409));
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));

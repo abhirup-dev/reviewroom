@@ -313,23 +313,18 @@ test('a generation turn paused with nothing it can approve keeps running until t
   expect((await r.generate())[1].started).toBe(true);
 });
 
-test('the assistant is on by REVIEWROOM_ASSISTANT or `assistant: true` in the settings; bad settings leave it off', () => {
+test('the assistant is on per review, by `assistant: true` in its config.json; anything else leaves it off', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-on-'));
   const file = path.join(dir, 'config.json');
-  const env = process.env.REVIEWROOM_ASSISTANT;
-  delete process.env.REVIEWROOM_ASSISTANT;
   try {
-    expect(assistantEnabled(file)).toBe(false);
+    expect(assistantEnabled(dir)).toBe(false);
     fs.writeFileSync(file, '{"assistant": true}');
-    expect(assistantEnabled(file)).toBe(true);
-    fs.writeFileSync(file, '{"assistant": "yes", "defaultAgentHarness": "other"}');
-    expect(assistantEnabled(file)).toBe(false);
+    expect(assistantEnabled(dir)).toBe(true);
+    fs.writeFileSync(file, '{"assistant": "yes"}');
+    expect(assistantEnabled(dir)).toBe(false);
     fs.writeFileSync(file, '{broken');
-    expect(assistantEnabled(file)).toBe(false);
-    process.env.REVIEWROOM_ASSISTANT = '1';
-    expect(assistantEnabled(file)).toBe(true);
+    expect(assistantEnabled(dir)).toBe(false);
   } finally {
-    if (env === undefined) delete process.env.REVIEWROOM_ASSISTANT; else process.env.REVIEWROOM_ASSISTANT = env;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

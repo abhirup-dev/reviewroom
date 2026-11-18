@@ -7,7 +7,7 @@ import type { SearchHit } from '../src/kernel/state/model.shared.ts';
 import { expectClientHeaders, setup } from './fixture.ts';
 
 describe('api', () => {
-  const { tmp, repo, dir, serve, sessions } = setup({ REVIEWROOM_ASSISTANT: '' });
+  const { tmp, repo, dir, serve, sessions } = setup();
   const marker = path.join(tmp, 'pwned');
   const status = (p: string, init?: RequestInit) => fetch(url + p, init).then((r) => r.status);
   let url = '';

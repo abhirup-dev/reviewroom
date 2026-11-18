@@ -9,7 +9,7 @@ import { until } from '../src/testing/wait.ts';
 
 describe('hub', () => {
   // the review runs the assistant: reaching it through the hub must not reach Claude Code
-  const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup({ REVIEWROOM_ASSISTANT: '1' });
+  const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup({}, { assistant: true });
   let review = '', hub = '';
   const list = async () => (await (await fetch(hub + 'api/sessions')).json()).sessions as { id: string; tool: string; label: string; reviewRound: number; commentCount: number; health: string }[];
   beforeAll(async () => {
