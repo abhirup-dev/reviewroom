@@ -119,3 +119,20 @@ test('--force --no-agent resets the old generation to idle; a server start stops
   expect([progress.walkthrough.state, progress.walkthrough.reason, progress.report.state]).toEqual(['stopped', 'interrupted', 'requested']);
   expect(progressLines(dir).filter((l) => l.event === 'stopped')).toHaveLength(1);
 });
+
+test('--force resets only once the previous server has stopped: it can no longer accept a generation in between', async () => {
+  const old = JSON.parse(fs.readFileSync(path.join(dir, 'server.json'), 'utf8')).pid as number;
+  const running = cli([...prArgs, '--force', '--no-agent']);
+  let gone = 0;
+  while (!gone) {
+    try {
+      process.kill(old, 0);
+      await new Promise((r) => setTimeout(r, 5));
+    } catch {
+      gone = Date.now();
+    }
+  }
+  expect((await running).code).toBe(0);
+  const reset = progressLines(dir).filter((l) => l.event === 'reset').at(-1)!;
+  expect(Date.parse(reset.at)).toBeGreaterThanOrEqual(gone - 10); // the 5 ms poll's slack
+});

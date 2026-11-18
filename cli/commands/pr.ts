@@ -103,6 +103,8 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
+  // the old server stops first: until it has, it could accept a generation that a reset or request below would race
+  await stopServer(dir);
   // --no-agent (the hub): set up only; generation is idle (a forced review's old one reset) until someone asks (api/generate)
   if (fresh || o.force) {
     if (o.agent === false) resetGeneration(dir);
@@ -117,7 +119,6 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   if (o.port) args.push('--port', o.port);
   if (!o.open) args.push('--no-open');
   if (o.browser) args.push('--browser');
-  await stopServer(dir);
   const out = fs.openSync(path.join(dir, 'server.log'), 'a');
   spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
   for (let i = 0; i < 50; i++) {
