@@ -75,3 +75,20 @@ test('a validated document edited, then its turn ended before the save was recor
   recordArtifact(dir, 'report', 'validated'); // checked again, after the stop
   expect(readProgress(dir).report.state).toBe('validated');
 }));
+
+test('the same bytes written again under a new request are recorded: the request is no longer just reading the diff', () => inTemp((dir) => {
+  const file = path.join(dir, REPORT_FILE);
+  requestGeneration(dir, 'assistant', undefined, ['report']);
+  fs.writeFileSync(file, '<rr-review>same</rr-review>');
+  recordArtifact(dir, 'report', 'written');
+  recordArtifact(dir, 'report', 'written'); // unchanged within one request: once
+  expect(progressLines(dir).filter((l) => l.event === 'written')).toHaveLength(1);
+  requestGeneration(dir, 'assistant', undefined, ['report']);
+  expect(readProgress(dir).report.state).toBe('requested');
+  recordArtifact(dir, 'report', 'written'); // identical bytes, new request
+  expect(readProgress(dir).report.state).toBe('writing');
+  resetGeneration(dir);
+  requestGeneration(dir, 'agent', undefined, ['report']);
+  recordArtifact(dir, 'report', 'written');
+  expect(readProgress(dir).report.state).toBe('writing');
+}));

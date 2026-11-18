@@ -35,8 +35,10 @@ export function appendProgress(dir: string, ...lines: NewLine[]) {
 }
 export function recordArtifact(dir: string, artifact: Artifact, event: 'written' | 'validated', extra: { head?: string; source?: 'pr' } = {}, checkedHash = artifactHash(dir, artifact)) {
   if (!checkedHash) return;
-  const lines = progressLines(dir);
-  const last = [...lines].reverse().find((l) => l.artifact === artifact && 'hash' in l);
+  // the last hash under the current request (or since a reset): the same bytes written again after a new request are news
+  const since = progressLines(dir).filter((l) => l.artifact === artifact);
+  const current = since.slice(since.findLastIndex((l) => l.event === 'requested' || l.event === 'reset') + 1);
+  const last = current.findLast((l) => 'hash' in l);
   if (event === 'written' && last && 'hash' in last && last.hash === checkedHash) return;
   const raw = fs.readFileSync(filename(dir, artifact), 'utf8');
   let facts = {};
