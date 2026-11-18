@@ -38,7 +38,7 @@ test('pr requests only on creation/force; watcher pushes progress without reload
   expect(initial.code).toBe(0);
 
   const requested = progressLines(dir).filter((l) => l.event === 'requested');
-  expect(requested.map((l) => l.artifact)).toEqual(['walkthrough', 'report']);
+  expect(requested.map((l) => [l.artifact, 'by' in l && l.by])).toEqual([['walkthrough', 'agent'], ['report', 'agent']]);
   const url = (await cli(prArgs)).stdout.trim();
   expect(progressLines(dir).filter((l) => l.event === 'requested')).toEqual(requested);
   const abort = new AbortController();
@@ -62,14 +62,14 @@ test('pr requests only on creation/force; watcher pushes progress without reload
     await until(() => events.some((e) => e.event === 'hello'));
     for (const text of ['<rr-app><rr-review>', '<rr-app><rr-review><section id="summary"><h1>Summary</h1></section></rr-review></rr-app>']) {
       fs.writeFileSync(path.join(dir, REPORT_FILE), text);
-      await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'written');
+      await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'writing');
     }
     expect(events.filter((e) => e.event === 'review')).toHaveLength(0);
     expect((await cli(['check', ...d])).code).toBe(0);
     await until(() => events.filter((e) => e.event === 'review').length === 1);
     expect((await fetch(url + 'api/progress').then((r) => r.json())).report.state).toBe('validated');
     fs.appendFileSync(path.join(dir, REPORT_FILE), '<!-- another save -->');
-    await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'written');
+    await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'writing');
     expect(events.filter((e) => e.event === 'review')).toHaveLength(1);
   } finally { abort.abort(); await reading; }
 });
@@ -89,3 +89,23 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
   expect([full.code, full.stderr]).toEqual([0, '']);
   expect(JSON.parse(fs.readFileSync(log, 'utf8').trim().split('\n').at(-1)!)).toMatchObject({ artifact: 'walkthrough', event: 'validated', slides: 1, chapters: 1 });
 }, 30_000);
+
+test('--no-agent requests nothing; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
+  const log = path.join(dir, 'progress.jsonl');
+  fs.rmSync(log, { force: true });
+  expect((await cli([...prArgs, '--force', '--no-agent'])).code).toBe(0);
+  expect(progressLines(dir)).toEqual([]);
+  const url = (await cli(prArgs)).stdout.trim();
+  expect(await fetch(url + 'api/progress').then((r) => r.json())).toEqual({ walkthrough: { state: 'idle' }, report: { state: 'idle' } });
+  // without the assistant, generate says why
+  const generate = await fetch(url + 'api/generate', { method: 'POST' });
+  expect([generate.status, (await generate.json()).code]).toEqual([409, 'assistant_off']);
+  expect((await fetch(url + 'api/meta').then((r) => r.json())).generate).toBeUndefined();
+  // a generation the previous server was running (the assistant's walkthrough), and an agent's report
+  const at = new Date().toISOString();
+  fs.writeFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant' }, { at, artifact: 'report', event: 'requested', by: 'agent' }].map((l) => JSON.stringify(l) + '\n').join(''));
+  const next = (await cli(prArgs)).stdout.trim(); // takes the server over
+  const progress = await fetch(next + 'api/progress').then((r) => r.json());
+  expect([progress.walkthrough.state, progress.walkthrough.reason, progress.report.state]).toEqual(['stopped', 'interrupted', 'requested']);
+  expect(progressLines(dir).filter((l) => l.event === 'stopped')).toHaveLength(1);
+});

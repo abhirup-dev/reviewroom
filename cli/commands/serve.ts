@@ -3,6 +3,7 @@ import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { resolveDir, loadConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
+import { interruptOnStart } from '../lib/progress.ts';
 import { takeLock, releaseLock } from '../lib/lock.ts';
 import { undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
@@ -54,6 +55,7 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
   if (holder) fail(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
+  interruptOnStart(dir); // under the lock: an assistant generation left pending died with the previous server
   const startedAt = new Date().toISOString();
   const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
   fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));

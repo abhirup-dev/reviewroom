@@ -3,7 +3,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { appendProgress, recordArtifact } from '../lib/progress.ts';
+import { recordArtifact, requestGeneration } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
@@ -28,7 +28,7 @@ function gh(repo: string, args: string[]) {
   }
 }
 
-export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string };
+export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string; agent?: boolean };
 /** Where the review lives and what it compares; base and head are always resolved. */
 type Target = { dir: string; cfg: ReviewConfig };
 
@@ -103,9 +103,8 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
-  if (fresh || o.force) {
-    for (const artifact of ['walkthrough', 'report'] as const) appendProgress(dir, { artifact, event: 'requested', ...(/^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {}) });
-  }
+  // --no-agent (the hub): set up only; generation stays idle until someone asks (api/generate)
+  if ((fresh || o.force) && o.agent !== false) requestGeneration(dir, 'agent', prov.head);
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
