@@ -57,8 +57,13 @@ function prNumberTarget(repo: string, o: PrOpts, n: string, given?: string): Tar
 function prDir(repo: string, n: number, headRefName?: string, url?: string) {
   const own = branchDir(repo, `pr-${n}`);
   const legacy = headRefName && branchDir(repo, headRefName);
-  if (fs.existsSync(own) || !legacy || !fs.existsSync(configPath(legacy))) return own;
-  const c = readConfig(legacy);
+  if (fs.existsSync(own) || !legacy) return own;
+  let c;
+  try {
+    c = readConfig(legacy);
+  } catch {
+    return own; // unreadable: not a match (that review is another PR's, or broken), never a reason to fail this one
+  }
   const repoOf = (u?: string) => u?.replace(/\/pull\/.*$/, '').toLowerCase();
   return c.number === n && (!c.url || !url || repoOf(c.url) === repoOf(url)) ? legacy : own; // the same PR of the same repository
 }
