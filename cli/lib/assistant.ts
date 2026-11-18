@@ -21,7 +21,8 @@ import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 import { errorText } from '../../src/kernel/errors.shared.ts';
-import { replayStream, type ReplayStream } from './replay-stream.ts';
+import { replayStream } from './replay-stream.ts';
+import { afterTurn, askRefusal, generateRefusal, generationOf, modelFor, originOf, type Origin, type Phase, type Running } from './assistant-phase.ts';
 
 /** `assistant: true` in the review's own config.json. Never throws: a bad file only leaves it off. */
 export function assistantEnabled(dir: string) {
@@ -197,33 +198,23 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
   return [...messages.slice(0, -1), { ...last, parts: [{ type: 'text', text: contextPrompt(quote, revs) }, ...last.parts] }];
 }
 
-/** Where a generation stands: `awaitingApproval` if its turn still pauses (allow-all asks nothing; kept so a pause never reads as failed). */
-export type Generation = { running: boolean; awaitingApproval: boolean };
-/** What the server pushes to its pages (SSE): `assistant` when a turn ends or pauses, `progress` when generation moves. */
+/** What the server pushes to its pages (SSE): `assistant` when the conversation's phase changes (a turn starts, ends
+ *  or pauses), `progress` when generation moves. */
 type Send = (event: 'assistant' | 'progress', data: unknown) => void;
-/** The running turn, whatever started it (a question or a generation), and its UI message stream told to every window
- *  that follows it. One at a time. */
-type Turn = { abort: AbortController; done: Promise<void>; stream: ReplayStream };
 const STREAM_HEADERS = { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', 'x-vercel-ai-ui-message-stream': 'v1', 'x-accel-buffering': 'no' };
 type RouteOpts = { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings; launch?: typeof start; send?: Send; generatePrompt?: string };
+type TurnEnd = { paused?: boolean; aborted?: boolean };
 
 /**
- * /api/assistant: GET the saved conversation and the model the next question uses; POST AI SDK's chat request, its UI
- * message stream out. One question at a time; the server keeps the history, and a window that missed a turn must
- * reload. Failures (settings, a moved-aside or another checkout's assistant.json) disable only the assistant.
+ * /api/assistant: GET the saved conversation and the turn it ends in; POST AI SDK's chat request, its UI message
+ * stream out; the turn's stream again at `<chatId>/stream`; POST stop. One turn at a time, whatever started it (a
+ * question, or api/generate); the server keeps the history. Failures (settings, a moved-aside or another checkout's
+ * assistant.json) disable only the assistant.
  */
 export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSettings, launch = start, send = () => {}, generatePrompt = path.join(PKG, 'templates/generate-prompt.md') }: RouteOpts) {
   let store: Store | undefined;
   let live: Promise<Live> | undefined;
-  let turn: Turn | undefined;
-  // a generation lasts from api/generate until a turn ends with nothing left to approve (approvals continue it)
-  let generation: Generation | undefined;
-  // the native session holds a turn paused on an approval (from the last turn's end)
-  let paused = false;
-  let turnModel = '';
-  let closed: Promise<void> | undefined;
-  // generation waits for the server's lock and startup recovery (ready()), or that recovery could stop its own turn
-  let isReady = false;
+  let phase: Phase = { name: 'starting' };
   const load = () => {
     if (!store) {
       store = assistantStore(dir, repo);
@@ -237,17 +228,33 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   };
   // The caller supplies the diff provider's frozen revisions (including its merge base), not moving branch names.
   const revs = { base: cfg.base, head: cfg.head };
-  const model = () => (turn ? turnModel : readSettings().defaultReviewModel);
-  const instance = randomUUID();
-  const status = () => ({ model: model(), instance, status: load().saved.status });
-  const generationNow = (): Generation => generation ?? { running: false, awaitingApproval: false };
-  const progressNow = () => ({ ...readProgress(dir), generation: generationNow() });
+  const modelNow = () => ('model' in phase ? phase.model : readSettings().defaultReviewModel);
+  const progressNow = () => ({ ...readProgress(dir), generation: generationOf(phase) });
+  /** The turn its pages follow (the AI SDK's active stream id), and what started it: Stop is offered for a question's. */
+  const active = () => (phase.name === 'running' ? { activeStreamId: phase.id, origin: phase.origin } : { activeStreamId: null, origin: null });
+  /** Every move is told to the pages: they fetch the conversation again and follow its turn. */
+  const setPhase = (next: Phase) => {
+    phase = next;
+    send('assistant', { ...active(), generation: generationOf(phase) });
+  };
+  /** What a turn's start and end mean beyond the conversation, by origin: a generation's documents and progress. */
+  const EFFECTS: Record<Origin, { started(): void; ended(left: Phase, reason: 'interrupted' | 'failed'): void }> = {
+    question: { started: () => {}, ended: () => {} },
+    generation: {
+      started: () => send('progress', progressNow()),
+      ended: (left, reason) => {
+        // whatever the turn did not validate stopped with it; a paused one is the panel's to continue
+        if (left.name !== 'paused') stopAssistantWork(dir, reason);
+        send('progress', progressNow());
+      },
+    },
+  };
   /**
-   * Starts a turn, a question or a generation's: the question saved and the turn made in one synchronous step, before
-   * Claude launches, so a window that looks finds both. Its stream goes to whoever follows it; when it ends, nothing
-   * keeps it (one `finally`). A save that fails starts nothing and throws.
+   * Starts a turn: the question saved as working and the turn made in one synchronous step, before Claude launches, so
+   * a page that looks finds both. Its stream goes to whoever follows it and is let go when it ends. A save that fails
+   * starts nothing and throws.
    */
-  const startTurn = (valid: UIMessage[], asking: boolean): Turn => {
+  const startTurn = (valid: UIMessage[], origin: Origin, model: string): Running => {
     const s = load();
     const was = { messages: s.saved.messages, status: s.saved.status };
     Object.assign(s.saved, { messages: valid, status: 'working' });
@@ -257,38 +264,29 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       Object.assign(s.saved, was);
       throw e;
     }
-    if (asking || !turnModel) turnModel = readSettings().defaultReviewModel;
     let release!: () => void;
-    const t: Turn = { abort: new AbortController(), done: new Promise((r) => (release = r)), stream: replayStream(STREAM_HEADERS) };
-    turn = t;
-    // after the answer is saved: `paused` when the native turn waits on an approval, `aborted` when stopped
-    const end = ({ paused: p = false, aborted = false } = {}) => {
-      turn = undefined;
-      paused = p;
+    const turn: Running = { name: 'running', origin, model, id: randomUUID(), stream: replayStream(STREAM_HEADERS), abort: new AbortController(), done: new Promise((r) => (release = r)) };
+    setPhase(turn);
+    EFFECTS[origin].started();
+    // after the answer is saved
+    const end = ({ paused = false, aborted = false }: TurnEnd = {}) => {
       release();
-      if (generation) {
-        generation.awaitingApproval = p; // the panel's to continue
-        if (!generation.awaitingApproval) {
-          generation = undefined;
-          // whatever the turn did not validate stopped with it; a closing server's turn was interrupted
-          stopAssistantWork(dir, aborted || closed ? 'interrupted' : 'failed');
-        }
-        send('progress', progressNow());
-      }
-      send('assistant', { status: store?.saved.status, generation: generationNow() });
+      const left = afterTurn(phase, turn, paused);
+      if (left !== phase) setPhase(left);
+      EFFECTS[origin].ended(left, aborted || left.name === 'closing' ? 'interrupted' : 'failed');
     };
     void (async () => {
       try {
-        const res = await runTurn(valid, t.abort.signal, end);
-        for await (const text of res.body!.pipeThrough(new TextDecoderStream())) t.stream.say(text);
+        const res = await runTurn(valid, turn, end);
+        for await (const text of res.body!.pipeThrough(new TextDecoderStream())) turn.stream.say(text);
       } catch (e) {
         // a start that failed: the windows following it show why (the UI message stream's error part)
-        t.stream.say(`data: ${JSON.stringify({ type: 'error', errorText: errorText(e) })}\n\n`);
+        turn.stream.say(`data: ${JSON.stringify({ type: 'error', errorText: errorText(e) })}\n\n`);
       } finally {
-        t.stream.close();
+        turn.stream.close();
       }
     })();
-    return t;
+    return turn;
   };
   const app = new Hono();
   // errors as text: AI SDK's transport shows a failed request's body as the chat's error
@@ -297,14 +295,19 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     if (c.req.header(VIA_HUB)) return c.text('The assistant runs Claude Code with your login, so it answers only on this machine: open the review from its own URL.', 403);
     await next();
   });
-  app.get('/model', (c) => c.json(status()));
-  /** The AI SDK's resumable stream (its reconnect URL, `{api}/{chatId}/stream`): the running turn so far, then as it
-   *  goes on (waiting for it while Claude starts); 204 when no turn runs. One conversation per review: no chat id. */
-  app.get('/:chatId/stream', (c) => (turn ? turn.stream.follow() : c.body(null, 204)));
+  /** The AI SDK's resumable stream (its reconnect URL, `{api}/{chatId}/stream`), for the `turn` the page's history
+   *  named: the turn so far, then as it goes on (waiting while Claude starts); 204 when that turn isn't running (it
+   *  ended, or another took its place: the page fetches the history again). One conversation per review: no chat id. */
+  app.get('/:chatId/stream', (c) => (phase.name === 'running' && phase.id === c.req.query('turn') ? phase.stream.follow() : c.body(null, 204)));
+  /** Stop: the named turn, if it is still running and a question's (a generation is stopped from its own screen). */
+  app.post('/stop', async (c) => {
+    const { streamId } = await c.req.json<{ streamId?: string }>().catch(() => ({ streamId: undefined }));
+    if (phase.name === 'running' && phase.origin === 'question' && phase.id === streamId) phase.abort.abort();
+    return c.body(null, 204);
+  });
   app.get('/', async (c) => {
-    // read together: `running` says whether these messages end in a turn to follow
-    const { saved } = load();
-    const now = { ...status(), messages: saved.messages, running: !!turn };
+    // read together: the turn these messages end in
+    const now = { model: modelNow(), status: load().saved.status, messages: load().saved.messages, ...active() };
     const { validateUIMessages } = await import('ai');
     if (now.messages.length) now.messages = await validateUIMessages<UIMessage>({ messages: now.messages, metadataSchema: AskMetadata });
     return c.json(now);
@@ -313,13 +316,13 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
    * One turn of the native session: `valid` is the transcript to continue (a new user message last, or an answered
    * approval), saved by startTurn; its UI message stream comes back. `end` runs on every exit, after the answer is saved.
    */
-  async function runTurn(valid: UIMessage[], signal: AbortSignal, end: (o?: { paused?: boolean; aborted?: boolean }) => void) {
+  async function runTurn(valid: UIMessage[], { model, abort: { signal } }: Running, end: (o?: TurnEnd) => void) {
     let streaming = false;
     try {
       const s = load();
       const { convertToModelMessages } = await import('ai');
       const messages = await convertToModelMessages(withContext(valid, revs));
-      live ??= launch({ repo, dir, cfg, settings: readSettings(), store: s, model: () => turnModel }).catch((e: unknown) => {
+      live ??= launch({ repo, dir, cfg, settings: readSettings(), store: s, model: modelNow }).catch((e: unknown) => {
         live = undefined; // let the next message retry
         throw e;
       });
@@ -341,12 +344,12 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
           try {
             const answer = completed.at(-1);
             const resolved = await Promise.resolve(result.response).catch(() => undefined);
-            if (answer?.role === 'assistant') answer.metadata = { model: turnModel, resolvedModel: resolved?.modelId };
+            if (answer?.role === 'assistant') answer.metadata = { model, resolvedModel: resolved?.modelId };
             s.saved.messages = completed;
             s.saved.status = isAborted || isCancelled ? 'interrupted' : outcome.status === 'failed' ? 'failed' : 'idle';
             s.write();
             p = !isAborted && !isCancelled && current.session.hasUnfinishedTurn();
-            if (!closed) await current.checkpoint();
+            if (phase.name !== 'closing') await current.checkpoint();
           } catch (error) {
             console.error(`reviewroom: assistant: ${errorText(error)}`);
             live = undefined; // recover from the saved checkpoint on the next question
@@ -372,8 +375,11 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   }
 
   app.post('/', async (c) => {
-    const busy = () => (turn || closed ? c.text(closed ? 'The review is closing.' : generation ? 'The assistant is writing the review.' : 'The assistant is already answering a question.', 409) : undefined);
-    const early = busy();
+    const refused = () => {
+      const why = askRefusal(phase);
+      return why ? c.text(why, 409) : undefined;
+    };
+    const early = refused();
     if (early) return early;
     const body: { trigger?: string; messages?: unknown } = await c.req.json().catch(() => ({}));
     // the native session cannot branch: regenerating or editing a past message would desync it from the transcript
@@ -391,9 +397,13 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     const asking = last.role === 'user';
     const saved = s.saved.messages;
     const prior = asking ? incoming.slice(0, -1) : incoming;
-    if (prior.length !== saved.length || prior.some((m, i) => m.id !== saved[i].id)) return c.text('This conversation changed in another window. Reload the page to continue it.', 409);
+    // the page takes the conversation again (its question stays in the composer) and can ask once it has
+    if (prior.length !== saved.length || prior.some((m, i) => m.id !== saved[i].id)) return c.text('This conversation changed in another window.', 409);
     // checked again with nothing awaited before the start: one turn at a time
-    return busy() ?? startTurn(asking ? [...saved, last] : [...saved.slice(0, -1), last], asking).stream.follow();
+    const blocked = refused();
+    if (blocked) return blocked;
+    const model = modelFor(phase, asking, () => readSettings().defaultReviewModel); // read before the question is saved: it may throw
+    return startTurn(asking ? [...saved, last] : [...saved.slice(0, -1), last], originOf(phase), model).stream.follow();
   });
 
   /**
@@ -408,19 +418,18 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   });
   generate.post('/', (c) => {
     // decided and taken synchronously: two requests can't both start one
-    if (closed) return c.json({ error: 'The review is closing.', code: 'closing' }, 409);
-    if (generation) return c.json({ started: false, ...progressNow() });
-    if (!isReady) return c.json({ error: 'The review is still starting; generate in a moment.', code: 'starting' }, 409);
-    if (turn || paused) return c.json({ error: 'The assistant is answering a question; generate when it is done.', code: 'busy' }, 409);
+    const refused = generateRefusal(phase);
+    if (refused === 'running') return c.json({ started: false, ...progressNow() });
+    if (refused) return c.json(refused, 409);
     // a validated document (a walkthrough kept from the PR, say) is not asked for again; nothing to do needs no Claude
     const before = readProgress(dir);
     const wanted = ARTIFACTS.filter((a) => before[a].state !== 'validated');
     if (!wanted.length) return c.json({ started: false, ...progressNow() });
-    let text: string;
+    let text: string, settings: ReturnType<typeof readSettings>;
     try {
       text = fs.readFileSync(generatePrompt, 'utf8').trim();
       if (!text) throw new Error(`The generate prompt is empty: ${generatePrompt}`);
-      const settings = readSettings();
+      settings = readSettings();
       claudeBinary(settings);
       instructions(repo, dir, cfg, settings.reviewAgentPromptFile); // the role prompt the turn starts with: there and not empty
       load();
@@ -428,38 +437,40 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       return c.json({ error: errorText(e), code: 'assistant_unavailable' }, 503);
     }
     requestGeneration(dir, 'assistant', cfg.head, wanted); // one write; if it throws, nothing runs and nothing is pending
-    generation = { running: true, awaitingApproval: false };
-    // the question saved and the turn taken before the pages hear of it: a window that looks finds both
     try {
       // marked: the window shows the long prompt folded
-      startTurn([...load().saved.messages, { id: randomUUID(), role: 'user', metadata: { custom: { generate: true } }, parts: [{ type: 'text', text }] }], true);
+      startTurn([...load().saved.messages, { id: randomUUID(), role: 'user', metadata: { custom: { generate: true } }, parts: [{ type: 'text', text }] }], 'generation', settings.defaultReviewModel);
     } catch (e) {
-      generation = undefined;
       stopAssistantWork(dir, 'failed'); // nothing will write them
       return c.json({ error: errorText(e), code: 'assistant_unavailable' }, 503);
     }
-    send('progress', progressNow());
     return c.json({ started: true, ...progressNow() });
   });
 
-  /** Stops a running turn (its answer is saved), then the native session, saving where it can resume. */
-  const close = () => (closed ??= (async () => {
-    turn?.abort.abort();
-    await turn?.done;
-    try {
-      // a generation paused on an approval has no turn to end it: it stops here
-      if (generation) {
-        generation = undefined;
-        stopAssistantWork(dir, 'interrupted');
-        send('progress', progressNow());
+  /** Closing: stops a running turn (its answer is saved; its end sees the review closing), stops a paused one as
+   *  interrupted, then the native session, saving where it can resume. Once: closing again waits for the same. */
+  const close = () => {
+    if (phase.name === 'closing') return phase.done;
+    const was = phase;
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    setPhase({ name: 'closing', done: promise });
+    void (async () => {
+      if (was.name === 'running') {
+        was.abort.abort();
+        await was.done;
       }
-    } catch (e) {
-      // the next server's start stops it as interrupted instead
-      console.error(`reviewroom: could not record the stopped generation: ${errorText(e)}`);
-    } finally {
-      // whatever the journal did: the native session saves where it can resume and ends its processes
-      await (await live?.catch(() => undefined))?.stop();
-    }
-  })());
-  return { app, generate, close, progress: progressNow, ready: () => void (isReady = true) };
+      try {
+        // a paused turn has no end to come: it stops here
+        if (was.name === 'paused') EFFECTS[was.origin].ended(phase, 'interrupted');
+      } catch (e) {
+        // the next server's start stops it as interrupted instead
+        console.error(`reviewroom: could not record the stopped generation: ${errorText(e)}`);
+      } finally {
+        // whatever the journal did: the native session saves where it can resume and ends its processes
+        await (await live?.catch(() => undefined))?.stop();
+      }
+    })().then(resolve, reject);
+    return promise;
+  };
+  return { app, generate, close, progress: progressNow, ready: () => void (phase.name === 'starting' && setPhase({ name: 'idle' })) };
 }

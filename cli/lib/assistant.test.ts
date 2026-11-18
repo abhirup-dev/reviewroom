@@ -121,8 +121,9 @@ function reviewWithAgent(finish = true, unfinished = () => false, ready = true, 
     await starting; // Claude still starting (or failing to)
     return { agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) }, session: { hasUnfinishedTurn: unfinished }, checkpoint: async () => {}, stop: async () => void calls.stopped++ } as unknown as Live;
   };
-  const sent: string[] = [];
-  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings, launch, send: (event) => void sent.push(event) });
+  type Told = { activeStreamId: string | null; origin: string | null; generation: { awaitingApproval: boolean } }; // `assistant`'s
+  const sent: { event: string; data: Told }[] = [];
+  const routes = assistantRoutes({ repo: dir, dir, cfg: { base: 'b', head: 'h' }, readSettings, launch, send: (event, data) => void sent.push({ event, data: data as Told }) });
   if (ready) routes.ready(); // as serve.ts does once it holds the lock
   const generate = async (headers: Record<string, string> = {}) => {
     const res = await routes.generate.request('/', { method: 'POST', headers });
@@ -132,7 +133,13 @@ function reviewWithAgent(finish = true, unfinished = () => false, ready = true, 
   const events = () => progressLines(dir).map((l) => `${l.artifact} ${l.event}${'by' in l ? ` ${l.by}` : ''}${'reason' in l ? ` ${l.reason}` : ''}`);
   const post = (messages: UIMessage[], init: RequestInit = {}) => routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages }), ...init });
   const saved = () => assistantStore(dir, dir).saved.messages;
-  return { dir, calls, routes, post, saved, sent, generate, events, [Symbol.dispose]: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  const turn = async (): Promise<string | null> => (await (await routes.app.request('/')).json()).activeStreamId;
+  /** Another window following the running turn (or the one named), as the AI SDK resumes it. */
+  const follow = async (id?: string | null) => routes.app.request(`/x/stream?turn=${id ?? (await turn())}`);
+  const stop = (streamId: string | null) => routes.app.request('/stop', { method: 'POST', body: JSON.stringify({ streamId }) });
+  /** Until the pages are told the generation waits on an approval. */
+  const awaiting = () => until(() => sent.some((s) => s.event === 'assistant' && s.data.generation.awaitingApproval));
+  return { dir, calls, routes, post, saved, sent, generate, events, turn, follow, stop, awaiting, [Symbol.dispose]: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 /** The id the window gets for the answer, once the stream ends. */
 const answerId = async (res: Response) => (await res.text()).match(/"type":"start","messageId":"([^"]+)"/)![1];
@@ -142,7 +149,7 @@ test('one question at a time: a second one while the first is answered is refuse
   expect((await r.routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{broken' })).status).toBe(400);
   const first = await r.post([user('q1')]);
   // the reviewer's other windows follow a question's turn too
-  expect([first.status, (await readUntil(await r.routes.app.request('/x/stream'), (said) => said.includes('partial answer'))).ended]).toEqual([200, false]);
+  expect([first.status, (await readUntil(await r.follow(), (said) => said.includes('partial answer'))).ended]).toEqual([200, false]);
   const second = await r.post([user('q1'), user('q2')]);
   expect([second.status, await second.text()]).toEqual([409, 'The assistant is already answering a question.']);
   await r.routes.close();
@@ -152,18 +159,18 @@ test('a window that leaves (the asker\'s too) only stops following: the turn run
   using r = reviewWithAgent(false);
   const asked = await r.post([user('q1')]);
   await (await readUntil(asked, (said) => said.includes('partial answer'))).reader.cancel(); // the page reloads
-  expect((await readUntil(await r.routes.app.request('/x/stream'), (said) => said.includes('partial answer'))).ended).toBe(false);
+  expect((await readUntil(await r.follow(), (said) => said.includes('partial answer'))).ended).toBe(false);
   await r.routes.close();
 });
 
-test('a window that missed a turn must reload; an approval, which answers the last message in place, goes on', async () => {
+test('a window that missed a turn is refused, nothing written (the page syncs, its question kept); an approval, which answers the last message in place, goes on', async () => {
   using r = reviewWithAgent();
   const id = await answerId(await r.post([user('q1')]));
   const transcript = r.saved();
   expect(transcript.map((m) => m.id)).toEqual(['q1', id]);
   // another window, still showing nothing
   const stale = await r.post([user('q2')]);
-  expect([stale.status, await stale.text()]).toEqual([409, 'This conversation changed in another window. Reload the page to continue it.']);
+  expect([stale.status, await stale.text()]).toEqual([409, 'This conversation changed in another window.']);
   expect(r.saved()).toEqual(transcript); // nothing written
   const answered = { ...transcript[1], parts: [...transcript[1].parts, { type: 'text' as const, text: 'approval answered' }] };
   const res = await r.post([transcript[0], answered]);
@@ -207,6 +214,7 @@ test('a failed start keeps the question, so the same window can ask again', asyn
     if (fail) throw new Error('bridge did not start');
     throw new Error('started');
   } });
+  routes.ready();
   const ask = (messages: UIMessage[]) => routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages }) });
   const res = await ask([user('q1')]);
   expect([res.status, await res.text()]).toEqual([200, expect.stringContaining('"errorText":"bridge did not start"')]); // the chat's error
@@ -228,9 +236,14 @@ test('a broken conversation or settings disable only the assistant, and keep wha
   fs.writeFileSync(file, JSON.stringify({ version: 1, repo: '/another/checkout', messages: [user('mine')] }));
   expect(await get()).toEqual([503, expect.stringContaining('was started in /another/checkout')]);
   expect(JSON.parse(fs.readFileSync(file, 'utf8')).messages).toEqual([user('mine')]);
+  fs.rmSync(file);
   const invalid = assistantRoutes({ repo: r.dir, dir: r.dir, cfg: { base: 'b', head: 'h' }, readSettings: () => { throw new Error('Invalid assistant settings in config.json'); } });
-  const model = await invalid.app.request('/model');
-  expect([model.status, await model.text()]).toEqual([503, 'Invalid assistant settings in config.json']);
+  invalid.ready();
+  const read = async (res: Response) => [res.status, await res.text()];
+  expect(await read(await invalid.app.request('/'))).toEqual([503, 'Invalid assistant settings in config.json']);
+  const ask = await invalid.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ trigger: 'submit-message', messages: [user('q1')] }) });
+  expect(await read(ask)).toEqual([503, 'Invalid assistant settings in config.json']);
+  expect(fs.existsSync(file)).toBe(false); // read before the question is saved: nothing half-asked
 });
 
 test('the store is private to its review and writes atomically', () => {
@@ -269,23 +282,24 @@ async function readUntil(res: Response, done: (said: string) => boolean = () => 
   return { said, ended: false, reader };
 }
 
-test('the resume route: 204 when no turn runs; refused through the hub; else the turn\'s stream from its start, even while Claude starts, to its end (a failed start ends it with why)', async () => {
+test('the resume route: the named turn\'s stream from its start, even while Claude starts, to its end; 204 for a turn not running; refused through the hub (a failed start ends it with why)', async () => {
   let started!: () => void;
   using r = reviewWithAgent(false, () => false, true, () => settings, new Promise<void>((ok) => (started = ok)));
-  const stream = (headers: Record<string, string> = {}) => r.routes.app.request('/any-chat-id/stream', { headers });
-  expect((await stream()).status).toBe(204);
+  expect([await r.turn(), (await r.follow('none')).status]).toEqual([null, 204]);
   await r.generate();
-  expect((await stream({ 'x-reviewroom-via-hub': '1' })).status).toBe(403);
-  const res = await stream(); // before Claude has said anything
+  const id = await r.turn();
+  expect((await r.routes.app.request(`/x/stream?turn=${id}`, { headers: { 'x-reviewroom-via-hub': '1' } })).status).toBe(403);
+  expect((await r.follow('another-turn')).status).toBe(204); // a turn that ended: the page fetches the history again
+  const res = await r.follow(id); // before Claude has said anything
   started();
   expect([res.status, res.headers.get('x-vercel-ai-ui-message-stream'), (await readUntil(res, (said) => said.includes('partial answer'))).said]).toEqual([200, 'v1', expect.stringContaining('"type":"start"')]);
   await r.routes.close();
-  expect((await stream()).status).toBe(204);
+  expect([await r.turn(), (await r.follow(id)).status]).toEqual([null, 204]);
 
   let failed!: (e: Error) => void;
   using f = reviewWithAgent(false, () => false, true, () => settings, new Promise<void>((_, no) => (failed = no)));
   await f.generate();
-  const waiting = await f.routes.app.request('/x/stream');
+  const waiting = await f.follow();
   failed(new Error('Claude did not start'));
   expect(await readUntil(waiting)).toMatchObject({ said: expect.stringContaining('"errorText":"Claude did not start"'), ended: true });
 });
@@ -295,22 +309,34 @@ test('a generation turn that ends without validating stops its documents as fail
   expect((await r.generate())[0]).toBe(200);
   await until(() => r.events().length === 4);
   expect(r.events().slice(2)).toEqual(['walkthrough stopped failed', 'report stopped failed']);
-  expect(r.sent).toContain('assistant');
-  expect(r.sent.at(-2)).toBe('progress');
+  expect(r.sent.slice(-2).map((s) => s.event)).toEqual(['assistant', 'progress']); // the turn ended, then what it left
   expect(r.saved().map((m) => m.role)).toEqual(['user', 'assistant']);
   const [, after] = await r.generate(); // a new generation may start
   expect(after.started).toBe(true);
 });
 
-test('generate is busy while the assistant answers the reviewer, and refused through the hub', async () => {
+test('a question\'s turn: pages are told it started and ended, with its id; Stop takes only its id; generate is busy meanwhile, and refused through the hub', async () => {
   using r = reviewWithAgent(false);
   const chat = await r.post([user('q1')]);
   void chat.text();
+  const id = await r.turn();
+  expect(r.sent.slice(1).map((s) => [s.event, s.data.activeStreamId, s.data.origin])).toEqual([['assistant', id, 'question']]); // after ready's
   const [status, body] = await r.generate();
-  expect([status, body.code]).toEqual([409, 'busy']);
-  expect(r.events()).toEqual([]);
+  expect([status, body.code, r.events()]).toEqual([409, 'busy', []]);
   const [hub, refused] = await r.generate({ 'x-reviewroom-via-hub': '1' });
   expect([hub, refused.code]).toEqual([403, 'via_hub']);
+  await r.stop('another-turn');
+  expect(await r.turn()).toBe(id);
+  await r.stop(id);
+  await until(() => r.sent.length === 3);
+  expect([r.sent[2].data.activeStreamId, assistantStore(r.dir, r.dir).saved.status]).toEqual([null, 'interrupted']);
+});
+
+test('Stop never stops a generation (it is stopped from its own screen)', async () => {
+  using r = reviewWithAgent(false);
+  await r.generate();
+  await r.stop(await r.turn());
+  expect(await r.turn()).not.toBeNull();
   await r.routes.close();
 });
 
@@ -318,7 +344,7 @@ test('a generation turn paused with nothing it can approve keeps running until t
   let waiting = true;
   using r = reviewWithAgent(true, () => waiting);
   await r.generate();
-  await until(() => r.sent.includes('assistant'));
+  await r.awaiting();
   const [, paused] = await r.generate();
   expect([paused.started, paused.generation]).toEqual([false, { running: true, awaitingApproval: true }]);
   expect(paused.report.state).toBe('requested'); // neither failed nor stopped
@@ -357,10 +383,11 @@ test('closing a generation leaves an agent\'s request made meanwhile (pr --force
   expect(r.events().slice(2)).toEqual(['report requested agent', 'walkthrough stopped interrupted']);
 });
 
-test('generate waits for the server to hold its lock and finish startup recovery', async () => {
+test('nothing starts before the server holds its lock and has recovered: neither generate nor a question', async () => {
   using r = reviewWithAgent(true, () => false, false);
   const [status, body] = await r.generate();
   expect([status, body.code]).toEqual([409, 'starting']);
+  expect((await r.post([user('q1')])).status).toBe(409);
   expect(r.events()).toEqual([]);
   expect(fs.existsSync(path.join(r.dir, 'assistant.json'))).toBe(false); // no transcript written either
   r.routes.ready();
@@ -400,7 +427,7 @@ test('generate asks only for documents not validated now: a kept PR walkthrough 
 test('closing a generation paused on an approval stops it as interrupted; a closing review answers closing, even then', async () => {
   using r = reviewWithAgent(true, () => true);
   await r.generate();
-  await until(() => r.sent.includes('assistant'));
+  await r.awaiting();
   expect((await r.generate())[1].generation).toEqual({ running: true, awaitingApproval: true });
   const closing = r.routes.close();
   const [status, body] = await r.generate();
@@ -413,7 +440,7 @@ test('closing a generation paused on an approval stops it as interrupted; a clos
 test('closing stops the native session even when the progress journal cannot be written', async () => {
   using r = reviewWithAgent(true, () => true);
   await r.generate();
-  await until(() => r.sent.includes('assistant'));
+  await r.awaiting();
   const log = path.join(r.dir, 'progress.jsonl');
   fs.chmodSync(log, 0o444);
   const errors: unknown[] = [];
