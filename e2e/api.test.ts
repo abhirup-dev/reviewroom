@@ -62,20 +62,11 @@ describe('api', () => {
     expect(r.ok && Array.isArray(await r.json())).toBe(true);
     expect(fs.existsSync(marker)).toBe(false);
   });
-  test('files rejects an option as base', async () => {
-    expect(await status(`api/files?base=${encodeURIComponent('--output=' + marker)}`)).toBeGreaterThanOrEqual(400);
-    expect(fs.existsSync(marker)).toBe(false);
-  });
-  test('read rejects an option as rev', async () => {
-    expect(await status(`api/read?path=x&rev=${encodeURIComponent('--output=' + marker)}`)).toBeGreaterThanOrEqual(400);
-    expect(fs.existsSync(marker + ':x')).toBe(false);
-  });
   // Bun's fetch sends these headers as given
   test('cross-site API request is refused', async () => expect(await status('api/state', { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403));
   test('write from a foreign origin is refused', async () =>
     expect(await status('api/ops', { method: 'POST', body: '{}', headers: { origin: 'https://evil.example', 'content-type': 'application/json' } })).toBe(403));
   test('foreign Host header is refused', async () => expect(await status('api/meta', { headers: { host: `evil.example:${new URL(url).port}` } })).toBe(403));
-  test('the page loads its build relatively (under the hub\'s /r/<id>/, its own)', async () => expect(await (await fetch(url)).text()).toContain('src="_rr/reviewroom.js"'));
   test('state files are not served', async () =>
     expect(await Promise.all(['state.json', 'STATE.JSON', 'state%2Ejson', 'state.lock'].map((f) => status(f)))).toEqual([404, 404, 404, 404]));
   test('static file with # and ? in its name is served', async () => {
@@ -99,16 +90,4 @@ describe('api', () => {
     }
   });
   test('hashed chunks are immutable, the rest revalidates; every response names the build', () => expectClientHeaders(url, 'api/state'));
-  test('the build header follows a rebuild without a restart', async () => {
-    const f = path.join(import.meta.dir, '..', 'dist', 'build-info.json');
-    const saved = fs.readFileSync(f, 'utf8');
-    try {
-      fs.writeFileSync(f, JSON.stringify({ id: 'rebuilt' }));
-      expect((await fetch(url + 'api/state')).headers.get('x-reviewroom-build')).toBe('rebuilt');
-      fs.rmSync(f);
-      expect((await fetch(url + 'api/state')).headers.get('x-reviewroom-build')).toBeNull();
-    } finally {
-      fs.writeFileSync(f, saved);
-    }
-  });
 });

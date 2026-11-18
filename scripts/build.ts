@@ -8,7 +8,8 @@ import { readFileSync, readdirSync, realpathSync, writeFileSync, mkdirSync, copy
 import { isPhone } from './features-imports';
 
 const root = new URL('..', import.meta.url).pathname;
-const at = (p: string) => root + p;
+// RR_DIST: build somewhere other than dist/ (e2e/build.test.ts, so it never wipes the dist/ parallel tests run)
+const at = (p: string) => (process.env.RR_DIST && /^dist(\/|$)/.test(p) ? process.env.RR_DIST + p.slice(4) : root + p);
 
 // Each group preserves one original stylesheet byte for byte. Fragments within a group
 // must stay interleaved: regrouping them by owner would change the cascade.
