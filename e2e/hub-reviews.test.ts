@@ -86,6 +86,29 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect(fs.existsSync(path.join(dir, WALKTHROUGH_FILE))).toBe(true);
   }, 60_000);
 
+  test('a re-add at a new head never replaces a walkthrough edited since the PR import, even with a stale request', async () => {
+    const clone = path.join(tmp, 'home', 'repos', 'acme', 'demo');
+    const url = 'https://github.com/acme/demo/pull/11';
+    const prRun = () => cli(['pr', url, '--no-agent', '--no-serve', '--no-open', '--repo', clone]);
+    await $`git -C ${bare} update-ref refs/pull/11/head refs/heads/feat/upload-rate-limit`.quiet();
+    const dir = (await prRun()).stdout.trim();
+    const A = (await $`git -C ${clone} rev-parse refs/reviewroom/pr-11`.text()).trim();
+    // the PR's walkthrough imported at A, generation requested at A, then the walkthrough edited here
+    fs.copyFileSync(path.join(root, 'examples', 'uploads', WALKTHROUGH_FILE), path.join(dir, WALKTHROUGH_FILE));
+    recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', head: A });
+    requestGeneration(dir, 'agent', A);
+    const edited = fs.readFileSync(path.join(dir, WALKTHROUGH_FILE), 'utf8').replace('{', '{"edited":true,');
+    fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), edited);
+    // the PR moves to B; the re-add resets the stale request but must not even try to import over the edit
+    const work = path.join(scratch, 'work-11');
+    await $`git clone -q ${bare} ${work}`.quiet();
+    await $`git -C ${work} checkout -q feat/upload-rate-limit && git -C ${work} -c user.email=t@t -c user.name=t commit -q --allow-empty -m b && git -C ${work} push -q origin HEAD:refs/pull/11/head`.quiet();
+    const r = await prRun();
+    expect(r.code).toBe(0);
+    expect(r.stderr).not.toContain('could not look for a walkthrough on the PR'); // a fetch would replace it
+    expect(fs.readFileSync(path.join(dir, WALKTHROUGH_FILE), 'utf8')).toBe(edited);
+  }, 60_000);
+
   test('two PRs from branches of the same name are two reviews, each in its pr-<n> folder', async () => {
     expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/8' })).status).toBe(201);
     const all = ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((s) => s.target === '#7' || s.target === '#8');

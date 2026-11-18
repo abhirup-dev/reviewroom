@@ -13,6 +13,7 @@ import { fetchPr, prTarget } from '../lib/github.ts';
 import { walkthroughPath } from '../lib/state.ts';
 import { pickBlock } from '../lib/slides-file.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
+import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 import { cmdServe, type ServeOpts } from './serve.ts';
 
 // a path as the user would type it: relative when inside the cwd, else absolute
@@ -107,19 +108,11 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
 
 /** A fresh or forced review asks its agent for both documents. --no-agent (the hub) sets up only: generation goes idle
  *  until someone asks (api/generate); on a re-add, each document validated or requested for another head goes idle too (on
- *  disk), the others are kept. True when the walkthrough went stale: the PR's own walkthrough is imported again. */
+ *  disk), the others are kept. Going stale never imports the PR's walkthrough over the file: pullWalkthrough decides. */
 function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) {
   if (o.agent !== false) {
     if (fresh || o.force) requestGeneration(dir, 'agent', head);
-    return false;
-  }
-  if (fresh || o.force) {
-    resetGeneration(dir);
-    return false;
-  }
-  const stale = staleArtifacts(dir, head);
-  resetGeneration(dir, stale);
-  return stale.includes('walkthrough');
+  } else resetGeneration(dir, fresh || o.force ? ARTIFACTS : staleArtifacts(dir, head));
 }
 
 export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
@@ -142,9 +135,9 @@ export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
   const stopped = await stopServer(dir);
   // the next server takes its port (an open tab reconnects): cmdServe's own takeover finds nothing left to stop
   const port = o.port || (stopped ? String(stopped.port) : undefined);
-  const moved = settleGeneration(dir, o, fresh, prov.head);
+  settleGeneration(dir, o, fresh, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
-  await pullWalkthrough(repo, dir, cfg, !!o.force || moved, prov.head);
+  await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
   if (o.serve === false) return console.log(dir); // set up only (the hub's Add a PR): its Play starts the server
   if (!o.detach) return cmdServe(repo, { dir, port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
