@@ -7,34 +7,22 @@ const PHASES: Phase[] = [{ name: 'starting' }, { name: 'idle' }, run('question')
 const at = (key: string) => PHASES.find((p) => keyOf(p) === key)!;
 
 test.each([
-  // phase, a question, generate, generation as the pages read it
-  ['starting', 'still starting', 'starting', [false, false]],
-  ['idle', undefined, undefined, [false, false]],
-  ['running:question', 'already answering', 'busy', [false, false]],
-  ['running:generation', 'writing the review', 'running', [true, false]],
-  ['paused:question', undefined, 'busy', [false, false]],
-  ['paused:generation', undefined, 'running', [true, true]],
-  ['closing', 'closing', 'closing', [false, false]],
-] as const)('%s: a question is %p, generate %p, generation %p', (key, ask, generate, [running, awaitingApproval]) => {
+  // phase, a question, generate, generation as the pages read it, [a question here continues, a held turn's end leaves]
+  ['starting', 'still starting', 'starting', [false, false], ['question', 'paused:generation']],
+  ['idle', undefined, undefined, [false, false], ['question', 'paused:generation']],
+  ['running:question', 'already answering', 'busy', [false, false], ['question', 'paused:generation']],
+  ['running:generation', 'writing the review', 'running', [true, false], ['question', 'paused:generation']],
+  ['paused:question', undefined, 'busy', [false, false], ['question', 'paused:generation']],
+  ['paused:generation', undefined, 'running', [true, true], ['generation', 'paused:generation']],
+  ['closing', 'closing', 'closing', [false, false], ['question', 'closing']], // closing stays closing, whatever the turn says
+] as const)('%s: a question is %p, generate %p, generation %p', (key, ask, generate, [running, awaitingApproval], [continues, held]) => {
   const p = at(key);
   expect(askRefusal(p) ?? undefined).toEqual(ask && expect.stringContaining(ask));
   const g = generateRefusal(p);
   expect(g === null || g === 'running' ? (g ?? undefined) : g.code).toBe(generate);
   expect(generationOf(p)).toEqual({ running, awaitingApproval });
-});
-
-test.each([
-  // now, the turn's own origin, whether the native session holds it, where it leaves the conversation
-  ['running:question', 'question', false, 'idle'],
-  ['running:generation', 'generation', true, 'paused:generation'],
-  ['closing', 'generation', true, 'closing'], // a closing review stays closing, whatever the turn says
-  ['closing', 'question', false, 'closing'],
-] as const)('a turn ending from %s (%s, held: %p) leaves %s', (now, origin, held, left) => {
-  expect(keyOf(afterTurn(at(now), run(origin), held))).toBe(left);
-});
-
-test('a question continues what is paused: its origin, and for an approval its model; else a question on the configured model', () => {
-  const paused = at('paused:generation');
-  expect([originOf(paused), originOf(at('idle'))]).toEqual(['generation', 'question']);
-  expect([modelFor(paused, false, () => 'sonnet'), modelFor(paused, true, () => 'sonnet'), modelFor(at('idle'), false, () => 'sonnet')]).toEqual(['opus', 'sonnet', 'sonnet']);
+  expect(originOf(p)).toBe(continues);
+  // an approval continues on the paused turn's model; a new question, on the configured one
+  expect([modelFor(p, false, () => 'sonnet'), modelFor(p, true, () => 'sonnet')]).toEqual([p.name === 'paused' ? 'opus' : 'sonnet', 'sonnet']);
+  expect([keyOf(afterTurn(p, run('generation'), true)), keyOf(afterTurn(p, run('question'), false))]).toEqual([held, key === 'closing' ? 'closing' : 'idle']);
 });

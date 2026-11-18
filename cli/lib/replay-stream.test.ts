@@ -9,32 +9,16 @@ async function rest(r: ReadableStreamDefaultReader<string>) {
   return all;
 }
 
-test('a follower gets what was said, then what is said after, once each and in order; then the end', async () => {
+test('a follower gets what was said, then the rest, once each and in order; one that leaves stops only itself; close ends every reader and keeps nothing', async () => {
   const s = replayStream({ 'content-type': 'text/event-stream' });
   s.say('a');
   const res = s.follow();
+  const gone = reader(s.follow());
+  const idle = reader(s.follow());
   s.say('b');
+  await gone.cancel();
   s.say('c');
   s.close();
-  expect([res.headers.get('content-type'), await rest(reader(res))]).toEqual(['text/event-stream', 'abc']);
-});
-
-test('a reader that leaves only stops reading: the others go on', async () => {
-  const s = replayStream({});
-  const gone = reader(s.follow());
-  const stays = reader(s.follow());
-  s.say('a');
-  await gone.cancel();
-  s.say('b');
-  s.close();
-  expect(await rest(stays)).toBe('ab');
-});
-
-test('close ends every reader, including one that never read, and keeps nothing: a later follower gets an empty end', async () => {
-  const s = replayStream({});
-  s.say('a');
-  const idle = reader(s.follow());
-  s.close();
   s.say('late');
-  expect([await rest(idle), await rest(reader(s.follow()))]).toEqual(['a', '']);
+  expect([res.headers.get('content-type'), await rest(reader(res)), await rest(idle), await rest(reader(s.follow()))]).toEqual(['text/event-stream', 'abc', 'abc', '']);
 });

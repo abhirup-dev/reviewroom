@@ -1,7 +1,9 @@
-// A scripted stand-in for Claude (the server loads it by REVIEWROOM_TEST_ASSISTANT): streams like the real one, so a
-// page can follow a turn it didn't start. A generation turn says it is reading, then waits for the test's `go-1`
-// (REVIEWROOM_TEST_GATES), writes and validates the walkthrough, waits for `go-2`, then the report. A question is
-// answered at once.
+// The one stand-in for Claude, shaped like the harness's `Live` (cli/lib/assistant.ts): launched once and reused, a
+// start that can wait or fail, a session that can hold its turn on an approval, a checkpoint, a stop. Turns stream
+// through AI SDK's real streamText on a mock model, so routes and pages follow them as they would Claude's.
+// The server loads `launch` by REVIEWROOM_TEST_ASSISTANT (e2e): a generation says it is reading, then waits for the
+// test's `go-1` (REVIEWROOM_TEST_GATES), writes and validates the walkthrough, waits for `go-2`, then the report. A
+// question is answered at once. Unit tests make their own with `fakeAgent`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { streamText } from 'ai';
@@ -10,52 +12,63 @@ import { recordArtifact } from '../cli/lib/progress.ts';
 import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 
 const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
-const gate = async (name: string) => {
-  const file = path.join(process.env.REVIEWROOM_TEST_GATES!, name);
-  while (!fs.existsSync(file)) await Bun.sleep(50);
-};
 type Prompt = { role: string; content: unknown }[];
 const lastText = (prompt: Prompt) => {
   const last = prompt.findLast((m) => m.role === 'user');
   return last && Array.isArray(last.content) ? last.content.map((p: { text?: string }) => p.text ?? '').join('') : '';
 };
+/** A turn: says things, and returns to finish (or never returns: it runs until it is stopped). */
+type Script = (turn: { say: (text: string) => void; asked: string; dir: string }) => Promise<void>;
 
-async function run(c: ReadableStreamDefaultController<object>, prompt: Prompt, dir: string) {
-  let n = 0;
-  const say = (text: string) => {
-    const id = `t${n++}`;
-    c.enqueue({ type: 'text-start', id });
-    c.enqueue({ type: 'text-delta', id, delta: text });
-    c.enqueue({ type: 'text-end', id });
+/** `starting`: Claude still starting (or failing to); `held`: the session keeps its last turn on an approval. */
+export function fakeAgent(script: Script, { starting, held = () => false }: { starting?: Promise<void>; held?: () => boolean } = {}) {
+  const calls = { launched: 0, stopped: 0 };
+  const run = async (c: ReadableStreamDefaultController<object>, prompt: Prompt, dir: string) => {
+    let n = 0;
+    c.enqueue({ type: 'stream-start', warnings: [] });
+    const say = (text: string) => {
+      const id = `t${n++}`;
+      c.enqueue({ type: 'text-start', id });
+      c.enqueue({ type: 'text-delta', id, delta: text });
+      c.enqueue({ type: 'text-end', id });
+    };
+    await script({ say, asked: lastText(prompt), dir });
+    c.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage });
+    c.close();
   };
-  const write = (artifact: 'walkthrough' | 'report', file: string) => {
-    fs.copyFileSync(path.join(import.meta.dir, `../examples/uploads/${file}`), path.join(dir, file));
-    recordArtifact(dir, artifact, 'validated');
+  const launch = async ({ dir }: { dir: string }) => {
+    calls.launched++;
+    await starting;
+    const model = new MockLanguageModelV4({
+      // detached: a stream's chunks can't be read until its start() returns
+      doStream: async ({ prompt }) => ({ stream: new ReadableStream({ start: (c) => void run(c, prompt, dir) }) as never }),
+    });
+    return {
+      agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) },
+      session: { hasUnfinishedTurn: held },
+      checkpoint: async () => {},
+      stop: async () => void calls.stopped++,
+    } as never;
   };
-  c.enqueue({ type: 'stream-start', warnings: [] });
-  const asked = lastText(prompt);
-  if (asked.includes('walkthrough and report now')) {
-    say('Reading the diff.');
-    await gate('go-1');
-    write('walkthrough', WALKTHROUGH_FILE);
-    say('The walkthrough passes. Writing the report.');
-    await gate('go-2');
-    write('report', REPORT_FILE);
-    say('Both pass.');
-  } else say(`You asked: ${asked}`);
-  c.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage });
-  c.close();
+  return { launch, calls };
 }
 
-export function launch({ dir }: { dir: string }) {
-  const model = new MockLanguageModelV4({
-    // detached: a stream's chunks can't be read until its start() returns
-    doStream: async ({ prompt }) => ({ stream: new ReadableStream({ start: (c) => void run(c, prompt, dir) }) as never }),
-  });
-  return Promise.resolve({
-    agent: { stream: (o: { messages: never; abortSignal: AbortSignal }) => streamText({ model, messages: o.messages, abortSignal: o.abortSignal }) },
-    session: { hasUnfinishedTurn: () => false },
-    checkpoint: async () => {},
-    stop: async () => {},
-  } as never);
-}
+const gate = async (name: string) => {
+  const file = path.join(process.env.REVIEWROOM_TEST_GATES!, name);
+  while (!fs.existsSync(file)) await Bun.sleep(50);
+};
+const write = (dir: string, artifact: 'walkthrough' | 'report', file: string) => {
+  fs.copyFileSync(path.join(import.meta.dir, `../examples/uploads/${file}`), path.join(dir, file));
+  recordArtifact(dir, artifact, 'validated');
+};
+
+export const { launch } = fakeAgent(async ({ say, asked, dir }) => {
+  if (!asked.includes('walkthrough and report now')) return say(`You asked: ${asked}`);
+  say('Reading the diff.');
+  await gate('go-1');
+  write(dir, 'walkthrough', WALKTHROUGH_FILE);
+  say('The walkthrough passes. Writing the report.');
+  await gate('go-2');
+  write(dir, 'report', REPORT_FILE);
+  say('Both pass.');
+});
