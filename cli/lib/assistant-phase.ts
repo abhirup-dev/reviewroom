@@ -22,16 +22,21 @@ export const keyOf = (p: Phase): Key => ('origin' in p ? `${p.name}:${p.origin}`
 const BUSY = { error: 'The assistant is answering a question; generate when it is done.', code: 'busy' };
 const CLOSING = 'The review is closing.';
 const STARTING = 'The review is still starting';
-/** Why a question (POST api/assistant) is refused (409), by phase; an approval answers a paused turn. */
-const ASK: Partial<Record<Key, string>> = {
+/** Why a question (POST api/assistant) is refused (409), by phase; null: taken (an approval answers a paused turn). */
+const ASK: Record<Key, string | null> = {
   starting: `${STARTING}; ask in a moment.`,
+  idle: null,
   'running:question': 'The assistant is already answering a question.',
   'running:generation': 'The assistant is writing the review.',
+  'paused:question': null,
+  'paused:generation': null,
   closing: CLOSING,
 };
-/** Why api/generate starts nothing, by phase: refused (409), or `running` (it already runs: answered `started: false`). */
-const GENERATE: Partial<Record<Key, { error: string; code: string } | 'running'>> = {
+/** Why api/generate starts nothing, by phase: refused (409), `running` (it already runs: answered `started: false`), or
+ *  null: it starts. */
+const GENERATE: Record<Key, { error: string; code: string } | 'running' | null> = {
   starting: { error: `${STARTING}; generate in a moment.`, code: 'starting' },
+  idle: null,
   'running:question': BUSY,
   'paused:question': BUSY,
   'running:generation': 'running',

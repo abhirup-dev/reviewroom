@@ -19,7 +19,7 @@ test.each([
   const p = at(key);
   expect(askRefusal(p) ?? undefined).toEqual(ask && expect.stringContaining(ask));
   const g = generateRefusal(p);
-  expect(g === undefined || g === 'running' ? g : g.code).toBe(generate);
+  expect(g === null || g === 'running' ? (g ?? undefined) : g.code).toBe(generate);
   expect(generationOf(p)).toEqual({ running, awaitingApproval });
 });
 
