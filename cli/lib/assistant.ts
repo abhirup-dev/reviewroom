@@ -397,7 +397,9 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     try {
       text = fs.readFileSync(generatePrompt, 'utf8').trim();
       if (!text) throw new Error(`The generate prompt is empty: ${generatePrompt}`);
-      claudeBinary(readSettings());
+      const settings = readSettings();
+      claudeBinary(settings);
+      instructions(repo, dir, cfg, settings.reviewAgentPromptFile); // the role prompt the turn starts with: there and not empty
       load();
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e), code: 'assistant_unavailable' }, 503);

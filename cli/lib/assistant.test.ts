@@ -403,6 +403,14 @@ test('generate checks what a turn needs before answering started: a configured C
   expect(r.events()).toEqual([]);
 });
 
+test('generate checks the configured role prompt before answering started: a missing one is unavailable, nothing requested', async () => {
+  using r = reviewWithAgent(true, () => false, true, () => ({ ...settings, reviewAgentPromptFile: '/nonexistent/role.md' }));
+  const [status, body] = await r.generate();
+  expect([status, body.code]).toEqual([503, 'assistant_unavailable']);
+  expect(body.error).toContain('/nonexistent/role.md');
+  expect(r.events()).toEqual([]);
+});
+
 test('generate with nothing left to write answers started: false before it checks for Claude', async () => {
   using r = reviewWithAgent(true, () => false, true, () => ({ ...settings, claudeExecutable: '/nonexistent/claude' }));
   for (const [artifact, file] of [['walkthrough', 'walkthrough.json'], ['report', 'report.html']] as const) {
