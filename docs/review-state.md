@@ -32,10 +32,10 @@ them to a state, and the client reads that state rather than the events:
 | `requested`, `by: agent` or `assistant`, with a request `id` | `requested` | `reviewroom pr` for a new or `--force`d review (`agent`; not with `--no-agent`), or `api/generate` (`assistant`, only the documents not validated now). A line without `by` was an agent's. |
 | `written`, with the content hash | `writing` | the server, when the file changes |
 | `validated`, with the hash | `validated` while the file still has that hash, else `writing` | `slide-lint` (a full run) and `check` |
-| `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops | `stopped`, only while that request is current and unfinished | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the server closed during an assistant generation, or a server started while one was pending (`interrupted`; turns live in the server's process) |
+| `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops; `stale`: the validated hash it saw edited since | `stopped`, only while that request is current and unfinished (or validated with exactly that `stale` hash) | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the server closed during an assistant generation, or a server started while one was pending (`interrupted`; turns live in the server's process) |
 | `reset` | `idle` | `reviewroom pr --force --no-agent` |
 
-Requests and stops of both documents go in one write. Events before the first `requested` are ignored (a review that never asked for generation stays `idle`). `stopped` keeps
+Requests and stops of both documents go in one write. Events before the first `requested` are ignored (a review that never asked for generation stays `idle`), except a walkthrough imported from the PR (`validated`, `source: pr`): it counts while the file has those bytes, and edited since, with nobody asked, is `idle` again. `stopped` keeps
 what was written and stays through later saves; a validation or a new request leaves it. An `agent`'s request is never
 stopped by the server, which can't know whether an outside agent is still at work. `/api/progress` and the `progress`
 event add `generation: { running, awaitingApproval }` where the assistant runs.

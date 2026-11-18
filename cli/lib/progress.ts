@@ -31,7 +31,7 @@ export function appendProgress(dir: string, ...lines: NewLine[]) {
     fs.closeSync(fd);
     if (last[0] !== 0x0a) text = '\n' + text;
   }
-  fs.appendFileSync(file, text);
+  fs.appendFileSync(file, text); // shortcut: a short write (EFBIG, disk full) can land half a batch; rare, and Retry recovers
 }
 export function recordArtifact(dir: string, artifact: Artifact, event: 'written' | 'validated', extra: { head?: string; source?: 'pr' } = {}, checkedHash = artifactHash(dir, artifact)) {
   if (!checkedHash) return;
