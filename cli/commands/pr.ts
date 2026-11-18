@@ -1,4 +1,4 @@
-import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // pr: the one-step entry point
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -92,6 +92,8 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   const t = prTarget(cfg);
   // a local file is kept, unless it is still an earlier import not validated now (a refresh whose fetch failed): retried
   if (!t || (fs.existsSync(file) && !force && !importToRetry(dir, head))) return;
+  const read = () => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
+  const before = read();
   let pick;
   try {
     pick = pickBlock(await fetchPr(repo, t, null));
@@ -101,6 +103,8 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   if (!pick) return;
   const r = parseWalkthrough(pick.text);
   if (!r.ok) return console.error(`reviewroom: the walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
+  // an edit saved while GitHub answered wins: recheck right before writing
+  if (!force && read() !== before) return console.error(`reviewroom: ${WALKTHROUGH_FILE} changed while fetching the PR's walkthrough; kept yours`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
   recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(/^[a-f0-9]{40}$/.test(head) ? { head } : {}) });
   console.error(`reviewroom: walkthrough from ${pick.from}`);
