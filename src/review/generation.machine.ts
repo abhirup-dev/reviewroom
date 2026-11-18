@@ -2,113 +2,143 @@
 // placeholder. Pure, no DOM: fed the reduced progress (progress.shared.ts) from /api/progress and the `progress` event,
 // it decides what the page shows; generation.ts draws it.
 //
-//   stage (from the documents' states)                                   overlay (the loading screen; orthogonal)
 //   idle ─generate─▶ starting ─written─▶ writing ─walkthrough validated─▶ playable ─report validated─▶ done
-//                       │                   │                               │        shown ─dismiss─▶ dismissed
-//                       └───────────────────┴───────── a stop ──────────────┴─▶ stopped     ◀─reopen, or a new request─
-//                                       stopped ─generate (Retry)─▶ starting
+//                       │                   │                               │
+//                       └───────────────────┴───────── a stop ──────────────┴─▶ stopped ─generate (Retry)─▶ starting
 //
-//   progress { progress }   the reduced documents' states (and `generation` where the assistant runs); the first one
-//                           places the machine
-//   generate                Generate / Retry: starting at once, until the request answers
-//   generated { progress }  the request was taken; failed { error }: refused, with a readable message
-//   dismiss / reopen        close the loading screen to the bare review / open it again (the header indicator)
+// The progress (the server's, over SSE) is the truth. Generate only bridges the moment until the new request shows in
+// it: `requesting` holds the request ids it was pressed over, and the first progress with other ids ends it, so a stop
+// of the new request wins at any time. The POST's answer settles only "taken" (or "nothing to do") or "refused"; its
+// progress snapshot is never taken (it can be older than what SSE already delivered).
 //
-// It emits `play` when the walkthrough becomes playable while the reviewer waited for it: the player opens at slide 1.
-import { assign, enqueueActions, raise, setup, type SnapshotFrom } from 'xstate';
+// The loading screen is closed per request: `closedFor` is the pair of request ids (walkthrough|report) it was closed
+// on, so a repeat of the same progress keeps it closed and any new request opens it, whatever stage it is first seen
+// at. Closed while Generate's request is on its way, it stays closed for the request that answers.
+//
+// It emits `play` once per walkthrough request: when the walkthrough validates for a request this page saw pending,
+// whatever else the same snapshot carries (the report validated with it).
+//
+//   progress { progress }    the reduced documents' states (and `generation` where the assistant runs)
+//   generate                 Generate / Retry: starting at once, until the new request shows
+//   generated { started }    the request was taken (started: false: nothing to write); failed { error }: refused
+//   dismiss / reopen         close the loading screen to the bare review / open it again (the header indicator)
+import { enqueueActions, setup, type SnapshotFrom } from 'xstate';
 import { pendingArtifact, type Progress } from '../kernel/state/progress.shared';
 
 export type Stage = 'idle' | 'starting' | 'writing' | 'playable' | 'done' | 'stopped';
 export const STAGES: readonly Stage[] = ['idle', 'starting', 'writing', 'playable', 'done', 'stopped'];
+/** Closed before Generate's request showed: it becomes that request's key when it does. */
+const PENDING = 'pending';
+/** The request pair a progress shows: what the screen's closing and Generate's bridge are keyed on. */
+export const requestKey = ({ walkthrough: w, report: r }: Progress) => `${w.request ?? ''}|${r.request ?? ''}`;
+
+/** What a tab keeps over a reload (the server reloads the page when a document stops or lands). */
+export type Remembered = { closedFor?: string | null; waitedFor?: string | null; played?: string | null };
 export type GenerationContext = {
   progress: Progress;
   /** the server can generate here (`generate` in /api/meta) */
   canGenerate: boolean;
-  /** a Generate request is on its way: starting until it answers */
-  requesting: boolean;
+  /** Generate pressed over these request ids; null once the progress shows a newer request, or it is refused */
+  requesting: string | null;
   /** why the last Generate was refused, readable */
   error: string | null;
-  /** the reviewer saw this generation under way (starting or writing): a playable walkthrough then opens */
-  waited: boolean;
+  /** the request pair the loading screen was closed on */
+  closedFor: string | null;
+  /** the walkthrough request this page saw pending (or asked for): validated, it plays */
+  waitedFor: string | null;
+  /** the walkthrough request already played */
+  played: string | null;
 };
 export type GenerationEvent =
   | { type: 'progress'; progress: Progress }
   | { type: 'generate' }
-  | { type: 'generated'; progress: Progress }
+  | { type: 'generated'; started: boolean }
   | { type: 'failed'; error: string }
   | { type: 'dismiss' }
   | { type: 'reopen' };
 
 /** The stage the documents are in. A stop wins over everything but both documents validated. */
-export function stageOf({ progress: { walkthrough: w, report: r }, requesting }: Pick<GenerationContext, 'progress' | 'requesting'>): Stage {
+export function stageOf({ progress, requesting }: Pick<GenerationContext, 'progress' | 'requesting'>): Stage {
+  const { walkthrough: w, report: r } = progress;
   if (w.state === 'validated' && r.state === 'validated') return 'done';
-  if (requesting && !pendingArtifact(w) && !pendingArtifact(r)) return 'starting';
+  if (requesting !== null) return 'starting';
   if (w.state === 'stopped' || r.state === 'stopped') return 'stopped';
   if (pendingArtifact(w)) return w.state === 'requested' ? 'starting' : 'writing';
   if (pendingArtifact(r)) return w.state === 'validated' ? 'playable' : r.state === 'requested' ? 'starting' : 'writing';
   return w.state === 'idle' && r.state === 'idle' ? 'idle' : 'done';
 }
 
+/** The context an event leaves. Pure: the guards route on it and the update action assigns it. */
+export function next(c: GenerationContext, e: GenerationEvent): GenerationContext {
+  let { progress, requesting, error, closedFor, waitedFor, played } = c;
+  switch (e.type) {
+    case 'progress': progress = e.progress; break;
+    case 'generate': requesting = requestKey(progress); error = null; break;
+    case 'generated': if (!e.started) requesting = null; break; // taken: the progress ends the bridge
+    case 'failed': requesting = null; error = e.error; break;
+    case 'dismiss': closedFor = requesting !== null ? PENDING : requestKey(progress); break;
+    case 'reopen': closedFor = null; break;
+  }
+  const w = progress.walkthrough;
+  if (requesting !== null && requestKey(progress) !== requesting) {
+    const [askedOver] = requesting.split('|');
+    requesting = null; // the new request shows: from here the progress says what happens to it
+    // a new walkthrough request, asked for here: it plays, however fast it lands (a report-only retry keeps the old one)
+    if (w.request && w.request !== askedOver) waitedFor = w.request;
+  }
+  if (requesting === null && closedFor === PENDING) closedFor = requestKey(progress); // closed on the request that answered
+  if (pendingArtifact(w) && w.request) waitedFor = w.request;
+  if (w.state === 'validated' && w.request && w.request === waitedFor && played !== w.request) played = w.request;
+  return { ...c, progress, requesting, error, closedFor, waitedFor, played };
+}
+
 type Ctx = { context: GenerationContext; event: GenerationEvent };
-/** The context an event leaves (guards run before its actions assign it). */
-const after = ({ context, event }: Ctx) => ({
-  progress: event.type === 'progress' || event.type === 'generated' ? event.progress : context.progress,
-  requesting: event.type === 'generated' || event.type === 'failed' ? false : context.requesting,
-});
-/** Each stage, routed from where the event leaves the documents: stageOf names exactly one. */
-const route = (actions: ('take' | 'answer')[]) => STAGES.map((s) => ({ guard: (x: Ctx) => stageOf(after(x)) === s, target: `.${s}`, actions }));
+/** Each stage, routed from the context the event leaves: stageOf names exactly one. */
+const route = STAGES.map((s) => ({ guard: (x: Ctx) => stageOf(next(x.context, x.event)) === s, target: `.${s}`, actions: 'update' as const }));
 
 export const generationMachine = setup({
-  types: { context: {} as GenerationContext, events: {} as GenerationEvent, input: {} as { canGenerate: boolean }, emitted: {} as { type: 'play' } },
+  types: { context: {} as GenerationContext, events: {} as GenerationEvent, input: {} as { canGenerate: boolean } & Remembered, emitted: {} as { type: 'play'; request: string } },
   guards: {
-    canGenerate: ({ context }) => context.canGenerate && !context.requesting && ['idle', 'stopped'].includes(stageOf(context)),
+    canGenerate: ({ context }) => context.canGenerate && context.requesting === null && ['idle', 'stopped'].includes(stageOf(context)),
   },
   actions: {
-    take: assign(({ event }) => (event.type === 'progress' || event.type === 'generated' ? { progress: event.progress } : {})),
-    request: assign({ requesting: true, error: null }),
-    answer: assign(({ event }) => ({ requesting: false, error: event.type === 'failed' ? event.error : null })),
+    update: enqueueActions(({ context, event, enqueue }) => {
+      const after = next(context, event);
+      enqueue.assign(after);
+      if (after.played !== context.played && after.played) enqueue.emit({ type: 'play', request: after.played });
+    }),
   },
 }).createMachine({
   id: 'generation',
   type: 'parallel',
-  context: ({ input }) => ({ progress: { walkthrough: { state: 'idle' }, report: { state: 'idle' } }, canGenerate: input.canGenerate, requesting: false, error: null, waited: false }),
+  context: ({ input }) => ({
+    progress: { walkthrough: { state: 'idle' }, report: { state: 'idle' } }, canGenerate: input.canGenerate, requesting: null, error: null,
+    closedFor: input.closedFor ?? null, waitedFor: input.waitedFor ?? null, played: input.played ?? null,
+  }),
   states: {
-    // the routing lives in this region: a transition from the root would re-enter the overlay too
+    // one region, so snapshots read `{ stage: … }`
     stage: {
       initial: 'idle',
       on: {
-        progress: route(['take']),
-        generate: { guard: 'canGenerate', target: '.starting', actions: 'request' },
-        generated: route(['take', 'answer']),
-        failed: route(['answer']),
+        progress: route,
+        generate: { guard: 'canGenerate', target: '.starting', actions: 'update' },
+        generated: route,
+        failed: route,
+        dismiss: { actions: 'update' },
+        reopen: { actions: 'update' },
       },
-      states: {
-        idle: { entry: assign({ waited: false }) },
-        // a new request (Generate, Retry, or an agent's) brings the loading screen back
-        starting: { entry: [assign({ waited: true }), raise({ type: 'reopen' })] },
-        writing: { entry: assign({ waited: true }) },
-        playable: { entry: enqueueActions(({ context, enqueue }) => {
-          if (context.waited) enqueue.emit({ type: 'play' });
-          enqueue.assign({ waited: false });
-        }) },
-        done: { entry: assign({ waited: false }) },
-        stopped: { entry: assign({ waited: false }) },
-      },
-    },
-    overlay: {
-      initial: 'shown',
-      states: {
-        shown: { on: { dismiss: 'dismissed' } },
-        dismissed: { on: { reopen: 'shown' } },
-      },
+      states: { idle: {}, starting: {}, writing: {}, playable: {}, done: {}, stopped: {} },
     },
   },
 });
 
 export type GenerationSnapshot = SnapshotFrom<typeof generationMachine>;
 export const stageIn = (s: GenerationSnapshot) => STAGES.find((st) => s.matches({ stage: st }))!;
-/** The loading screen: open, while there is something to wait for or a stop to read. */
-export const screenShown = (s: GenerationSnapshot) => s.matches({ overlay: 'shown' }) && ['starting', 'writing', 'stopped'].includes(stageIn(s));
+/** What the tab keeps over a reload. */
+export const remembered = ({ context: c }: GenerationSnapshot): Remembered => ({ closedFor: c.closedFor === PENDING ? null : c.closedFor, waitedFor: c.waitedFor, played: c.played });
+const closed = ({ context: c }: GenerationSnapshot) => c.closedFor === PENDING || (c.closedFor !== null && c.closedFor === requestKey(c.progress));
+/** The loading screen: open, while there is something to wait for or a stop to read, unless closed for this request. */
+export const screenShown = (s: GenerationSnapshot) => ['starting', 'writing', 'stopped'].includes(stageIn(s)) && !closed(s);
 /** The header indicator: generation under way (or stopped) with the loading screen closed. Gone at idle and done. */
 export const indicatorShown = (s: GenerationSnapshot) => ['starting', 'writing', 'playable', 'stopped'].includes(stageIn(s)) && !screenShown(s);
 /** Generate (or Retry) is offered: idle or stopped, where the server can generate, and no request on its way. */

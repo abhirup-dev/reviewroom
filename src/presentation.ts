@@ -7,7 +7,7 @@ import { buildHeader } from './kernel/header';
 import * as dock from './kernel/dockview';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { githubPanelAvailability } from './threads/docking';
-import { generateButton, generationIndicator } from './review/generation';
+import { generateButton, generationIndicator, onGenerationHeader } from './review/generation';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
@@ -47,7 +47,7 @@ export const desktop: PresentationModule = {
         ...threadHeaderControls(app),
       ],
       afterTheme: () => [feedbackButton(app)],
-      subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); app.bus.on('generation', paint); },
+      subscribe: (paint) => { app.onDispose(subscribeThreadHeader(app, paint)); app.bus.on('walkthrough', paint); app.onDispose(onGenerationHeader(app, paint)); },
     }),
   mountSurface: (app, host, { lastLayout }) => {
     if (app.meta.assistant) registerAssistant(app); // before the layout restores: a saved layout may show it

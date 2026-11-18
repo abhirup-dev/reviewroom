@@ -4,7 +4,7 @@ import { h, icon } from './kernel/dom';
 import { buildPhoneBar, type PhoneBarContributions } from './kernel/header.phone';
 import { mountPhone } from './kernel/phone';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
-import { generateButton, generationIndicator } from './review/generation';
+import { generateButton, generationIndicator, onGenerationHeader } from './review/generation';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
 import { contentsButton } from './review/walkthrough.phone';
 import { phonePalette } from './review/overlays.phone';
@@ -74,7 +74,7 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
     subscribe: (paint) => {
       app.onDispose(subscribeThreadHeader(app, paint));
       app.bus.on('walkthrough', paint);
-      app.bus.on('generation', paint);
+      app.onDispose(onGenerationHeader(app, paint));
     },
   };
 }

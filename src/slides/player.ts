@@ -472,7 +472,8 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     app.walkthrough = w;
     app.bus.emit('walkthrough', w);
     actor.send({ type: 'load', doc: w });
-    actor.send({ type: 'open' });
+    // one play: the boot's deep link (or an earlier show) may have opened it, and the reader may have moved on
+    if (!actor.getSnapshot().matches('open')) actor.send({ type: 'open' });
   }));
   const loaded = app.backend.walkthrough?.().then(
     (input) => {
@@ -483,7 +484,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const link = deepLink(location.search); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
-      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough)) actor.send({ type: 'open', ...link });
+      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough) && !actor.getSnapshot().matches('open')) actor.send({ type: 'open', ...link });
     },
     () => {},
   );

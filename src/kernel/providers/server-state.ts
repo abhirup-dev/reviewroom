@@ -105,7 +105,9 @@ export class ServerState implements StateBackend {
       sync.on('state', (e) => on.state(e.state)),
       sync.on('error', (e) => on.error(e.text)),
       sync.on('github', (e) => on.github?.(e.snapshot)),
-      sync.on('reload', () => on.review()),
+      // reconcile progress before reloading (a new run's hello reloads before its progress arrives): what generation
+      // decides from it (the walkthrough to play) is kept by the tab over the reload
+      sync.on('reload', () => void this.progress().then((p) => on.progress?.(p), () => {}).finally(() => on.review())),
     );
     let unsaved = false;
     let status: 'waiting' | 'approved' | 'offline' | null = null;
@@ -153,7 +155,7 @@ export class ServerState implements StateBackend {
   async generate() {
     const r = await fetch(`${this.api}/generate`, { method: 'POST' });
     const b = await r.json().catch(() => ({}));
-    return r.ok ? { ok: true as const, progress: { walkthrough: b.walkthrough, report: b.report, ...(b.generation && { generation: b.generation }) } } : { ok: false as const, code: b.code, error: b.error };
+    return r.ok ? { ok: true as const, started: !!b.started } : { ok: false as const, code: b.code, error: b.error };
   }
   async walkthrough(): Promise<unknown> {
     const r = await fetch(`${this.api}/walkthrough`);

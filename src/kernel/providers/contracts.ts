@@ -46,8 +46,9 @@ export interface StateBackend {
   walkthrough?(): Promise<unknown>;
   /** Generation progress (progress.jsonl, reduced by the server). */
   progress?(): Promise<Progress>;
-  /** POST api/generate: the assistant writes both documents. Refused: `code` names why (busy, starting, assistant_off, …). */
-  generate?(): Promise<{ ok: true; progress: Progress } | { ok: false; code?: string; error?: string }>;
+  /** POST api/generate: the assistant writes both documents. Taken (`started`: false when nothing was left to write) or
+   *  refused (`code`: busy, starting, assistant_off, …). What happens to the request comes over the progress events. */
+  generate?(): Promise<{ ok: true; started: boolean } | { ok: false; code?: string; error?: string }>;
   /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
   pending?(): { unsent: boolean; started: string | null };
 }
