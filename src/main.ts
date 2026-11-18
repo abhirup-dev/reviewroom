@@ -34,6 +34,7 @@ import { LocalProvider } from './review/providers/local';
 import { StaticProvider, type Fixture } from './review/providers/static';
 import { defineElements, provideApp } from './review/elements';
 import { loadEditor, mountThreadPopup } from './threads/view';
+import { errorText } from './kernel/errors.shared';
 import { mountHoverCards, mountPalette, mountSelectionRelease } from './review/overlays';
 import { mountToasts } from './kernel/toasts';
 import { mountTooltips, tip } from './kernel/tooltip';
@@ -172,7 +173,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   } catch (e) {
     app.dispose();
     // a chunk that won't load (a build replaced since this page loaded, or offline): the update flow reloads instead
-    if (!reloadOnChunkError(e)) root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
+    if (!reloadOnChunkError(e)) root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, errorText(e))));
     throw e;
   }
 

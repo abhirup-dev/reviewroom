@@ -24,6 +24,7 @@ import { compress } from 'hono/compress';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { errorText } from '../../src/kernel/errors.shared.ts';
 import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
@@ -276,7 +277,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
       try {
         return Layout.parse(JSON.parse(fs.readFileSync(path.join(layoutsDir(), f), 'utf8')));
       } catch (e) {
-        console.error(`reviewroom: skipping layout ${f}: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`reviewroom: skipping layout ${f}: ${errorText(e)}`);
       }
     };
     const layouts = Object.fromEntries(files.flatMap((f) => {
