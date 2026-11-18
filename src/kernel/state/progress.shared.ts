@@ -47,6 +47,12 @@ export function parseProgress(text: string): ProgressLine[] {
   });
 }
 
+type Line<E extends ProgressLine['event']> = Extract<ProgressLine, { event: E }>;
+/** A stop applies to the current request only, while unfinished, or validated with the stale hash it names. */
+const stops = (line: Line<'stopped'>, prev: ArtifactProgress) => line.request === prev.request && (prev.state !== 'validated' || (!!line.stale && line.stale === prev.hash));
+/** A walkthrough imported from the PR (`pr --no-agent`) counts with nothing requested. */
+const imported = (line: ProgressLine) => line.event === 'validated' && line.source === 'pr';
+
 /** `hashes`: each file's current content hash; `validated` holds only while the file still has the validated bytes. */
 export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Artifact, string>>): Progress {
   const result: Progress = { walkthrough: { state: 'idle' }, report: { state: 'idle' } };
@@ -60,12 +66,12 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
     }
     // nothing was requested: a legacy review, whatever was validated in it; but a walkthrough imported from the PR
     // (`pr --no-agent`) counts as validated while it has those bytes, asked for or not
-    if (prev.state === 'idle' && !(line.event === 'validated' && line.source === 'pr')) continue;
+    if (prev.state === 'idle' && !imported(line)) continue;
     // an unrequested import edited since: nobody is writing it, so it is idle again (never pending)
     if (prev.state === 'validated' && !prev.by && line.event === 'written') { result[line.artifact] = { state: 'idle' }; continue; }
     if (line.event === 'stopped') {
       // only the current request, and only while it is unfinished; it keeps what was written (slides, hash) and who was asked
-      if (line.request === prev.request && (prev.state !== 'validated' || (!!line.stale && line.stale === prev.hash))) result[line.artifact] = { ...prev, state: 'stopped', reason: line.reason };
+      if (stops(line, prev)) result[line.artifact] = { ...prev, state: 'stopped', reason: line.reason };
       continue;
     }
     const { at: _at, artifact: _a, event, ...rest } = line;
