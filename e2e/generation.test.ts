@@ -190,15 +190,16 @@ async function across(page: Page, cond: string, ms = 15_000) {
   }
 }
 const closePlayer = `document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click()`;
-/** Lets the walkthrough pass (`go(1)`), then out of its player (modal), back to the panel. `reloads`: nothing holds the
- *  review reload it brings (no composer on the page yet), so it is waited for: the player open then opens again after it. */
+/** Lets the walkthrough pass (`go(1)`): it plays, and one Close leaves it closed; then the panel. `reloads`: nothing holds
+ *  the review reload it brings (no composer on the page yet), so it is waited for. */
 async function pastPlayer(page: Page, go: () => void, reloads = false) {
   await page.evaluate(`window.rrBeforeReload = true`);
   go();
-  await across(page, `rr.app && ${reloads ? '!window.rrBeforeReload && ' : ''}rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-tour__player')`);
-  // closed, and not about to open: a slide still in the URL opens the player once its document loads
-  await across(page, `rr.app && (document.querySelector('.rr-tour')?.dataset.mode === 'closed' && !location.search.includes('walkthrough') || (${closePlayer}, false))`);
+  await across(page, `rr.app && ${reloads ? '!window.rrBeforeReload && ' : ''}rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`);
+  await page.evaluate(closePlayer);
+  await until(page, `document.querySelector('.rr-tour').dataset.mode === 'closed' && !location.search.includes('walkthrough')`);
   await across(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);
+  expect(await page.evaluate<string>(`document.querySelector('.rr-tour').dataset.mode`)).toBe('closed'); // nothing reopened it
 }
 /** Lets the turn end (`go(2)`), then the same conversation answers a question. The review reload the turn held (main.ts:
  *  the documents changed) comes as it ends: after it, the player closed before stays closed and one send is answered. */

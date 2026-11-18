@@ -464,17 +464,31 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     if (!app.walkthrough) return app.toast('No walkthrough for this review');
     actor.send({ type: 'open', chapter, step });
   });
+  // An open the reader didn't ask for (generation's show, the boot's deep link) waits on a fetch: a close meanwhile
+  // cancels it, so a late answer never undoes the close. `autoOpen()` before the fetch, its result after.
+  let closes = 0;
+  let wasOpen = false;
+  actor.subscribe((s) => {
+    if (wasOpen && !s.matches('open')) closes++;
+    wasOpen = s.matches('open');
+  });
+  const autoOpen = () => {
+    const asked = closes;
+    // one play: the boot's deep link (or an earlier show) may have opened it, and the reader may have moved on
+    return (at: { chapter?: string; step?: string } = {}) => void (closes === asked && !actor.getSnapshot().matches('open') && actor.send({ type: 'open', ...at }));
+  };
   // generation (src/review/generation.ts) shows a walkthrough as soon as it is playable, or one still being written
   app.onDispose(app.bus.on('walkthrough-show', async () => {
+    const open = autoOpen();
     const w = decodeWalkthrough(await app.backend.walkthrough?.().catch(() => null));
     if (disposed) return;
     if (!w || !('version' in w)) return app.toast('The walkthrough is not ready to show yet');
     app.walkthrough = w;
     app.bus.emit('walkthrough', w);
     actor.send({ type: 'load', doc: w });
-    // one play: the boot's deep link (or an earlier show) may have opened it, and the reader may have moved on
-    if (!actor.getSnapshot().matches('open')) actor.send({ type: 'open' });
+    open();
   }));
+  const bootOpen = autoOpen();
   const loaded = app.backend.walkthrough?.().then(
     (input) => {
       if (disposed) return;
@@ -484,7 +498,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const link = deepLink(location.search); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
-      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough) && !actor.getSnapshot().matches('open')) actor.send({ type: 'open', ...link });
+      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough)) bootOpen(link);
     },
     () => {},
   );
