@@ -127,6 +127,9 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
       auth: 'direct',
       session: { meta: { claudeCode: { options: {
         plugins: [{ type: 'local', path: PKG, skipMcpDiscovery: true }],
+        // the reviewer's own hooks (settings files and plugins: command guards, output rewriters) are for their sessions,
+        // not this one; their MCP servers and login stay. The adapter's programmatic hooks are not settings and still run.
+        settings: { disableAllHooks: true },
         ...(settings.defaultReviewEffort ? { effort: settings.defaultReviewEffort } : {}),
       } } } },
     });
