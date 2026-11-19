@@ -4,7 +4,7 @@
 //
 // The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch). What the agent
 // writes there: docs/review-artifacts.md; reviewroom's own state: docs/review-state.md.
-import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_EXPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import { cac } from 'cac';
 import { die } from './lib/args.ts';
@@ -15,6 +15,7 @@ import { cmdServe, type ServeOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
+import { cmdExport } from './commands/export.ts';
 import { cmdPublishSlides } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { cmdShot } from './commands/shot.ts';
@@ -116,6 +117,13 @@ cli
   .action(run(cmdPublishSlides));
 
 cli
+  .command('export', 'Export a self-contained walkthrough including the source of the files it shows')
+  .option('--out <path>', `Output HTML file; defaults to ${WALKTHROUGH_EXPORT_FILE}`)
+  .option('--allow-stale', 'Allow stale links; schema must pass')
+  .example('  reviewroom export --out walkthrough.html')
+  .action(run(cmdExport));
+
+cli
   .command('shot [section]', 'Capture report sections or chapter/step slides')
   .option('--theme <light|dark>', 'Theme; default light')
   .option('--mobile', 'Review panel width: 390 CSS pixels')
@@ -156,6 +164,8 @@ const notes: Record<string, string> = {
   'publish-slides': `  Validates first; updates its existing PR comment.
   Uses GitHub authentication from gh.
   Rejects schema errors and comments exceeding 65,536 characters.`,
+  'export': `  Validates first. Open the HTML directly in a browser.
+  The file includes the source of the files shown in the walkthrough.`,
   'shot': `  Default: review panel width; phone width is 390 CSS pixels.
   Long sections split at 1400 CSS pixels.
   Slide targets use <chapter>/<step>; findings follow PNG paths.
@@ -219,6 +229,7 @@ cli.help((sections) => {
       body: [
         `  ${WALKTHROUGH_FILE} sits beside ${REPORT_FILE}.`,
         '  slide-lint: validate walkthrough slides.',
+        '  export: share a standalone walkthrough and the source it shows.',
         '  shot <chapter>/<step>: inspect one slide.',
         '  publish-slides: publish to the PR.',
       ].join('\n'),

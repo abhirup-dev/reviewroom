@@ -226,6 +226,10 @@ Use [Validation and audit](validation-and-audit.md) for checks, iteration and sc
 - `reviewroom publish-slides` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
   comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 
+- `reviewroom export --out walkthrough.html` makes an offline walkthrough with the code it shows.
+  Code links and slide links work within the file. Report links appear as text. Add `--allow-stale`
+  to export despite stale links.
+
 ## Typography and colour
 
 The tool sets both; don't load fonts or hard-code colours. Headings, lists, tables, code and callouts
