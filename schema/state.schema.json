@@ -48,7 +48,7 @@
             "type": "string"
           },
           "deliveredAt": {
-            "description": "When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed.",
+            "description": "When `reviewroom wait` printed this round's feedback. null = finished but not yet delivered. Absent on rounds finished before this field existed.",
             "anyOf": [
               {
                 "type": "string",
@@ -317,5 +317,5 @@
     "threads"
   ],
   "$id": "reviewroom/state.schema.json",
-  "title": "reviewroom review state (~/.reviewroom/reviews/<owner>-<repo>/<branch>/state.json)"
+  "title": "reviewroom review state (state.json)"
 }

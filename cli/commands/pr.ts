@@ -4,86 +4,60 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { importToRetry, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
+import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 import { fail } from '../lib/args.ts';
-import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
+import { git, fetchRef, hasRef, defaultBase, isFullSha, remoteDefaultBranch, makeProvider, remoteHost } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, resolveDir, branchDir, loadConfig, readConfig, configPath } from '../lib/config.ts';
-import { startDetached, stopServer } from '../lib/registry.ts';
+import { type ReviewConfig, resolveReview, currentBranch, reviewArgs, loadConfig, configPath } from '../lib/config.ts';
+import { formatReviewId, formatReviewRepository, parseReviewId, type ReviewId } from '../lib/review-id.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
-import { walkthroughPath } from '../lib/state.ts';
+import { walkthroughPath, writeAtomic } from '../lib/state.ts';
 import { pickBlock } from '../lib/slides-file.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
-import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
-import { cmdServe, type ServeOpts } from './serve.ts';
+import { cmdWait, ensureServer, runningServer, type StartOpts } from './serve.ts';
 
-// a path as the user would type it: relative when inside the cwd, else absolute
-const shortPath = (p: string) => (path.relative(process.cwd(), p).startsWith('..') ? p : path.relative(process.cwd(), p) || '.');
-
-function gh(repo: string, args: string[]) {
+function prMetadata(repo: string, remote: string, pr: ReviewId) {
+  const host = remoteHost(repo, remote);
+  if (!host) return null;
+  const args = ['pr', 'view', String(pr.number), '--repo', `${host}/${formatReviewRepository(pr)}`, '--json', 'number,title,author,baseRefName,headRefName,url'];
+  let info;
   try {
-    return JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+    info = JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 }));
   } catch {
     return null;
   }
+  if (info?.url && formatReviewId(parseReviewId(info.url)) !== formatReviewId(pr)) fail(`GitHub returned ${info.url} for ${formatReviewId(pr)}`);
+  return info;
 }
 
-export type PrOpts = ServeOpts & { remote: string; force?: boolean; detach?: boolean; wait?: boolean; profile?: string; agent?: boolean; serve?: boolean; assistant?: boolean };
-/** Where the review lives and what it compares; base and head are always resolved. */
-type Target = { dir: string; cfg: ReviewConfig };
-
-/** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
-function prNumberTarget(repo: string, o: PrOpts, n: string, given?: string): Target {
-  const { remote } = o;
-  const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
+export type PrOpts = StartOpts & { base?: string; head?: string; title?: string; remote?: string; force?: boolean; wait?: boolean; profile?: string; agent?: boolean; serve?: boolean; assistant?: boolean };
+/** `pr <n>`: fetch the PR head and base branch, keeping the fetched PR ref for offline use. */
+function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId): ReviewConfig {
+  const n = String(pr.number);
+  const info = prMetadata(repo, remote, pr);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
-  let head = `refs/reviewroom/pr-${n}`;
-  const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo) || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${head}`, repo));
+  const head = `refs/reviewroom/pr/${Buffer.from(formatReviewId(pr)).toString('base64url')}`;
+  const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo);
   if (!fetched) {
-    // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
-    const local = [head, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
-    if (!local) fail(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
-    console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
-    head = local;
+    if (!hasRef(head, repo)) fail(`could not fetch ${formatReviewId(pr)} from ${remote} and found no cached PR ref`);
+    console.error(`reviewroom: fetch failed; using cached ${formatReviewId(pr)} (may be behind the PR)`);
   }
   const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
   if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
   const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
   if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-  const cfg = { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url ?? given, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
-  return { dir: prDir(repo, +n, info?.headRefName, cfg.url), cfg };
-}
-
-/** By number, never the head branch: two fork PRs from branches of one name (patch-1) are two reviews. But a review of
- *  this PR made before that lives in its head branch's folder: it is kept (its threads, rounds) while no pr-<n> exists. */
-function prDir(repo: string, n: number, headRefName?: string, url?: string) {
-  const own = branchDir(repo, `pr-${n}`);
-  const legacy = headRefName && branchDir(repo, headRefName);
-  if (fs.existsSync(own) || !legacy) return own;
-  let c;
-  try {
-    c = readConfig(legacy);
-  } catch {
-    return own; // unreadable: not a match (that review is another PR's, or broken), never a reason to fail this one
-  }
-  const repoOf = (u?: string) => u?.replace(/\/pull\/.*$/, '').toLowerCase();
-  return c.number === n && (!c.url || !url || repoOf(c.url) === repoOf(url)) ? legacy : own; // the same PR of the same repository
+  return { base, head, number: +n, title: o.title ?? info?.title, author: info?.author?.login, url: info?.url, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
-function branchTarget(repo: string, o: PrOpts, branch: string): Target {
+function branchConfig(repo: string, o: PrOpts, branch: string, remote: string): ReviewConfig {
   let head = branch;
   if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
-    fetchRef(o.remote, `+refs/heads/${branch}:refs/remotes/${o.remote}/${branch}`, repo);
-    head = `${o.remote}/${branch}`;
+    fetchRef(remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`, repo);
+    head = `${remote}/${branch}`;
     if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) fail(`no branch or PR called "${branch}"`);
   }
-  return { dir: branchDir(repo, branch), cfg: { base: o.base ?? defaultBase(repo), head, title: o.title } };
-}
-
-/** `pr`: the current branch (or --base/--head), nothing fetched. */
-function localTarget(repo: string, o: PrOpts): Target {
-  const dir = resolveDir(repo, o.dir);
-  return { dir, cfg: loadConfig(dir, repo, o) };
+  return { base: o.base ?? defaultBase(repo), head, title: o.title };
 }
 
 /** A PR's own walkthrough (a ```reviewroom-walkthrough block in a comment or the description) when there is no local one. */
@@ -106,7 +80,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   // an edit saved while GitHub answered wins: recheck right before writing
   if (!force && read() !== before) return console.error(`reviewroom: ${WALKTHROUGH_FILE} changed while fetching the PR's walkthrough; kept yours`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
-  recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(/^[a-f0-9]{40}$/.test(head) ? { head } : {}) });
+  recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(isFullSha(head) ? { head } : {}) });
   console.error(`reviewroom: walkthrough from ${pick.from}`);
 }
 
@@ -119,37 +93,41 @@ function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) 
   } else resetGeneration(dir, fresh || o.force ? ARTIFACTS : staleArtifacts(dir, head));
 }
 
-export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
-  if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
-  const n = arg?.match(/^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+\/pulls?\/|#)?(\d+)(?:[/?#].*)?$/)?.[1];
-  const t = n ? prNumberTarget(repo, o, n, /^https?:\/\//.test(arg) ? arg : undefined) : arg ? branchTarget(repo, o, arg) : localTarget(repo, o);
-  const dir = o.dir ? path.resolve(o.dir) : t.dir;
-  fs.mkdirSync(dir, { recursive: true });
+export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
+  const { repo, dir, cfg: saved, pr } = resolveReview(selected, o, arg, 'pr');
+  if (!repo) fail('review checkout is unavailable (use --repo <path>)');
+  const live = await runningServer(dir);
+  if (live) {
+    const args = reviewArgs(repo, dir, saved);
+    console.error(`reviewroom: review is running in ${dir}. To pick up new commits, run \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\`.`);
+    if (o.wait) return cmdWait(repo, dir, o);
+    console.error(`reviewroom: next round: reviewroom wait ${args}`);
+    console.log(live.url);
+    return;
+  }
+  const remote = o.remote ?? saved.remote ?? 'origin';
+  const found = pr ? prNumberConfig(repo, o, remote, pr) : arg ? branchConfig(repo, o, arg, remote) : loadConfig(dir, repo, o);
+  const id = pr ? formatReviewId(pr) : undefined;
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
-  const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(t.cfg).filter(([, v]) => v !== undefined)), repoPath: repo } as ReviewConfig;
+  const cfg = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, remote: pr ? remote : undefined, target: pr ? undefined : (arg ?? currentBranch(repo)), id: saved.id ?? id } as ReviewConfig;
   if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
   cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
   if (o.assistant) cfg.assistant = true; // never cleared here: a later plain `pr` (an external agent) leaves it as it was
-  // config.json last, once setup has worked: a failed run leaves the previous one (or none, so no playable hub row)
+  // the revisions resolve before anything is written; config.json last: a failed run leaves the previous one (or none:
+  // no playable hub row, and a retry finds no half-made review)
   const prov = makeProvider(repo, cfg);
   const files = prov.files(prov.base, prov.head);
+  fs.mkdirSync(dir, { recursive: true });
   const fresh = scaffold(repo, dir, cfg, !!o.force);
-  fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
-  // the old server stops first: until it has, it could accept a generation that a reset or request below would race
-  const stopped = await stopServer(dir);
-  // the next server takes its port (an open tab reconnects): cmdServe's own takeover finds nothing left to stop
-  const port = o.port || (stopped ? String(stopped.port) : undefined);
+  writeAtomic(configPath(dir), JSON.stringify(cfg, null, 2));
   settleGeneration(dir, o, fresh, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
   if (o.serve === false) return console.log(dir); // set up only (the hub's Add a PR): its Play starts the server
-  if (!o.detach) return cmdServe(repo, { dir, port, open: o.open, browser: o.browser }, !!o.wait); // --base/--head/--title are in config.json now
-  const extra = [...(port ? ['--port', port] : []), ...(o.open ? [] : ['--no-open']), ...(o.browser ? ['--browser'] : [])];
-  const rec = await startDetached(repo, dir, extra);
-  if (rec) {
-    console.log(rec.url);
-    return console.error(`reviewroom: server running in the background (pid ${rec.pid}) | stop with \`reviewroom stop --dir ${shortPath(dir)}\``);
-  }
-  fail(`server did not start - see ${path.join(dir, 'server.log')}`);
+  if (o.wait) return cmdWait(repo, dir, o);
+  const rec = await ensureServer(repo, dir, o);
+  console.error(`reviewroom: review directory: ${dir}`);
+  console.error(`reviewroom: next round: reviewroom wait ${reviewArgs(repo, dir, cfg)}`);
+  console.log(rec.url);
 }

@@ -1,4 +1,4 @@
-// Running servers: <dir>/server.json (so `review`/`stop` find one), ~/.reviewroom/sessions/<pid>.json, and the
+// Running servers: <dir>/server.json (so `start`/`wait`/`stop` find one), ~/.reviewroom/sessions/<pid>.json, and the
 // hub's ~/.reviewroom/hub.json.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,9 +8,9 @@ import { answers } from './lock.ts';
 import { hubFile, hubLog, registryDir } from './paths.ts';
 import type { Agent } from '../hub/proc.ts';
 
-/** server.json, written by `serve`. */
+/** server.json, written by `start --foreground`. */
 export type ServerRecord = { pid: number; port: number; url: string; startedAt: string };
-/** A review's id: the hub's /r/<id>/ and the client's storage keys. Stable across rounds, restarts and ports (ADR 0001). */
+/** Directory hash for hub routes and client storage keys (ADR 0001). */
 export const reviewId = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 12);
 export const serverFile = (dir: string) => path.join(dir, 'server.json');
 export function liveServer(dir: string): ServerRecord | null {
@@ -51,12 +51,12 @@ export async function stopServer(dir: string, pid?: number) {
   return rec;
 }
 
-/** A review server in the background on an existing review folder (`pr --detach`, the hub's Play): `review --forever`
+/** A review server in the background on an existing review folder (the hub's Play): `start --foreground`
  *  from the running entry (the source or the bundle), detached so it outlives its caller. Its record, or null when it
  *  did not start within `timeoutMs` (see <dir>/server.log): then the child is killed and reaped. No setup, no generation request. */
 export async function startDetached(repo: string, dir: string, extra: string[] = [], entry = process.argv[1], timeoutMs = 30_000): Promise<ServerRecord | null> {
   const out = fs.openSync(path.join(dir, 'server.log'), 'a');
-  const child = spawn(process.execPath, [entry, 'review', '--forever', '--repo', repo, '--dir', dir, ...extra], { detached: true, stdio: ['ignore', out, out] });
+  const child = spawn(process.execPath, [entry, 'start', '--foreground', '--repo', repo, '--dir', dir, ...extra], { detached: true, stdio: ['ignore', out, out] });
   fs.closeSync(out);
   const exit = new Promise<void>((done) => child.once('exit', () => done()));
   const exited = () => child.exitCode !== null || child.signalCode !== null;
@@ -89,13 +89,13 @@ export async function liveHub(): Promise<ServerRecord | null> {
   }
 }
 /** The hub's URL, starting it in the background first if none runs (null: it did not start, see hub.log).
- *  Respawns the running entry (the source or the bundle), like `pr --detach`. */
+ *  Respawns the running entry (the source or the bundle). */
 export async function ensureHub(port?: string): Promise<string | null> {
   const live = await liveHub();
   if (live) return live.url;
   fs.mkdirSync(path.dirname(hubLog()), { recursive: true });
   const out = fs.openSync(hubLog(), 'a');
-  spawn(process.execPath, [process.argv[1], 'hub', '--no-open', ...(port ? ['--port', port] : [])], { detached: true, stdio: ['ignore', out, out] }).unref();
+  spawn(process.execPath, [process.argv[1], 'hub', 'serve', '--no-open', ...(port ? ['--port', port] : [])], { detached: true, stdio: ['ignore', out, out] }).unref();
   fs.closeSync(out);
   for (let i = 0; i < 50; i++) {
     await new Promise((r) => setTimeout(r, 100));

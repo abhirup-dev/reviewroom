@@ -55,7 +55,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 
 A file in the diff opens in the diff view; any other file opens whole. (`rr:file/<path>@<rev>` is the
 older spelling and still works.) Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
-`reviewroom status --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
+`reviewroom status acme/api#31 --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
 Hovering any link shows a live preview of its target; clicking it opens the target in the code or
 report panel. Never show the raw `rr:` string.

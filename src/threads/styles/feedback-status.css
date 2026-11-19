@@ -1,4 +1,3 @@
-.rr-root.is-waiting .rr-send-btn,
 .rr-root.is-approved .rr-send-btn {
   opacity: 0.6;
 }
@@ -8,7 +7,6 @@
   font-size: var(--rr-text-sm);
   color: var(--rr-muted);
 }
-.is-waiting .rr-round-status--waiting,
 .is-approved .rr-round-status--approved,
 .is-offline .rr-round-status--offline {
   display: inline-flex;

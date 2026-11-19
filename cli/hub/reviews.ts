@@ -1,17 +1,18 @@
 // The hub starts reviews: reviews on disk (running or not), Add a PR by URL, Play. Who writes a review is chosen per
 // review: Play is the built-in assistant (it turns it on for that review and generates); the page's "Use my own agent"
 // hands the reviewer a prompt for an external agent instead, and the hub starts nothing for it.
-//   reviews on disk   <home>/reviews/*/* with a config.json, read on each poll (no timer)
-//   Add a PR          clone (or fetch) under <home>/repos/<owner>/<repo>, then `reviewroom pr <url> --no-agent --no-serve`
-//   Play              `assistant: true` in the review's config.json, `review --forever` in the background on the existing
+//   reviews on disk   every review folder (allReviewFolders) with a config.json, read on each poll (no timer)
+//   Add a PR          clone (or fetch) under <home>/repos/<owner>/<repo>, then `reviewroom pr <owner/repo#n> --no-agent --no-serve`
+//   Play              `assistant: true` in the review's config.json, `start` in the background on the existing
 //                     folder (startDetached), then POST api/generate on its own loopback URL (the proxy refuses it by design)
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { branchDir, configPath, readConfig } from '../lib/config.ts';
+import { configPath, readConfig } from '../lib/config.ts';
+import { allReviewFolders, formatReviewId, parseReviewId, pullUrl, reviewFolder } from '../lib/review-id.ts';
 import { answers } from '../lib/lock.ts';
-import { homeDir, reviewsDir } from '../lib/paths.ts';
+import { homeDir } from '../lib/paths.ts';
 import { readProgress } from '../lib/progress.ts';
 import { liveServer, reviewId, startDetached, type ServerRecord } from '../lib/registry.ts';
 import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.shared.ts';
@@ -55,21 +56,14 @@ const WORK = [WALKTHROUGH_FILE, 'state.json', 'assistant.json', 'rounds'];
 
 /** Every review folder with a config.json (a broken one is skipped: the hub lists, it doesn't repair). */
 export function diskReviews(): DiskReview[] {
-  const dirs = (p: string) => {
-    try {
-      return fs.readdirSync(p, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => path.join(p, d.name));
-    } catch {
-      return [];
-    }
-  };
-  return dirs(reviewsDir()).flatMap(dirs).flatMap((dir) => {
+  return allReviewFolders().flatMap((dir) => {
     const file = path.join(dir, 'config.json');
     if (!fs.existsSync(file)) return [];
     try {
       const c = readConfig(dir);
       const generation = generationState(readProgress(dir));
       return [{
-        dir, id: reviewId(dir), repo: c.repoPath ?? '', title: c.title ?? null, number: c.number ?? null, prUrl: c.url ?? null, branch: c.headLabel ?? c.head ?? null,
+        dir, id: reviewId(dir), repo: c.repoPath ?? '', title: c.title ?? null, number: c.number ?? null, prUrl: c.url ?? (c.id ? pullUrl(parseReviewId(c.id)) : null), branch: c.headLabel ?? c.head ?? null,
         generation, hasWork: generation !== 'idle' || WORK.some((f) => fs.existsSync(path.join(dir, f))), updatedAt: fs.statSync(file).mtime.toISOString(),
       }];
     } catch {
@@ -137,13 +131,10 @@ export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok:
     return { ok: false, error: `Could not get ${pr.owner}/${pr.repo}: ${w}` };
   }
   try {
-    // the folder `pr` sets up (pr-<n>, or a legacy review of this PR in its head branch's folder: pr.ts prDir): a re-add
-    // stops its server, so it waits for a Play or close of it, and they for it
-    const own = branchDir(dest, `pr-${pr.number}`);
-    const folder = fs.existsSync(own) ? own : (diskReviews().find((r) => Number(r.number) === pr.number && r.repo === dest)?.dir ?? own);
-    const { stdout } = await serialized(folder, () =>
-      run(process.execPath, [entry, 'pr', `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 }));
-    const dir = stdout.trim().split('\n').at(-1) ?? '';
+    // the Review ID names the folder: a re-add waits for a Play or close of it, and they for it
+    const id = formatReviewId(parseReviewId(`${pr.owner}/${pr.repo}#${pr.number}`));
+    const dir = reviewFolder(parseReviewId(id));
+    await serialized(dir, () => run(process.execPath, [entry, 'pr', id, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 }));
     return { ok: true, id: reviewId(dir), dir };
   } catch (e) {
     return { ok: false, error: `Could not set up the review: ${why(e) || 'reviewroom pr failed'}` };

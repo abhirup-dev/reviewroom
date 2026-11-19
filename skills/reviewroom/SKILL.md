@@ -20,7 +20,7 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 ## The review directory
 
 `reviewroom pr` creates the review directory and, in it, the report from the review's report profile.
-`reviewroom status --json --dir <dir>` gives the directory and the report's path. You write only:
+`reviewroom status acme/api#31 --json` gives the directory and the report's path. You write only:
 
 - The report (`report.html`): the long-form review, starting with the profile's sections.
 - The walkthrough (`walkthrough.json`): the chaptered slides.
@@ -33,7 +33,7 @@ Everything else in it belongs to reviewroom: don't edit it.
 If `REVIEWROOM_ASSISTANT_DIR` is set, you are the assistant inside an already running review.
 Run `reviewroom status --json --dir "$REVIEWROOM_ASSISTANT_DIR"` to confirm `role: "assistant"`,
 the review directory, URL and frozen revisions. Use that directory for every review command.
-Do not start, stop or restart this review's server, run `pr` or `review`, or wait for feedback rounds:
+Do not start, stop or restart this review's server, run `pr`, or wait for feedback rounds:
 your conversation in the assistant panel is the feedback channel. Answer the current question; when
 asked to author, follow Steps 3–4b and their references, then report the result in the conversation.
 Read `status` again if the review advances. Learn authoring through this skill, its references and
@@ -46,30 +46,34 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 | The reviewer wants                                        | Run                                                                  |
 | ---                                                       | ---                                                                  |
-| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <n \| url \| branch> --repo <path> --wait` → Step 1   |
-| A review of uncommitted work                              | `reviewroom pr --head worktree --repo <path> --wait` → Step 1        |
+| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr acme/api#31` (or `pr <branch>`) → Step 1                                    |
+| A review of uncommitted work                              | `reviewroom pr --head worktree` → Step 1                             |
 | You to answer feedback they already sent                  | Read `references/review-rounds.md`, "Resume an existing review"      |
-| To see where a review stands                              | `reviewroom status --json --dir <dir>` (`--threads` for the threads) |
-| To end the review                                         | `reviewroom stop --dir <dir>`                                        |
+| To see where a review stands                              | `reviewroom status acme/api#31 --json` (`--threads` for the threads)    |
+| To end the review                                         | `reviewroom stop acme/api#31`                                           |
 
-## Step 1: Start the review in the background
+Use the PR's Review ID (`owner/repo#n`, with the base repository for forks) in `pr`, `wait`, `status` and
+`stop`. An existing PR review can be reached by ID from any directory. To create one, run `pr` from its
+checkout or pass `--repo <path>`. For a local review, use its branch from the checkout or use `--dir <dir>`
+for a custom folder. Stop a review only when the reviewer explicitly asks.
 
-Read "Start the review server" in `references/review-rounds.md` and launch the review as it
-instructs. Keep the command running in the background while writing the walkthrough and the report.
+## Step 1: Start the review
+
+Run `pr`, then run the printed command (for example, `reviewroom wait acme/api#31`) in the background while writing the walkthrough and the report.
+The detached server stays up between rounds. See `references/review-rounds.md`.
 `--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 
 ## Step 2: Relay the URL
 
-The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`, or `pr-<n>` for a PR,
-outside the repo) and the URL.
-`reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
+`pr` prints the review directory outside the repo and the URL.
+`reviewroom status acme/api#31 --json` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
 > **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the walkthrough first."**
 
 ## Step 3: Understand the diff
 
-Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status --json`,
+Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status acme/api#31 --json`,
 not your checkout: every line number you link is the head sha's, so read files with
 `git show <head>:<path>`. For uncommitted work (`--head worktree`) the head is the literal `worktree`:
 run `git diff <base> --stat`, read files from disk, and add untracked files
@@ -135,6 +139,7 @@ Once both documents are done and clean, tell the reviewer:
 
 ## Step 5: Continue across review rounds
 
+Use `reviewroom list` to find running reviews.
 Read `references/review-rounds.md` for waiting on feedback, checking status, answering comments,
 and starting the next round. Follow that loop until the reviewer approves or asks to stop.
 

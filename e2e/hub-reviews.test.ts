@@ -11,7 +11,6 @@ import { recordArtifact, requestGeneration } from '../cli/lib/progress.ts';
 import { WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import { setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
-import { reviewId } from '../cli/lib/registry.ts';
 
 const root = path.resolve(import.meta.dir, '..');
 
@@ -66,7 +65,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     const [s] = await ours();
     const dir = s.reviewPath!;
     const clone = path.join(tmp, 'home', 'repos', 'acme', 'demo');
-    const old = (await $`git -C ${clone} rev-parse refs/reviewroom/pr-7`.text()).trim();
+    const old = (await $`git -C ${clone} rev-parse ${config(dir).head}`.text()).trim();
     fs.copyFileSync(path.join(root, 'examples', 'uploads', WALKTHROUGH_FILE), path.join(dir, WALKTHROUGH_FILE));
     requestGeneration(dir, 'agent', old);
     for (const a of ['walkthrough', 'report'] as const) recordArtifact(dir, a, 'validated', { head: old });
@@ -80,7 +79,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     const sha = (await $`git -C ${work} rev-parse HEAD`.text()).trim();
     await $`git -C ${work} push -q origin HEAD:refs/pull/7/head`.quiet();
     expect((await post('api/reviews', 'add-review', { url: PR })).status).toBe(201);
-    expect((await $`git -C ${path.join(tmp, 'home', 'repos', 'acme', 'demo')} rev-parse refs/reviewroom/pr-7`.text()).trim()).toBe(sha);
+    expect((await $`git -C ${clone} rev-parse ${config(dir).head}`.text()).trim()).toBe(sha);
     expect(await ours()).toHaveLength(1);
     expect((await ours())[0].generation).toBe('idle'); // the next Play regenerates them
     expect(fs.existsSync(path.join(dir, WALKTHROUGH_FILE))).toBe(true);
@@ -92,7 +91,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     const prRun = () => cli(['pr', url, '--no-agent', '--no-serve', '--no-open', '--repo', clone]);
     await $`git -C ${bare} update-ref refs/pull/11/head refs/heads/feat/upload-rate-limit`.quiet();
     const dir = (await prRun()).stdout.trim();
-    const A = (await $`git -C ${clone} rev-parse refs/reviewroom/pr-11`.text()).trim();
+    const A = (await $`git -C ${clone} rev-parse ${config(dir).head}`.text()).trim();
     // the PR's walkthrough imported at A, generation requested at A, then the walkthrough edited here
     fs.copyFileSync(path.join(root, 'examples', 'uploads', WALKTHROUGH_FILE), path.join(dir, WALKTHROUGH_FILE));
     recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', head: A });
@@ -109,32 +108,10 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect(fs.readFileSync(path.join(dir, WALKTHROUGH_FILE), 'utf8')).toBe(edited);
   }, 60_000);
 
-  test('two PRs from branches of the same name are two reviews, each in its pr-<n> folder', async () => {
+  test('two PRs from branches of the same name are two reviews: the Review ID names the folder', async () => {
     expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/8' })).status).toBe(201);
     const all = ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((s) => s.target === '#7' || s.target === '#8');
-    expect(all.map((s) => path.basename(s.reviewPath!)).sort()).toEqual(['pr-7', 'pr-8']);
-  }, 60_000);
-
-  test('a review of the PR made before pr-<n> folders (in its head branch\'s folder) is reused, not split in two', async () => {
-    const [s] = await ours();
-    const legacy = path.join(path.dirname(s.reviewPath!), 'patch-1');
-    fs.mkdirSync(legacy);
-    const clone = path.join(tmp, 'home', 'repos', 'acme', 'demo');
-    fs.writeFileSync(path.join(legacy, 'config.json'), JSON.stringify({ number: 9, url: 'https://github.com/acme/demo/pull/9', repoPath: clone, base: 'origin/main', head: 'refs/reviewroom/pr-9' }));
-    fs.writeFileSync(path.join(legacy, 'keep.txt'), 'threads and rounds');
-    const r = await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/9' });
-    expect(r.status).toBe(201);
-    expect((await r.json()).id).toBe(reviewId(legacy));
-    expect([fs.existsSync(path.join(path.dirname(legacy), 'pr-9')), fs.existsSync(path.join(legacy, 'keep.txt'))]).toEqual([false, true]);
-    expect(((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((x) => x.target === '#9')).toHaveLength(1);
-  }, 60_000);
-
-  test('an unreadable config.json in the head branch\'s folder is no match: another PR from patch-1 still gets pr-<n>', async () => {
-    const [s] = await ours();
-    const legacy = path.join(path.dirname(s.reviewPath!), 'patch-1');
-    fs.writeFileSync(path.join(legacy, 'config.json'), '{ not json');
-    expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/10' })).status).toBe(201);
-    expect(fs.existsSync(path.join(path.dirname(legacy), 'pr-10', 'config.json'))).toBe(true);
+    expect(all.map((s) => s.reviewPath!.split(path.sep).slice(-3).join('/')).sort()).toEqual(['acme_demo/pulls/7', 'acme_demo/pulls/8']);
   }, 60_000);
 
   test('two first Adds of one new repository at once: one clones, the other waits and fetches; both set it up', async () => {
@@ -181,7 +158,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     const custom = path.join(tmp, 'elsewhere');
     const d = ['--repo', repo, '--dir', custom];
     try {
-      expect((await cli(['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0', '--no-agent', ...d])).code).toBe(0);
+      expect((await cli(['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--no-agent', ...d])).code).toBe(0);
       const s = await until(async () => ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).find((x) => x.reviewPath === custom && !x.stopped), { timeout: 10_000, every: 200 });
       expect(s.generation).toBe('idle');
     } finally {

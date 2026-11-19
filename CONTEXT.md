@@ -33,6 +33,9 @@ _Avoid_: change, changeset, PR (when no PR is involved)
 One reviewer's review of one diff, with its walkthrough, report, threads and rounds.
 _Avoid_: session, workspace
 
+**Review ID**:
+The stable identity of a PR review, `owner/repo#n`, using the base repository.
+
 **Walkthrough**:
 The story of the diff, played over the workbench: chapters of slides, narration beside the code each slide shows.
 The reviewer sees it first; the report is where they dig in.

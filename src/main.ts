@@ -157,7 +157,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.base ||= 'base';
     meta.head ||= 'head';
     const titleId = [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
-    meta.id ||= titleId; // the server sends its review id: titles collide once every review shares the hub's origin
+    meta.id ||= titleId; // the server sends the directory hash: titles collide once every review shares the hub's origin
     rekeyStorage(titleId, meta.id);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
@@ -225,9 +225,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     },
     error: (text) => app.toast(text, 'error'),
     unsaved: (on) => app.root.classList.toggle('is-unsaved', on),
-    status: (s) => (['waiting', 'approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
+    status: (s) => (['approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
     connection: (c) => app.bus.emit('connection', c),
-    ready: (round) => app.toast(`Round ${round} is ready.`),
     github: (s) => app.services.github.set(s),
     // the backend has let a save in flight finish first
     review: () => {

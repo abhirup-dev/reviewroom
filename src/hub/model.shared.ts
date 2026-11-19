@@ -107,6 +107,8 @@ export interface SessionInfo {
   generation?: GenerationState;
   /** reviewroom, stopped: it holds work Remove would lose (documents, threads, the assistant's transcript) */
   hasWork?: boolean;
+  /** Stable PR identity in owner/repo#n form. */
+  prReviewId?: string;
   interacted: boolean | null;
   /** When the hub first saw this session (kept across polls). */
   firstSeenAt: string;

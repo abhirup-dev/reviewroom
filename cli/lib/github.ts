@@ -13,12 +13,13 @@ import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestRe
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorOf, githubThread, parseRef } from '../../src/kernel/refs/refs.shared.ts';
-import type { Provider } from './git.ts';
+import { isFullSha, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/kernel/state/model.shared.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import type { GitHubAction } from '../../src/kernel/state/schema.shared.ts';
 import { fail } from './args.ts';
+import { parseReviewId } from './review-id.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.
 type Connection<T> = { nodes?: Maybe<Maybe<T>[]> } | null | undefined;
@@ -39,20 +40,21 @@ export function cachedThreads(dir: string): Thread[] {
 
 /** Which PR a review is about: from config.url (any GitHub host), else repo + number. */
 export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
-  // config.json is hand-editable: a non-string url/repo must mean "no PR", not a crash
-  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
-  const m = String(cfg.url || '').match(/^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-  if (m) return { host: m[1], owner: m[2], name: m[3], number: +m[4] };
-  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
-  const r = String(cfg.repo || '').match(/^([\w.-]+)\/([\w.-]+)$/);
-  return r && cfg.number ? { host: 'github.com', owner: r[1], name: r[2], number: +cfg.number } : null;
+  const url = cfg.url ? URL.parse(cfg.url) : null;
+  try {
+    const fromUrl = url && parseReviewId(url.href, undefined, true);
+    const id = fromUrl || (cfg.repo && cfg.number ? parseReviewId(String(cfg.number), cfg.repo) : null);
+    return id && { host: fromUrl ? url.host : 'github.com', owner: id.owner, name: id.repo, number: id.number };
+  } catch {
+    return null; // config.json may contain invalid PR metadata
+  }
 }
 
 /** The open PR whose head is the branch a branch review compares (one opened after `pr <branch>` too), as config
  *  fields; null without one, for a commit or a fetched PR ref, or when gh can't tell. Base and head stay as they are. */
 export function branchPr(repo: string, cfg: Partial<ReviewConfig>): Partial<ReviewConfig> | null {
   const head = cfg.head ?? '';
-  if (prTarget(cfg) || head.startsWith('refs/reviewroom/') || /^[0-9a-f]{7,40}$/.test(head)) return null;
+  if (cfg.id || prTarget(cfg) || head.startsWith('refs/reviewroom/') || /^[0-9a-f]{7,40}$/.test(head)) return null;
   const branch = head === 'HEAD' ? [] : [cfg.headLabel ?? head.replace(/^(refs\/heads\/|refs\/remotes\/[^/]+\/|origin\/)/, '')];
   try {
     const out = execFileSync('gh', ['pr', 'view', ...branch, '--json', 'number,title,author,url,state'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 });
@@ -239,7 +241,7 @@ const live = (s: Snapshot | null): s is Live => !!s?.ok && !!s.pr && !!s.headSha
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
 export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; dir: string; cfg: ReviewConfig; prov: Provider; onChange?: (snap: Snapshot) => void }) {
   const target = prTarget(cfg);
-  const localHead = /^[0-9a-f]{40}$/.test(prov.head) ? prov.head : null;
+  const localHead = isFullSha(prov.head) ? prov.head : null;
   const file = path.join(dir, 'github.json');
   let snap: Snapshot | null = null;
   let inflight: Promise<Snapshot> | null = null;

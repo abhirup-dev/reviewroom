@@ -1,36 +1,32 @@
 # Review rounds: server, feedback and replies
 
-Read "Start the review server" before launching a review. After handover, follow the round loop
-below. When answering feedback on an existing review, begin with "Resume an existing review".
+This round loop is for external agents. The built-in assistant follows the conversation in its panel.
+For existing feedback, begin with "Resume an existing review".
 
 ## Start the review server
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run it **in the background / async**:
-
 ```bash
-reviewroom pr <n | url | branch> --repo <path> --wait
+reviewroom pr acme/api#31
 ```
 
-It creates the review, serves it, opens it (in the macOS app when installed, else the browser; `--browser`
-forces the browser), and then blocks until the reviewer clicks
-*Send feedback* or *Approve*.
-
-The page goes offline when the command exits and comes back with the next one; the reviewer's open
-tab reconnects by itself. That is expected.
+Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
+otherwise in the browser. Use `--browser` to open the browser. The server stays up between rounds.
+After feedback, the page opens the next round immediately.
 
 ## Resume an existing review
 
-Run `reviewroom review --dir <dir>` in the background / async. It prints unread feedback at once
-when there is any; read that feedback and answer it below. Otherwise it waits for the reviewer.
-Follow the commands the output gives for the current state.
+Run `reviewroom wait acme/api#31` in the background, using the PR's Review ID from any directory.
+For a local review, use its branch from the reviewed repo or use `--dir <dir>` for a custom folder. The command starts the server if needed and prints the next
+unread round as soon as it is available.
 
 ## Check status and stop
 
-Use `reviewroom status --json --dir <dir>` for the URL, review directory, base/head shas and status;
+Use `reviewroom list` to find running reviews and their IDs or local folders.
+Use `reviewroom status acme/api#31 --json` for the URL, review directory, base/head shas and status;
 add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
-for the round command's completion. To end the review when asked, run `reviewroom stop --dir <dir>`.
+for the round command's completion. To end the review when asked, run `reviewroom stop acme/api#31`.
 
 ## Wait for the reviewer
 
@@ -75,7 +71,9 @@ For each thread in the feedback:
 
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
-push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
+push is outside the diff the reviewer sees because a running server keeps the revision it opened.
+When the reviewer reconnects after a restart with new commits, the page reloads to show the new diff.
+Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
 
 A thread anchored on a walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
@@ -100,17 +98,11 @@ cannot reply to them. When one matters to your answer, link or embed it with `rr
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run the command the feedback names, **in the background**, as when starting the review server:
+Run the command the feedback names **in the background**. For a PR, use its Review ID:
 
 ```bash
-reviewroom review --dir <dir>
+reviewroom wait acme/api#31
 ```
 
 Tell the reviewer: **"Replies are in. Review them in the browser and click Send feedback or Approve
 when ready."** Then wait for the reviewer again.
-
-## Server and reply constraints
-
-- Do not run `reviewroom pr --wait` or `reviewroom review` in the foreground; they block until the
-  reviewer acts. Never run `reviewroom pr` without `--wait` or `--detach`: it serves forever.
-- Do not stop or kill the background command to "finish" a round; wait for it to exit.

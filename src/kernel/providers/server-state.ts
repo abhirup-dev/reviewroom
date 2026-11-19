@@ -2,7 +2,8 @@ import { REPORT_FILE, WALKTHROUGH_FILE } from '../state/files.shared';
 import { createActor, fromCallback, fromPromise, waitFor, type ActorRefFrom } from 'xstate';
 import type { ReviewState } from '../state/model.shared';
 import type { Progress } from '../state/progress.shared';
-import { roundStatus, syncMachine, unsent } from './sync.machine';
+import { syncMachine, unsent } from './sync.machine';
+import { currentRound } from '../state/ops.shared';
 import { builtinLayouts, type LastLayout, type Layout, type LayoutScope, type LayoutsOf, type LayoutStore, type SavedLayouts } from '../layouts/layout.shared';
 import type { GitHubAction } from '../state/schema.shared';
 import type { BackendEvents, StateBackend } from './contracts';
@@ -113,7 +114,7 @@ export class ServerState implements StateBackend {
       }),
     );
     let unsaved = false;
-    let status: 'waiting' | 'approved' | 'offline' | null = null;
+    let status: 'approved' | 'offline' | null = null;
     let told = '';
     this.subscriptions.push(sync.subscribe((s) => {
       if ((s.context.failures > 0 && unsent(s.context)) !== unsaved) on.unsaved?.((unsaved = !unsaved));
@@ -124,10 +125,10 @@ export class ServerState implements StateBackend {
       }
       if (s.hasTag('catchingUp')) return;
       // offline: it was live once and isn't now
-      const now = roundStatus(s.context) ?? (s.context.hash !== null && !s.hasTag('live') ? 'offline' : null);
-      if (now === status) return;
-      if (status === 'waiting' && now === null) on.ready?.(s.context.base.round);
-      on.status?.((status = now));
+      const offline = s.context.hash !== null && !s.hasTag('live');
+      const approved = currentRound(s.context.base)?.status === 'approved';
+      const now = approved ? 'approved' : offline ? 'offline' : null;
+      if (now !== status) on.status?.((status = now));
     }));
     sync.send({ type: 'connect' });
   }
@@ -136,7 +137,7 @@ export class ServerState implements StateBackend {
     const r = await sendJSON(`${this.api}/finish`, 'POST', { kind, note, round });
     const b = await r.json().catch(() => ({}));
     if (!r.ok) return { ok: false, message: b.error || `${r.status} ${r.statusText}` };
-    // the finish broadcast may have been missed, and this run of the server stops right after: take the state from the answer
+    // The finish broadcast may have been missed. Take the state from the response.
     if (b.state) this.sync!.send({ type: 'state', state: b.state });
     return { ok: true };
   }

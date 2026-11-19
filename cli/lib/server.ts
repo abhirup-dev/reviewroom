@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
-import { makeProvider, type Provider } from './git.ts';
-import type { ReviewConfig } from './config.ts';
+import { isFullSha, makeProvider, type Provider } from './git.ts';
+import { readConfig, reviewArgs, reviewDirArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, reviewId } from './registry.ts';
@@ -40,12 +40,6 @@ function excerpt(prov: Provider, anchor: Anchor) {
   return lines.slice(anchor.start - 1, anchor.end).map((l, i) => `${String(anchor.start + i).padStart(4)}  ${l}`).join('\n');
 }
 
-
-export interface Finished {
-  kind: 'feedback' | 'approve';
-  md: string;
-  round: number;
-}
 
 /** Watch the review dir for report.html, walkthrough.json assets and progress.jsonl (debounced).
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
@@ -127,24 +121,28 @@ export const guarded = (ok: (c: Context) => boolean): MiddlewareHandler => async
 export const localOnly = guarded(allowed);
 
 /** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */
-type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
-export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onClient?: () => void; readOnly?: boolean };
+export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Streams<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, REPORT_FILE);
-  // what a reconnecting client compares: a change to either file while it was away reloads the page
+  // A reconnecting client reloads when the Git range or either artifact changes.
   // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
   const parts = () => {
     const progress = readProgress(dir);
     return ([['report', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
       pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex') : '');
   };
-  const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
+  const hash = (p = parts()) => crypto.createHash('sha1').update([prov.base, prov.head, ...p].join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
   const send = (event: string, data: unknown) => clients.send(event, data);
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
+  const checkIdentity = () => {
+    const actual = readConfig(dir).id;
+    if (actual !== cfg.id) throw new ReviewroomError(`review ID changed in ${dir}: expected ${cfg.id ?? 'no PR ID'}, found ${actual ?? 'no PR ID'}`, 409);
+  };
   // request bodies are untrusted: a bad one is a 400 shaped like an OpError's
   const body = <T extends z.ZodType>(schema: T) =>
     zValidator('json', schema, (r, c) => {
@@ -166,21 +164,30 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     return s;
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
-  // read-only: no live reload, and no link check that would write state.json
+  // Watch only after the server owns state.lock. Read-only renderers never start it.
   let last = parts();
-  const watcher = readOnly
-    ? null
-    : watchNarrative(dir, (files) => {
-        const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
-        if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
-        if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
-        send('progress', progress());
-        // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
-        const next = parts();
-        if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
-        last = next;
-        if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
-      });
+  let watcher: fs.FSWatcher | undefined;
+  const watch = () => {
+    checkIdentity();
+    checkNarrative();
+    watcher = watchNarrative(dir, (files) => {
+      try {
+        checkIdentity();
+      } catch (e) {
+        console.error(`reviewroom: ${(e as Error).message}`);
+        return;
+      }
+      const head = isFullSha(prov.head) ? { head: prov.head } : {};
+      if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
+      if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
+      send('progress', progress());
+      // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
+      const next = parts();
+      if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
+      last = next;
+      if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
+    });
+  };
 
   // REVIEWROOM_TEST_ASSISTANT: a module whose `launch` stands in for Claude (e2e only: a scripted, streaming assistant)
   const fake = process.env.REVIEWROOM_TEST_ASSISTANT;
@@ -191,6 +198,10 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   const progress = () => (assistant ? assistant.progress() : readProgress(dir));
   const app = new Hono();
   app.use(localOnly);
+  app.use(async (c, next) => {
+    if (c.req.path !== '/favicon.ico') checkIdentity();
+    await next();
+  });
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies
   if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server', code: 'read_only' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
@@ -209,9 +220,8 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  // id: the same for direct and proxied access; the assistant only for direct access
-  // the assistant and generation only for direct access (ADR 0001)
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true, generate: true }) }));
+  // id: the directory hash, the same for direct and proxied access; the assistant and generation only for direct access (ADR 0001)
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), prReviewId: cfg.id, ...(assistant && !c.req.header(VIA_HUB) && { assistant: true, generate: true }) }));
   if (assistant) {
     app.route('/api/assistant', assistant.app);
     app.route('/api/generate', assistant.generate);
@@ -223,7 +233,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const { rev, path: p } = c.req.query();
     const text = prov.read(rev, p);
     if (text === null) return json(c, { error: 'not found' }, 404);
-    return c.text(text, 200, { 'cache-control': /^[0-9a-f]{40}$/.test(rev) ? 'max-age=86400' : 'no-store' });
+    return c.text(text, 200, { 'cache-control': isFullSha(rev) ? 'max-age=86400' : 'no-store' });
   });
   app.get('/api/search', (c) => {
     const q = c.req.query();
@@ -238,7 +248,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = currentRound(s);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    return json(c, { prReviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
@@ -333,16 +343,14 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    const md = feedbackMarkdown(prev, { kind, note, dirArgs: reviewDirArgs(dir), lifecycleArgs: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));
     fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
     writeState(dir, s);
     send('state', s);
-    const res = json(c, { ok: true, round: s.round, state: s });
-    onFinish?.({ kind, md, round: n }); // serve.ts exits 150 ms later, after this response is out
-    return res;
+    return json(c, { ok: true, round: s.round, state: s });
   });
   app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
   // anything else: static files next to report.html (images, extra css/js the agent wrote). serveStatic refuses
@@ -369,7 +377,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
   const close = () => { watcher?.close(); return assistant?.close(); };
   /** The lock is held and startup recovery done (serve.ts): generation may start. */
   const ready = () => assistant?.ready();
-  return { app, prov, commit, github, checkNarrative, close, ready };
+  return { app, prov, commit, github, watch, close, ready };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the `spread` after it. */

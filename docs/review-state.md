@@ -5,14 +5,19 @@ reviewers don't edit these files; they change them through the CLI and the page.
 
 ## In a review folder
 
-A review folder is `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` by default (`pr-<n>/` for a PR given by number or URL), never inside the reviewed repo.
+Review folders live outside the checkout. PR reviews use `<home>/reviews/<owner>_<repo>/pulls/<n>/`.
+For a custom local review folder, use `--dir`.
+
+A PR's `config.json` has a write-once `id` that must match its folder. PR commands resolve that
+folder directly from the ID.
 
 | File | Written by | Holds |
 | --- | --- | --- |
-| `config.json` | the CLI (`reviewroom pr`) | What is reviewed: repo path, base, head, title, the PR (repo, number, author, URL, labels) and the report profile. `assistant: true`: this review runs the built-in assistant (its Ask panel and `api/generate`), set by the hub's Play and `pr --assistant`, never by an external agent's `pr`. Schema in `cli/lib/config.ts`. |
+| `config.json` | the CLI (`reviewroom pr`) | Repo path, base, head, title, PR metadata, write-once PR ID, report profile and the CLI target for a default review folder. `assistant: true`: this review runs the built-in assistant (its Ask panel and `api/generate`), set by the hub's Play and `pr --assistant`, never by an external agent's `pr`. Schema in `cli/lib/config.ts`. |
 | `state.json` | the CLI, the browser (through the server) and agents (through the CLI) | Threads, rounds, viewed files, sign-offs. |
 | `state.lock` | the CLI and the server | `{pid, port}`. A running server holds it for its lifetime; the CLI holds it for one read-modify-write, and sends its writes to the server while the server holds it. |
-| `server.json` | `reviewroom serve` | The running server, so other commands find it. |
+| `server.json` | the review server | The running server, so other commands find it. |
+| `server.log` | the detached server | Server stdout and stderr. |
 | `progress.jsonl` | the CLI and the server, never the agent | Generation, per document (below). Drives the loading screen. |
 | `layout.json` | the browser | The dock as the reviewer left it. |
 | `github.json` | the server | The last PR snapshot from GitHub. |
@@ -22,6 +27,14 @@ A review folder is `~/.reviewroom/reviews/<owner>-<repo>/<branch>/` by default (
 **`state.json`** is a contract: change it in `src/kernel/state/schema.shared.ts`, then `bun run schema` to regenerate
 `schema/state.schema.json`. A file that doesn't parse or breaks the schema is moved aside (`<file>.corrupt-<time>`) with
 an error, never silently started over; a read-only server never moves it.
+
+`pr` and `start` reuse the review's running server. `wait` starts a detached server if needed, then
+reads the round queue from `state.json`. The server saves `feedback.md` before publishing the finished
+round in state. `wait` prints the oldest undelivered round and records `deliveredAt` via the normal
+state operation after stdout flushes. A retry can reprint a round if interrupted before that write.
+Concurrent waiters can print the same round.
+A server restart between lock lookup and the delivery request may require a retry.
+The server stays up through feedback and approval. Stop it with `reviewroom stop acme/api#31` or the hub's Close.
 
 **`progress.jsonl`** appends events per document (walkthrough, report); `src/kernel/state/progress.shared.ts` reduces
 them to a state, and the client reads that state rather than the events:
@@ -63,13 +76,14 @@ it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/gene
 
 `REVIEWROOM_HOME` overrides the root.
 
-- `reviews/`: the review folders (above).
-- `sessions/<pid>.json`: one per running server, read by `reviewroom hub` (which deletes records whose server is gone)
-  and other local tools. `hub.json` is the running hub.
+- `reviews/`: the review folders (above). PR identity appears as `id` in CLI status JSON and
+  `prReviewId` in review metadata and hub sessions.
+- `sessions/<pid>.json`: one per running server, read by `reviewroom list`, the hub, and other local tools.
+  `list --json` reads the PR ID from `config.json`. The hub deletes stale records. `hub.json` is the running hub.
 - `layouts/<name>.json`: the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the
   shipped ones in `src/kernel/layouts/` (whose names they can't take). `default-layout.json` names their default.
 - `config.json`: the reviewer's settings. Whether the built-in assistant runs is not one of them: it is chosen per
-  review (`assistant` in the review's own `config.json`, above), read when its server starts. `publicOrigin` (`reviewroom hub --public-origin`, ADR 0001), read when the
+  review (`assistant` in the review's own `config.json`, above), read when its server starts. `publicOrigin` (`reviewroom hub serve --public-origin`, ADR 0001), read when the
   hub starts; `defaultAgentHarness` (`claude` only), `defaultReviewModel` (`sonnet` by default), `defaultReviewEffort` (`low` to `max`; Claude Code's default when unset) and
   `reviewAgentPromptFile` (optional Markdown prompt path, relative to this file); `claudeExecutable` overrides the
   Claude binary (otherwise the native override environment, `claude` on PATH, then the adapter's bundled binary).

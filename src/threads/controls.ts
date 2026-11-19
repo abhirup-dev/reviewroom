@@ -173,8 +173,7 @@ export function subscribeThreadHeader(app: ReviewApp, paint: () => void): () => 
 /** Agent round status indicators, before the shell connection/save indicators. */
 export function roundStatusControls(): HTMLElement[] {
   return [
-    h('span', { class: 'rr-round-status rr-round-status--waiting', title: 'Your feedback went to the agent. The next round opens here when it is back' }, 'Waiting for the agent…'),
-    h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review; the reviewroom server has stopped' }, 'Approved'),
+    h('span', { class: 'rr-pill rr-pill--ok rr-round-status rr-round-status--approved', title: 'You approved this review' }, 'Approved'),
   ];
 }
 

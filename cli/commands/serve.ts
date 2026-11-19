@@ -1,42 +1,86 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { type Global, fail } from '../lib/args.ts';
-import { resolveDir, loadConfig, configPath } from '../lib/config.ts';
+import { loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { stopAssistantWork } from '../lib/progress.ts';
-import { takeLock, releaseLock } from '../lib/lock.ts';
+import { answers, takeLock, releaseLock } from '../lib/lock.ts';
 import { undelivered } from '../../src/kernel/state/ops.shared.ts';
-import { type Finished, startServer, listen, openBrowser } from '../lib/server.ts';
+import { startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
-import { serverFile, stopServer, register, unregister } from '../lib/registry.ts';
+import { type ServerRecord, liveServer, serverFile, register, unregister } from '../lib/registry.ts';
 import { agentAncestor } from '../hub/proc.ts';
 import { branchPr } from '../lib/github.ts';
 
-const print = (text: string) => new Promise<void>((r) => process.stdout.write(text, () => r()));
+export type StartOpts = Global & { port?: string; open: boolean; browser?: boolean; foreground?: boolean };
 
-// Feedback the reviewer sent while no agent was blocked in `review`: hand it over now, oldest first.
-// Marked delivered only after printing (a repeat beats a loss). A running server keeps running.
-async function deliverPending(dir: string) {
-  const rounds = undelivered(readState(dir));
-  for (const r of rounds) {
-    const f = path.join(dir, 'rounds', String(r.n), 'feedback.md');
-    await print((fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : `(round ${r.n} was ${r.status} but ${f} is missing)`) + '\n');
-    await commitOps(dir, [{ op: 'markDelivered', round: r.n }]);
-    console.error(`reviewroom: round ${r.n} was ${r.status === 'approved' ? 'approved' : 'sent'} while you were not waiting -> ${f}`);
-  }
-  return rounds.length > 0;
+export async function runningServer(dir: string) {
+  const rec = liveServer(dir);
+  // A recorded process that is busy can time out. A different process on that port is stale.
+  return rec && (await answers(rec.pid, rec.port)) !== false ? rec : null;
 }
 
-export type ServeOpts = Global & { base?: string; head?: string; title?: string; port?: string; open: boolean; browser?: boolean; forever?: boolean };
-
-export async function cmdServe(repo: string | null, o: ServeOpts, blocking: boolean) {
+export async function ensureServer(repo: string | null, dir: string, o: StartOpts): Promise<ServerRecord> {
+  const live = await runningServer(dir);
+  if (live) return live;
   if (!repo) fail('not inside a git repository (use --repo <path>)');
-  const dir = resolveDir(repo, o.dir, { existing: true });
-  const cfg = loadConfig(dir, repo, o);
-  if (blocking && (await deliverPending(dir))) return;
-  // take over a detached server for the same review (same port, so an open tab reconnects)
-  const prev = await stopServer(dir);
-  const portFlag = o.port || (prev ? String(prev.port) : undefined);
+  fs.mkdirSync(dir, { recursive: true });
+  const args = [process.argv[1], 'start', '--foreground', '--repo', repo, '--dir', dir];
+  if (o.port) args.push('--port', o.port);
+  if (!o.open) args.push('--no-open');
+  if (o.browser) args.push('--browser');
+  const log = path.join(dir, 'server.log');
+  const deadline = performance.now() + 60_000; // includes PR discovery and the initial report check
+  const out = fs.openSync(log, 'a');
+  let error: Error | undefined;
+  let child;
+  try {
+    child = spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] });
+    child.once('error', (e) => { error = e; });
+    child.unref();
+  } finally {
+    fs.closeSync(out);
+  }
+  while (performance.now() < deadline) {
+    const rec = await runningServer(dir);
+    if (rec) return rec;
+    if (error || child.exitCode !== null || child.signalCode !== null) {
+      fail(`server exited during startup${error ? `: ${error.message}` : ''} - see ${log}`);
+    }
+    await Bun.sleep(100);
+  }
+  fail(`server did not start - see ${log}`);
+}
+
+export async function cmdStart(repo: string | null, dir: string, o: StartOpts) {
+  const rec = o.foreground ? await serve(repo, dir, o) : await ensureServer(repo, dir, o);
+  if (rec) console.log(rec.url);
+}
+
+export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
+  const { id } = readConfig(dir);
+  const { url } = await ensureServer(repo, dir, o);
+  console.error(`reviewroom: waiting for feedback | ${dir} | ${url}`);
+  for (;; await Bun.sleep(500)) {
+    const [round] = undelivered(readState(dir, { repair: false }));
+    if (!round) continue;
+    if (readConfig(dir).id !== id) fail(`review ID changed in ${dir} while waiting`);
+    const file = path.join(dir, 'rounds', String(round.n), 'feedback.md');
+    const md = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `(round ${round.n} was ${round.status} but ${file} is missing)`;
+    // Record delivery only after stdout flushes. On interruption, a retry can print the round again.
+    await new Promise<void>((resolve, reject) => process.stdout.write(md + '\n', (e) => e ? reject(e) : resolve()));
+    await commitOps(dir, [{ op: 'markDelivered', round: round.n }]);
+    console.error(`reviewroom: round ${round.n} ${round.status === 'approved' ? 'approved' : 'feedback saved'} -> ${file}`);
+    return;
+  }
+}
+
+async function serve(repo: string | null, dir: string, o: StartOpts) {
+  const live = await runningServer(dir);
+  if (live) return live;
+  if (!repo) fail('not inside a git repository (use --repo <path>)');
+  const cfg = loadConfig(dir, repo);
   fs.mkdirSync(dir, { recursive: true });
   // a branch review whose branch has an open PR is that PR's review: its description, conversation and CI come along
   const pr = branchPr(repo, cfg);
@@ -44,31 +88,30 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
     Object.assign(cfg, pr);
     console.error(`reviewroom: ${pr.url} is open for this branch: showing its description, comments and CI`);
   }
-  if (!fs.existsSync(configPath(dir)) || o.base || o.head || o.title || pr) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   if (!fs.existsSync(path.join(DIST, 'reviewroom.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
-  let finish!: (f: Finished) => void;
-  const done = new Promise<Finished>((r) => (finish = r));
+  const agent = await agentAncestor(process.pid); // before the detached child's parent sees server.json and exits
   let seen = false; // a page (browser or app tab) connected
-  const { app, commit, checkNarrative, close, ready } = startServer({ repo, dir, cfg, onFinish: (f) => finish(f), onClient: () => (seen = true) });
-  const server = listen(app, +(portFlag || 4848));
+  const { app, watch, close, ready } = startServer({ repo, dir, cfg, onClient: () => (seen = true) });
+  const server = listen(app, +(o.port || 4848));
   const port = server.port!;
   const url = `http://127.0.0.1:${port}/`;
   const holder = await takeLock(dir, port);
-  if (holder) fail(`another reviewroom server (pid ${holder.pid}, port ${holder.port}) is serving this review; stop it first`);
+  if (holder) {
+    await server.stop(true);
+    await close();
+    return liveServer(dir);
+  }
   stopAssistantWork(dir, 'interrupted'); // under the lock: an assistant generation left pending died with the previous server
   ready(); // generation may start now: the lock is held and startup recovery is done
-  const startedAt = new Date().toISOString();
-  const agent = await agentAncestor(process.pid); // before server.json: `pr --detach` (our parent) waits for it, then exits
-  fs.writeFileSync(serverFile(dir), JSON.stringify({ pid: process.pid, port, url, startedAt }));
-  register({ pid: process.pid, port, url, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: blocking ? 'review' : 'serve', startedAt, agent, author: cfg.number ? (cfg.author ?? null) : null });
   const cleanup = () => {
-    releaseLock(dir);
     unregister(process.pid);
     try {
       if (JSON.parse(fs.readFileSync(serverFile(dir), 'utf8')).pid === process.pid) fs.unlinkSync(serverFile(dir));
     } catch {}
+    releaseLock(dir);
   };
   process.on('exit', cleanup);
+  if (!fs.existsSync(configPath(dir)) || pr) fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
   // the assistant stops its turn, saves its session and ends its processes; a stop that hangs, or a second signal, exits
   // anyway, first ending its assistant's bridge (which ends the native agent under it; not a hub this server started):
   // only a crash leaves them running
@@ -84,24 +127,14 @@ export async function cmdServe(repo: string | null, o: ServeOpts, blocking: bool
     void shutdown().finally(exit);
   });
   const s = readState(dir);
+  watch();
+  const rec = { pid: process.pid, port, url, startedAt: new Date().toISOString() };
+  register({ ...rec, repo, dir, title: cfg.title ?? null, number: cfg.number ?? null, prUrl: cfg.url ?? null, base: cfg.base, head: cfg.head, mode: 'serve', agent, author: cfg.number ? (cfg.author ?? null) : null });
+  fs.writeFileSync(serverFile(dir), JSON.stringify(rec));
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} | round ${s.round} | ${url}`);
-  checkNarrative(); // after the lock: it may write state.json
   if (o.open) {
-    // a tab from the previous round reconnects on its own; only open one if nobody shows up
+    // a tab from a previous server reconnects on its own; open one if nobody shows up
     setTimeout(() => !seen && openBrowser(url, !o.browser), 2500);
   }
-  if (!blocking) return;
-  const res = await done;
-  setTimeout(async () => {
-    await print(res.md + '\n');
-    try {
-      commit([{ op: 'markDelivered', round: res.round }]);
-    } catch (e) {
-      console.error(`reviewroom: could not record delivery: ${(e as Error).message}`);
-    }
-    console.error(`\nreviewroom: round ${res.round} ${res.kind === 'approve' ? 'approved' : 'feedback saved'} -> ${path.join(dir, 'rounds', String(res.round), 'feedback.md')}`);
-    await shutdown();
-    void server.stop(true);
-    exit(); // the review is over: also ends the walkthrough watcher and SSE pings
-  }, 150);
+  return rec;
 }

@@ -6,6 +6,8 @@ export type Rev = string; // 'base' | 'head' | a git sha / ref
 export interface ReviewMeta {
   /** Stable id for local persistence (layout, viewed files). */
   id: string;
+  /** Stable PR identity in owner/repo#n form. */
+  prReviewId?: string;
   title: string;
   repo?: string; // owner/name; without a GitHub remote, the checkout's folder name
   /** The checkout the diff is read from (its worktree path). */

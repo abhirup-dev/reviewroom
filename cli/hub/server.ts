@@ -6,7 +6,7 @@
 //   POST /api/reviews               { url }: Add a PR (needs x-reviewroom-action: add-review)
 //   POST /api/reviews/:id/play      start a stopped review, or find the running one (play-review)
 //   POST /api/reviews/:id/remove    delete a stopped review's folder; a running one is refused (remove-review)
-//   ALL  /r/<review id>/*           the review whose dir hashes to the id, proxied to its server (ADR 0001)
+//   ALL  /r/<hash>/*                the review whose directory has this hash, proxied to its server (ADR 0001)
 // Behind hubAccess: loopback, or the configured public origin.
 import { Hono, type Context } from 'hono';
 import { compress } from 'hono/compress';
