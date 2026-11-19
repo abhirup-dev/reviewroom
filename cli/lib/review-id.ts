@@ -51,21 +51,14 @@ export function idFromFolder(dir: string): ReviewId | null {
   return id;
 }
 
-// Preserve the old spelling, including its lossy slash replacement, for local and legacy folders.
-const legacySegment = (value: string) => value.replace(/[^\w.-]+/g, '-').replace(/^\.*$/, '_');
-export const localReviewsFolder = (repository: string) => path.resolve(reviewsDir(), legacySegment(repository));
-export const localReviewFolder = (repository: string, branch: string) => path.join(localReviewsFolder(repository), legacySegment(branch));
-
-export function localReviewParent(dir: string): string | null {
-  const parent = path.dirname(path.resolve(dir));
-  return path.dirname(parent) === path.resolve(reviewsDir()) ? parent : null;
-}
+// Local reviews share a repository directory. Their branch labels are plain path segments.
+const localSegment = (value: string) => value.replace(/[^\w.-]+/g, '-').replace(/^\.*$/, '_');
+export const localReviewsFolder = (repository: string) => path.resolve(reviewsDir(), localSegment(repository));
+export const localReviewFolder = (repository: string, branch: string) => path.join(localReviewsFolder(repository), localSegment(branch));
 
 const directories = (root: string) => fs.existsSync(root)
   ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))
   : [];
-
-export const legacyReviewFolders = () => directories(path.resolve(reviewsDir())).flatMap(directories);
 
 export function reviewFoldersForRepository(repository: string): string[] {
   const prRepo = parseReviewRepository(repository);

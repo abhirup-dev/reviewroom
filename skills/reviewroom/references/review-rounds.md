@@ -13,6 +13,7 @@ reviewroom pr acme/api#31
 
 Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
 otherwise in the browser. Use `--browser` to open the browser. The server stays up between rounds.
+After feedback, the page opens the next round immediately.
 
 ## Resume an existing review
 

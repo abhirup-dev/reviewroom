@@ -6,11 +6,10 @@ reviewers don't edit these files; they change them through the CLI and the page.
 ## In a review folder
 
 Review folders live outside the checkout. PR reviews use `<home>/reviews/<owner>_<repo>/pulls/<n>/`.
-Existing local review folders keep their layout. Use `--dir` to select a custom local folder.
+For a custom local review folder, use `--dir`.
 
-A PR's `config.json` has a write-once `id` that must match its folder. When `pr`, `start` or `wait`
-finds a single legacy folder for the same repository and PR number, it moves that folder in one rename
-and writes the ID. Stop a running legacy review first. The moved review gets a new hub route hash.
+A PR's `config.json` has a write-once `id` that must match its folder. PR commands resolve that
+folder directly from the ID.
 
 | File | Written by | Holds |
 | --- | --- | --- |

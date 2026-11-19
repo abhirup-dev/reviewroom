@@ -30,19 +30,16 @@ function prMetadata(repo: string, remote: string, pr: ReviewId) {
 }
 
 export type PrOpts = StartOpts & { base?: string; head?: string; title?: string; remote?: string; force?: boolean; wait?: boolean; profile?: string };
-/** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
-function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId, saved: Partial<ReviewConfig>): ReviewConfig {
+/** `pr <n>`: fetch the PR head and base branch, keeping the fetched PR ref for offline use. */
+function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId): ReviewConfig {
   const n = String(pr.number);
   const info = prMetadata(repo, remote, pr);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
-  let head = `refs/reviewroom/pr/${Buffer.from(formatReviewId(pr)).toString('base64url')}`;
-  const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo) || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${head}`, repo));
+  const head = `refs/reviewroom/pr/${Buffer.from(formatReviewId(pr)).toString('base64url')}`;
+  const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo);
   if (!fetched) {
-    // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
-    const local = [head, saved.head, `${remote}/pr/${n}`, info?.headRefName && `${remote}/${info.headRefName}`, ...(remote === 'origin' ? [`pr-${n}`, `pr/${n}`, info?.headRefName] : [])].filter(Boolean).find((r) => hasRef(r, repo));
-    if (!local) fail(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
-    console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
-    head = local;
+    if (!hasRef(head, repo)) fail(`could not fetch ${formatReviewId(pr)} from ${remote} and found no cached PR ref`);
+    console.error(`reviewroom: fetch failed; using cached ${formatReviewId(pr)} (may be behind the PR)`);
   }
   const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
   if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
@@ -94,7 +91,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
     return;
   }
   const remote = o.remote ?? saved.remote ?? 'origin';
-  const found = pr ? prNumberConfig(repo, o, remote, pr, saved) : arg ? branchConfig(repo, o, arg, remote) : loadConfig(dir, repo, o);
+  const found = pr ? prNumberConfig(repo, o, remote, pr) : arg ? branchConfig(repo, o, arg, remote) : loadConfig(dir, repo, o);
   const id = pr ? formatReviewId(pr) : undefined;
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, remote: pr ? remote : undefined, target: pr ? undefined : (arg ?? currentBranch(repo)), id: saved.id ?? id } as ReviewConfig;

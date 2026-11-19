@@ -5,11 +5,9 @@ import path from 'node:path';
 import { z } from 'zod';
 import { git, defaultBase, remoteName, repoRoot } from './git.ts';
 import {
-  formatReviewId, formatReviewRepository, idFromFolder, isReviewUrl, legacyReviewFolders, localReviewFolder,
-  localReviewParent, localReviewsFolder, parseReviewId, reviewFolder, reviewFoldersForRepository, type ReviewId,
+  formatReviewId, formatReviewRepository, idFromFolder, isReviewUrl, localReviewFolder,
+  localReviewsFolder, parseReviewId, reviewFolder, reviewFoldersForRepository, type ReviewId,
 } from './review-id.ts';
-import { liveServer } from './registry.ts';
-import { writeAtomic } from './state.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 
 export const currentBranch = (repo: string) => git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true })?.trim() || 'review';
@@ -56,9 +54,7 @@ export const reviewDirArgs = (dir: string) => `--dir ${shellArg(dir)}`;
 export function reviewArgs(repo: string, dir: string, cfg = readConfig(dir)): string {
   if (cfg.id) return cfg.id;
   const remote = remoteName(repo);
-  for (const branch of [cfg.target, cfg.headLabel, cfg.head]) {
-    if (branch && localReviewFolder(remote, branch) === dir) return shellArg(branch);
-  }
+  if (cfg.target && localReviewFolder(remote, cfg.target) === dir) return shellArg(cfg.target);
   return reviewDirArgs(dir);
 }
 
@@ -79,99 +75,44 @@ export function readConfig(dir: string): z.infer<typeof ConfigFile> {
   return cfg;
 }
 
-type ReviewLocation = { dir: string; cfg: ReturnType<typeof readConfig> };
-
-function legacyLocationId({ dir, cfg }: ReviewLocation, requested?: ReviewId): string | undefined {
-  const bucket = localReviewParent(dir);
-  if (cfg.id || !cfg.number || !bucket) return;
-  try {
-    if (cfg.url) {
-      const id = parseReviewId(cfg.url);
-      if (id.number === Number(cfg.number)) return formatReviewId(id);
-      return;
-    }
-    const remote = cfg.repo ?? (cfg.repoPath && remoteName(cfg.repoPath, cfg.remote));
-    const repository = remote?.includes('/') ? remote : requested && formatReviewRepository(requested);
-    if (!repository) return;
-    const id = parseReviewId(String(cfg.number), repository);
-    if (bucket.toLowerCase() === localReviewsFolder(formatReviewRepository(id)).toLowerCase()) return formatReviewId(id);
-  } catch {} // invalid legacy metadata cannot identify a PR
-}
-
-function findLegacy(pr: ReviewId, id: string): ReviewLocation | undefined {
-  const matches = legacyReviewFolders().flatMap((dir) => {
-    try {
-      const cfg = readConfig(dir);
-      return legacyLocationId({ dir, cfg }, pr) === id ? [{ dir, cfg }] : [];
-    } catch { return []; }
-  });
-  if (matches.length > 1) throw new ReviewroomError(`several legacy folders match ${id}; pass --dir:\n${matches.map((match) => `  ${match.dir}`).join('\n')}`);
-  return matches[0];
-}
-
-type PullLookup = { command: string; repo: string | null; remote?: string; verifyRepo: boolean };
-
-function checkPullRemote(id: string, repository: string, saved: ReviewLocation['cfg'], { command, repo, remote, verifyRepo }: PullLookup) {
-  const source = remote ?? saved.remote ?? 'origin';
-  const selected = repo ? remoteName(repo, source).toLowerCase() : undefined;
-  if (verifyRepo && selected !== repository) {
-    throw new ReviewroomError(`review ${id} belongs to ${repository}, selected repository is ${selected ?? 'none'}`);
-  }
-  if (command === 'pr') {
-    const checkout = saved.repoPath ?? repo;
-    if (checkout && remoteName(checkout, source).toLowerCase() !== repository) {
-      throw new ReviewroomError(`remote ${source} in ${checkout} does not match the repository for ${id}`);
-    }
-  }
-  return selected;
-}
-
-function resolvePull(pr: ReviewId, explicit: ReviewLocation | undefined, lookup: PullLookup): ReviewLocation {
-  const { command } = lookup;
+function checkPullRepo(pr: ReviewId, repo: string | null, remote: string, selected: boolean) {
+  const actual = repo ? remoteName(repo, remote).toLowerCase() : 'none';
+  const expected = formatReviewRepository(pr);
+  if (actual === expected) return;
   const id = formatReviewId(pr);
-  const repository = formatReviewRepository(pr);
-  const canonical = reviewFolder(pr);
-  const cfg = readConfig(canonical);
-  let legacy: ReviewLocation | undefined;
-  if (explicit && explicit.dir !== canonical) {
-    const saved = explicit.cfg.id ?? legacyLocationId(explicit, pr);
-    if (saved !== id) throw new ReviewroomError(`review ID mismatch in ${explicit.dir}: saved ${saved ?? 'no PR ID'}, requested ${id}; its folder is ${canonical}`);
-    legacy = explicit;
-  } else if (!cfg.id) {
-    legacy = findLegacy(pr, id);
-  }
-  const selected = checkPullRemote(id, repository, legacy?.cfg ?? cfg, lookup);
-  if (!legacy) {
-    if (!cfg.id && command !== 'pr') throw new ReviewroomError(`no review for ${id} - run \`reviewroom pr ${id}\` first`);
-    if (!cfg.id && selected !== repository) throw new ReviewroomError(`select the checkout for ${id} with --repo`);
-    return { dir: canonical, cfg };
-  }
-  if (!['pr', 'start', 'wait'].includes(command)) return legacy;
-  if (liveServer(legacy.dir)) throw new ReviewroomError(`legacy review ${id} is running; stop it first: reviewroom stop ${id}`);
-  if (fs.existsSync(canonical)) throw new ReviewroomError(`review ${id} already has a folder at ${canonical}`);
-  fs.mkdirSync(path.dirname(canonical), { recursive: true });
-  fs.renameSync(legacy.dir, canonical);
-  const adopted = { ...legacy.cfg, id };
-  writeAtomic(configPath(canonical), JSON.stringify(adopted, null, 2));
-  return { dir: canonical, cfg: adopted };
+  throw new ReviewroomError(selected
+    ? `review ${id} belongs to ${expected}, selected repository is ${actual}`
+    : `remote ${remote} in ${repo} does not match the repository for ${id}`);
 }
 
 export function resolveReview(repo: string | null, o: { dir?: string; repo?: string; remote?: string }, target: string | undefined, command: string) {
-  const selected = repo ? remoteName(repo, o.remote).toLowerCase() : undefined;
-  const explicitDir = o.dir ? path.resolve(o.dir) : undefined;
-  const existing = command !== 'pr';
-  const pr = target ? parseReviewId(target, selected, true) : null;
-  const local = !pr || explicitDir ? resolveDir(repo, explicitDir, { existing: pr ? false : existing, target, command, repoFlag: o.repo }) : undefined;
-  const location = local ? { dir: local, cfg: readConfig(local) } : undefined;
-  const savedId = location && (location.cfg.id ?? legacyLocationId(location));
-  if (savedId && !pr && (target || !existing && !explicitDir)) {
-    throw new ReviewroomError(`cannot use a branch target for ${savedId} in ${local}; pass its PR review ID`);
+  const selected = repo && target ? remoteName(repo, o.remote) : undefined;
+  const targetId = target ? parseReviewId(target, selected, true) : null;
+  const explicit = o.dir && path.resolve(o.dir);
+  const dir = targetId
+    ? reviewFolder(targetId)
+    : resolveDir(repo, explicit, { existing: command !== 'pr', target, command, repoFlag: o.repo });
+  if (targetId && explicit && explicit !== dir) {
+    const saved = readConfig(explicit).id ?? 'no PR ID';
+    throw new ReviewroomError(`review ID mismatch in ${explicit}: saved ${saved}, requested ${formatReviewId(targetId)}; its folder is ${dir}`);
   }
-  const pull = pr ?? (savedId ? parseReviewId(savedId) : null);
-  const resolved = pull ? resolvePull(pull, explicitDir ? location : undefined, {
-    command, repo, remote: o.remote, verifyRepo: !!o.repo || !!target && isReviewUrl(target),
-  }) : location!;
-  return { ...resolved, repo: resolved.cfg.repoPath ? repoRoot(resolved.cfg.repoPath) : repo, pr: pull };
+  const cfg = readConfig(dir);
+  if (cfg.id && target && !targetId) {
+    throw new ReviewroomError(`cannot use a branch target for ${cfg.id} in ${dir}; pass its PR review ID`);
+  }
+  const pr = targetId ?? (cfg.id ? parseReviewId(cfg.id) : null);
+  const checkout = cfg.repoPath ? repoRoot(cfg.repoPath) : repo;
+  if (pr) {
+    const remote = o.remote ?? cfg.remote ?? 'origin';
+    if (o.repo || target && isReviewUrl(target)) checkPullRepo(pr, repo, remote, true);
+    if (command === 'pr') {
+      if (checkout) checkPullRepo(pr, checkout, remote, false);
+    } else if (!cfg.id) {
+      const id = formatReviewId(pr);
+      throw new ReviewroomError(`no review for ${id} - run \`reviewroom pr ${id}\` first`);
+    }
+  }
+  return { repo: checkout, dir, cfg, pr };
 }
 
 export function loadConfig(dir: string, repo: string, o: { base?: string; head?: string; title?: string } = {}): ReviewConfig {

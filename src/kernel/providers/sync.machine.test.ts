@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createActor, fromCallback, fromPromise, SimulatedClock } from 'xstate';
 import { emptyState, type ReviewState } from '../state/model.shared.ts';
-import { roundStatus, syncMachine, unsent, view } from './sync.machine.ts';
+import { syncMachine, unsent, view } from './sync.machine.ts';
 import { tick } from '../../testing/wait';
 import { fixture, type Fixture } from '../../testing/fixture';
 import type { Op } from '../state/schema.shared.ts';
@@ -165,10 +165,6 @@ test('a rejection is an answer: a stall that ends in one is over', async () => {
   t.clock.increment(3000);
   await t.reply({ rejected: 0, error: 'gone' });
   expect([t.ctx().failures, unsent(t.ctx())]).toEqual([0, false]);
-});
-
-test('the current approved round shows approval', () => {
-  expect(roundStatus({ base: { ...at(2), round: 2, rounds: [{ n: 2, status: 'approved', startedAt: T0, sentAt: T0 }] }, started: T0 })).toBe('approved');
 });
 
 test('a due reload still goes once a send fails, even after a success in between', async () => {

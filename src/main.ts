@@ -224,8 +224,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     },
     error: (text) => app.toast(text, 'error'),
     unsaved: (on) => app.root.classList.toggle('is-unsaved', on),
-    status: (s) => (['waiting', 'approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
-    ready: (round) => app.toast(`Round ${round} is ready.`),
+    status: (s) => (['approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
     github: (s) => app.services.github.set(s),
     // the backend has let a save in flight finish first
     review: () => {

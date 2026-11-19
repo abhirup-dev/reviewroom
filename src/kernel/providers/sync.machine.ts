@@ -2,7 +2,7 @@
 // The server is the only writer of state.json. The browser applies ops optimistically and sends them
 // in order; what it shows is the last state the server broadcast plus the ops not yet in it.
 import { assign, emit, enqueueActions, fromCallback, fromPromise, raise, setup, type EventObject } from 'xstate';
-import { applyOp, currentRound } from '../state/ops.shared';
+import { applyOp } from '../state/ops.shared';
 import type { GitHubSnapshot, ReviewState } from '../state/model.shared';
 import type { Op } from '../state/schema.shared';
 
@@ -31,14 +31,6 @@ export const view = ({ base, queue }: Pick<Ctx, 'base' | 'queue'>) =>
       return s; // can't apply any more; the server rejects it and the outbox drops it
     }
   }, base);
-
-/** Where the round is, from the state alone (so a reload or another tab agrees). Finishing a round ends that run of
- *  the server; the agent works, then serves the next round: a server started after the feedback means it's back. */
-export function roundStatus({ base, started }: Pick<Ctx, 'base' | 'started'>): 'waiting' | 'approved' | null {
-  if (currentRound(base)?.status === 'approved') return 'approved';
-  const last = base.rounds.find((r) => r.n === base.round - 1);
-  return last?.status === 'sent' && last.sentAt && started && last.sentAt >= started ? 'waiting' : null; // both server-clock ISO times
-}
 
 export const syncMachine = setup({
   types: {
@@ -128,14 +120,13 @@ export const syncMachine = setup({
                 hello: [
                   // first contact also catches up: something may have changed between loading the page and now
                   { guard: ({ context }) => context.hash === null, target: 'refetch', actions: assign({ hash: ({ event }) => event.hash, started: ({ event }) => event.started }) },
-                  // reconnected to a new `reviewroom review` run: pick up whatever the agent changed meanwhile
+                  // After reconnect, reload if the artifacts or Git range changed.
                   { guard: ({ context, event }) => event.hash !== context.hash, target: '#sync.stream.newRun' },
                   { target: 'refetch', actions: assign({ started: ({ event }) => event.started }) },
                 ],
               },
             },
-            // back after a drop: catch up on what was broadcast meanwhile. Counts as live (no "Disconnected" flash),
-            // but the round status waits for it: `started` is already the new server's, `base` not yet
+            // Catch up on what was broadcast while disconnected before showing the current round status.
             refetch: { tags: ['live', 'catchingUp'], invoke: { src: 'fetchState', onDone: { target: 'live', actions: [{ type: 'receive', params: ({ event }) => event.output }, 'emitView'] }, onError: 'live' } },
             live: { tags: 'live' },
           },
