@@ -56,9 +56,7 @@ export interface BackendEvents {
   error(text: string): void;
   /** Some changes failed to save and are being retried (true), or all are saved again (false). */
   unsaved?(on: boolean): void;
-  /** The round is with the agent, approved, or the server is gone while reviewing (null: none of these). */
-  status?(s: 'waiting' | 'approved' | 'offline' | null): void;
-  /** The agent is back with round `round`. */
-  ready?(round: number): void;
+  /** The round is approved or the server is offline. */
+  status?(s: 'approved' | 'offline' | null): void;
   github?(s: GitHubSnapshot): void;
 }

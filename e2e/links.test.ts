@@ -5,9 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { read, setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
+import { reviewEvents } from './transport.ts';
 
 describe('links', () => {
-  const { repo, dir, d, cli, git, state, spawn, url } = setup();
+  const { repo, dir, d, cli, git, state } = setup();
   const reviewFile = path.join(dir, REPORT_FILE);
   const prepend = (lines: string) => fs.writeFileSync(path.join(repo, file), lines + read(repo, file));
   let file = '';
@@ -19,12 +20,30 @@ describe('links', () => {
     expect(state().links[`rr:code/${file}#L3-4`]).toBeString();
   });
   test('a running server fingerprints new links at the current head, not the one it started on', async () => {
-    spawn(['review', '--forever', '--no-open', '--port', '0', ...d]);
-    await url();
+    const start = await cli(['start', '--no-open', '--port', '0', ...d]);
+    expect(start.code).toBe(0);
+    const url = start.stdout.trim();
     prepend('added 3\n');
     await git('commit', '-qam', 'shift again');
     fs.writeFileSync(reviewFile, `<rr-review><a href="rr:code/${file}#L6-7">x</a></rr-review>`);
     await until(() => state().links[`rr:code/${file}#L6-7`]);
     expect(await cli(['check', ...d])).toMatchObject({ code: 0, stdout: expect.not.stringContaining('moved') });
+
+    const revision = async () => {
+      const stream = await reviewEvents(url);
+      try {
+        const { hash } = JSON.parse((await stream.find('hello')).data);
+        const { head } = await fetch(url + 'api/meta').then((r) => r.json());
+        return { hash, head };
+      } finally { await stream.close(); }
+    };
+    const before = await revision();
+    const report = read(reviewFile);
+    expect((await cli(['stop', ...d])).code).toBe(0);
+    expect(await cli(['start', '--no-open', '--port', new URL(url).port, ...d])).toMatchObject({ code: 0, stdout: start.stdout });
+    const after = await revision();
+    expect(read(reviewFile)).toBe(report);
+    expect(after.head).not.toBe(before.head);
+    expect(after.hash).not.toBe(before.hash);
   });
 });

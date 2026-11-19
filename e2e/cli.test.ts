@@ -7,7 +7,7 @@ import type { StoredThread } from '../src/kernel/state/schema.shared.ts';
 import { read, setup } from './fixture.ts';
 
 describe('cli', () => {
-  const { tmp, repo, dir, d, cli, state, spawn, url } = setup();
+  const { tmp, repo, dir, d, cli, state } = setup();
   let thread = '';
   beforeAll(async () => (thread = (await cli(['comment', 'general', 'why?', ...d])).stdout.trim()));
 
@@ -19,10 +19,15 @@ describe('cli', () => {
   test('--dir alone finds the repo the review dir is in', async () => expect(await cli(['check', '--dir', dir])).toMatchObject({ code: 0, stderr: '' }));
   test('pr without a target scaffolds from --base/--head and serves', async () => {
     const local = path.join(tmp, 'local-review');
-    spawn(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
-    expect((await fetch((await url(local)) + 'api/meta')).ok && fs.existsSync(path.join(local, REPORT_FILE))).toBe(true);
-    expect(JSON.parse(read(local, 'config.json'))).toMatchObject({ head: 'feat/upload-rate-limit', profile: 'explainer' });
-    expect(read(local, REPORT_FILE)).toContain('<section id="findings">'); // the explainer profile's sections
+    try {
+      const r = await cli(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
+      expect(r.code).toBe(0);
+      expect((await fetch(r.stdout.trim() + 'api/meta')).ok && fs.existsSync(path.join(local, REPORT_FILE))).toBe(true);
+      expect(JSON.parse(read(local, 'config.json'))).toMatchObject({ head: 'feat/upload-rate-limit', profile: 'explainer' });
+      expect(read(local, REPORT_FILE)).toContain('<section id="findings">'); // the explainer profile's sections
+    } finally {
+      await cli(['stop', '--dir', local]);
+    }
   });
   test('pr with an unknown report profile fails and names the profiles', async () => {
     const r = await cli(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo, '--dir', path.join(tmp, 'no-profile')]);

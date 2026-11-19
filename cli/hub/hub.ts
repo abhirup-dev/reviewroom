@@ -230,6 +230,7 @@ export class Hub {
           info.health = res.ok ? 'ok' : 'unreachable';
           // counts only (rounds, threads, tabs): /api/summary never carries thread text. Optional: a bad body is not a dead server.
           const body = res.ok ? ((await res.json().catch(() => null)) as Record<string, unknown> | null) : null;
+          if (typeof body?.prReviewId === 'string') info.prReviewId = body.prReviewId;
           info.reviewRound = num(body?.round);
           info.commentCount = num(body?.threads);
           info.unresolvedCommentCount = num(body?.open);

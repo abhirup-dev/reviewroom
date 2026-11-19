@@ -60,7 +60,7 @@ export const Round = z.object({
   deliveredAt: dateTime
     .nullable()
     .optional()
-    .describe("When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."),
+    .describe("When `reviewroom wait` printed this round's feedback. null = finished but not yet delivered. Absent on rounds finished before this field existed."),
 });
 
 export const StoredState = z.object({
@@ -127,5 +127,5 @@ export const issueText = (e: z.core.$ZodError) => issueList(e).join('; ');
 export const stateJsonSchema = () => ({
   ...z.toJSONSchema(StoredState, { target: 'draft-2020-12', io: 'input' }),
   $id: 'reviewroom/state.schema.json',
-  title: 'reviewroom review state (~/.reviewroom/reviews/<owner>-<repo>/<branch>/state.json)',
+  title: 'reviewroom review state (state.json)',
 });

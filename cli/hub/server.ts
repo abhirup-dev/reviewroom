@@ -3,7 +3,7 @@
 //   GET  /api/sessions              HubSnapshot; polls when the last poll is older than half the interval
 //   GET  /api/health                counters and the Crit/Plannotator versions against the verified ones
 //   POST /api/sessions/:id/close    SIGTERM a session a fresh poll still finds (needs x-reviewroom-action: close-session)
-//   ALL  /r/<review id>/*           the review whose dir hashes to the id, proxied to its server (ADR 0001)
+//   ALL  /r/<hash>/*                the review whose directory has this hash, proxied to its server (ADR 0001)
 // Behind hubAccess: loopback, or the configured public origin.
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
