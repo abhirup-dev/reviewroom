@@ -152,8 +152,7 @@
 .rr-seg--fill > button {
   flex: 1;
 }
-.rr-input,
-.rr-select {
+.rr-input {
   height: var(--rr-control);
   padding: 0 var(--rr-space-8);
   border: 1px solid var(--rr-line);
@@ -164,13 +163,9 @@
   min-width: 0;
 }
 .rr-input:focus,
-.rr-select:focus,
 .rr-composer__input:focus {
   outline: 2px solid var(--rr-accent-soft);
   border-color: var(--rr-accent);
-}
-.rr-select {
-  width: 100%;
 }
 .rr-root :focus-visible,
 .rr-modal :focus-visible,

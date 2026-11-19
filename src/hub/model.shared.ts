@@ -96,6 +96,10 @@ export interface SessionInfo {
   unresolvedCommentCount: number | null;
   reviewRound: number | null;
   browserClients: number | boolean | null;
+  /** reviewroom: the size of the reviewed diff (lines added and removed, files changed); null for the other tools. */
+  additions: number | null;
+  deletions: number | null;
+  changedFiles: number | null;
   /** reviewroom: the review has a guided walkthrough (walkthrough.json) */
   walkthrough?: boolean;
   /** reviewroom: first 12 hex of sha1(review dir); the hub serves the review at /r/<routeId>/ */

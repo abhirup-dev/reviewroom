@@ -86,10 +86,10 @@ const styles = [
 
 // Hub cascade: tokens, shell controls, overlays, then hub-specific rules.
 const hubStyles = [
-  ['src/kernel/styles/tokens.css'],
+  ['src/kernel/styles/tokens.css', 'src/kernel/styles/tokens.phone.css'],
   shellStyles,
   overlaysStyles,
-  ['src/hub/styles/hub.css'],
+  ['src/hub/styles/hub.css', 'src/hub/styles/hub.phone.css'],
 ];
 
 const dockviewCss = () => readFileSync(at('node_modules/dockview/dist/styles/dockview.css'), 'utf8');

@@ -72,6 +72,15 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   DESIGN.md uppercase label style. Opens with a container transform from the search icon (standard spatial spring).
 - **Drawer** (modal navigation drawer): 300px max, large trailing corners, header with title and facts, 56px items,
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
+- **Hub** (All reviews, `src/hub/styles/hub.phone.css`): an M3 list, not cards or a table. The page scrolls as one:
+  app bar, a 56px full-pill search bar, the Add PR field at touch height, the snapshot counts as 48px tabs in one
+  sideways row (the chosen one underlined in accent), filters folded to a 48px row that opens to chips. The "N
+  reviews" line shows only while a filter narrows the list. Groups are sticky 48px subheaders (14/500, name and open
+  threads). Each review is a list item with no dividers: a 40px leading avatar (the PR author, else the tool's mark)
+  with the live dot as its badge; the title as headline (16/400, wraps, never cut); one wrapping supporting line of
+  plain 14px text (PR, branch, round, state, +/−, open/total threads, agent, last active); play as the one trailing
+  action, level with the leading (a stopped review's Play starts it). The whole item opens the review. Close, Remove,
+  Use my own agent, selection and bulk Open/Close stay on the computer. A phone on its side gets the table.
 - **Walkthrough**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
   toolbar (full pill, 52px, surface-container-high, the only surface): Back, Contents, Comment, Full screen and Next are plain 44px
   icon buttons on it, no fills of their own; pressed or hovered, a round 12% / 8% state layer. Back and Next are

@@ -7,7 +7,7 @@ import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
 import { ownPanels, panelDef, panelDefs } from '../dock';
 import type * as Dockview from '../dockview';
-import { isTablet } from '../device';
+import { isTablet } from '../form';
 
 /** Conditional panels are offered once, when their provider first has content. */
 export interface PanelAvailability {
