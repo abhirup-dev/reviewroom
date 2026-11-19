@@ -16,7 +16,7 @@ type PassRow = { text: string; state: Exclude<StepState, 'upcoming'> };
 type GenStep = { id: StepId; title: string; detail: string; state: StepState; passes?: PassRow[] };
 
 const counts = (p: { slides?: number; chapters?: number }) => (p.slides === undefined ? '' : `${p.slides} slides in ${p.chapters ?? 0} chapters`);
-const stopText = (p: ArtifactProgress) => (p.reason === 'interrupted' ? 'Stopped: the review restarted' : 'Stopped before it passed the check');
+const stopText = (p: ArtifactProgress) => (p.reason === 'interrupted' ? 'Generation interrupted' : 'Stopped before it passed the check');
 
 function generationSteps({ walkthrough: w, report: r }: Progress): GenStep[] {
   const passes = w.passes ?? [];

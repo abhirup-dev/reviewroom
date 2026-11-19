@@ -273,7 +273,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   const revs = { base: cfg.base, head: cfg.head };
   const modelNow = () => ('model' in phase ? phase.model : readSettings().defaultReviewModel);
   const progressNow = () => ({ ...readProgress(dir), generation: generationOf(phase) });
-  /** The turn its pages follow (the AI SDK's active stream id), and what started it: Stop is offered for a question's. */
+  /** The turn its pages follow (the AI SDK's active stream id), and what started it. */
   const active = () => (phase.name === 'running' ? { activeStreamId: phase.id, origin: phase.origin } : { activeStreamId: null, origin: null });
   /** Every move is told to the pages: they fetch the conversation again and follow its turn. */
   const setPhase = (next: Phase) => {
@@ -337,10 +337,10 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
    *  named: the turn so far, then as it goes on (waiting while Claude starts); 204 when that turn isn't running (it
    *  ended, or another took its place: the page fetches the history again). One conversation per review: no chat id. */
   app.get('/:chatId/stream', (c) => (phase.name === 'running' && phase.id === c.req.query('turn') ? phase.stream.follow() : c.body(null, 204)));
-  /** Stop: the named turn, if it is still running and a question's (a generation runs until its turn ends or the server closes). */
+  /** Stop: the named turn, if it is still running. */
   app.post('/stop', async (c) => {
     const { streamId } = await c.req.json<{ streamId?: string }>().catch(() => ({ streamId: undefined }));
-    if (phase.name === 'running' && phase.origin === 'question' && phase.id === streamId) phase.abort.abort();
+    if (phase.name === 'running' && phase.id === streamId) phase.abort.abort();
     return c.body(null, 204);
   });
   app.get('/', async (c) => {
@@ -360,11 +360,13 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       const s = load();
       const { convertToModelMessages } = await import('ai');
       const messages = await convertToModelMessages(withContext(valid, revs));
+      signal.throwIfAborted();
       live ??= launch({ repo, dir, cfg, settings: readSettings(), store: s, model: modelNow }).catch((e: unknown) => {
         live = undefined; // let the next message retry
         throw e;
       });
       const current = await live;
+      signal.throwIfAborted();
       // The harness sends the last user message, or continues the paused turn.
       const result = await current.agent.stream({ session: current.session, messages, abortSignal: signal });
       const response = result.toUIMessageStreamResponse({

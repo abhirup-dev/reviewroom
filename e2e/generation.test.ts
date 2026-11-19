@@ -103,7 +103,10 @@ describe('the golden path: Generate, the loading screen, the walkthrough plays, 
       await page.close();
       page = await open(url);
       await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.')`, 15_000);
-      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
+      await until(page, `[...document.querySelectorAll('.rr-gen__live button')].some((b) => b.textContent === 'Stop' && !b.disabled)`);
+      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Open full').click()`);
+      await until(page, `[...document.querySelectorAll('.rr-assistant__island button')].some((b) => b.textContent === 'Stop' && !b.disabled)`);
+      await page.evaluate(`rr.app.dock.getPanel('assistant').api.close()`);
       await until(page, `document.querySelector('.rr-gen').hidden`);
       await pastPlayer(page, () => go(1), true);
       await followUp(page, () => go(2));

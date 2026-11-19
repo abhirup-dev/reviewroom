@@ -82,6 +82,7 @@ function AgentLabel({ state }: { state: AssistantState }) {
 function View({ service, host, readOnly }: { service: AssistantChat; host: HTMLElement; readOnly: boolean }) {
   const state = useSyncExternalStore(service.subscribe, service.getState);
   const runtime = useAISDKRuntime(useChat({ chat: service.chat }));
+  const stop = state.activeStreamId && <button type="button" className="rr-btn" title="Stop Claude's current turn" disabled={!state.connected} onClick={() => void service.stop().catch(console.error)}>Stop</button>;
   // the composer takes what the store holds for it: the context asked about, a refused question's text
   useEffect(() => {
     if (readOnly || (!state.quote && state.draft === undefined)) return;
@@ -104,6 +105,7 @@ function View({ service, host, readOnly }: { service: AssistantChat; host: HTMLE
             <div className="rr-assistant__working rr-muted">Working…</div>
           </AuiIf>
         </ThreadPrimitive.Viewport>
+        {readOnly && stop && <div className="rr-assistant__actions">{stop}</div>}
         {!readOnly && <ComposerPrimitive.Root className="rr-composer rr-assistant__composer">
           <ComposerPrimitive.Quote className="rr-assistant__quote">
             <ComposerAbout />
@@ -115,8 +117,7 @@ function View({ service, host, readOnly }: { service: AssistantChat; host: HTMLE
             <AuiIf condition={(s) => !s.thread.isRunning}>
               <ComposerPrimitive.Send className="rr-btn rr-btn--primary" disabled={!state.connected || !!state.activeStreamId}>Send</ComposerPrimitive.Send>
             </AuiIf>
-            {/* a question's turn, from any page; never a generation's */}
-            {state.origin === 'question' && <button type="button" className="rr-btn" title="Stop Claude's current turn" onClick={() => void service.stop().catch(console.error)}>Stop</button>}
+            {stop}
           </div>
         </ComposerPrimitive.Root>}
       </ThreadPrimitive.Root>

@@ -152,7 +152,7 @@ export function statusText(s: GenerationSnapshot): string {
     case 'report-stopped': {
       const stopped = w.state === 'stopped' ? w : r;
       const which = w.state === 'stopped' ? 'walkthrough' : 'report';
-      return stopped.reason === 'interrupted' ? `Stopped: the review restarted while the ${which} was being written` : `Stopped: the ${which} was not finished`;
+      return stopped.reason === 'interrupted' ? `Stopped while writing the ${which}` : `Stopped: the ${which} was not finished`;
     }
     case 'done': return 'Walkthrough and report ready';
     default: return 'Nothing generated yet';

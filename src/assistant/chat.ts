@@ -8,7 +8,7 @@ import type { Connection } from '../kernel/providers/contracts';
 import { TURN_HEADER, type AskContext } from './context.shared';
 
 /** GET api/assistant: the saved conversation and the turn it ends in (`activeStreamId`, the AI SDK's resumable stream
- *  id; `origin`: any page can stop a question's turn, none a generation's). */
+ *  id; `origin`: what started it). */
 export type Conversation = { model: string; status: 'idle' | 'working' | 'interrupted' | 'failed'; messages: UIMessage[]; activeStreamId: string | null; origin: 'question' | 'generation' | null };
 /** `error`: why the conversation could not load, or why a question was refused. `quote`, `draft`: for the composer to
  *  take (the context asked about; a refused question's text). */
@@ -160,7 +160,7 @@ export function createAssistantChat() {
         }
       };
     })(),
-    /** Stops the running question's turn, for every page following it (POST stop; a page that leaves only detaches). */
+    /** Stops the running turn, for every page following it (POST stop; a page that leaves only detaches). */
     stop: () => fetch('api/assistant/stop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ streamId: state.activeStreamId }) }),
   };
 }

@@ -186,7 +186,7 @@ test('a broken conversation or settings disable only the assistant, keep what wa
   expect(fs.existsSync(path.join(bad.dir, 'assistant.json'))).toBe(false); // read before the question is saved
 });
 
-test('generate requests only what is not validated and starts one turn; meanwhile it starts nothing, a question is refused, Stop does nothing; closing interrupts what it requested, not an agent\'s request', async () => {
+test('generate requests only what is not validated and starts one turn; meanwhile it starts nothing, a question is refused, Stop interrupts what it requested, not an agent\'s request', async () => {
   using r = review({ script: hangs });
   const [status, body] = await r.generate();
   expect([status, body.started, body.generation, body.walkthrough]).toEqual([200, true, { running: true, awaitingApproval: false }, { state: 'requested', by: 'assistant', request: expect.any(String), since: expect.any(String) }]);
@@ -196,9 +196,11 @@ test('generate requests only what is not validated and starts one turn; meanwhil
   const chat = await r.post([user('q1')]);
   expect([again.started, r.events().length, chat.status, await chat.text()]).toEqual([false, 2, 409, 'The assistant is writing the review.']);
   expect(r.saved().messages.map((m) => [m.role, m.metadata])).toEqual([['user', { custom: { generate: true } }]]); // the generate prompt, marked (shown folded)
-  await r.stop(await r.turn());
-  expect(await r.turn()).not.toBeNull(); // a generation is never stopped from a page
   fs.appendFileSync(path.join(r.dir, 'progress.jsonl'), JSON.stringify({ at: new Date().toISOString(), artifact: 'report', event: 'requested', by: 'agent' }) + '\n'); // pr --force meanwhile
+  await readUntil(await r.follow(), partial);
+  expect((await r.stop(await r.turn())).status).toBe(204);
+  await until(() => r.saved().status === 'interrupted');
+  expect(await r.turn()).toBeNull();
   await r.routes.close();
   expect([r.events().slice(2), r.calls.launched]).toEqual([['report requested agent', 'walkthrough stopped interrupted'], 1]);
 
