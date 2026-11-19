@@ -3,8 +3,14 @@
    under it; the whole item opens it. Selection and bulk actions stay on the computer. Loads after hub.css; scoped to
    .is-phone. */
 
-/* the page scrolls as one: the bar, the chips and the filters scroll away, leaving the screen to the cards */
+/* the page scrolls as one: the bar, the tabs and the filters scroll away, leaving the screen to the list */
 .rr-hub.is-phone {
+  /* M3 list sizes: a 56px search bar, a 72px item, a 40px leading picture placed 12px down and 16px in */
+  --search-h: calc(var(--rr-space-48) + var(--rr-space-8));
+  --item-h: calc(var(--rr-space-48) + var(--rr-space-24));
+  --lead: calc(var(--rr-space-32) + var(--rr-space-8));
+  --lead-top: var(--rr-space-12);
+  --lead-left: var(--rr-space-16);
   height: auto;
   min-height: 100dvh;
   overflow: visible;
@@ -31,7 +37,7 @@
 .rr-hub.is-phone .rr-hub__find {
   order: 1;
   flex: 1 0 100%;
-  height: calc(var(--rr-space-48) + var(--rr-space-8));
+  height: var(--search-h);
   margin-right: var(--rr-space-8);
   padding: 0 var(--rr-space-16);
   gap: var(--rr-space-12);
@@ -129,12 +135,11 @@
   background: var(--rr-bg);
   border-bottom: 0;
 }
-.rr-hub.is-phone .rr-hub__bar > .rr-btn:not(.rr-btn--ghost),
-.rr-hub.is-phone .rr-hub__count {
+.rr-hub.is-phone :is(.rr-hub__bulk, .rr-hub__count) {
   display: none;
 }
 /* the Live tab says how many; the line shows only while a filter narrows the list, with its Clear */
-.rr-hub.is-phone .rr-hub__bar:has(> .rr-btn--ghost[hidden]) {
+.rr-hub.is-phone .rr-hub__bar:not(.is-filtered) {
   display: none;
 }
 .rr-hub.is-phone .rr-hub__main {
@@ -196,15 +201,14 @@
    title as headline; one wrapping supporting line (PR, branch, round, size, threads, agent, when); play the one
    trailing action. The cells and their wrappers dissolve (display: contents) so their bits flow as one line. */
 .rr-hub.is-phone .rr-hub__table tr:not(.rr-hub__group) {
-  --lead: calc(var(--rr-space-32) + var(--rr-space-8));
   position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   column-gap: var(--rr-space-8);
   row-gap: var(--rr-space-2);
-  min-height: calc(var(--rr-space-48) + var(--rr-space-24));
-  padding: var(--rr-space-12) var(--rr-space-48) var(--rr-space-12) calc(var(--rr-space-16) * 2 + var(--lead));
+  min-height: var(--item-h);
+  padding: var(--lead-top) var(--rr-space-48) var(--lead-top) calc(var(--lead-left) * 2 + var(--lead));
   background: var(--rr-bg);
 }
 .rr-hub.is-phone .rr-hub__table tr:not(.rr-hub__group):active {
@@ -262,8 +266,8 @@
 /* leading: the author's avatar; with no author, the tool's mark takes its place */
 .rr-hub.is-phone .rr-hub__table .c-author {
   position: absolute;
-  top: var(--rr-space-12);
-  left: var(--rr-space-16);
+  top: var(--lead-top);
+  left: var(--lead-left);
 }
 .rr-hub.is-phone .rr-hub__author {
   display: block;
@@ -280,8 +284,8 @@
 }
 .rr-hub.is-phone tr:not(:has(.rr-hub__author)) .rr-hub__tool {
   position: absolute;
-  top: var(--rr-space-12);
-  left: var(--rr-space-16);
+  top: var(--lead-top);
+  left: var(--lead-left);
 }
 .rr-hub.is-phone tr:not(:has(.rr-hub__author)) .rr-hub__tool > :is(img, .rr-mark) {
   width: var(--lead);
@@ -295,8 +299,8 @@
 .rr-hub.is-phone .rr-hub__dot {
   position: absolute;
   z-index: 1;
-  top: calc(var(--rr-space-12) + var(--lead) - var(--rr-space-10));
-  left: calc(var(--rr-space-16) + var(--lead) - var(--rr-space-10));
+  top: calc(var(--lead-top) + var(--lead) - var(--rr-space-10));
+  left: calc(var(--lead-left) + var(--lead) - var(--rr-space-10));
   width: var(--rr-space-8);
   height: var(--rr-space-8);
   box-sizing: content-box;
@@ -304,10 +308,10 @@
 }
 
 /* trailing: play, level with the leading (M3 tops both on a multi-line item); opening is the item itself, and closing stays on the computer */
-.rr-hub.is-phone .rr-hub__actions > .rr-icon-btn {
+.rr-hub.is-phone .rr-hub__actions > .rr-icon-btn:not(.is-play) {
   display: none;
 }
-.rr-hub.is-phone .rr-hub__actions > a.rr-icon-btn[href$='?walkthrough'] {
+.rr-hub.is-phone .rr-hub__actions > .is-play {
   position: absolute;
   z-index: 1;
   top: var(--rr-space-8);

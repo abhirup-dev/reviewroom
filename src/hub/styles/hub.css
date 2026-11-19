@@ -2,6 +2,10 @@
    plane, and one table on paper, grouped by repository. Built only into dist/hub.css with tokens, shell and overlays
    (scripts/build.ts). */
 .rr-hub {
+  /* the checkbox column (the review column sticks right after it), the tool and avatar icons, the live dot */
+  --sel-w: 36px;
+  --icon: 18px;
+  --dot: 8px;
   --rr-panel: var(--rr-surface-doc);
   --rr-panel-2: var(--rr-surface-doc-2);
   font-variant-numeric: tabular-nums;
@@ -326,13 +330,13 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  width: 36px;
-  min-width: 36px;
+  width: var(--sel-w);
+  min-width: var(--sel-w);
   padding: 0 0 0 var(--rr-space-12);
 }
 .rr-hub__table .c-review {
   position: sticky;
-  left: 36px;
+  left: var(--sel-w);
   z-index: 1;
   width: 100%; /* takes what the other columns leave, never pushes them out */
   max-width: 0;
@@ -384,8 +388,8 @@ a.rr-hub__name:hover {
 /* status: green while a tab is open, a ring while idle, red when the server doesn't answer */
 .rr-hub__dot {
   flex: none;
-  width: 8px;
-  height: 8px;
+  width: var(--dot);
+  height: var(--dot);
   border-radius: 50%;
   box-shadow: inset 0 0 0 1.5px var(--rr-line-strong);
 }
@@ -407,11 +411,11 @@ a.rr-hub__name:hover {
 }
 .rr-hub__tool > img,
 .rr-hub__tool > .rr-mark {
-  width: 18px;
-  height: 18px;
+  width: var(--icon);
+  height: var(--icon);
 }
 .rr-hub__tool > .rr-mark {
-  font-size: 8.5px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its 18px tile */
+  font-size: 8.5px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its --icon tile */
 }
 .rr-hub__author {
   display: inline-flex;
@@ -424,10 +428,8 @@ a.rr-hub__name:hover {
 }
 .rr-hub__avatar {
   flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%; /* GitHub avatars are round everywhere in reviewroom */
-  background: var(--rr-hover);
+  width: var(--icon);
+  height: var(--icon);
 }
 .rr-hub__table .c-round {
   color: var(--rr-ink-2);

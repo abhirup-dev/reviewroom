@@ -2,7 +2,7 @@
 // own server (a review server refuses requests from other ports). A snapshot strip of counts, facets, and one table
 // grouped by repository (or author, tool); open, play, close.
 import { installButton } from '../kernel/install'; // first: it listens for Chrome's install prompt
-import { backdropCloses, diffstat, h, icon, plural, relTime, seg } from '../kernel/dom';
+import { avatarUrl, backdropCloses, diffstat, h, icon, plural, relTime, seg } from '../kernel/dom';
 import { mountTooltips } from '../kernel/tooltip';
 import { startUpdates } from '../kernel/pwa';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
@@ -108,12 +108,13 @@ const tileEls = TILES.map((t) => {
   const el = h('button', { class: 'rr-hub__tile', type: 'button', title: t.id === 'live' ? t.tip : `${t.tip}. Click to show only these`, onclick: () => { tile = tile === t.id ? 'live' : t.id; paint(); } }, h('span', { class: 'rr-hub__tile-label' }, t.label), h('span', { class: 'rr-hub__tile-num' }, value, sub));
   return { t, el, value, sub };
 });
+const GROUPS = [['repo', 'Repo', 'Group by repository'], ['author', 'Author', 'Group by pull request author'], ['tool', 'Tool', 'Group by review tool'], ['none', 'None', 'One list, no groups']] as const;
 const groupCtl = seg(
-  ([['repo', 'Repo', 'Group by repository'], ['author', 'Author', 'Group by pull request author'], ['tool', 'Tool', 'Group by review tool'], ['none', 'None', 'One list, no groups']] as const).map(([id, label, title]) => ({
+  GROUPS.map(([id, label, title]) => ({
     label, title, on: group === id,
     onclick: () => {
       group = id;
-      groupCtl.querySelectorAll('button').forEach((b, i) => { const on = i === ['repo', 'author', 'tool', 'none'].indexOf(id); b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+      groupCtl.querySelectorAll('button').forEach((b, i) => { const on = GROUPS[i][0] === id; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
       paint();
     },
   })),
@@ -136,10 +137,11 @@ narrow.addEventListener('change', () => (rail.open = !narrow.matches));
 
 const shown = h('span', { class: 'rr-hub__shown' });
 const count = h('span', { class: 'rr-hub__count' });
-const openBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
-const closeBtn = h('button', { class: 'rr-btn rr-btn--small', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
+const openBtn = h('button', { class: 'rr-btn rr-btn--small rr-hub__bulk', disabled: true, title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
+const closeBtn = h('button', { class: 'rr-btn rr-btn--small rr-hub__bulk', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
 const clearBtn = h('button', { class: 'rr-btn rr-btn--ghost rr-btn--small', hidden: true, title: 'Clear every filter', onclick: () => { q.value = ''; tile = 'live'; for (const k of Object.keys(facet) as Facet[]) delete facet[k]; paint(); } }, 'Clear filters');
 const all = h('input', { type: 'checkbox', class: 'rr-hub__check', 'aria-label': 'Select all shown', title: 'Select every session shown', onchange: () => { visible().forEach((s) => (all.checked ? selected.add(s.id) : selected.delete(s.id))); paint(); } });
+const bar = h('div', { class: 'rr-hub__bar' }, shown, h('span', { class: 'rr-hub__spacer' }), count, openBtn, closeBtn, clearBtn);
 const empty = h('div', { class: 'rr-empty rr-hub__empty' }, 'Looking for running reviews…');
 
 const columns: [SortKey | null, string, string, string?][] = [
@@ -188,7 +190,7 @@ root.append(
       h(
         'main',
         { class: 'rr-hub__main' },
-        h('div', { class: 'rr-hub__bar' }, shown, h('span', { class: 'rr-hub__spacer' }), count, openBtn, closeBtn, clearBtn),
+        bar,
         h('div', { class: 'rr-hub__scroll' }, table, empty),
       ),
     ),
@@ -271,7 +273,7 @@ function row(s: SessionInfo) {
       'td',
       { class: 'c-author' },
       s.author
-        ? h('span', { class: 'rr-hub__author', title: `@${s.author} opened this pull request` }, h('img', { class: 'rr-hub__avatar', src: `https://avatars.githubusercontent.com/${s.author}?s=40`, alt: '', loading: 'lazy' }), s.author)
+        ? h('span', { class: 'rr-hub__author', title: `@${s.author} opened this pull request` }, h('img', { class: 'rr-avatar rr-avatar--gh rr-hub__avatar', src: avatarUrl(`https://avatars.githubusercontent.com/${s.author}`, 40), alt: '', loading: 'lazy' }), s.author)
         : h('span', { class: 'rr-hub__dim' }, '–'),
     ),
     h('td', { class: 'c-round', title: s.reviewRound == null ? 'Not reported by this tool' : `Round ${s.reviewRound}` }, s.reviewRound == null ? h('span', { class: 'rr-hub__dim' }, '–') : `R${s.reviewRound}`),
@@ -285,8 +287,8 @@ function row(s: SessionInfo) {
       h(
         'div',
         { class: 'rr-hub__actions' },
-        s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the guided walkthrough', 'aria-label': `Play the guided walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
-        s.url ? h('a', { class: 'rr-icon-btn is-open', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : null,
+        s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn is-play', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the guided walkthrough', 'aria-label': `Play the guided walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
+        s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : null,
         // #rr-browser: the app hands this one to the browser instead
         inApp && s.url ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in the browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
         h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
@@ -298,7 +300,7 @@ function row(s: SessionInfo) {
 /** A group's header row: its name and totals, a button that folds it. */
 function groupHead(name: string, rows: SessionInfo[]) {
   const shut = collapsed.has(name);
-  const open = rows.reduce((n, s) => n + (s.unresolvedCommentCount ?? 0), 0);
+  const openThreads = rows.reduce((n, s) => n + (s.unresolvedCommentCount ?? 0), 0);
   const down = rows.filter((s) => s.health === 'unreachable').length;
   const latest = rows.map(activity).filter((t): t is string => !!t).sort().pop();
   return h(
@@ -314,7 +316,7 @@ function groupHead(name: string, rows: SessionInfo[]) {
         h('span', { class: group === 'repo' ? 'rr-hub__group-name rr-hub__mono' : 'rr-hub__group-name' }, name),
         h('span', { class: 'rr-hub__dim' }, plural(rows.length, 'review') + (latest ? ` · active ${when(latest)}` : '')),
         h('span', { class: 'rr-hub__spacer' }),
-        open ? h('span', { class: 'rr-hub__group-open' }, plural(open, 'open thread')) : null,
+        openThreads ? h('span', { class: 'rr-hub__group-open' }, plural(openThreads, 'open thread')) : null,
         down ? h('span', { class: 'rr-hub__group-down' }, `${down} unreachable`) : null,
       ),
     ),
@@ -377,6 +379,7 @@ function paint() {
   openBtn.disabled = !picked.some((s) => s.url);
   closeBtn.disabled = !picked.length;
   clearBtn.hidden = tile === 'live' && !q.value && !Object.keys(facet).length;
+  bar.classList.toggle('is-filtered', !clearBtn.hidden);
   all.checked = !!rows.length && picked.length === rows.length;
   all.indeterminate = picked.length > 0 && picked.length < rows.length;
   heads.forEach((th) => (th.dataset.sort === sort.key ? th.setAttribute('aria-sort', sort.dir > 0 ? 'ascending' : 'descending') : th.removeAttribute('aria-sort')));
