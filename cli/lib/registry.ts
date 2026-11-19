@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fail } from './args.ts';
-import { answers } from './lock.ts';
+import { answers, releaseLock, takeLock } from './lock.ts';
 import { hubFile, hubLog, registryDir } from './paths.ts';
 import type { Agent } from '../hub/proc.ts';
 
@@ -48,7 +48,19 @@ export function unregister(pid: number) {
 // `pid`: stop only that server (the hub closing the session it showed), not one that has replaced it since.
 export async function stopServer(dir: string, pid?: number) {
   const rec = liveServer(dir);
-  if (!rec || rec.pid === process.pid || (pid !== undefined && rec.pid !== pid) || !(await answers(rec.pid, rec.port, 1500))) return null;
+  if (!rec) {
+    const file = serverFile(dir);
+    // A concurrent start writes its record under this lock.
+    if (pid === undefined && fs.existsSync(file) && !(await takeLock(dir))) {
+      try {
+        if (!liveServer(dir)) fs.rmSync(file, { force: true });
+      } finally {
+        releaseLock(dir);
+      }
+    }
+    return null;
+  }
+  if (rec.pid === process.pid || (pid !== undefined && rec.pid !== pid) || !(await answers(rec.pid, rec.port, 1500))) return null;
   try {
     process.kill(rec.pid, 'SIGTERM');
   } catch {}
