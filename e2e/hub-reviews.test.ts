@@ -57,7 +57,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     id = (await r.json()).id;
     expect(fs.existsSync(path.join(tmp, 'home', 'repos', 'acme', 'demo', '.git'))).toBe(true);
     const [s] = await ours();
-    expect(s).toMatchObject({ id: `review:${id}`, stopped: true, generation: 'idle', pid: null, url: null, repository: 'demo', prUrl: PR });
+    expect(s).toMatchObject({ id: `review:${id}`, stopped: true, generation: 'idle', hasWork: false, pid: null, url: null, repository: 'demo', prUrl: PR });
     expect(config(s.reviewPath!).assistant).toBeUndefined();
   }, 60_000);
 
@@ -163,11 +163,18 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     const again = await (await post(`api/reviews/${id}/play`, 'play-review')).json();
     expect([again.started, again.pid, again.url, again.generate]).toEqual([false, pid, first.url, null]);
     expect(config((await ours())[0].reviewPath!).assistant).toBe(true);
+    expect((await post(`api/reviews/${id}/remove`, 'remove-review')).status).toBe(409); // running: Close it first
   }, 60_000);
 
-  test('closing it lists it stopped again', async () => {
+  test('closing it lists it stopped again; Remove then deletes its folder and it is gone', async () => {
     expect((await post(`api/sessions/${encodeURIComponent(`reviewroom:${pid}`)}/close`, 'close-session')).status).toBe(202);
-    expect(await ours()).toEqual([expect.objectContaining({ id: `review:${id}`, stopped: true })]);
+    const [s] = await ours();
+    expect(s).toMatchObject({ id: `review:${id}`, stopped: true, hasWork: true }); // its walkthrough: the page asks first
+    expect((await fetch(hub + `api/reviews/${id}/remove`, { method: 'POST' })).status).toBe(403); // no action header
+    expect((await post(`api/reviews/${id}/remove`, 'remove-review')).status).toBe(200);
+    expect([fs.existsSync(s.reviewPath!), fs.existsSync(path.join(tmp, 'home', 'repos', 'acme', 'demo', '.git'))]).toEqual([false, true]);
+    expect(await ours()).toEqual([]);
+    expect((await post(`api/reviews/${id}/remove`, 'remove-review')).status).toBe(404);
   }, 60_000);
 
   test('a running review in a custom --dir shows its generation state too', async () => {

@@ -5,6 +5,7 @@
 //   POST /api/sessions/:id/close    SIGTERM a session a fresh poll still finds (needs x-reviewroom-action: close-session)
 //   POST /api/reviews               { url }: Add a PR (needs x-reviewroom-action: add-review)
 //   POST /api/reviews/:id/play      start a stopped review, or find the running one (play-review)
+//   POST /api/reviews/:id/remove    delete a stopped review's folder; a running one is refused (remove-review)
 //   ALL  /r/<review id>/*           the review whose dir hashes to the id, proxied to its server (ADR 0001)
 // Behind hubAccess: loopback, or the configured public origin.
 import { Hono, type Context } from 'hono';
@@ -15,7 +16,7 @@ import type { Hub } from './hub.ts';
 import { guarded } from '../lib/server.ts';
 import { PWA_HEAD, serveClient } from '../lib/pwa.ts';
 import { serveProxy } from './proxy.ts';
-import { addPr, play } from './reviews.ts';
+import { addPr, play, remove } from './reviews.ts';
 
 const PAGE = `<!doctype html>
 <html lang="en">
@@ -84,6 +85,12 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
     const r = await play(c.req.param('id'), hub.entry);
     hub.invalidate();
     return r.ok ? c.json(r) : c.json({ error: r.error }, 409);
+  });
+  app.post('/api/reviews/:id/remove', async (c) => {
+    if (!action(c, 'remove-review')) return refused(c);
+    const r = await remove(c.req.param('id'));
+    hub.invalidate();
+    return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   });
   return app;
 }

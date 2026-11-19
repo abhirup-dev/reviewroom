@@ -108,6 +108,8 @@ export const icons = {
   // the web: a globe (All reviews, the hub's page)
   globe: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM2.5 8h11M8 2.5c-1.5 1.5-2.3 3.3-2.3 5.5s.8 4 2.3 5.5c1.5-1.5 2.3-3.3 2.3-5.5S9.5 4 8 2.5z'),
   maximize: P('M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'),
+  // remove something for good: a bin
+  trash: P('M2.5 4h11M6 4V2.5h4V4M4 4l.75 9.5h6.5L12 4M6.75 6.5v4.5M9.25 6.5v4.5'),
 };
 
 export const icon = (name: keyof typeof icons, size = 16) => svg(icons[name], size);

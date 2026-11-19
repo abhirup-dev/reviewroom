@@ -16,6 +16,7 @@ import { readProgress } from '../lib/progress.ts';
 import { liveServer, reviewId, startDetached, type ServerRecord } from '../lib/registry.ts';
 import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.shared.ts';
 import type { GenerationState } from '../../src/hub/model.shared.ts';
+import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 
 const run = promisify(execFile);
 
@@ -48,7 +49,9 @@ export function generationOf(dir: string): GenerationState | undefined {
   }
 }
 
-export type DiskReview = { dir: string; id: string; repo: string; title: string | null; number: number | string | null; prUrl: string | null; branch: string | null; generation: GenerationState; updatedAt: string | null };
+export type DiskReview = { dir: string; id: string; repo: string; title: string | null; number: number | string | null; prUrl: string | null; branch: string | null; generation: GenerationState; hasWork: boolean; updatedAt: string | null };
+// what Remove would lose; Add writes only config.json, a scaffolded report and the PR snapshot
+const WORK = [WALKTHROUGH_FILE, 'state.json', 'assistant.json', 'rounds'];
 
 /** Every review folder with a config.json (a broken one is skipped: the hub lists, it doesn't repair). */
 export function diskReviews(): DiskReview[] {
@@ -64,9 +67,10 @@ export function diskReviews(): DiskReview[] {
     if (!fs.existsSync(file)) return [];
     try {
       const c = readConfig(dir);
+      const generation = generationState(readProgress(dir));
       return [{
         dir, id: reviewId(dir), repo: c.repoPath ?? '', title: c.title ?? null, number: c.number ?? null, prUrl: c.url ?? null, branch: c.headLabel ?? c.head ?? null,
-        generation: generationState(readProgress(dir)), updatedAt: fs.statSync(file).mtime.toISOString(),
+        generation, hasWork: generation !== 'idle' || WORK.some((f) => fs.existsSync(path.join(dir, f))), updatedAt: fs.statSync(file).mtime.toISOString(),
       }];
     } catch {
       return [];
@@ -199,5 +203,19 @@ export async function play(id: string, entry = process.argv[1]): Promise<PlayRes
     if (!started) return { ok: false, error: `The review did not start: see ${path.join(review.dir, 'server.log')}` };
     const gen = review.generation === 'ready' ? null : await generate(started);
     return { ok: true, url: started.url, pid: started.pid, started: true, generate: gen };
+  });
+}
+
+/** Remove a stopped review: its folder is deleted (the page asked first if it held work). The repository's clone stays:
+ *  other reviews may use it. A running one is refused: Close it first. */
+export async function remove(id: string): Promise<{ ok: true } | { ok: false; error: string; status: 404 | 409 }> {
+  const found = diskReviews().find((r) => r.id === id); // the folder comes from disk, never from the request
+  if (!found) return { ok: false, error: 'No such review on this machine.', status: 404 };
+  // one at a time with Plays, closes and re-adds of it: a Play waiting behind this finds nothing to start
+  return serialized(found.dir, async () => {
+    const live = liveServer(found.dir);
+    if (live && (await answers(live.pid, live.port, 1500)) !== false) return { ok: false, error: 'It is running: Close it first.', status: 409 };
+    fs.rmSync(found.dir, { recursive: true, force: true });
+    return { ok: true };
   });
 }

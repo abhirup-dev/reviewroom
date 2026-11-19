@@ -105,6 +105,8 @@ export interface SessionInfo {
   /** reviewroom: the pull request's URL, for a review of one */
   prUrl?: string | null;
   generation?: GenerationState;
+  /** reviewroom, stopped: it holds work Remove would lose (documents, threads, the assistant's transcript) */
+  hasWork?: boolean;
   interacted: boolean | null;
   /** When the hub first saw this session (kept across polls). */
   firstSeenAt: string;

@@ -158,6 +158,29 @@ function ownAgent(s: SessionInfo) {
   box.showModal();
   copy.focus();
 }
+/** Remove a stopped review's folder; asks first only if it holds work (documents, threads, the assistant's transcript). */
+function removeReview(s: SessionInfo) {
+  const go = async () => {
+    const r = await fetch(`/api/reviews/${encodeURIComponent(s.reviewId ?? '')}/remove`, action('remove-review')).catch((e: Error) => e);
+    const error = r instanceof Error ? r.message : r.ok ? null : (((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'It was not removed.');
+    notice = error ? { text: error, risk: true } : { text: `Removed “${subject(s)}”.` };
+    selected.delete(s.id);
+    await refresh();
+  };
+  if (!s.hasWork) return void go();
+  const close = () => box.close();
+  const confirm = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => { confirm.disabled = true; void go().finally(close); } }, 'Remove review');
+  const box = h(
+    'dialog',
+    { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Remove review', onmousedown: backdropCloses, onclose: () => box.remove() },
+    h('header', { class: 'rr-thread__head' }, h('strong', null, 'Remove review?'), h('span', { class: 'rr-hub__spacer' }), h('button', { class: 'rr-icon-btn', 'aria-label': 'Cancel', title: 'Cancel', onclick: close }, icon('close', 14))),
+    h('div', { class: 'rr-send__body' }, h('p', { class: 'rr-hub__p' }, `Review artifacts will be lost: the walkthrough, report, threads and assistant conversation of “${subject(s)}”.`), h('p', { class: 'rr-hub__p rr-hub__dim' }, 'The repository and its clone stay. Adding the PR again starts a fresh review.')),
+    h('footer', { class: 'rr-composer__foot rr-hub__foot' }, h('button', { class: 'rr-btn', onclick: close }, 'Cancel'), confirm),
+  );
+  document.body.append(box);
+  box.showModal();
+  confirm.focus();
+}
 const stateOf: Record<GenerationState, string> = { idle: 'not generated', generating: 'generating', ready: 'ready', stopped: 'generation stopped' };
 const banners = h('div', { class: 'rr-hub__banners' });
 const count = h('span', { class: 'rr-hub__count' });
@@ -291,7 +314,9 @@ function row(s: SessionInfo) {
         s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the walkthrough', 'aria-label': `Play the walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
         // #rr-browser: the app hands this one to the browser instead
         inApp && s.url ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in the browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
-        s.stopped ? null : h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
+        s.stopped
+          ? h('button', { class: 'rr-icon-btn', title: s.hasWork ? 'Remove this review and its artifacts (asks first)' : 'Remove this review', 'aria-label': `Remove ${subject(s)}`, onclick: () => removeReview(s) }, icon('trash', 14))
+          : h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
       ),
     ),
   );

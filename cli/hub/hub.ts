@@ -255,7 +255,7 @@ export class Hub {
       if ([...next.values()].some((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir)) continue;
       const info = session(`review:${d.id}`, 'reviewroom', now, {
         cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, reviewId: d.id, branch: d.branch,
-        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, prUrl: d.prUrl,
+        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, hasWork: d.hasWork, prUrl: d.prUrl,
       });
       withClassification(info, classifySession({ tool: 'reviewroom', mode: 'review', label: d.title, pr: d.number, head: d.branch ?? undefined }));
       next.set(info.id, info);
