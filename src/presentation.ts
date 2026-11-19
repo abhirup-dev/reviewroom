@@ -44,6 +44,9 @@ export const desktop: PresentationModule = {
         app.walkthrough || app.walkthroughIssues
           ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `${WALKTHROUGH_FILE} is invalid: ${app.walkthroughIssues[0]}` : 'Play the walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Walkthrough'))
           : null,
+        app.meta.assistant
+          ? h('button', { class: 'rr-hbtn', title: 'Open the assistant: the same conversation that wrote this review', onclick: () => app.commands.run('assistant.open') }, icon('thread', 14), h('span', null, 'Assistant'))
+          : null,
         ...threadHeaderControls(app),
       ],
       afterTheme: () => [feedbackButton(app)],
