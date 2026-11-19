@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { progressHash, recordArtifact } from '../lib/progress.ts';
-import { makeProvider, type Provider } from '../lib/git.ts';
+import { isFullSha, makeProvider, type Provider } from '../lib/git.ts';
 import { dirForEdit, loadConfig } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, extractLinks, uncomment, prepareSymbols, type SymbolResolver, type LinkResult } from '../lib/links.ts';
@@ -66,7 +66,7 @@ export async function runCheck(repo: string | null, dir: string, o: CheckOptions
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);
   const notes = staticNotes(value, prov, o, selected);
   const bad = locations ? problems(results).map((r) => ({ ...r, where: locations.get(r.ref) })) : locate(problems(results), value);
-  return { tour: value, results, bad, healed, reportHash: progressHash(fixed), head: /^[a-f0-9]{40}$/.test(raw.head) ? raw.head : undefined, notes, selection };
+  return { tour: value, results, bad, healed, reportHash: progressHash(fixed), head: isFullSha(raw.head) ? raw.head : undefined, notes, selection };
 }
 
 export const WALKTHROUGH_SCHEMA = path.join(PKG, 'schema', 'walkthrough.schema.json');

@@ -12,7 +12,7 @@ export const hubFile = () => path.join(homeDir(), 'hub.json');
 export const hubLog = () => path.join(homeDir(), 'hub.log');
 /** The reviewer's settings for this machine: publicOrigin (ADR 0001), assistant defaults and reviewAgentPromptFile. */
 export const settingsFile = () => path.join(homeDir(), 'config.json');
-/** Every review on this machine: reviews/<owner>-<repo>/<branch>/ (resolveDir). */
+/** Root for both PR and local review folders. */
 export const reviewsDir = () => path.join(homeDir(), 'reviews');
 /** HOME for harness bootstrap/state, separate from the native agent's real HOME and login. */
 export const assistantHome = () => path.resolve(homeDir(), 'assistant');

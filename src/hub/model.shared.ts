@@ -101,6 +101,8 @@ export interface SessionInfo {
   walkthrough?: boolean;
   /** reviewroom: first 12 hex of sha1(review dir); the hub serves the review at /r/<reviewId>/ */
   reviewId?: string;
+  /** Stable PR identity in owner/repo#n form. */
+  prReviewId?: string;
   interacted: boolean | null;
   /** When the hub first saw this session (kept across polls). */
   firstSeenAt: string;

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createActor, fromCallback, fromPromise, SimulatedClock } from 'xstate';
 import { emptyState, type ReviewState } from '../state/model.shared.ts';
-import { roundStatus, syncMachine, unsent, view } from './sync.machine.ts';
+import { syncMachine, unsent, view } from './sync.machine.ts';
 import { tick } from '../../testing/wait';
 import { fixture, type Fixture } from '../../testing/fixture';
 import type { Op } from '../state/schema.shared.ts';
@@ -126,7 +126,7 @@ test('the stream reconnects after a drop and catches up; a new run reloads once 
   t.a.send({ type: 'op', op: pin('a') });
   t.a.send({ type: 'down' });
   t.clock.increment(2000);
-  t.a.send({ type: 'hello', hash: 'h2', started: S }); // a new `reviewroom review` run
+  t.a.send({ type: 'hello', hash: 'h2', started: S }); // the report or Git range changed
   expect(t.out.some((e) => e.type === 'reload')).toBe(false);
   await t.reply({ rev: 6 });
   expect(t.out.filter((e) => e.type === 'reload').length).toBe(1);
@@ -165,14 +165,6 @@ test('a rejection is an answer: a stall that ends in one is over', async () => {
   t.clock.increment(3000);
   await t.reply({ rejected: 0, error: 'gone' });
   expect([t.ctx().failures, unsent(t.ctx())]).toEqual([0, false]);
-});
-
-test('round status comes from the state and which run of the server this is', () => {
-  const sent = (sentAt: string): ReviewState => ({ ...at(3), round: 3, rounds: [{ n: 2, status: 'sent', startedAt: T0, sentAt }, { n: 3, status: 'open', startedAt: sentAt }] });
-  expect(roundStatus({ base: sent('2026-10-17T10:00:05.000Z'), started: T0 })).toBe('waiting'); // sent during this run
-  expect(roundStatus({ base: sent('2026-10-17T10:00:05.000Z'), started: '2026-10-17T11:00:00.000Z' })).toBe(null); // a later run: the agent is back
-  expect(roundStatus({ base: sent('2026-10-17T10:00:05.000Z'), started: null })).toBe(null); // not connected yet
-  expect(roundStatus({ base: { ...at(2), round: 2, rounds: [{ n: 2, status: 'approved', startedAt: T0, sentAt: T0 }] }, started: T0 })).toBe('approved');
 });
 
 test('a due reload still goes once a send fails, even after a success in between', async () => {

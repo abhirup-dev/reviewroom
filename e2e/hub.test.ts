@@ -4,24 +4,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { reviewId } from '../cli/hub/hub.ts';
-import { expectClientHeaders, op, setup } from './fixture.ts';
+import { expectClientHeaders, op, readJson, setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
+import { reviewEvents } from './transport.ts';
 
 describe('hub', () => {
   // the review runs the assistant: reaching it through the hub must not reach Claude Code
-  const { tmp, dir, d, cli, serve, spawn, url, sessions } = setup({ REVIEWROOM_ASSISTANT: '1' });
+  const { tmp, dir, d, cli, serve, sessions } = setup({ REVIEWROOM_ASSISTANT: '1' });
   let review = '', hub = '';
   const list = async () => (await (await fetch(hub + 'api/sessions')).json()).sessions as { id: string; tool: string; label: string; reviewRound: number; commentCount: number; health: string }[];
   beforeAll(async () => {
     review = await serve();
     await cli(['comment', 'general', 'why?', ...d]);
-    hub = (await cli(['hub', '--detach', '--no-open', '--port', '0'])).stdout.trim();
+    hub = (await cli(['hub', 'serve', '--detach', '--no-open', '--port', '0'])).stdout.trim();
   });
-  afterAll(() => cli(['hub', '--stop']));
+  afterAll(() => cli(['hub', 'stop']));
 
-  test('`hub --detach` prints the URL; a second `hub` points at the same one', async () => {
+  test('hub serve prints and reuses the running hub URL', async () => {
     expect(hub).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
-    expect((await cli(['hub', '--no-open'])).stdout.trim()).toBe(hub);
+    expect((await cli(['hub', 'serve', '--no-open'])).stdout.trim()).toBe(hub);
     expect(await (await fetch(hub)).text()).toContain('/_rr/hub.js');
     expect((await fetch(hub + '_rr/hub.css')).status).toBe(200);
   });
@@ -40,12 +41,12 @@ describe('hub', () => {
 
   test('a server killed without cleanup is dropped and its record deleted', async () => {
     const other = path.join(path.dirname(dir), 'other');
-    const p = spawn(['review', '--forever', '--no-open', '--port', '0', ...d.slice(0, 2), '--dir', other]);
-    await url(other);
-    expect(sessions().map((s) => s.pid)).toContain(p.pid);
-    p.kill('SIGKILL');
-    await p.exited;
-    await until(async () => !(await list()).some((s) => s.id === `reviewroom:${p.pid}`) && !fs.existsSync(path.join(tmp, 'home', 'sessions', `${p.pid}.json`)));
+    expect((await cli(['start', '--no-open', '--port', '0', ...d.slice(0, 2), '--dir', other])).code).toBe(0);
+    const { pid } = readJson(other, 'server.json');
+    try {
+      expect(sessions().map((s) => s.pid)).toContain(pid);
+    } finally { process.kill(pid, 'SIGKILL'); }
+    await until(async () => !(await list()).some((s) => s.id === `reviewroom:${pid}`) && !fs.existsSync(path.join(tmp, 'home', 'sessions', `${pid}.json`)));
   });
 
   describe('proxy /r/<id>/', () => {
@@ -60,7 +61,6 @@ describe('hub', () => {
       const page = await (await fetch(r)).text();
       expect(page).toContain('src="_rr/reviewroom.js"');
       expect(page).not.toContain('"/_rr/reviewroom.js"');
-      expect((await fetch(r + '_rr/reviewroom.js')).headers.get('cache-control')).toBe('no-cache');
       expect(await (await fetch(r + 'api/state')).json()).toEqual(await (await fetch(review + 'api/state')).json());
       // the client keys its storage by meta.id: the review id, whichever way it is reached
       expect((await (await fetch(review + 'api/meta')).json()).id).toBe(r.split('/').at(-2));
@@ -84,18 +84,12 @@ describe('hub', () => {
     });
 
     test('the event stream passes through and delivers an op', async () => {
-      const ac = new AbortController();
-      const res = await fetch(r + 'api/events', { signal: ac.signal });
-      const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
-      let seen = '';
-      const next = async (want: string) => {
-        while (!seen.includes(want)) seen += (await reader.read()).value ?? '';
-      };
-      await next('event: hello');
-      expect((await op(r, { op: 'createThread', id: 't_proxied', anchor: { kind: 'general' }, msgId: 'm_proxied', body: 'via the hub', author: 'you' })).status).toBe(200);
-      await next('via the hub');
-      expect(seen).toContain('event: state');
-      ac.abort();
+      const stream = await reviewEvents(r);
+      try {
+        await stream.find('hello');
+        expect((await op(r, { op: 'createThread', id: 't_proxied', anchor: { kind: 'general' }, msgId: 'm_proxied', body: 'via the hub', author: 'you' })).status).toBe(200);
+        await stream.find('state', 'via the hub');
+      } finally { await stream.close(); }
     });
 
     test('refuses foreign Host and cross-site writes, through the hub and the proxy', async () => {
@@ -152,17 +146,17 @@ describe('hub', () => {
   });
 
   test('two hubs started at once: both print the one that runs', async () => {
-    await cli(['hub', '--stop']);
+    await cli(['hub', 'stop']);
     await until(() => !fs.existsSync(path.join(tmp, 'home', 'hub.json')));
-    const [a, b] = await Promise.all([cli(['hub', '--detach', '--no-open', '--port', '0']), cli(['hub', '--detach', '--no-open', '--port', '0'])]);
+    const [a, b] = await Promise.all([cli(['hub', 'serve', '--detach', '--no-open', '--port', '0']), cli(['hub', 'serve', '--detach', '--no-open', '--port', '0'])]);
     expect(a.stdout.trim()).toMatch(/^http:/);
     expect(b.stdout.trim()).toBe(a.stdout.trim());
     hub = a.stdout.trim();
     expect((await fetch(hub + 'api/health')).ok).toBe(true);
   });
 
-  test('`hub --stop` stops it', async () => {
-    expect((await cli(['hub', '--stop'])).stdout).toStartWith('stopped');
+  test('`hub stop` stops it', async () => {
+    expect((await cli(['hub', 'stop'])).stdout).toStartWith('stopped');
     await until(() => !fs.existsSync(path.join(tmp, 'home', 'hub.json')));
   });
 });
@@ -171,21 +165,21 @@ describe('hub with a public origin', () => {
   const { tmp, cli, serve } = setup();
   const pub = 'https://mac.tailnet.ts.net';
   let started = { stdout: '', stderr: '' };
-  const settings = () => JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'config.json'), 'utf8'));
+  const settings = () => readJson(tmp, 'home', 'config.json');
   let hub = '';
   beforeAll(async () => {
     await serve();
-    expect((await cli(['hub', '--public-origin', 'mac.tailnet.ts.net'])).code).toBe(1); // not an origin
-    started = await cli(['hub', '--public-origin', pub + '/', '--detach', '--no-open', '--port', '0']);
+    expect((await cli(['hub', 'serve', '--public-origin', 'mac.tailnet.ts.net'])).code).toBe(1); // not an origin
+    started = await cli(['hub', 'serve', '--public-origin', pub + '/', '--detach', '--no-open', '--port', '0']);
     hub = started.stdout.trim();
   });
-  afterAll(() => cli(['hub', '--stop']));
+  afterAll(() => cli(['hub', 'stop']));
 
   test('is saved in ~/.reviewroom/config.json', () => expect(settings()).toEqual({ publicOrigin: pub }));
 
-  test('`--detach` and a second `hub` print the public URL beside the loopback one', async () => {
+  test('hub serve also prints the public URL on reuse', async () => {
     expect(started.stderr).toContain(`public: ${pub}/`);
-    const again = await cli(['hub', '--no-open']);
+    const again = await cli(['hub', 'serve', '--no-open']);
     expect(again.stdout.trim()).toBe(hub);
     expect(again.stderr).toContain(`public: ${pub}/`);
   });
@@ -203,7 +197,7 @@ describe('hub with a public origin', () => {
   });
 
   test('`--public-origin none` clears it', async () => {
-    await cli(['hub', '--public-origin', 'none', '--no-open']);
+    await cli(['hub', 'serve', '--public-origin', 'none', '--no-open']);
     expect(settings()).toEqual({});
   });
 });

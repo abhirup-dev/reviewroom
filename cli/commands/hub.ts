@@ -60,14 +60,14 @@ export async function cmdHub(o: HubOpts) {
     return console.log(live ? `stopped the hub on port ${live.port}` : 'no hub running');
   }
   if (live) {
-    console.error(`reviewroom: the hub is already running (pid ${live.pid})${pubNote()}${o.publicOrigin !== undefined ? '; restart it (`reviewroom hub --stop`, then `reviewroom hub`) to use the new public origin' : ''}`);
+    console.error(`reviewroom: the hub is already running (pid ${live.pid})${pubNote()}${o.publicOrigin !== undefined ? '; restart it (`reviewroom hub stop`, then `reviewroom hub serve`) to use the new public origin' : ''}`);
     return show(live.url);
   }
   if (!fs.existsSync(path.join(DIST, 'hub.js'))) fail(`missing build at ${DIST} - run \`bun run build\` in ${PKG}`);
   if (o.detach) {
     const url = await ensureHub(o.port);
     if (!url) fail(`the hub did not start - see ${hubLog()}`);
-    console.error(`reviewroom: hub running in the background${pubNote()} | stop it with \`reviewroom hub --stop\``);
+    console.error(`reviewroom: hub running in the background${pubNote()} | stop it with \`reviewroom hub stop\``);
     return show(url);
   }
   let stale = '';

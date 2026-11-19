@@ -43,6 +43,8 @@ const capPerFile = (hits: SearchHit[], n: number) => {
 // Every rev that reaches git argv passes through here: a leading `-` would be read as an option
 // (`--output=...` writes files), so revs are restricted to ref/sha syntax.
 export const isRev = (r: unknown): r is string => typeof r === 'string' && /^[\w@][\w./~^@{}+-]*$/.test(r);
+/** A full SHA-1 can identify immutable file content. */
+export const isFullSha = (rev: string) => /^[0-9a-f]{40}$/.test(rev);
 export const checkRev = (r: unknown) => {
   if (isRev(r)) return r;
   throw new ReviewroomError(`invalid revision ${JSON.stringify(r)}`);
@@ -58,8 +60,16 @@ export function defaultBase(repo: string) {
   return 'HEAD~1';
 }
 
-export function remoteName(repo: string) {
-  const url = (git(['remote', 'get-url', 'origin'], repo, { soft: true }) || '').trim();
+const remoteUrl = (repo: string, remote: string) => git(['remote', 'get-url', remote], repo, { soft: true })?.trim() ?? '';
+
+export function remoteHost(repo: string, remote: string): string | undefined {
+  const url = remoteUrl(repo, remote);
+  // Git also accepts scp-style SSH remotes such as git@github.com:owner/repo.git.
+  return URL.parse(url)?.hostname || /^(?:[^@/:]+@)?([^/:]+):[^/]/.exec(url)?.[1];
+}
+
+export function remoteName(repo: string, remote = 'origin') {
+  const url = remoteUrl(repo, remote);
   const m = url.match(/[:/]([^/:]+\/[^/]+?)(\.git)?$/);
   if (m) return m[1];
   // no remote: the main checkout's name, so every worktree of the repo gets the same one
@@ -118,7 +128,7 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
         : (git(['log', '--reverse', '--format=%s', `${base}..${head}`], repo, { soft: true }) || '').split('\n')[0].trim() || git(['log', '-1', '--format=%s', head], repo).trim();
       return {
         title: cfg.title || subject,
-        repo: cfg.repo || remoteName(repo),
+        repo: cfg.repo || remoteName(repo, cfg.remote),
         path: realRepo,
         number: cfg.number,
         author: cfg.author || (!isWT(head) ? git(['log', '-1', '--format=%an', head], repo).trim() : undefined),

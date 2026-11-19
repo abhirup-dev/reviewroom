@@ -2,7 +2,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit } from '../lib/config.ts';
+import { dirForEdit, readConfig } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
 import { anchorOf, anchorRef } from '../../src/kernel/refs/refs.shared.ts';
@@ -31,7 +31,7 @@ export function cmdThreads(repo: string | null, o: Global & { all?: boolean; jso
   const list = s.threads.filter((t) => o.all || t.status === 'open');
   const github = cachedThreads(dir).filter((t) => o.all || t.status === 'open');
   if (o.json) {
-    console.log(JSON.stringify({ round: s.round, threads: list, github }, null, 2));
+    console.log(JSON.stringify({ id: readConfig(dir).id, round: s.round, threads: list, github }, null, 2));
     return;
   }
   const walkthrough = validWalkthrough(dir);

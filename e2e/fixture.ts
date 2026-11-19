@@ -5,34 +5,28 @@ import { $, Glob, type Subprocess } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { until } from '../src/testing/wait.ts';
+import { runCli, spawnCli } from './transport.ts';
 
 const root = path.resolve(import.meta.dir, '..');
-const entry = path.join(root, 'dist', 'cli', 'reviewroom.js');
-const bun = process.execPath; // the CLI runs on the same Bun as the tests
-const run = async (env: Record<string, string | undefined>, args: string[], input = '') => {
-  const r = await $`${bun} ${entry} ${args} < ${new Response(input)}`.env(env).nothrow().quiet();
-  return { code: r.exitCode, stdout: r.stdout.toString(), stderr: r.stderr.toString() };
-};
-
 const template = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-template-'));
 process.on('exit', () => fs.rmSync(template, { recursive: true, force: true }));
 await $`bash ${path.join(root, 'examples', 'make-demo-repo.sh')} ${path.join(template, 'repo')}`.quiet();
-for (const args of [['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0'], ['stop']]) {
-  const r = await run({ ...process.env, REVIEWROOM_HOME: path.join(template, 'home') }, [...args, '--repo', path.join(template, 'repo')]);
+for (const args of [['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0'], ['stop']]) {
+  const r = await runCli({ ...process.env, REVIEWROOM_HOME: path.join(template, 'home') }, [...args, '--repo', path.join(template, 'repo')]);
   if (r.code) throw new Error(r.stderr);
 }
 
-// Existing fixtures exercise legacy reviews; progress tests opt in explicitly.
+// Keep generation state out of the demo fixture. Progress tests set up their own.
 for (const file of new Glob('**/progress.jsonl').scanSync({ cwd: template, absolute: true })) fs.rmSync(file);
 
 export const post = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 export const op = (url: string, o: object) => post(url + 'api/ops', { ops: [o] });
 export const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8');
+export const readJson = (...p: string[]) => JSON.parse(read(...p));
 
 /** The client build's cache headers and the build id, the same on the review server and the hub (`api`: one of its API paths). */
 export async function expectClientHeaders(url: string, api: string) {
-  const id = JSON.parse(read(root, 'dist', 'build-info.json')).id;
+  const id = readJson(root, 'dist', 'build-info.json').id;
   const chunk = fs.readdirSync(path.join(root, 'dist', 'chunks'))[0];
   const want: Record<string, string> = {
     [`_rr/chunks/${chunk}`]: 'public, max-age=31536000, immutable',
@@ -72,8 +66,9 @@ export function setup(extraEnv: Record<string, string> = {}) {
   const procs: Subprocess[] = [];
   fs.cpSync(path.join(template, 'repo'), repo, { recursive: true });
   fs.cpSync(path.join(template, 'home', 'reviews'), path.join(home, 'reviews'), { recursive: true });
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...JSON.parse(read(dir, 'config.json')), repoPath: repo }));
-  const cli = (args: string[], input?: string) => run(env, args, input);
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...readJson(dir, 'config.json'), repoPath: repo }));
+  const cli = (args: string[], input?: string) => runCli(env, args, input);
+  const git = (...args: string[]) => $`git -C ${repo} ${args}`.quiet();
   afterAll(async () => {
     for (const p of procs) p.kill();
     await cli(['stop', ...d]);
@@ -81,15 +76,26 @@ export function setup(extraEnv: Record<string, string> = {}) {
   });
   return {
     tmp, repo, reviews, dir, d, cli,
-    state: () => JSON.parse(read(dir, 'state.json')),
+    state: (reviewDir = dir) => readJson(reviewDir, 'state.json'),
     /** The per-user session registry. */
-    sessions: () => fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => JSON.parse(read(tmp, 'home', 'sessions', f))),
-    git: (...args: string[]) => $`git -C ${repo} ${args}`.quiet(),
-    /** `pr --detach` on a free port: the URL. */
-    serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--detach', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
-    /** A foreground server process (killed in afterAll). */
-    spawn: (args: string[]) => procs[procs.push(Bun.spawn([bun, entry, ...args], { env, stdio: ['ignore', 'ignore', 'ignore'] })) - 1],
-    /** The URL of the server a foreground command started for a review dir. */
-    url: (reviewDir = dir) => until<string>(() => JSON.parse(read(reviewDir, 'server.json')).url),
+    sessions: () => fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => readJson(tmp, 'home', 'sessions', f)),
+    git,
+    addPullRemote: async () => {
+      const number = '7';
+      const repository = 'demo/project';
+      const bare = path.join(tmp, `${repository}.git`);
+      await git('init', '--bare', bare);
+      await git('remote', 'add', 'origin', bare);
+      await git('push', 'origin', `feat/upload-rate-limit:refs/pull/${number}/head`, 'main:refs/heads/main');
+      return { id: `${repository}#${number}`, dir: path.join(home, 'reviews', 'demo_project', 'pulls', number) };
+    },
+    /** `pr` on a free port: the URL. */
+    serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
+    /** A foreground command (killed in afterAll). */
+    spawn: (args: string[], cwd?: string) => {
+      const p = spawnCli(env, args, cwd);
+      procs.push(p);
+      return p;
+    },
   };
 }
