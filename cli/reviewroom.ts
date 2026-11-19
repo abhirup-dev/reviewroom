@@ -21,6 +21,7 @@ import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { cmdShot } from './commands/shot.ts';
 import { cmdSlideLint } from './commands/slides.ts';
 import { ReviewroomError } from '../src/kernel/state/ops.shared.ts';
+import { recordRead } from './lib/progress.ts';
 
 const cli = cac('reviewroom');
 cli
@@ -118,6 +119,15 @@ cli
   .action(run(forReview('check', cmdCheck)));
 
 cli
+  .command('progress <review> <event>', 'Record generation progress for the loading screen')
+  .usage('progress <review> read')
+  .example('  reviewroom progress \'acme/api#31\' read')
+  .action(run(forReview('progress', (_repo, dir, _o, [event]) => {
+    if (event !== 'read') die(`unknown progress event \`${event}\`; see \`reviewroom progress --help\``, 2);
+    if (!recordRead(dir)) console.error('nothing recorded: no walkthrough is requested');
+  })));
+
+cli
   .command('slide-lint <review>', 'Audit all or selected walkthrough slides')
   .usage('slide-lint <review> [options]')
   .option('--jobs <n>', 'Concurrent pages: 1-8, default 1')
@@ -194,6 +204,9 @@ const notes: Record<string, string> = {
   JSON: engine, jobs, viewports, rasterHeight, selection, coverage, links, findings.
   Chrome caps raster scale; WebKit scales screenshot output.
   CSS geometry stays unchanged.`,
+  'progress': `  read: you have read the diff; the reviewer's loading screen moves on to writing the walkthrough.
+  Applies to the walkthrough requested now; recording it twice is harmless.
+  The walkthrough's saves and a passing full slide-lint are recorded without it.`,
   'publish-slides': `  Validates first; updates its existing PR comment.
   Uses GitHub authentication from gh.
   Rejects schema errors and comments exceeding 65,536 characters.`,
@@ -272,6 +285,7 @@ cli.help((sections) => {
       title: 'A walkthrough (when wanted)',
       body: [
         `  ${WALKTHROUGH_FILE} sits beside ${REPORT_FILE}.`,
+        '  progress <review> read: say you have read the diff.',
         '  slide-lint <review>: validate walkthrough slides.',
         '  shot <review> <chapter>/<step>: inspect one slide.',
         '  publish-slides <review>: publish to the PR.',

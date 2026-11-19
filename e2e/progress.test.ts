@@ -37,6 +37,8 @@ test('pr requests only on creation/force; watcher pushes progress without reload
 const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
 test.skipIf(!browser)('only a passing full lint validates the requested walkthrough under the writing screen', async () => {
   expect((await cli(prArgs)).code).toBe(0);
+  const read = await cli(['progress', ...d, 'read']); // the agent has read the diff, then writes
+  expect([read.code, read.stderr]).toEqual([0, '']);
   fs.writeFileSync(path.join(dir, REPORT_FILE), '<!doctype html><html><head><script type="module" src="/_rr/reviewroom.js"></script></head><body><rr-app><rr-review><section id="summary">Summary</section></rr-review></rr-app></body></html>');
   fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify({ version: 1, title: 'Change the value', chapters: [
     { id: 'change', title: 'Change the value', steps: [{ id: 'value', text: '<p>The value changes from one to two.</p>', ref: 'rr:code/example.ts#L1' }] },

@@ -44,6 +44,7 @@ them to a state, and the client reads that state rather than the events:
 | --- | --- | --- |
 | (none) | `idle` | |
 | `requested`, `by: agent` or `assistant`, with a request `id` | `requested` | `reviewroom pr` for a new or `--force`d review (`agent`; not with `--no-agent`), or `api/generate` (`assistant`, only the documents not validated now). A line without `by` was an agent's. |
+| `read` (walkthrough only), naming the `request` it is for | `writing`, only while that request is current and unfinished | `reviewroom progress <review> read`: the agent has read the diff. Once per request; again writes nothing. |
 | `written`, with the content hash | `writing` | the server, when the file changes |
 | `validated`, with the hash | `validated` while the file still has that hash, else `writing` | `slide-lint` (a full run) and `check` |
 | `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops; `stale`: the validated hash it saw edited since | `stopped`, only while that request is current and unfinished (or validated with exactly that `stale` hash) | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the reviewer stopped the turn, the server closed during it, or a server started while one was pending (`interrupted`; turns live in the server's process) |
@@ -53,8 +54,10 @@ Requests and stops of both documents go in one write. Events before the first `r
 what was written and stays through later saves; a validation or a new request leaves it. An `agent`'s request is never
 stopped by the server, which can't know whether an outside agent is still at work. `/api/progress` and the `progress`
 event add `generation: { running, awaitingApproval }` where the assistant runs. Each document's reduced state also
-carries `since` (when it was requested) and `passes` (one per save of new bytes under that request: its time, slides and
-chapters), derived from these events for the loading screen's steps; nothing new is written.
+carries `since` (when it was requested), `read` (the agent said it has read the diff) and `passes` (one per save of new bytes under that request: its time, slides and
+chapters), derived from these events for the loading screen's steps; nothing new is written. The first step, reading the diff, ends on `read`, or on the
+first save from an agent that never records it. An unknown event fails to parse and is skipped like a malformed line,
+so a server older than `read` ignores it and moves on at the first save.
 
 **`assistant.json`** stores the review's AI SDK transcript and opaque harness resume state (private, mode 0600).
 Reopening with the same installation restores the transcript and resumes its existing native session. The harness

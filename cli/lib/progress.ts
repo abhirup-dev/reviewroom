@@ -3,7 +3,7 @@ import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shar
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ARTIFACTS, parseProgress, reduceProgress, pendingAssistantWork, ProgressLine, type Artifact, type Requester } from '../../src/kernel/state/progress.shared.ts';
+import { ARTIFACTS, parseProgress, pendingArtifact, reduceProgress, pendingAssistantWork, ProgressLine, type Artifact, type Requester } from '../../src/kernel/state/progress.shared.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 
 const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'report' ? REPORT_FILE : WALKTHROUGH_FILE);
@@ -47,6 +47,14 @@ export function recordArtifact(dir: string, artifact: Artifact, event: 'written'
     if (w.ok) facts = { chapters: w.value.chapters.length, slides: w.value.chapters.reduce((n, c) => n + c.steps.length, 0) };
   }
   appendProgress(dir, { artifact, event, hash: checkedHash, ...facts, ...extra });
+}
+/** The agent has read the diff (`progress <review> read`): the walkthrough being requested now moves on to writing.
+ *  False with no walkthrough requested; twice is harmless (nothing new is written). */
+export function recordRead(dir: string) {
+  const w = readProgress(dir).walkthrough;
+  if (!pendingArtifact(w) || !w.request) return false;
+  if (!w.read) appendProgress(dir, { artifact: 'walkthrough', event: 'read', request: w.request });
+  return true;
 }
 
 const headFact = (head?: string) => (head && /^[a-f0-9]{40}$/.test(head) ? { head } : {});

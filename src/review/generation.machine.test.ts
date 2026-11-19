@@ -6,11 +6,13 @@ import { generateOffered, generationMachine, generationSteps, indicatorShown, sc
 const hash = 'a'.repeat(64);
 const doc = (state: ArtifactProgress['state'], id: string, extra: Partial<ArtifactProgress> = {}): ArtifactProgress => ({ state, ...(state === 'idle' ? {} : { by: 'assistant' as const, request: id }), ...extra });
 const p = (w: ArtifactProgress, r: ArtifactProgress): Progress => ({ walkthrough: w, report: r });
+const read = { read: true } as const; // the agent has read the diff
+// a walkthrough run: requested -> read -> saves -> validated (the report has no read)
 const at = (n: number) => ({
   REQUESTED: p(doc('requested', `w${n}`), doc('requested', `r${n}`)),
-  WRITING: p(doc('writing', `w${n}`, { hash }), doc('requested', `r${n}`)),
-  PLAYABLE: p(doc('validated', `w${n}`, { hash }), doc('writing', `r${n}`, { hash })),
-  DONE: p(doc('validated', `w${n}`, { hash }), doc('validated', `r${n}`, { hash })),
+  WRITING: p(doc('writing', `w${n}`, { hash, ...read }), doc('requested', `r${n}`)),
+  PLAYABLE: p(doc('validated', `w${n}`, { hash, ...read }), doc('writing', `r${n}`, { hash })),
+  DONE: p(doc('validated', `w${n}`, { hash, ...read }), doc('validated', `r${n}`, { hash })),
   STOPPED: p(doc('stopped', `w${n}`, { reason: 'failed' }), doc('stopped', `r${n}`, { reason: 'failed' })),
 });
 const IDLE = p(doc('idle', ''), doc('idle', ''));
@@ -77,17 +79,18 @@ test.each<[string, Step[], Seen, ({ canGenerate?: boolean } & Remembered)?]>([
   expect(await run(steps, input)).toEqual(seen);
 });
 
-// The loading screen's steps (read, write, ready, report) and the pass rows under writing: outline, drafts, the pass.
+// The loading screen's steps (read, write, ready, report) and the draft rows under writing.
 const save = (slides: number) => ({ at: '2026-01-01T00:00:00.000Z', slides, chapters: 3 });
 test.each<[string, Progress, string, string[]]>([
-  ['reading until the first save', REQUESTED, 'current upcoming upcoming upcoming', []],
-  ['the outline ends the reading and is never checked', p(doc('writing', 'w1', { passes: [save(6)] }), doc('requested', 'r1')), 'done current upcoming upcoming', ['current Outline · 6 slides in 3 chapters']],
-  ['each save after it is a draft, checked', p(doc('writing', 'w1', { passes: [save(6), save(8)] }), doc('requested', 'r1')), 'done current upcoming upcoming', ['done Outline · 6 slides in 3 chapters', 'current Draft 1 · 8 slides in 3 chapters · checking']],
-  ['a draft passes: ready, the report next', p(doc('validated', 'w1', { hash, passes: [save(6), save(8), save(9)] }), doc('writing', 'r1')), 'done done done current', ['done Outline · 6 slides in 3 chapters', 'done Draft 1 · 8 slides in 3 chapters · revised', 'done Draft 2 · 9 slides in 3 chapters · passes']],
-  ['one save that passes is a draft, not an outline', p(doc('validated', 'w1', { hash, passes: [save(8)] }), doc('validated', 'r1', { hash })), 'done done done done', ['done Draft 1 · 8 slides in 3 chapters · passes']],
-  ['stopped on the outline: not a failed pass', p(doc('stopped', 'w1', { reason: 'failed', passes: [save(6)] }), doc('stopped', 'r1', { reason: 'failed' })), 'done stopped upcoming upcoming', ['stopped Outline · 6 slides in 3 chapters']],
-  ['stopped on a draft: it did not pass', p(doc('stopped', 'w1', { reason: 'failed', passes: [save(6), save(8)] }), doc('stopped', 'r1', { reason: 'failed' })), 'done stopped upcoming upcoming', ['done Outline · 6 slides in 3 chapters', 'stopped Draft 1 · 8 slides in 3 chapters · did not pass']],
-  ['stopped before any save', STOPPED, 'stopped upcoming upcoming upcoming', []],
+  ['reading until the agent has read the diff', REQUESTED, 'current upcoming upcoming upcoming', []],
+  ['read: writing, before any save', p(doc('writing', 'w1', read), doc('requested', 'r1')), 'done current upcoming upcoming', []],
+  ['each save is a draft, checked', p(doc('writing', 'w1', { ...read, passes: [save(6), save(8)] }), doc('requested', 'r1')), 'done current upcoming upcoming', ['done Draft 1 · 6 slides in 3 chapters · revised', 'current Draft 2 · 8 slides in 3 chapters · checking']],
+  ['fallback (older skill, no read): the first save ends the reading', p(doc('writing', 'w1', { passes: [save(6)] }), doc('requested', 'r1')), 'done current upcoming upcoming', ['current Draft 1 · 6 slides in 3 chapters · checking']],
+  ['a draft passes: ready, the report next', p(doc('validated', 'w1', { hash, ...read, passes: [save(6), save(9)] }), doc('writing', 'r1')), 'done done done current', ['done Draft 1 · 6 slides in 3 chapters · revised', 'done Draft 2 · 9 slides in 3 chapters · passes']],
+  ['the report passes too: every step done', p(doc('validated', 'w1', { hash, ...read, passes: [save(8)] }), doc('validated', 'r1', { hash })), 'done done done done', ['done Draft 1 · 8 slides in 3 chapters · passes']],
+  ['stopped on a draft: it did not pass', p(doc('stopped', 'w1', { reason: 'failed', ...read, passes: [save(6), save(8)] }), doc('stopped', 'r1', { reason: 'failed' })), 'done stopped upcoming upcoming', ['done Draft 1 · 6 slides in 3 chapters · revised', 'stopped Draft 2 · 8 slides in 3 chapters · did not pass']],
+  ['stopped after reading, before any save', p(doc('stopped', 'w1', { reason: 'failed', ...read }), doc('stopped', 'r1', { reason: 'failed' })), 'done stopped upcoming upcoming', []],
+  ['stopped before reading', STOPPED, 'stopped upcoming upcoming upcoming', []],
 ])('steps: %s', (_, progress, states, rows) => {
   const steps = generationSteps(progress);
   expect([steps.map((s) => s.state).join(' '), steps.flatMap((s) => (s.passes ?? []).map((r) => `${r.state} ${r.text}`))]).toEqual([states, rows]);

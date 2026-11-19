@@ -45,9 +45,9 @@ _Avoid_: guided walkthrough, tour, slideshow, presentation
 One step of a walkthrough: its narration and the code it shows.
 _Avoid_: page, card
 
-**Outline**:
-The walkthrough's first save: its chapters and slides, one line each, saved once the agent has read the diff. On the
-loading screen it ends the reading; each save after it is a draft.
+**Draft**:
+One save of the walkthrough while it is being written. Each is checked; the loading screen lists them until one passes
+`slide-lint`. The agent says it has read the diff (`reviewroom progress <review> read`) before the first.
 
 **Report**:
 The agent's detailed record of the review: findings, evidence, questions and later answers. It need not mirror

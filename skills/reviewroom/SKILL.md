@@ -109,14 +109,12 @@ The report already has its sections, from the profile.
 Always provide a walkthrough. If `reviewroom pr` pulled one shipped with the PR, use it as is;
 it was validated before publication. Go to Step 4b without replacing it. Otherwise:
 
-1. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
+1. Once you have read the diff, record it: `reviewroom progress <review> read`.
+2. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
    Each main risk is one line with a severity and an `rr:doc/<section id>` link to its finding in
    the report; keep detailed findings out of the slides. For each risk, add a heading-only finding
    section under Findings in the report, with a stable id for the link.
-2. Save that outline as the walkthrough once you have read the diff: its chapters, and each slide
-   with its `id` and a one-line `text`. Don't lint it. The reviewer's loading screen moves from
-   reading to writing on this first save.
-3. Write the full walkthrough over it.
+3. Write the walkthrough.
 4. Run a full `reviewroom slide-lint <review>`, fix issues and repeat until it passes.
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).

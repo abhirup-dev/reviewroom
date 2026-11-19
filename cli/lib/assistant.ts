@@ -105,7 +105,7 @@ function readAssistantSettings(file = settingsFile()) {
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile --prod --store-dir .pnpm-store';
 
 const generationSteps = {
-  walkthrough: 'Write the walkthrough (Step 4). Run a full `reviewroom slide-lint <review>` and fix what it reports, repeating until it passes. Scoped runs do not count.',
+  walkthrough: 'Once you have read the diff, record it with `reviewroom progress <review> read`, before writing anything. Then write the walkthrough (Step 4). Run a full `reviewroom slide-lint <review>` and fix what it reports, repeating until it passes. Scoped runs do not count.',
   report: 'Fill the report sections (Step 4b). Run `reviewroom check <review> --fix` and fix what it reports, repeating until it passes.',
 };
 

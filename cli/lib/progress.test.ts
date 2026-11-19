@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProgress, artifactHash, importToRetry, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from './progress.ts';
+import { appendProgress, artifactHash, importToRetry, progressLines, readProgress, recordArtifact, recordRead, requestGeneration, resetGeneration, staleArtifacts } from './progress.ts';
 
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
@@ -45,6 +45,15 @@ test('both requests land in one write, each with its own id', () => inTemp((dir,
   expect(() => requestGeneration(blocked, 'assistant')).toThrow();
 }));
 
+test('read names the walkthrough request; nothing requested records nothing, and twice writes once', () => inTemp((dir) => {
+  expect(recordRead(dir)).toBe(false);
+  requestGeneration(dir, 'agent');
+  expect([recordRead(dir), recordRead(dir)]).toEqual([true, true]);
+  const reads = progressLines(dir).filter((l) => l.event === 'read');
+  expect(reads).toEqual([expect.objectContaining({ artifact: 'walkthrough', request: readProgress(dir).walkthrough.request })]);
+  expect(readProgress(dir).walkthrough).toMatchObject({ state: 'writing', read: true });
+}));
+
 test('stale after the PR moved: each document by its own validation head, never one event for both', () => {
   const [A, B] = ['a'.repeat(40), 'b'.repeat(40)];
   const docs = (dir: string) => {
@@ -55,6 +64,7 @@ test('stale after the PR moved: each document by its own validation head, never 
   inTemp((dir) => {
     docs(dir);
     requestGeneration(dir, 'agent', A);
+    recordRead(dir);
     recordArtifact(dir, 'walkthrough', 'validated', { head: A });
     recordArtifact(dir, 'report', 'validated', { head: B });
     expect(staleArtifacts(dir, B)).toEqual(['walkthrough']);
