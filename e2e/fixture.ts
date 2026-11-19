@@ -80,15 +80,14 @@ export function setup(extraEnv: Record<string, string> = {}) {
     /** The per-user session registry. */
     sessions: () => fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => readJson(tmp, 'home', 'sessions', f)),
     git,
-    addPullRemote: async (owner = 'demo', remote = 'origin') => {
+    addPullRemote: async () => {
       const number = '7';
-      const repository = `${owner}/project`;
+      const repository = 'demo/project';
       const bare = path.join(tmp, `${repository}.git`);
-      const ref = `refs/pull/${number}/head`;
       await git('init', '--bare', bare);
-      await git('remote', 'add', remote, bare);
-      await git('push', remote, `feat/upload-rate-limit:${ref}`, 'main:refs/heads/main');
-      return { id: `${repository}#${number}`, number, ref, url: `https://github.com/${repository}/pull/${number}`, dir: path.join(home, 'reviews', `${owner}_project`, 'pulls', number) };
+      await git('remote', 'add', 'origin', bare);
+      await git('push', 'origin', `feat/upload-rate-limit:refs/pull/${number}/head`, 'main:refs/heads/main');
+      return { id: `${repository}#${number}`, dir: path.join(home, 'reviews', 'demo_project', 'pulls', number) };
     },
     /** `pr` on a free port: the URL. */
     serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
