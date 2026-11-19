@@ -14,7 +14,7 @@ export const sanitizeDiagram = (svg: string) =>
  *  `onRender` runs after every render, a redraw for a new width too. `natural` keeps the diagram's own layout instead of
  *  one squeezed into the container: scaled to fit, Pele's zoom then pinches and pans it. `zoomable` zooms even a diagram
  *  that fits. */
-export function mountDiagram(element: HTMLElement, source: string, onRender?: () => void, natural = false, zoomable = false) {
+export function mountDiagram(element: HTMLElement, source: string, onRender?: () => void, { natural = false, zoomable = false, allowLink }: { natural?: boolean; zoomable?: boolean; allowLink?: (ref: string) => boolean } = {}) {
   return mountAsync(element, source, {
     onRender,
     limit: 20_000,
@@ -23,7 +23,14 @@ export function mountDiagram(element: HTMLElement, source: string, onRender?: ()
     images: false,
     linkSchemes: ['http', 'https', 'rr'],
     fontSize: 14,
-    sanitize: sanitizeDiagram,
+    sanitize: allowLink ? (svg) => {
+      const clean = sanitizeDiagram(svg);
+      clean.querySelectorAll('a').forEach((link) => {
+        const href = link.getAttribute('href') ?? link.getAttribute('xlink:href');
+        if (!href || !allowLink(href)) link.replaceWith(...link.childNodes);
+      });
+      return clean;
+    } : sanitizeDiagram,
     ...(zoomable && { zoom: true }),
     ...(natural && { maxWidth: Infinity }), // Pele adapts the layout only to a width under the natural one
   });

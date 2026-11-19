@@ -1,0 +1,10 @@
+/* The standalone stage fills the viewport. The player keeps the desktop grid and its narrow layout. */
+.rr-tour[data-standalone] .rr-tour__player {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.rr-tour[data-standalone] .rr-tour__scrim {
+  display: none;
+}

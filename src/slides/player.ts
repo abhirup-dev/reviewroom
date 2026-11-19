@@ -16,8 +16,8 @@ import { paneMachine, walkthroughMachine, type CodeAt, type PaneShown, type Slot
 import type { ReviewApp } from '../app';
 import { desktopPlayer } from './player.desktop';
 import { loadJSON, saveLocal } from '../kernel/store';
-import { panelDefs, type PanelInstance } from '../kernel/dock';
-import { displayTools, type CodePanelOptions } from '../review/code';
+import type { PanelInstance } from '../kernel/dock';
+import { createCodePanel, displayTools, type CodePanelOptions } from '../review/code';
 import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type SlideAuditOptions, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
@@ -29,6 +29,7 @@ let panes = 0;
 /** What the desktop and phone players (player.desktop.ts, player.phone.ts) do their own way. */
 export type PlayerForm = {
   contents(): void;
+  dismissible?: boolean;
   paintNav(cur: ReturnType<typeof current>): void;
   /** each slide: fold the chapter intro its own way */
   foldLead?(): void;
@@ -38,8 +39,8 @@ export type PlayerForm = {
   focus?(ref: string): void;
 };
 
-/** The skeleton's parts the phone player rearranges and listens on. */
-export type PhoneParts = {
+/** The skeleton shared by the player forms. */
+export type PlayerParts = {
   app: ReviewApp;
   actor: Actor<typeof walkthroughMachine>;
   root: HTMLElement;
@@ -56,27 +57,48 @@ export type PhoneParts = {
   leadToggle: HTMLElement;
   prev: HTMLElement;
   next: HTMLElement;
-  comment: HTMLElement;
+  comment: HTMLElement | null;
+  close: HTMLElement;
   chapterBtn: HTMLElement;
 };
 
-/** The phone player (player.phone.ts), handed in by composition on any phone, either way up. */
-export type PhoneFormFactory = (parts: PhoneParts) => PlayerForm;
+/** A player form, handed in by composition. */
+export type PlayerFormFactory = (parts: PlayerParts) => PlayerForm;
 
 /** Where a slide's link lands in the code pane; null for links that show no code. */
-export async function codeAt(app: ReviewApp, ref: string): Promise<CodeAt | null> {
+export async function codeAt(app: Pick<ReviewApp, 'files'> & Partial<Pick<ReviewApp, 'searchSymbol'>>, ref: string): Promise<CodeAt | null> {
   const r = parseRef(ref);
   if (r?.type === 'code' || r?.type === 'file') {
     const rev = /^(base|head)$/.test(r.rev) ? undefined : r.rev;
     return { path: r.path, side: r.rev === 'base' ? 'base' : 'head', start: r.start, end: r.end, rev, view: r.type === 'file' ? 'file' : 'diff' };
   }
   if (r?.type !== 'sym') return null;
-  const hits = await app.searchSymbol(r.name).catch(() => []); // definitions first, narrowed by an Owner. or path: qualifier
+  const hits = await app.searchSymbol?.(r.name).catch(() => []) ?? []; // definitions first, narrowed by an Owner. or path: qualifier
   const d = hits.find((x) => x.kind === 'definition') ?? hits[0];
   return d ? { path: d.path, side: 'head', start: d.line, end: d.line, view: app.files.some((f) => f.path === d.path) ? 'diff' : 'file' } : null;
 }
 
-export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: PhoneFormFactory } = {}) {
+type SlideAnchor = { kind: 'tour'; chapter: string; step: string };
+type ThreadControls = {
+  compose: (anchor: SlideAnchor) => void;
+  onSlide: (chapter: string, step: string) => string[];
+  open: (id: string) => void;
+};
+type Position = { chapter?: string; step?: string };
+type PlayerOptions = {
+  formFactory?: PlayerFormFactory;
+  threads?: ThreadControls;
+  resolveCode?: (ref: string) => Promise<CodeAt | null>;
+  holdCommands?: (playing: () => boolean) => void;
+  openLink?: (ref: string) => void;
+  codeOptions?: CodePanelOptions;
+  position?: { read: () => Position | null; write: (at: Position | null) => void };
+  splitKey?: string;
+};
+
+export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
+  const resolveCode = opts.resolveCode ?? ((ref: string) => codeAt({ files: app.files }, ref));
+  const threads = opts.threads;
   let disposed = false;
   let proseAudit = false;
   let audits = 0; // headless audits avoid speculative work and deferred focus painting
@@ -89,7 +111,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   // the display toggles, once for every chunk (prefs: each panel follows them); hidden when no code is shown
   const tools = h('div', { class: 'rr-toolbar rr-tour__tools', hidden: true });
   let toolsMode: 'diff' | 'file' = 'diff';
-  const paintTools = () => tools.replaceChildren(h('div', { class: 'rr-toolbar__spacer' }), h('div', { class: 'rr-toolbar__group' }, ...displayTools(app, toolsMode)));
+  const paintTools = () => tools.replaceChildren(h('div', { class: 'rr-toolbar__spacer' }), h('div', { class: 'rr-toolbar__group' }, ...displayTools(app, toolsMode, opts.codeOptions?.readOnly)));
   app.bus.on('prefs', paintTools);
   /** per chunk on screen: its code panel (null: a preview) and its header (stacked only) */
   let views: { panel: PanelInstance | null; id: string; head: HTMLElement | null }[] = [];
@@ -122,7 +144,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
     if (head) nameHead(head, slot.ref);
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, ...form.codeLayout?.() }, id) : null;
+    const panel = slot.code ? createCodePanel(app, { ...slot.code, pin: slot.code.path, embedded: true, head, ...form.codeLayout?.(), ...opts.codeOptions }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     views.push({ panel, id, head });
@@ -151,7 +173,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     // Parallel pages can queue code reads behind other startup requests. Audits wait for the real render;
     // interactive playback retains its quicker fallback. This is a deadline, not an added delay.
     delays: { land: () => audits ? 10_000 : 4000 },
-    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: proseAudit ? null : await codeAt(app, ref) }))) } : input)) },
+    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: proseAudit ? null : await resolveCode(ref) }))) } : input)) },
     actions: {
       mount: ({ context }) => mount(context.next!),
       // same files: each view's highlight moves to its new lines
@@ -226,50 +248,51 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     return { kind: 'tour' as const, chapter: chapter.id, step: step.id };
   };
   // the step's threads go through the usual composer and thread popup (threadMachine), and the feedback round
-  const comment = h('button', { class: 'rr-btn rr-btn--small rr-tour__comment', title: 'Comment on this slide: the agent gets it with your comment', onclick: () => app.compose(anchor()) }, icon('thread', 12), h('span', null, 'Comment'));
-  const badge = h('button', { class: 'rr-tour__badge', title: 'Open the thread on this slide' });
-  const threadsOn = (chapter: string, step: string) => app.state.threads.filter((t) => t.status === 'open' && t.anchor.kind === 'tour' && t.anchor.chapter === chapter && t.anchor.step === step);
+  const comment = threads && h('button', { class: 'rr-btn rr-btn--small rr-tour__comment', title: 'Comment on this slide: the agent gets it with your comment', onclick: () => threads.compose(anchor()) }, icon('thread', 12), h('span', null, 'Comment'));
+  const badge = threads && h('button', { class: 'rr-tour__badge', title: 'Open the thread on this slide' });
   const paintThreads = () => {
-    if (!ctx().doc) return;
+    if (!threads || !badge || !ctx().doc) return;
     const { chapter, step } = anchor();
-    const ts = threadsOn(chapter, step);
+    const ts = threads.onSlide(chapter, step);
     badge.hidden = !ts.length;
     badge.replaceChildren(icon('thread', 12), String(ts.length));
-    badge.onclick = () => ts[0] && app.bus.emit('open-thread', { id: ts[0].id });
-    progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threadsOn(t.dataset.chapter!, t.dataset.step!).length > 0));
+    badge.onclick = () => ts[0] && threads.open(ts[0]);
+    progress.querySelectorAll<HTMLElement>('.rr-tour__tick').forEach((t) => t.classList.toggle('has-threads', threads.onSlide(t.dataset.chapter!, t.dataset.step!).length > 0));
   };
-  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge, leadToggle), stepBox, h('div', { class: 'rr-tour__actions' }, comment));
+  const left = h('div', { class: 'rr-tour__left' }, lead, h('div', { class: 'rr-tour__divider-row' }, divider, badge ?? null, leadToggle), stepBox, comment ? h('div', { class: 'rr-tour__actions' }, comment) : null);
   // the boundary between the narration and the code drags to resize (side by side only: CSS hides it otherwise); the
   // share of the width is kept per device, a double-click goes back to the default
-  const SPLIT = 'reviewroom:tour-split';
+  const splitKey = opts.splitKey ?? 'reviewroom:tour-split';
   const splitAt = (f: unknown) => (typeof f === 'number' ? player.style.setProperty('--rr-tour-split', `clamp(240px, ${f * 100}%, calc(100% - 240px))`) : player.style.removeProperty('--rr-tour-split'));
-  const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => { saveLocal(SPLIT, null); splitAt(null); } });
+  const resize = h('div', { class: 'rr-tour__resize', title: 'Drag to resize', 'aria-hidden': 'true', ondblclick: () => { saveLocal(splitKey, null); splitAt(null); } });
   let box: DOMRect, share = 0;
   onDrag(resize, {
     start: () => (box = player.getBoundingClientRect()), // the desktop's body is display: contents (no box of its own)
     move: (_dx, _dy, e) => splitAt((share = (e.clientX - box.left) / box.width)),
-    end: (dx) => dx && saveLocal(SPLIT, share),
+    end: (dx) => dx && saveLocal(splitKey, share),
   });
   const right = h('div', { class: 'rr-tour__right' }, resize, tools, pane);
   const prev = btn('chevron', 'Previous slide', () => actor.send({ type: 'prev' }), '←');
   prev.classList.add('rr-tour__flip');
-  const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
+  const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? dismiss('close') : actor.send({ type: 'next' })) });
   const progress = h('div', { class: 'rr-tour__progress' });
   const bottom = h('div', { class: 'rr-tour__bottom' }, prev, progress, next);
+  const dismiss = (type: 'pause' | 'close') => { if (form.dismissible !== false) actor.send({ type }); };
+  const close = btn('close', 'Close the guided walkthrough', () => dismiss('close'));
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
+    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), close),
     (split.append(left, right), split),
     bottom,
   );
-  splitAt(loadJSON(SPLIT)); // on the player: on the desktop its grid holds the columns, so the chapter bar spans only the narration
+  splitAt(loadJSON(splitKey)); // on the player: on the desktop its grid holds the columns, so the chapter bar spans only the narration
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
   const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   // slides' text rendered ahead (below: prose)
   const stash = h('div', { class: 'rr-tour__stash rr-prose', 'aria-hidden': 'true', inert: true });
-  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill, stash);
+  const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => dismiss('pause') }), player, pill, stash);
   const status = h('p');
   const show = h('button', { class: 'rr-btn', onclick: async () => {
     const w = decodeWalkthrough(await app.backend.walkthrough?.());
@@ -298,9 +321,10 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   app.root.append(root);
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
   // The phone player goes by the device, either way up, under either shell: composition hands it in
-  const form: PlayerForm = phoneForm
-    ? phoneForm({ app, actor, root, player, split, left, right, pane, codeAt: (ref) => codeAt(app, ref), bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn })
-    : desktopPlayer({ actor, root, chapterBtn, next });
+  const form: PlayerForm = (opts.formFactory ?? desktopPlayer)({
+    app, actor, root, player, split, left, right, pane, codeAt: resolveCode,
+    bottom, progress, lead, leadToggle, prev, next, comment: comment ?? null, close, chapterBtn,
+  });
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
@@ -317,9 +341,9 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const ref = link.getAttribute('href') ?? link.getAttribute('ref')!;
       const type = parseRef(ref)?.type;
       if (type === 'code' || type === 'file' || type === 'sym') focus(ref);
-      else {
-        actor.send({ type: 'pause' });
-        void app.open(ref);
+      else if (opts.openLink) {
+        dismiss('pause');
+        opts.openLink(ref);
       }
     },
     true,
@@ -470,13 +494,14 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   // ← → while playing (not while typing or in a menu or dialog; toasts and tooltips are manual popovers, never in the way);
   // Esc pauses. The workbench's own shortcuts are held meanwhile (mod chords still run: the palette opens above the player)
   const playing = () => actor.getSnapshot().matches({ open: 'playing' });
-  app.commands.held = playing;
+  opts.holdCommands?.(playing);
   app.listen(window, 
     'keydown',
     (e) => {
       if (!playing() || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open], [popover=auto]:popover-open')) return;
-      const type = ({ ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'pause' } as const)[e.key as 'ArrowRight'];
-      if (type) {
+      const keys = { ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'pause' } as const;
+      const type = keys[e.key as keyof typeof keys];
+      if (type && (type !== 'pause' || form.dismissible !== false)) {
         e.preventDefault();
         e.stopPropagation();
         actor.send({ type });
@@ -495,7 +520,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const w = decodeWalkthrough(input);
       app.walkthrough = w && 'version' in w ? w : null;
       app.walkthroughIssues = w && 'issues' in w ? w.issues : null;
-      const link = deepLink(location.search); // first: once loaded, the URL follows the player
+      const link = opts.position ? opts.position.read() : deepLink(location.search); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
       progressChanged();
@@ -510,12 +535,15 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   let told = '';
   actor.subscribe((s) => {
     if (s.context.doc) {
-      const u = new URL(location.href);
-      if (s.matches('open')) {
-        const { chapter, step } = current(s.context);
-        u.searchParams.set('walkthrough', `${chapter.id}/${step.id}`);
-      } else u.searchParams.delete('walkthrough');
-      if (u.href !== location.href) history.replaceState(history.state, '', u);
+      const { chapter, step } = current(s.context);
+      const at = s.matches('open') ? { chapter: chapter.id, step: step.id } : null;
+      if (opts.position) opts.position.write(at);
+      else {
+        const u = new URL(location.href);
+        if (at) u.searchParams.set('walkthrough', `${at.chapter}/${at.step}`);
+        else u.searchParams.delete('walkthrough');
+        if (u.href !== location.href) history.replaceState(history.state, '', u);
+      }
     }
     const state = !s.context.doc ? 'none' : s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
     if (native && state !== told) native.invoke('walkthrough_state', { state: (told = state) }).catch(() => {});

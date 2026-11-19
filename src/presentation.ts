@@ -10,7 +10,7 @@ import { githubPanelAvailability } from './threads/docking';
 import { feedbackButton, githubControls, roundStatusControls, subscribeThreadHeader, threadHeaderControls } from './threads/controls';
 import type { WalkthroughExtension } from './review/walkthrough';
 import { mountQuoteComment, type PaletteHost, type PaletteVariant } from './review/overlays';
-import type { PhoneFormFactory } from './slides/player';
+import type { PlayerFormFactory } from './slides/player';
 import type { ReviewApp } from './app';
 import { registerAssistant } from './assistant/panel';
 
@@ -28,7 +28,7 @@ export interface PresentationModule {
   /** A selection action outside the panel surface, if the presentation does not already supply one. */
   selection?: (app: ReviewApp) => void;
   /** The guided walkthrough player's form; none is the desktop's. */
-  player?: PhoneFormFactory;
+  player?: PlayerFormFactory;
 }
 
 export const desktop: PresentationModule = {

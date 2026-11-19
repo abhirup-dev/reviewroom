@@ -10,7 +10,7 @@ import { sameCode, type paneMachine, type Slot } from './player.machine';
 import { cardMachine, chromeMachine, coachMachine, type Detent, type Orient } from './phone.machine';
 import { navMachine } from './nav.machine';
 import { current, target } from './model.shared';
-import type { PhoneParts, PlayerForm } from './player';
+import type { PlayerParts, PlayerForm } from './player';
 
 /** How far sideways a swipe on the card goes to turn the slide. */
 const SWIPE_PX = 60;
@@ -21,7 +21,7 @@ const SWIPE_PX = 60;
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
-export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PhoneParts): PlayerForm {
+export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PlayerParts): PlayerForm {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
   // the floating toolbar: Back, Contents, Comment, Full screen and Next, plain icon buttons on one pill
@@ -29,9 +29,11 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   prev.className = 'rr-icon-btn rr-tour__back';
   next.replaceChildren(icon('chevron', 20));
   next.className = 'rr-icon-btn rr-tour__fwd';
-  comment.replaceChildren(icon('chat', 20));
-  comment.className = 'rr-tour__comment';
-  comment.setAttribute('aria-label', 'Comment on this slide');
+  if (comment) {
+    comment.replaceChildren(icon('chat', 20));
+    comment.className = 'rr-tour__comment';
+    comment.setAttribute('aria-label', 'Comment on this slide');
+  }
   const contents = h('button', { class: 'rr-tour__contents', title: 'Chapters and slides', 'aria-label': 'Chapters and slides', 'aria-haspopup': 'dialog', onclick: () => contentsSheet() }, icon('toc', 20));
   // Full screen: immersive now, not after IDLE_MS, and the swipes shown again unless skipped (coach, below)
   const full = h('button', { class: 'rr-tour__full', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => { declined = false; fullscreen(); chrome.send({ type: 'hide' }); startCoach(true); } }, icon('maximize', 20));
