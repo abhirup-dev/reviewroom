@@ -126,14 +126,14 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   const clients = new Set<SSEStreamingApi>();
   const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, REPORT_FILE);
-  // what a reconnecting client compares: a change to either file while it was away reloads the page
+  // A reconnecting client reloads when the Git range or either artifact changes.
   // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
   const parts = () => {
     const progress = readProgress(dir);
     return ([['report', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
       pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex') : '');
   };
-  const hash = (p = parts()) => crypto.createHash('sha1').update(p.join('|')).digest('hex').slice(0, 12);
+  const hash = (p = parts()) => crypto.createHash('sha1').update([prov.base, prov.head, ...p].join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
   const send = (event: string, data: unknown) => {
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});

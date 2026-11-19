@@ -154,6 +154,36 @@ describe('the external agent round loop', () => {
       } finally {
         fs.writeFileSync(path.join(pull, 'config.json'), saved);
       }
+
+      const helloHash = async () => {
+        const res = await fetch(u + 'api/events', { signal: AbortSignal.timeout(3000) });
+        const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+        try {
+          let first = '';
+          while (!first.includes('\n\n')) {
+            const { value, done } = await reader.read();
+            if (done) throw new Error('event stream closed before hello');
+            first += value;
+          }
+          return /event: hello\ndata: .*"hash":"([a-f0-9]+)"/.exec(first)?.[1];
+        } finally {
+          await reader.cancel();
+        }
+      };
+      const hash = await helloHash();
+      expect(hash).toBeString();
+      const report = read(pull, 'report.html');
+      const remote = path.join(tmp, 'acme', 'api.git');
+      await git('init', '--bare', remote);
+      await git('push', 'origin', 'main:refs/pull/32/head', 'main:refs/heads/main');
+      expect(await fetch(u + 'api/patch').then((r) => r.text())).toContain('diff --git');
+      expect((await cli(['stop', id])).code).toBe(0);
+      expect(await cli(['pr', id, '--no-open', '--port', new URL(u).port])).toMatchObject({ code: 0, stdout: u + '\n' });
+      expect(read(pull, 'report.html')).toBe(report);
+      expect(await fetch(u + 'api/patch').then((r) => r.text())).toBe('');
+      const newHash = await helloHash();
+      expect(newHash).toBeString();
+      expect(newHash).not.toBe(hash);
     } finally {
       for (const target of [id, 'acme/api#33', 'pr-32', 'old-head', '32/topic']) await run(['stop', target]);
       await cli(['stop', 'other/api#35']);

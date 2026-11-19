@@ -70,6 +70,7 @@ For each thread in the feedback:
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
 push is outside the diff the reviewer sees because a running server keeps the revision it opened.
+When the reviewer reconnects after a restart with new commits, the page reloads to show the new diff.
 Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
 

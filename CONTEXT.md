@@ -34,9 +34,7 @@ One reviewer's review of one diff, with its walkthrough, report, threads and rou
 _Avoid_: session, workspace
 
 **Review ID**:
-The stable identity of a PR review, `owner/repo#n` in GitHub's reference form. For forks it names the
-base repository. It survives rounds and revision changes. PR review folders use `<owner>_<repo>/pulls/<n>`
-under the reviews root. Local reviews have no Review ID yet.
+The stable identity of a PR review, `owner/repo#n`, using the base repository.
 
 **Walkthrough**:
 The story of the diff, played over the workbench: chapters of slides, narration beside the code each slide shows.
