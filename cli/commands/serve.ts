@@ -3,6 +3,7 @@ import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { loadConfig, readConfig } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
+import { reapAssistantGroup } from '../lib/assistant-process.ts';
 import { stopAssistantWork } from '../lib/progress.ts';
 import { takeLock, releaseLock } from '../lib/lock.ts';
 import { undelivered } from '../../src/kernel/state/ops.shared.ts';
@@ -67,8 +68,6 @@ async function serve(repo: string | null, dir: string, o: StartOpts) {
     await close();
     return liveServer(dir);
   }
-  stopAssistantWork(dir, 'interrupted'); // under the lock: an assistant generation left pending died with the previous server
-  ready(); // generation may start now: the lock is held and startup recovery is done
   const cleanup = () => {
     unregister(process.pid);
     try {
@@ -77,13 +76,18 @@ async function serve(repo: string | null, dir: string, o: StartOpts) {
     releaseLock(dir);
   };
   process.on('exit', cleanup);
+  reapAssistantGroup(dir); // under the lock, before allowing the new assistant to start
+  stopAssistantWork(dir, 'interrupted');
+  ready();
   // the assistant stops its turn, saves its session and ends its processes; a stop that hangs, or a second signal, exits
-  // anyway, first ending its assistant's bridge (which ends the native agent under it; not a hub this server started):
-  // only a crash leaves them running
+  // anyway, first reaping the assistant's private process group.
   const shutdown = () => Promise.race([Promise.resolve(close()).catch((e: unknown) => console.error(`reviewroom: assistant cleanup failed: ${(e as Error).message}`)), Bun.sleep(8000)]);
   const exit = () => {
-    Bun.spawnSync(['pkill', '-TERM', '-P', String(process.pid), '-f', 'bridge\\.mjs']);
-    process.exit(0);
+    try {
+      reapAssistantGroup(dir);
+    } finally {
+      process.exit(0);
+    }
   };
   let stopping = false;
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => {

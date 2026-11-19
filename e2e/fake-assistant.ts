@@ -63,7 +63,7 @@ const write = (dir: string, artifact: 'walkthrough' | 'report', file: string) =>
 };
 
 export const { launch } = fakeAgent(async ({ say, asked, dir }) => {
-  if (!asked.includes('walkthrough and report now')) return say(`You asked: ${asked}`);
+  if (!asked.startsWith('Write only the following requested review artifacts')) return say(`You asked: ${asked}`);
   say('Reading the diff.');
   await gate('go-1');
   write(dir, 'walkthrough', WALKTHROUGH_FILE);

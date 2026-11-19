@@ -22,6 +22,7 @@ folder directly from the ID.
 | `layout.json` | the browser | The dock as the reviewer left it. |
 | `github.json` | the server | The last PR snapshot from GitHub. |
 | `assistant.json` | the server | The built-in assistant's transcript (below). |
+| `assistant-process.json` | the server | The assistant bridge's process group and identity, used to reap its processes on shutdown or restart after a crash. |
 | `rounds/<n>/` | the server | Each finished round: a snapshot of the report and `feedback.md`. |
 
 **`state.json`** is a contract: change it in `src/kernel/state/schema.shared.ts`, then `bun run schema` to regenerate
@@ -45,7 +46,7 @@ them to a state, and the client reads that state rather than the events:
 | `requested`, `by: agent` or `assistant`, with a request `id` | `requested` | `reviewroom pr` for a new or `--force`d review (`agent`; not with `--no-agent`), or `api/generate` (`assistant`, only the documents not validated now). A line without `by` was an agent's. |
 | `written`, with the content hash | `writing` | the server, when the file changes |
 | `validated`, with the hash | `validated` while the file still has that hash, else `writing` | `slide-lint` (a full run) and `check` |
-| `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops; `stale`: the validated hash it saw edited since | `stopped`, only while that request is current and unfinished (or validated with exactly that `stale` hash) | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the server closed during an assistant generation, or a server started while one was pending (`interrupted`; turns live in the server's process) |
+| `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops; `stale`: the validated hash it saw edited since | `stopped`, only while that request is current and unfinished (or validated with exactly that `stale` hash) | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the reviewer stopped the turn, the server closed during it, or a server started while one was pending (`interrupted`; turns live in the server's process) |
 | `reset` | `idle` | `reviewroom pr <review> --force --no-agent` |
 
 Requests and stops of both documents go in one write. Events before the first `requested` are ignored (a review that never asked for generation stays `idle`), except a walkthrough imported from the PR (`validated`, `source: pr`): it counts while the file has those bytes, and edited since, with nobody asked, is `idle` again. `stopped` keeps
@@ -67,8 +68,8 @@ ends (never on disk) and served at the AI SDK's resumable-stream URL, `api/assis
 messages (`activeStreamId`, null when none runs, and its `origin`: `question` or `generation`), and the server tells
 its pages (SSE `assistant`) whenever a turn starts, ends or pauses. A page keeps one chat and follows the turn the
 history names, so the loading screen and the panel follow a generation the server started. A page that leaves or
-reloads only stops following: the turn runs on. Stop is explicit, `POST api/assistant/stop {streamId}`, and stops only
-a question's turn, from any page; a generation runs until its turn ends or the server closes. The assistant answers
+reloads only stops following: the turn runs on. Stop is explicit, `POST api/assistant/stop {streamId}`, and stops the
+named running turn, whether it started with a question or Generate. The assistant answers
 only the review's own URL: the hub proxy marks what
 it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/generate` included (ADR 0001: no identity yet).
 

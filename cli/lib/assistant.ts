@@ -5,7 +5,6 @@
 // the route. The packages are experimental: pinned runtime dependencies, kept out of the CLI bundle (scripts/build.ts)
 // and loaded only when enabled.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
@@ -17,6 +16,7 @@ import { readConfig, type ReviewConfig } from './config.ts';
 import { readState } from './state.ts';
 import { astGrepBinary } from './source/outline.ts';
 import { AskMetadata, contextPrompt, TURN_HEADER } from '../../src/assistant/context.shared.ts';
+import { bunCommand, reapAssistantGroup, spawnAssistantBridge } from './assistant-process.ts';
 import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
@@ -101,12 +101,8 @@ function readAssistantSettings(file = settingsFile()) {
   }
 }
 
-// API-key, gateway and nested-session overrides would replace the reviewer's native subscription login
-const OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'AI_GATEWAY_API_KEY', 'CLAUDECODE'];
-
 /** @ai-sdk/harness-acp's bootstrap command (its PNPM_INSTALL_COMMAND, not exported): checked on upgrades by the first start. */
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile --prod --store-dir .pnpm-store';
-const bunCommand = `'${process.execPath.replaceAll("'", "'\\''")}'`;
 
 const generationSteps = {
   walkthrough: 'Write the walkthrough (Step 4). Run a full `reviewroom slide-lint <review>` and fix what it reports, repeating until it passes. Scoped runs do not count.',
@@ -148,8 +144,12 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
   const bin = fs.mkdtempSync(path.join(home, 'bin-'));
   let local: Awaited<ReturnType<ReturnType<typeof createLocalSandbox>['createSession']>> | undefined;
   const cleanup = async () => {
-    await local?.stop(); // the local runner's stop ends every process it spawned (the bridge and, through it, Claude Code)
-    fs.rmSync(bin, { recursive: true, force: true });
+    try {
+      reapAssistantGroup(dir);
+    } finally {
+      await local?.stop(); // the local runner owns the setup commands
+      fs.rmSync(bin, { recursive: true, force: true });
+    }
   };
   try {
     fs.symlinkSync(path.join(PKG, 'dist/cli/reviewroom.js'), path.join(bin, 'reviewroom'));
@@ -194,15 +194,7 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
         // Bun writes a migrated lock here; discard it on bootstrap so the shipped pnpm lock remains authoritative on upgrades.
         return view.run({ ...o, env: { ...launchEnv(o.env), HOME: home }, command: o.command === PNPM_INSTALL ? `rm -f bun.lock && ${bunCommand} install --frozen-lockfile --production` : o.command });
       },
-      spawn: (o: Parameters<typeof view.spawn>[0]) => view.spawn({
-        ...o,
-        // overrides scoped to the bridge process; upstream launches it as `node <bridge>`
-        command: `env ${OVERRIDES.map((key) => `-u ${key}`).join(' ')} ${o.command.replace(/^node /, `${bunCommand} `)}`,
-        // Claude keeps its native login, plugins and connectors; do not redirect its HOME with the harness state.
-        env: { ...launchEnv(o.env), HOME: process.env.HOME ?? os.homedir(),
-          ...(claudeExecutable ? { CLAUDE_CODE_EXECUTABLE: claudeExecutable } : {}),
-        },
-      }),
+      spawn: (o: Parameters<typeof view.spawn>[0]) => spawnAssistantBridge(dir, repo, { ...o, env: launchEnv(o.env) }, claudeExecutable ?? undefined),
     });
     const sandbox = Object.assign(adapt(runner), { restricted: () => adapt(runner.restricted()) });
     let session: Awaited<ReturnType<HarnessAgent['createSession']>>;
