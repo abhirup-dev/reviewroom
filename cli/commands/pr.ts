@@ -5,35 +5,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
-import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
+import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider, remoteUrl } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveReview, currentBranch, reviewArgs, loadConfig, configPath } from '../lib/config.ts';
-import { formatReviewId, parseReviewId } from '../lib/review-id.ts';
+import { formatReviewId, parseReviewId, type ReviewId } from '../lib/review-id.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
 import { walkthroughPath, writeAtomic } from '../lib/state.ts';
 import { pickBlock } from '../lib/slides-file.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 import { cmdWait, ensureServer, runningServer, type StartOpts } from './serve.ts';
 
-function gh(repo: string, args: string[]) {
+function prMetadata(repo: string, remote: string, pr: ReviewId) {
+  const url = remoteUrl(repo, remote);
+  const host = URL.parse(url)?.hostname || /^(?:[^@/:]+@)?([^/:]+):[^/]/.exec(url)?.[1];
+  if (!host) return null;
+  const args = ['pr', 'view', String(pr.number), '--repo', `${host}/${pr.owner}/${pr.repo}`, '--json', 'number,title,author,baseRefName,headRefName,url'];
+  let info;
   try {
-    return JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+    info = JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 }));
   } catch {
     return null;
   }
+  if (info?.url && formatReviewId(parseReviewId(info.url)) !== formatReviewId(pr)) fail(`GitHub returned ${info.url} for ${formatReviewId(pr)}`);
+  return info;
 }
 
-export type PrOpts = StartOpts & { base?: string; head?: string; title?: string; remote: string; force?: boolean; wait?: boolean; profile?: string };
+export type PrOpts = StartOpts & { base?: string; head?: string; title?: string; remote?: string; force?: boolean; wait?: boolean; profile?: string };
 /** `pr <n>`: fetch the PR's head (or fall back to a local copy) and its base branch. */
-function prNumberConfig(repo: string, o: PrOpts, n: string): ReviewConfig {
-  const { remote } = o;
-  const info = gh(repo, ['pr', 'view', n, '--json', 'number,title,author,baseRefName,headRefName,url']);
+function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId, saved: Partial<ReviewConfig>): ReviewConfig {
+  const n = String(pr.number);
+  const info = prMetadata(repo, remote, pr);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
-  let head = `refs/reviewroom/pr-${n}`;
+  let head = `refs/reviewroom/pr/${Buffer.from(formatReviewId(pr)).toString('base64url')}`;
   const fetched = fetchRef(remote, `+refs/pull/${n}/head:${head}`, repo) || (info?.headRefName && fetchRef(remote, `+refs/heads/${info.headRefName}:${head}`, repo));
   if (!fetched) {
     // Offline, SSH without an agent, or not GitHub: fall back to what is already local.
-    const local = [head, `pr-${n}`, `pr/${n}`, `${remote}/pr/${n}`, info?.headRefName, info?.headRefName && `${remote}/${info.headRefName}`].filter(Boolean).find((r) => hasRef(r, repo));
+    const local = [head, saved.head, `${remote}/pr/${n}`, info?.headRefName && `${remote}/${info.headRefName}`, ...(remote === 'origin' ? [`pr-${n}`, `pr/${n}`, info?.headRefName] : [])].filter(Boolean).find((r) => hasRef(r, repo));
     if (!local) fail(`could not fetch PR #${n} from ${remote} and found no local copy (tried refs/pull/${n}/head, branches pr-${n}, pr/${n}).\n  Fetch it yourself (git fetch ${remote} pull/${n}/head:pr-${n}) or pass the branch name: reviewroom pr <branch>`);
     console.error(`reviewroom: fetch failed; using local ${local} (may be behind the PR)`);
     head = local;
@@ -46,11 +53,11 @@ function prNumberConfig(repo: string, o: PrOpts, n: string): ReviewConfig {
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
-function branchConfig(repo: string, o: PrOpts, branch: string): ReviewConfig {
+function branchConfig(repo: string, o: PrOpts, branch: string, remote: string): ReviewConfig {
   let head = branch;
   if (!git(['rev-parse', '--verify', '--quiet', branch], repo, { soft: true })) {
-    fetchRef(o.remote, `+refs/heads/${branch}:refs/remotes/${o.remote}/${branch}`, repo);
-    head = `${o.remote}/${branch}`;
+    fetchRef(remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`, repo);
+    head = `${remote}/${branch}`;
     if (!git(['rev-parse', '--verify', '--quiet', head], repo, { soft: true })) fail(`no branch or PR called "${branch}"`);
   }
   return { base: o.base ?? defaultBase(repo), head, title: o.title };
@@ -87,14 +94,11 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
     console.log(live.url);
     return;
   }
-  const found = pr ? prNumberConfig(repo, o, String(pr.number)) : arg ? branchConfig(repo, o, arg) : loadConfig(dir, repo, o);
+  const remote = o.remote ?? saved.remote ?? 'origin';
+  const found = pr ? prNumberConfig(repo, o, remote, pr, saved) : arg ? branchConfig(repo, o, arg, remote) : loadConfig(dir, repo, o);
   const id = pr ? formatReviewId(pr) : undefined;
-  if (id && found.url) {
-    const fetchedId = formatReviewId(parseReviewId(found.url));
-    if (fetchedId !== id) fail(`requested review ${id}, but GitHub returned ${fetchedId}`);
-  }
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
-  const cfg = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, target: pr ? undefined : (arg ?? currentBranch(repo)), id: saved.id ?? id } as ReviewConfig;
+  const cfg = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, remote: pr ? remote : undefined, target: pr ? undefined : (arg ?? currentBranch(repo)), id: saved.id ?? id } as ReviewConfig;
   if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
   cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
   writeAtomic(configPath(dir), JSON.stringify(cfg, null, 2));

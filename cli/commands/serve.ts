@@ -30,7 +30,7 @@ export async function ensureServer(repo: string | null, dir: string, o: StartOpt
   if (!o.open) args.push('--no-open');
   if (o.browser) args.push('--browser');
   const log = path.join(dir, 'server.log');
-  const deadline = performance.now() + 20_000; // branch PR discovery alone can take 10 s
+  const deadline = performance.now() + 60_000; // includes PR discovery and the initial report check
   const out = fs.openSync(log, 'a');
   let error: Error | undefined;
   let child;

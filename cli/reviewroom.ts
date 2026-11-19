@@ -52,7 +52,7 @@ cli
   .option('--base <ref>', 'Base: PR base or default branch')
   .option('--head <ref>', 'Head revision; worktree includes uncommitted changes')
   .option('--title <text>', 'Review title')
-  .option('--remote <name>', 'Git remote', { default: 'origin' })
+  .option('--remote <name>', 'Git remote (default: the saved PR remote or origin)')
   .option('--force', `Replace ${REPORT_FILE} and PR walkthrough`)
   .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: explainer)')
   .option('--detach', 'Compatibility flag; the server always runs in the background')
@@ -159,7 +159,7 @@ cli
 
 cli
   .command('hub [action]', 'Serve or stop the local review hub')
-  .usage('hub [serve|stop] [options]')
+  .usage('hub <serve|stop> [options]')
   .option('--detach', 'Serve in background; print URL')
   .option('--stop', 'Alias for hub stop')
   .option('--port <n>', 'Port (default: 4847)')
@@ -198,12 +198,11 @@ const notes: Record<string, string> = {
   Nothing is written to the review.`,
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
   Newest author-owned or agent-owned walkthrough wins.
-  Prints the directory (stderr) and URL (stdout). With --wait, both go to stderr.
+  Prints the directory (stderr) and URL (stdout).
   Reuses a running server and keeps its revision. After stopping it, rerun pr to fetch updates.`,
   'start': `  Prints the review URL. Reuses a running server and its port.`,
   'wait': `  Starts a detached server if needed and leaves it running.
-  Prints saved feedback or APPROVED to stdout and records delivery.
-  Compatibility: review is an alias for wait.`,
+  Prints saved feedback or APPROVED to stdout and records delivery.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.
@@ -213,8 +212,7 @@ const notes: Record<string, string> = {
   'status': `  gh_<n> identifies GitHub threads; gh_conversation identifies PR conversation.
   These belong to colleagues; agents cannot reply.
   Link them with rr:thread/gh_<n>.`,
-  'hub': `  Bare hub is an alias for hub serve.
-  One hub per machine; repeated starts print its URL.
+  'hub': `  One hub per machine; repeated starts print its URL.
   Lists reviewroom, Crit, and Plannotator sessions without thread text.
   Reviews are proxied at /r/<id>/.
   Public URL: stderr; loopback URL: stdout.
@@ -235,9 +233,12 @@ const notes: Record<string, string> = {
 };
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
-  // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
-  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/^ +--foreground.*\n/gm, '').replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
+  const hiddenFlags = c === 'pr' ? /^(?:--detach|--wait)\b/ : /^(?:--foreground|--forever|--stop)\b/;
+  // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
+  const rows = sections.map((x) => x.title === 'Options'
+    ? { ...x, body: x.body.split('\n').filter((line) => !hiddenFlags.test(line.trimStart())).join('\n').replace(/(Do not open the browser) \(default: true\)/g, '$1') }
+    : x);
   if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
   return [
     ...rows.map((x) => (x.title?.startsWith('For more info') ? { ...x, body: '  $ reviewroom <command> --help' } : x)),

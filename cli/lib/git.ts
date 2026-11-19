@@ -58,8 +58,10 @@ export function defaultBase(repo: string) {
   return 'HEAD~1';
 }
 
-export function remoteName(repo: string) {
-  const url = (git(['remote', 'get-url', 'origin'], repo, { soft: true }) || '').trim();
+export const remoteUrl = (repo: string, remote: string) => git(['remote', 'get-url', remote], repo, { soft: true })?.trim() ?? '';
+
+export function remoteName(repo: string, remote = 'origin') {
+  const url = remoteUrl(repo, remote);
   const m = url.match(/[:/]([^/:]+\/[^/]+?)(\.git)?$/);
   if (m) return m[1];
   // no remote: the main checkout's name, so every worktree of the repo gets the same one
@@ -118,7 +120,7 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
         : (git(['log', '--reverse', '--format=%s', `${base}..${head}`], repo, { soft: true }) || '').split('\n')[0].trim() || git(['log', '-1', '--format=%s', head], repo).trim();
       return {
         title: cfg.title || subject,
-        repo: cfg.repo || remoteName(repo),
+        repo: cfg.repo || remoteName(repo, cfg.remote),
         path: realRepo,
         number: cfg.number,
         author: cfg.author || (!isWT(head) ? git(['log', '-1', '--format=%an', head], repo).trim() : undefined),

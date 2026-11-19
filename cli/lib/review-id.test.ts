@@ -8,8 +8,14 @@ test('PR IDs round-trip through their canonical folders', () => {
     ['ACME/api_v2#031', 'acme/api_v2#31', 'acme_api_v2'],
     ['a-b/c#31', 'a-b/c#31', 'a-b_c'],
     ['https://github.com/a/b-c/pull/31#discussion', 'a/b-c#31', 'a_b-c'],
-  ];
+    ['acme/api.#32', null, null],
+    ['https://github.com/acme./api/pulls/32', null, null],
+  ] as const;
   for (const [input, expected, bucket] of cases) {
+    if (!expected || !bucket) {
+      expect(() => parseReviewId(input)).toThrow('invalid PR review ID');
+      continue;
+    }
     const id = parseReviewId(input);
     const dir = reviewFolder(id);
     expect(formatReviewId(id)).toBe(expected);

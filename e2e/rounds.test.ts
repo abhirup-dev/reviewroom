@@ -43,21 +43,23 @@ describe('the external agent round loop', () => {
   const url = 'https://example.invalid/acme/api/pull/32';
   const run = (args: string[]) => cli([...args, ...inRepo]);
   const config = (dir: string, cfg: object) => fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(cfg));
-  const asLegacy = (dir: string, number: number) => {
-    const cfg = JSON.parse(read(dir, 'config.json'));
-    delete cfg.target;
-    config(dir, { ...cfg, number, url: `https://example.invalid/acme/api/pull/${number}` });
-  };
+  const legacyCases = [[legacy, 32, undefined], [headLegacy, 33, 'https://example.invalid/acme/api/pull/33']] as const;
+  const asLegacy = ([dir, number, url]: typeof legacyCases[number]) => config(dir, { ...JSON.parse(read(dir, 'config.json')), number, url });
 
   test('resolves PR and local targets and keeps one server through feedback and approval', async () => {
     try {
       await git('remote', 'add', 'origin', path.join(tmp, 'acme', 'api.git'));
+      const mirror = path.join(tmp, 'other', 'api.git');
+      fs.mkdirSync(path.dirname(mirror), { recursive: true });
+      await git('init', '--bare', mirror);
+      await git('remote', 'add', 'mirror', mirror);
+      await git('push', 'mirror', 'feat/upload-rate-limit:refs/pull/35/head', 'main:refs/heads/main');
       for (const branch of ['pr-32', 'old-head', '32/topic', 'pr-33']) await git('branch', branch, 'feat/upload-rate-limit');
 
       // Present a live branch folder as a pre-upgrade PR review with a pending server.
       const oldServer = await run(['pr', 'pr-32', ...quiet]);
       expect(oldServer.code).toBe(0);
-      asLegacy(legacy, 32);
+      asLegacy(legacyCases[0]);
       expect(await run(['pr', '32', ...quiet])).toMatchObject({ code: 1, stderr: expect.stringContaining(`stop it first: reviewroom stop ${id}`) });
       expect(fs.existsSync(pull)).toBe(false);
       expect((await cli(['stop', id])).stdout).toStartWith('stopped server');
@@ -77,12 +79,20 @@ describe('the external agent round loop', () => {
 
       expect((await run(['pr', 'old-head', ...quiet])).code).toBe(0);
       await run(['stop', 'old-head']);
-      asLegacy(headLegacy, 33);
+      asLegacy(legacyCases[1]);
       const adopted = await run(['pr', '33', '--base', 'main', ...quiet]);
       expect(adopted).toMatchObject({ code: 0, stderr: expect.stringContaining('reviewroom wait acme/api#33') });
       expect(fs.existsSync(headLegacy)).toBe(false);
 
       for (const branch of ['pr-32', '32/topic']) expect((await run(['pr', branch, ...quiet])).code).toBe(0);
+      const remoteCases = [
+        [[id, '--remote', 'mirror', ...inRepo], { code: 1, stderr: expect.stringContaining('selected repository is other/api') }],
+        [['35', '--remote', 'mirror', ...inRepo], { code: 0, stderr: expect.stringContaining('reviewroom wait other/api#35') }],
+        [['other/api#35'], { code: 0, stderr: expect.stringContaining('reviewroom wait other/api#35') }],
+      ] as const;
+      for (const [args, expected] of remoteCases) {
+        expect(await cli(['pr', ...args, '--base', 'main', ...quiet])).toMatchObject(expected);
+      }
       const cases = [
         [[id], pull, id],
         [['#32', ...inRepo], pull, id],
@@ -146,6 +156,7 @@ describe('the external agent round loop', () => {
       }
     } finally {
       for (const target of [id, 'acme/api#33', 'pr-32', 'old-head', '32/topic']) await run(['stop', target]);
+      await cli(['stop', 'other/api#35']);
       await cli(['hub', 'stop']);
     }
   });

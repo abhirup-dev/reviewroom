@@ -15,7 +15,7 @@ export function parseReviewId(text: string, repository?: string, optional = fals
   if (optional && digits === undefined && !url) return null; // a branch such as 32/topic
   const [owner, repo, rest] = (named || repository || '').toLowerCase().split('/');
   const number = Number(digits);
-  if (extra !== undefined || rest !== undefined || !/^[a-z0-9-]+$/.test(owner) || !repo || !/^[a-z0-9._-]+$/.test(repo) || repo === '.' || repo === '..' ||
+  if (extra !== undefined || rest !== undefined || !/^[a-z0-9-]+$/.test(owner) || !repo || !/^[a-z0-9._-]+$/.test(repo) || repo.endsWith('.') ||
       !/^\d+$/.test(digits ?? '') || !Number.isSafeInteger(number) || number < 1) fail(`invalid PR review ID "${text}" (use owner/repo#n, or select its repository)`);
   return { owner, repo, number };
 }

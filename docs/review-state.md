@@ -9,7 +9,7 @@ Review folders live outside the checkout. PR reviews use `<home>/reviews/<owner>
 Existing local review folders keep their layout. Use `--dir` to select a custom local folder.
 
 A PR's `config.json` has a write-once `id` that must match its folder. When `pr`, `start` or `wait`
-finds a single legacy folder with the same saved PR number and URL, it moves that folder in one rename
+finds a single legacy folder for the same repository and PR number, it moves that folder in one rename
 and writes the ID. Stop a running legacy review first. The moved review gets a new hub route hash.
 
 | File | Written by | Holds |
@@ -33,6 +33,8 @@ an error, never silently started over; a read-only server never moves it.
 reads the round queue from `state.json`. The server saves `feedback.md` before publishing the finished
 round in state. `wait` prints the oldest undelivered round and records `deliveredAt` via the normal
 state operation after stdout flushes. A retry can reprint a round if interrupted before that write.
+Concurrent waiters can print the same round.
+A server restart between lock lookup and the delivery request may require a retry.
 The server stays up through feedback and approval. Stop it with `reviewroom stop acme/api#31` or the hub's Close.
 
 **`assistant.json`** stores the review's AI SDK transcript and opaque harness resume state (private, mode 0600).
