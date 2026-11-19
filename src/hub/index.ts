@@ -161,8 +161,8 @@ function ownAgent(s: SessionInfo) {
 }
 /** Remove a stopped review's folder; asks first only if it holds work (documents, threads, the assistant's transcript). */
 function removeReview(s: SessionInfo) {
-  const go = async () => {
-    const r = await fetch(`/api/reviews/${encodeURIComponent(s.routeId ?? '')}/remove`, action('remove-review')).catch((e: Error) => e);
+  const go = async (confirmed = false) => {
+    const r = await fetch(`/api/reviews/${encodeURIComponent(s.routeId ?? '')}/remove`, action('remove-review', { body: JSON.stringify({ confirmed }) })).catch((e: Error) => e);
     const error = r instanceof Error ? r.message : r.ok ? null : (((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'It was not removed.');
     notice = error ? { text: error, risk: true } : { text: `Removed “${subject(s)}”.` };
     selected.delete(s.id);
@@ -170,7 +170,7 @@ function removeReview(s: SessionInfo) {
   };
   if (!s.hasWork) return void go();
   const close = () => box.close();
-  const confirm = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => { confirm.disabled = true; void go().finally(close); } }, 'Remove review');
+  const confirm = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => { confirm.disabled = true; void go(true).finally(close); } }, 'Remove review');
   const box = h(
     'dialog',
     { class: 'rr-modal rr-modal--narrow', 'aria-label': 'Remove review', onmousedown: backdropCloses, onclose: () => box.remove() },

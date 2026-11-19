@@ -88,7 +88,8 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
   });
   app.post('/api/reviews/:routeId/remove', async (c) => {
     if (!action(c, 'remove-review')) return refused(c);
-    const r = await remove(c.req.param('routeId'));
+    const body = (await c.req.json().catch(() => null)) as { confirmed?: unknown } | null;
+    const r = await remove(c.req.param('routeId'), body?.confirmed === true);
     hub.invalidate();
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   });

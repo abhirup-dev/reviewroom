@@ -129,7 +129,9 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
   const prov = makeProvider(repo, cfg);
   const files = prov.files(prov.base, prov.head);
   fs.mkdirSync(dir, { recursive: true });
-  const fresh = scaffold(repo, dir, cfg, !!o.force);
+  const scaffoldHash = scaffold(repo, dir, cfg, !!o.force);
+  if (scaffoldHash) cfg.reportScaffoldHash = scaffoldHash;
+  const fresh = scaffoldHash !== undefined;
   writeAtomic(configPath(dir), JSON.stringify(cfg, null, 2));
   settleGeneration(dir, o, fresh, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);

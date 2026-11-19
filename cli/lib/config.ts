@@ -15,7 +15,7 @@ import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 // assistant: this review runs the built-in assistant (its Ask panel and api/generate): set by the hub's Play and
 // `pr --assistant`, never by an external agent's `pr`. Per review, so each can be written by whoever the reviewer picks.
 const text = z.string().optional().catch(undefined);
-const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, remote: text, author: text, baseLabel: text, headLabel: text, profile: text, target: text, id: z.string().optional(), assistant: z.boolean().optional().catch(undefined) });
+const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, remote: text, author: text, baseLabel: text, headLabel: text, profile: text, reportScaffoldHash: text, target: text, id: z.string().optional(), assistant: z.boolean().optional().catch(undefined) });
 /** config.json, with --base/--head/--title applied (loadConfig). */
 export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
 export const configPath = (dir: string) => path.join(dir, 'config.json');

@@ -12,7 +12,7 @@ import { promisify } from 'node:util';
 import { configPath, readConfig } from '../lib/config.ts';
 import { allReviewFolders, formatReviewId, parseReviewId, reviewFolder, type ReviewId } from '../lib/review-id.ts';
 import { homeDir } from '../lib/paths.ts';
-import { readProgress } from '../lib/progress.ts';
+import { artifactHash, readProgress } from '../lib/progress.ts';
 import { routeId, runningServer, startDetached, type ServerRecord } from '../lib/registry.ts';
 import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.shared.ts';
 import type { GenerationState } from '../../src/hub/model.shared.ts';
@@ -61,9 +61,11 @@ export function diskReviews(): DiskReview[] {
     try {
       const c = readConfig(dir);
       const generation = generationState(readProgress(dir));
+      const reportHash = artifactHash(dir, 'report');
+      const editedReport = reportHash !== undefined && reportHash !== c.reportScaffoldHash;
       return [{
         dir, routeId: routeId(dir), reviewId: c.id, repo: c.repoPath ?? '', title: c.title ?? null, branch: c.headLabel ?? c.head ?? null,
-        generation, hasWork: generation !== 'idle' || WORK.some((f) => fs.existsSync(path.join(dir, f))), updatedAt: fs.statSync(file).mtime.toISOString(),
+        generation, hasWork: editedReport || generation !== 'idle' || WORK.some((f) => fs.existsSync(path.join(dir, f))), updatedAt: fs.statSync(file).mtime.toISOString(),
       }];
     } catch {
       return [];
@@ -191,12 +193,15 @@ export async function play(route: string, entry = process.argv[1]): Promise<Play
 
 /** Remove a stopped review: its folder is deleted (the page asked first if it held work). The repository's clone stays:
  *  other reviews may use it. A running one is refused: Close it first. */
-export async function remove(route: string): Promise<{ ok: true } | { ok: false; error: string; status: 404 | 409 }> {
+export async function remove(route: string, confirmed: boolean): Promise<{ ok: true } | { ok: false; error: string; status: 404 | 409 }> {
   const found = diskReviews().find((r) => r.routeId === route); // the folder comes from disk, never from the request
   if (!found) return { ok: false, error: 'No such review on this machine.', status: 404 };
   // one at a time with Plays, closes and re-adds of it: a Play waiting behind this finds nothing to start
   return serialized(found.dir, async () => {
     if (await runningServer(found.dir)) return { ok: false, error: 'It is running: Close it first.', status: 409 };
+    const current = diskReviews().find((r) => r.routeId === route);
+    if (!current) return { ok: false, error: 'No such review on this machine.', status: 404 };
+    if (current.hasWork && !confirmed) return { ok: false, error: 'This review has saved work. Choose Remove again to confirm.', status: 409 };
     fs.rmSync(found.dir, { recursive: true, force: true });
     return { ok: true };
   });

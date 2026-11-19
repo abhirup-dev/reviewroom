@@ -13,7 +13,7 @@ folder directly from the ID.
 
 | File | Written by | Holds |
 | --- | --- | --- |
-| `config.json` | the CLI (`reviewroom pr`) | Repo path, base, head, title, PR metadata, write-once PR ID, report profile and the CLI target for a default review folder. `assistant: true`: this review runs the built-in assistant (its Ask panel and `api/generate`), set by the hub's Play and `pr --assistant`, never by an external agent's `pr`. Schema in `cli/lib/config.ts`. |
+| `config.json` | the CLI (`reviewroom pr`) | Repo path, base, head, title, PR metadata, write-once PR ID, report profile and the CLI target for a default review folder. `reportScaffoldHash` identifies the untouched scaffold for the hub's Remove confirmation. `assistant: true`: this review runs the built-in assistant (its Ask panel and `api/generate`), set by the hub's Play and `pr --assistant`, never by an external agent's `pr`. Schema in `cli/lib/config.ts`. |
 | `state.json` | the CLI, the browser (through the server) and agents (through the CLI) | Threads, rounds, viewed files, sign-offs. |
 | `state.lock` | the CLI and the server | `{pid, port}`. A running server holds it for its lifetime; the CLI holds it for one read-modify-write, and sends its writes to the server while the server holds it. |
 | `server.json` | the review server | The running server, so other commands find it. |

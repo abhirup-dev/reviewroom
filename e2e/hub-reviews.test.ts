@@ -7,7 +7,8 @@ import { $ } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { recordArtifact, requestGeneration } from '../cli/lib/progress.ts';
-import { WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
+import { until } from '../src/testing/wait.ts';
 import { config, setup } from './fixture.ts';
 
 const root = path.resolve(import.meta.dir, '..');
@@ -52,11 +53,28 @@ describe('the hub starts reviews', async () => {
     const [closed] = await ours();
     expect(closed).toMatchObject({ id: `review:${id}`, stopped: true, hasWork: true }); // the page asks first
     expect((await fetch(hub + `api/reviews/${id}/remove`, { method: 'POST' })).status).toBe(403); // no action header
-    expect((await post(`api/reviews/${id}/remove`, 'remove-review')).status).toBe(200);
+    expect((await post(`api/reviews/${id}/remove`, 'remove-review', { confirmed: true })).status).toBe(200);
     expect([fs.existsSync(closed.reviewPath!), fs.existsSync(path.join(tmp, 'home', 'repos', 'acme', 'demo', '.git'))]).toEqual([false, true]);
     expect(await ours()).toEqual([]);
     expect((await post(`api/reviews/${id}/remove`, 'remove-review')).status).toBe(404);
   }, 60_000);
+
+  test('removing a stopped review with only an edited report requires confirmation', async () => {
+    const r = await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/10' });
+    expect(r.status).toBe(201);
+    const { routeId } = await r.json();
+    const review = async () => (await client.sessions()).find((s) => s.routeId === routeId);
+    const added = await review();
+    expect(added).toMatchObject({ stopped: true, hasWork: false });
+    const report = path.join(added!.reviewPath!, REPORT_FILE);
+    const edited = fs.readFileSync(report, 'utf8').replace('</rr-review>', '<p>Review notes</p></rr-review>');
+    fs.writeFileSync(report, edited);
+    await until(async () => (await review())?.hasWork, { every: 100 });
+    const remove = () => `api/reviews/${routeId}/remove`;
+    expect((await post(remove(), 'remove-review')).status).toBe(409);
+    expect(fs.readFileSync(report, 'utf8')).toBe(edited);
+    expect((await post(remove(), 'remove-review', { confirmed: true })).status).toBe(200);
+  });
 
   test('a re-add at a new head never replaces a walkthrough edited since the PR import, even with a stale request', async () => {
     const clone = path.join(tmp, 'home', 'repos', 'acme', 'demo');
