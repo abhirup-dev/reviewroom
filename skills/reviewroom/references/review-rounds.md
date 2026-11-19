@@ -23,6 +23,7 @@ unread round as soon as it is available.
 
 ## Check status and stop
 
+Use `reviewroom list` to find running reviews and their IDs or local folders.
 Use `reviewroom status acme/api#31 --json` for the URL, review directory, base/head shas and status;
 add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
 for the round command's completion. To end the review when asked, run `reviewroom stop acme/api#31`.

@@ -139,6 +139,7 @@ Once both documents are done and clean, tell the reviewer:
 
 ## Step 5: Continue across review rounds
 
+Use `reviewroom list` to find running reviews.
 Read `references/review-rounds.md` for waiting on feedback, checking status, answering comments,
 and starting the next round. Follow that loop until the reviewer approves or asks to stop.
 

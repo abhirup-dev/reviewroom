@@ -68,6 +68,7 @@ export function setup(extraEnv: Record<string, string> = {}) {
   fs.cpSync(path.join(template, 'home', 'reviews'), path.join(home, 'reviews'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...readJson(dir, 'config.json'), repoPath: repo }));
   const cli = (args: string[], input?: string) => runCli(env, args, input);
+  const git = (...args: string[]) => $`git -C ${repo} ${args}`.quiet();
   afterAll(async () => {
     for (const p of procs) p.kill();
     await cli(['stop', ...d]);
@@ -78,7 +79,17 @@ export function setup(extraEnv: Record<string, string> = {}) {
     state: (reviewDir = dir) => readJson(reviewDir, 'state.json'),
     /** The per-user session registry. */
     sessions: () => fs.readdirSync(path.join(tmp, 'home', 'sessions')).map((f) => readJson(tmp, 'home', 'sessions', f)),
-    git: (...args: string[]) => $`git -C ${repo} ${args}`.quiet(),
+    git,
+    addPullRemote: async (owner = 'demo', remote = 'origin') => {
+      const number = '7';
+      const repository = `${owner}/project`;
+      const bare = path.join(tmp, `${repository}.git`);
+      const ref = `refs/pull/${number}/head`;
+      await git('init', '--bare', bare);
+      await git('remote', 'add', remote, bare);
+      await git('push', remote, `feat/upload-rate-limit:${ref}`, 'main:refs/heads/main');
+      return { id: `${repository}#${number}`, number, ref, url: `https://github.com/${repository}/pull/${number}`, dir: path.join(home, 'reviews', `${owner}_project`, 'pulls', number) };
+    },
     /** `pr` on a free port: the URL. */
     serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
     /** A foreground command (killed in afterAll). */

@@ -49,8 +49,8 @@ it forwards (`x-reviewroom-via-hub`) and the review server refuses it (ADR 0001:
 
 - `reviews/`: the review folders (above). PR identity appears as `id` in CLI status JSON and
   `prReviewId` in review metadata and hub sessions.
-- `sessions/<pid>.json`: one per running server, read by `reviewroom hub` (which deletes records whose server is gone)
-  and other local tools. `hub.json` is the running hub.
+- `sessions/<pid>.json`: one per running server, read by `reviewroom list`, the hub, and other local tools.
+  `list --json` reads the PR ID from `config.json`. The hub deletes stale records. `hub.json` is the running hub.
 - `layouts/<name>.json`: the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the
   shipped ones in `src/kernel/layouts/` (whose names they can't take). `default-layout.json` names their default.
 - `config.json`: the reviewer's settings. `publicOrigin` (`reviewroom hub serve --public-origin`, ADR 0001), read when the

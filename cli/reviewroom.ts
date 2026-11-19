@@ -13,7 +13,7 @@ import { readConfig, resolveReview } from './lib/config.ts';
 import { cmdPr, type PrOpts } from './commands/pr.ts';
 import { cmdStart, cmdWait, type StartOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
-import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
+import { cmdList, cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
 import { cmdPublishSlides } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
@@ -152,6 +152,12 @@ cli
   .action(run(cmdShot));
 
 cli
+  .command('list', 'List running review servers')
+  .option('--json', 'Print a JSON array of running reviews')
+  .example('  reviewroom list --json')
+  .action(run<{ json?: boolean }>((_repo, o) => cmdList(o)));
+
+cli
   .command('stop [target]', 'Stop a review server')
   .usage('stop [id|number|URL|branch] [options]')
   .example('  reviewroom stop acme/api#31')
@@ -201,6 +207,7 @@ const notes: Record<string, string> = {
   Prints the directory (stderr) and URL (stdout).
   Reuses a running server and keeps its revision. After stopping it, rerun pr to fetch updates.`,
   'start': `  Prints the review URL. Reuses a running server and its port.`,
+  'list': `  Lists running reviews across repositories. The hub can be stopped.`,
   'wait': `  Starts a detached server if needed and leaves it running.
   Prints saved feedback or APPROVED to stdout and records delivery.`,
   'reply': `  Thread IDs accept unique prefixes.
@@ -247,6 +254,7 @@ cli.help((sections) => {
       body: [
         '  pr acme/api#31: set up a review and start its server.',
         '  wait acme/api#31: await the next round in the background.',
+        '  list: show running reviews and their URLs.',
         '  shot [section]: inspect PNG output.',
         '  reply <thread> "...": answer feedback.',
         '  stop acme/api#31: stop the review server.',

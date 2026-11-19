@@ -2,10 +2,12 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import type { Global } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { loadConfig, readConfig } from '../lib/config.ts';
+import { loadConfig, readConfig, reviewDirArgs } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
 import { awaitingAgent, currentRound } from '../../src/kernel/state/ops.shared.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
+import { readReviewroom } from '../hub/sources.ts';
+import { runningServer } from './serve.ts';
 
 export type StatusOpts = Global & { all?: boolean; json?: boolean };
 
@@ -29,4 +31,19 @@ export function cmdStatus(repo: string | null, dir: string, o: StatusOpts) {
 export async function cmdStop(_repo: string | null, dir: string) {
   const rec = await stopServer(dir);
   console.log(rec ? `stopped server on port ${rec.port}` : 'no server running for this review');
+}
+
+export async function cmdList({ json }: { json?: boolean }) {
+  const sessions = await Promise.all(readReviewroom().map(async ({ dir, pid, port, title, url }) => {
+    if (!dir) return null;
+    const server = await runningServer(dir);
+    if (server?.pid !== pid || server.port !== port) return null;
+    try {
+      return { id: readConfig(dir).id, dir, url, pid, title };
+    } catch { return null; }
+  }));
+  const reviews = sessions.filter((review) => review !== null).sort((a, b) => (a.id ?? a.dir).localeCompare(b.id ?? b.dir));
+  if (json) console.log(JSON.stringify(reviews, null, 2));
+  else if (!reviews.length) console.log('No running reviews');
+  else for (const { id, dir, url } of reviews) console.log(`${id ?? reviewDirArgs(dir)}\t${url}`);
 }
