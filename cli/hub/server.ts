@@ -78,7 +78,7 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
     const body = (await c.req.json().catch(() => ({}))) as { url?: unknown };
     const r = await addPr(typeof body.url === 'string' ? body.url : '', hub.entry);
     hub.invalidate();
-    return r.ok ? c.json({ ok: true, routeId: r.routeId }, 201) : c.json({ error: r.error }, 422);
+    return r.ok ? c.json({ ok: true, routeId: r.routeId, running: r.running }, 201) : c.json({ error: r.error }, 422);
   });
   app.post('/api/reviews/:routeId/play', async (c) => {
     if (!action(c, 'play-review')) return refused(c);

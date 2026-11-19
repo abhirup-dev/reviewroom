@@ -95,7 +95,7 @@ const why = (e: unknown) => {
 };
 
 /** Clones (or fetches) the PR's repository and sets its review up without a server or an agent. Returns the hub route ID. */
-export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok: true; routeId: string; dir: string } | { ok: false; error: string }> {
+export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok: true; routeId: string; dir: string; running: boolean } | { ok: false; error: string }> {
   const raw = url.trim();
   const page = URL.parse(raw);
   let pr: ReviewId;
@@ -132,8 +132,11 @@ export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok:
     // the Review ID names the folder: a re-add waits for a Play or close of it, and they for it
     const id = formatReviewId(pr);
     const dir = reviewFolder(pr);
-    await serialized(dir, () => run(process.execPath, [entry, 'pr', id, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 }));
-    return { ok: true, routeId: routeId(dir), dir };
+    const running = await serialized(dir, async () => {
+      await run(process.execPath, [entry, 'pr', id, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 });
+      return !!(await runningServer(dir));
+    });
+    return { ok: true, routeId: routeId(dir), dir, running };
   } catch (e) {
     return { ok: false, error: `Could not set up the review: ${why(e) || 'reviewroom pr failed'}` };
   }

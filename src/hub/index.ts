@@ -113,8 +113,10 @@ async function addPr() {
   notice = { text: `Adding ${addUrl.value.trim()}: cloning or fetching, then setting up the review…` };
   paint(true);
   const r = await fetch('/api/reviews', action('add-review', { body: JSON.stringify({ url: addUrl.value.trim() }) })).catch((e: Error) => e);
-  const body = r instanceof Error ? { error: r.message } : ((await r.json().catch(() => ({}))) as { error?: string });
-  notice = r instanceof Error || !r.ok ? { text: body.error ?? 'Could not add the PR.', risk: true } : { text: 'Added. Play it to start its review.' };
+  const body = r instanceof Error ? { error: r.message } : ((await r.json().catch(() => ({}))) as { error?: string; running?: boolean });
+  notice = r instanceof Error || !r.ok
+    ? { text: body.error ?? 'Could not add the PR.', risk: true }
+    : { text: body.running ? 'This review is already running.' : 'Added. Play it to start its review.' };
   if (notice && !notice.risk) addUrl.value = '';
   addBtn.disabled = false;
   await refresh();
