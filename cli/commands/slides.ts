@@ -4,6 +4,7 @@ import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
+import { reviewArgs } from '../lib/config.ts';
 import { artifactHash, recordArtifact } from '../lib/progress.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough } from '../lib/state.ts';
@@ -37,7 +38,7 @@ export async function cmdSlideLint(repo: string | null, dir: string, o: SlideOpt
     console.log(`${selection.slides.length}${partial ? ` of ${selection.total}` : ''} slides measured at ${viewports.map(vpName).join(', ')} (${engine}; ${rendered.jobs} worker${rendered.jobs === 1 ? '' : 's'}${partial ? '; partial check' : ''})`);
     if (c.bad.length) console.log(`\n${c.bad.length} link(s) need attention:\n${report(c.bad)}`);
     console.log(findings.length ? `\n${findingReport(findings, tour)}` : partial ? '\nno findings in the selected slides (partial check).' : '\nno findings: every slide fits.');
-    if (findings.some((f) => f.level === 'warn')) console.log('\nSee a slide with `reviewroom shot <chapter>/<step>`.');
+    if (findings.some((f) => f.level === 'warn')) console.log(`\nSee a slide with \`reviewroom shot ${reviewArgs(repo ?? '', dir)} <chapter>/<step>\`.`);
   }
   if (c.bad.length || findings.some((f) => f.level === 'warn')) process.exitCode = 1;
   else if (!partial) recordArtifact(dir, 'walkthrough', 'validated', { head: c.head }, checkedHash);
