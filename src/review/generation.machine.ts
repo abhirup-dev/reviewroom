@@ -16,11 +16,11 @@ import { assign, emit, enqueueActions, fromPromise, setup, stateIn, type Snapsho
 import { pendingArtifact, stageOf, type Progress, type Stage } from '../kernel/state/progress.shared';
 
 /** The request pair a progress shows: what the screen's closing and Generate's bridge are keyed on. */
-export const requestKey = ({ walkthrough: w, report: r }: Progress) => `${w.request ?? ''}|${r.request ?? ''}`;
+const requestKey = ({ walkthrough: w, report: r }: Progress) => `${w.request ?? ''}|${r.request ?? ''}`;
 
 /** What a tab keeps over a reload (the server reloads the page when a document stops or lands). */
 export type Remembered = { closedFor?: string | null; waitedFor?: string | null; played?: string | null };
-export type GenerationContext = {
+type GenerationContext = {
   progress: Progress;
   /** the server can generate here (`generate` in /api/meta) */
   canGenerate: boolean;
@@ -35,7 +35,7 @@ export type GenerationContext = {
   /** the walkthrough request already played */
   played: string | null;
 };
-export type GenerationEvent = { type: 'progress'; progress: Progress } | { type: 'generate' } | { type: 'dismiss' } | { type: 'reopen' };
+type GenerationEvent = { type: 'progress'; progress: Progress } | { type: 'generate' } | { type: 'dismiss' } | { type: 'reopen' };
 const progressOf = (e: GenerationEvent) => (e as Extract<GenerationEvent, { type: 'progress' }>).progress;
 const keyOf = ({ event }: { event: GenerationEvent }) => requestKey(progressOf(event));
 const reason = (error: unknown) => (error as Error).message;
