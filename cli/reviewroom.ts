@@ -2,16 +2,16 @@
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
-// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch). What the agent
+// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch-or-pr-n>/. What the agent
 // writes there: docs/review-artifacts.md; reviewroom's own state: docs/review-state.md.
 import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import { cac } from 'cac';
-import { die } from './lib/args.ts';
+import { die, type Global } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
-import { readConfig } from './lib/config.ts';
+import { readConfig, resolveDir } from './lib/config.ts';
 import { cmdPr, type PrOpts } from './commands/pr.ts';
-import { cmdServe, type ServeOpts } from './commands/serve.ts';
+import { cmdStart, cmdWait, type StartOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
@@ -40,8 +40,11 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
   await fn(typeof o.repo === 'string' ? repoRoot(path.resolve(o.repo)) : repoRoot(made || process.cwd()), o as O, pos);
 };
 
+const forReview = <O extends Global>(command: string, fn: (repo: string | null, dir: string, o: O) => unknown) =>
+  (repo: string | null, o: O, [target]: string[]) => fn(repo, resolveDir(repo, o.dir, { existing: true, target, command, repoFlag: o.repo }), o);
+
 cli
-  .command('pr [target]', 'Create and serve a review')
+  .command('pr [target]', 'Set up a review and start its server in the background')
   .usage('pr [number|URL|branch] [options]')
   .option('--base <ref>', 'Base: PR base or default branch')
   .option('--head <ref>', 'Head revision; worktree includes uncommitted changes')
@@ -49,29 +52,44 @@ cli
   .option('--remote <name>', 'Git remote', { default: 'origin' })
   .option('--force', `Replace ${REPORT_FILE} and PR walkthrough`)
   .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: explainer)')
-  .option('--detach', 'Serve in background; print URL')
-  .option('--wait', 'Wait for the first feedback round')
+  .option('--detach', 'Compatibility flag; the server always runs in the background')
+  .option('--wait', 'Then wait for the next undelivered round')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .example('  reviewroom pr 4821 --wait')
-  .example('  reviewroom pr --head worktree --wait')
+  .example('  reviewroom pr 4821')
+  .example('  reviewroom pr --head worktree')
   .action(run<PrOpts>((repo, o, pos) => cmdPr(repo, o, pos[0])));
 
 cli
-  .command('review', 'Serve until feedback arrives')
-  .option('--forever', 'Serve continuously without waiting for feedback')
-  .option('--port <n>', 'Port (default: the previous one, else 4848)')
+  .command('start [target]', 'Ensure a review server is running')
+  .usage('start [number|URL|branch] [options]')
+  .option('--foreground', 'Run the server in this process')
+  .option('--port <n>', 'Port for a new server (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .action(run<ServeOpts>((repo, o) => cmdServe(repo, o, !o.forever)));
+  .example('  reviewroom start 31')
+  .action(run(forReview('start', cmdStart)));
 
 cli
-  .command('status', 'Show review status and threads')
+  .command('wait [target]', 'Wait for and print the next undelivered round')
+  .usage('wait [number|URL|branch] [options]')
+  .alias('review')
+  .option('--forever', 'Compatibility flag; ignored')
+  .option('--port <n>', 'Port for a new server (default: 4848)')
+  .option('--no-open', 'Do not open the browser')
+  .option('--browser', 'Open browser instead of macOS app')
+  .example('  reviewroom wait 31')
+  .action(run(forReview<StartOpts>('wait', cmdWait)));
+
+cli
+  .command('status [target]', 'Show review status and threads')
+  .usage('status [number|URL|branch] [options]')
   .option('--threads', 'Include open threads and messages')
   .option('--all', 'Include resolved threads')
   .option('--json', 'Print JSON')
-  .action(run<StatusOpts & { threads?: boolean }>((repo, o) => (o.threads ? cmdThreads(repo, o) : cmdStatus(repo, o))));
+  .example('  reviewroom status 31 --json')
+  .action(run(forReview<StatusOpts & { threads?: boolean }>('status', (repo, dir, o) => (o.threads ? cmdThreads(repo, { ...o, dir }) : cmdStatus(repo, dir, o)))));
 
 cli
   .command('reply [thread] [body]', 'Reply to a thread')
@@ -130,16 +148,26 @@ cli
   .example('  reviewroom shot latency/s3 --prose-only --native')
   .action(run(cmdShot));
 
-cli.command('stop', 'Stop a detached review server').action(run(cmdStop));
+cli
+  .command('stop [target]', 'Stop a review server')
+  .usage('stop [number|URL|branch] [options]')
+  .example('  reviewroom stop 31')
+  .action(run(forReview('stop', cmdStop)));
 
 cli
-  .command('hub', 'List local review sessions')
+  .command('hub [action]', 'Serve or stop the local review hub')
+  .usage('hub [serve|stop] [options]')
   .option('--detach', 'Serve in background; print URL')
-  .option('--stop', 'Stop the running hub')
+  .option('--stop', 'Alias for hub stop')
   .option('--port <n>', 'Port (default: 4847)')
   .option('--public-origin <url>', 'Save public HTTPS origin; none clears it')
   .option('--no-open', 'Do not open the browser')
-  .action(run<HubOpts>((_repo, o) => cmdHub(o)));
+  .example('  reviewroom hub serve --detach')
+  .example('  reviewroom hub stop')
+  .action(run<HubOpts>((_repo, o, [action = 'serve']) => {
+    if (action !== 'serve' && action !== 'stop') die(`unknown hub action \`${action}\`; see \`reviewroom hub --help\``, 2);
+    return cmdHub({ ...o, stop: o.stop || action === 'stop' });
+  }));
 
 // What an agent needs beyond the flags, shown under the command's --help.
 const notes: Record<string, string> = {
@@ -166,7 +194,13 @@ const notes: Record<string, string> = {
   Prose-only findings exclude right-hand code.
   Nothing is written to the review.`,
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
-  Newest author-owned or agent-owned walkthrough wins.`,
+  Newest author-owned or agent-owned walkthrough wins.
+  Prints the directory (stderr) and URL (stdout). With --wait, both go to stderr.
+  Reuses a running server. Use stop then start to load a new PR revision.`,
+  'start': `  Prints the review URL. Reuses a running server and its port.`,
+  'wait': `  Starts a detached server if needed and leaves it running.
+  Prints saved feedback or APPROVED to stdout and records delivery.
+  Compatibility: review is an alias for wait.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.
@@ -176,7 +210,8 @@ const notes: Record<string, string> = {
   'status': `  gh_<n> identifies GitHub threads; gh_conversation identifies PR conversation.
   These belong to colleagues; agents cannot reply.
   Link them with rr:thread/gh_<n>.`,
-  'hub': `  One hub per machine; repeated starts print its URL.
+  'hub': `  Bare hub is an alias for hub serve.
+  One hub per machine; repeated starts print its URL.
   Lists reviewroom, Crit, and Plannotator sessions without thread text.
   Reviews are proxied at /r/<id>/.
   Public URL: stderr; loopback URL: stdout.
@@ -206,12 +241,12 @@ cli.help((sections) => {
     {
       title: 'A review',
       body: [
-        '  pr <n> --wait: create, serve, await feedback.',
+        '  pr <n>: set up a review and start its server.',
+        '  wait <n>: await the next round in the background.',
         '  shot [section]: inspect PNG output.',
         '  reply <thread> "...": answer feedback.',
-        '  review --dir <dir>: await the next round.',
-        '  Run waiting commands in background; rounds may take hours.',
-        '  Threads and rounds survive server restarts.',
+        '  stop <n>: stop the review server.',
+        '  The server stays up between rounds.',
       ].join('\n'),
     },
     {
@@ -226,7 +261,10 @@ cli.help((sections) => {
     {
       title: 'The review dir',
       body: [
-        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/; REVIEWROOM_HOME overrides the root.',
+        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch-or-pr-n>/; REVIEWROOM_HOME overrides the root.',
+        '  start, wait, status and stop accept a PR number, URL or branch in the repo.',
+        "  With no target, they use the current branch or the repo's only review.",
+        '  Use --dir for custom review directories.',
         `  Author ${REPORT_FILE}, ${WALKTHROUGH_FILE}, and adjacent assets.`,
         '  Change state, config, layouts, and rounds through CLI commands.',
       ].join('\n'),

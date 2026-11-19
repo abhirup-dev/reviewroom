@@ -7,30 +7,24 @@ below. When answering feedback on an existing review, begin with "Resume an exis
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run it **in the background / async**:
-
 ```bash
-reviewroom pr <n | url | branch> --repo <path> --wait
+reviewroom pr <target>
 ```
 
-It creates the review, serves it, opens it (in the macOS app when installed, else the browser; `--browser`
-forces the browser), and then blocks until the reviewer clicks
-*Send feedback* or *Approve*.
-
-The page goes offline when the command exits and comes back with the next one; the reviewer's open
-tab reconnects by itself. That is expected.
+Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
+otherwise in the browser. Use `--browser` to open the browser. The server stays up between rounds.
 
 ## Resume an existing review
 
-Run `reviewroom review --dir <dir>` in the background / async. It prints unread feedback at once
-when there is any; read that feedback and answer it below. Otherwise it waits for the reviewer.
-Follow the commands the output gives for the current state.
+Run `reviewroom wait <target>` in the background from the reviewed repo or pass `--repo <path>`.
+Use `--dir <dir>` for a custom folder. The command starts the server if needed and prints the next
+unread round as soon as it is available.
 
 ## Check status and stop
 
-Use `reviewroom status --json --dir <dir>` for the URL, review directory, base/head shas and status;
+Use `reviewroom status <target> --json` for the URL, review directory, base/head shas and status;
 add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
-for the round command's completion. To end the review when asked, run `reviewroom stop --dir <dir>`.
+for the round command's completion. To end the review when asked, run `reviewroom stop <target>`.
 
 ## Wait for the reviewer
 
@@ -75,7 +69,8 @@ For each thread in the feedback:
 
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
-push is not in the diff the reviewer sees until `reviewroom pr` runs again. Say so in the reply, and link the new code at your commit
+push is not in the diff the reviewer sees until you refresh the target with `reviewroom pr <target>`
+and restart its server with `stop` then `start`. Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
 
 A thread anchored on a walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
@@ -100,17 +95,11 @@ cannot reply to them. When one matters to your answer, link or embed it with `rr
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run the command the feedback names, **in the background**, as when starting the review server:
+Run the command the feedback names **in the background**:
 
 ```bash
-reviewroom review --dir <dir>
+reviewroom wait <target>
 ```
 
 Tell the reviewer: **"Replies are in. Review them in the browser and click Send feedback or Approve
 when ready."** Then wait for the reviewer again.
-
-## Server and reply constraints
-
-- Do not run `reviewroom pr --wait` or `reviewroom review` in the foreground; they block until the
-  reviewer acts. Never run `reviewroom pr` without `--wait` or `--detach`: it serves forever.
-- Do not stop or kill the background command to "finish" a round; wait for it to exit.

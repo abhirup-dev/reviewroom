@@ -20,7 +20,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Where reviews live
 
-By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo. What the agent writes there:
+By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch-or-pr-n>/`, never inside the reviewed repo. What the agent writes there:
 `docs/review-artifacts.md`; everything else: `docs/review-state.md`.
 
 ## Contracts (change deliberately, update the skill when you do)

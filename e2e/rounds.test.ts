@@ -17,33 +17,45 @@ describe('a round finished while no agent waits', () => {
     expect(rs.map((r) => r.status).sort((a, b) => a - b)).toEqual([200, 409]);
   });
   test('review prints feedback sent while no agent was waiting', async () => {
-    late = await cli(['review', '--no-open', ...d]);
+    late = await cli(['review', '--forever', '--no-open', ...d]);
     expect([late.code, late.stdout]).toEqual([0, expect.stringMatching(/t_one[^]*and\?/)]);
   });
   test('delivery recorded; the running server kept running', async () => {
     expect(state().rounds[0].deliveredAt).toBeString();
     expect((await fetch(url + 'api/meta')).ok).toBe(true);
   });
-  // git may report the repo via /private/var on macOS
-  test('feedback names the review dir in the commands it asks for', () => expect(late.stdout).toMatch(/--dir '[^']*\/reviews\/repo\/feat-upload-rate-limit'/));
+  test('feedback uses the review target for the next wait', () => expect(late.stdout).toContain('`reviewroom wait feat/upload-rate-limit`'));
 });
 
-describe('the blocking round loop', () => {
-  const { dir, d, cli, state, url } = setup();
+describe('the external agent round loop', () => {
+  const { dir, repo, d, cli, state, serve, spawn } = setup();
 
-  // review waits, reviewer comments, agent replies, reviewer sends
-  test('blocked review prints the round with the agent reply in it', async () => {
-    const waiting = cli(['review', '--no-open', '--port', '0', ...d]);
-    const u = await url();
+  test('pr serves through feedback and approval while wait delivers each round', async () => {
+    const u = await serve();
+    const pid = (await fetch(u + 'api/meta')).headers.get('x-reviewroom-pid');
+    expect(pid).toBeString();
+    const wait = async (args: string[]) => {
+      const p = spawn(['wait', '--no-open', ...args]);
+      const reader = p.stderr.getReader();
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain(`waiting for feedback | ${dir} | ${u}`);
+      reader.releaseLock();
+      return p;
+    };
+    const waiting = await wait(['feat/upload-rate-limit', '--repo', repo]);
     await op(u, { op: 'createThread', id: 't_loop', anchor: { kind: 'code', path: 'x.go', rev: 'head', start: 1, end: 2 }, msgId: 'm_l1', body: 'rename this', author: 'you' });
     await cli(['reply', 't_loop', 'renamed', ...d]);
     await op(u, { op: 'addMessage', threadId: 't_loop', id: 'm_l3', body: 'thanks, one more', author: 'you' });
     expect((await post(u + 'api/finish', { kind: 'feedback', round: 1 })).status).toBe(200);
-    const loop = await waiting;
-    expect(loop).toMatchObject({ code: 0, stdout: expect.stringMatching(/t_loop[^]*renamed[^]*thanks, one more/) });
-  });
-  test('feedback.md saved and delivery recorded', () => {
-    expect(read(dir, 'rounds', '1', 'feedback.md')).toContain('thanks, one more');
-    expect(state().rounds[0].deliveredAt).toBeString();
+    const feedback = await new Response(waiting.stdout).text();
+    expect(await waiting.exited).toBe(0);
+    expect(feedback).toMatch(/t_loop[^]*renamed[^]*thanks, one more/);
+    expect(feedback).toBe(read(dir, 'rounds', '1', 'feedback.md') + '\n');
+    const next = await wait(d);
+    expect((await fetch(u + 'api/meta')).headers.get('x-reviewroom-pid')).toBe(pid); // case G: wait reused the existing server
+    expect((await post(u + 'api/finish', { kind: 'approve', round: 2 })).status).toBe(200);
+    expect(await new Response(next.stdout).text()).toStartWith('# Review round 2: APPROVED');
+    expect(await next.exited).toBe(0);
+    expect(state().rounds.map((r: { deliveredAt: string | null }) => r.deliveredAt)).toEqual([expect.any(String), expect.any(String)]);
+    expect((await fetch(u + 'api/meta')).headers.get('x-reviewroom-pid')).toBe(pid);
   });
 });

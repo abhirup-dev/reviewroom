@@ -60,7 +60,7 @@ export const Round = z.object({
   deliveredAt: dateTime
     .nullable()
     .optional()
-    .describe("When `reviewroom review` printed this round's feedback. null = finished but not yet delivered (the next `review` prints it). Absent on rounds finished before this field existed."),
+    .describe("When `reviewroom wait` printed this round's feedback. null = finished but not yet delivered. Absent on rounds finished before this field existed."),
 });
 
 export const StoredState = z.object({

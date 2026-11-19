@@ -33,7 +33,7 @@ Everything else in it belongs to reviewroom: don't edit it.
 If `REVIEWROOM_ASSISTANT_DIR` is set, you are the assistant inside an already running review.
 Run `reviewroom status --json --dir "$REVIEWROOM_ASSISTANT_DIR"` to confirm `role: "assistant"`,
 the review directory, URL and frozen revisions. Use that directory for every review command.
-Do not start, stop or restart this review's server, run `pr` or `review`, or wait for feedback rounds:
+Do not start, stop or restart this review's server, run `pr`, or wait for feedback rounds:
 your conversation in the assistant panel is the feedback channel. Answer the current question; when
 asked to author, follow Steps 3–4b and their references, then report the result in the conversation.
 Read `status` again if the review advances. Learn authoring through this skill, its references and
@@ -46,23 +46,24 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 | The reviewer wants                                        | Run                                                                  |
 | ---                                                       | ---                                                                  |
-| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <n \| url \| branch> --repo <path> --wait` → Step 1   |
-| A review of uncommitted work                              | `reviewroom pr --head worktree --repo <path> --wait` → Step 1        |
+| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <target>` → Step 1                                    |
+| A review of uncommitted work                              | `reviewroom pr --head worktree` → Step 1                             |
 | You to answer feedback they already sent                  | Read `references/review-rounds.md`, "Resume an existing review"      |
-| To see where a review stands                              | `reviewroom status --json --dir <dir>` (`--threads` for the threads) |
-| To end the review                                         | `reviewroom stop --dir <dir>`                                        |
+| To see where a review stands                              | `reviewroom status <target> --json` (`--threads` for the threads)    |
+| To end the review                                         | `reviewroom stop <target>`                                           |
 
-## Step 1: Start the review in the background
+Run lifecycle commands from the reviewed repo or pass `--repo <path>`. Use `--dir <dir>` for custom review folders.
 
-Read "Start the review server" in `references/review-rounds.md` and launch the review as it
-instructs. Keep the command running in the background while writing the walkthrough and the report.
+## Step 1: Start the review
+
+Run `pr`, then run the `wait` command it prints in the background while writing the walkthrough and the report.
+The detached server stays up between rounds. See `references/review-rounds.md`.
 `--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 
 ## Step 2: Relay the URL
 
-The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`,
-outside the repo) and the URL.
-`reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
+`pr` prints the review directory outside the repo and the URL.
+`reviewroom status <target> --json` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
 > **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the walkthrough first."**

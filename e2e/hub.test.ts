@@ -15,11 +15,11 @@ describe('hub', () => {
   beforeAll(async () => {
     review = await serve();
     await cli(['comment', 'general', 'why?', ...d]);
-    hub = (await cli(['hub', '--detach', '--no-open', '--port', '0'])).stdout.trim();
+    hub = (await cli(['hub', 'serve', '--detach', '--no-open', '--port', '0'])).stdout.trim();
   });
   afterAll(() => cli(['hub', '--stop']));
 
-  test('`hub --detach` prints the URL; a second `hub` points at the same one', async () => {
+  test('`hub serve --detach` prints the URL; `hub` points at the same one', async () => {
     expect(hub).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
     expect((await cli(['hub', '--no-open'])).stdout.trim()).toBe(hub);
     expect(await (await fetch(hub)).text()).toContain('/_rr/hub.js');
@@ -40,7 +40,7 @@ describe('hub', () => {
 
   test('a server killed without cleanup is dropped and its record deleted', async () => {
     const other = path.join(path.dirname(dir), 'other');
-    const p = spawn(['review', '--forever', '--no-open', '--port', '0', ...d.slice(0, 2), '--dir', other]);
+    const p = spawn(['start', '--foreground', '--no-open', '--port', '0', ...d.slice(0, 2), '--dir', other]);
     await url(other);
     expect(sessions().map((s) => s.pid)).toContain(p.pid);
     p.kill('SIGKILL');
@@ -161,8 +161,8 @@ describe('hub', () => {
     expect((await fetch(hub + 'api/health')).ok).toBe(true);
   });
 
-  test('`hub --stop` stops it', async () => {
-    expect((await cli(['hub', '--stop'])).stdout).toStartWith('stopped');
+  test('`hub stop` stops it', async () => {
+    expect((await cli(['hub', 'stop'])).stdout).toStartWith('stopped');
     await until(() => !fs.existsSync(path.join(tmp, 'home', 'hub.json')));
   });
 });

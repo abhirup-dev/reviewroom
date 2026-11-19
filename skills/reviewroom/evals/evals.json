@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/upload-service? Keep the narrative short.",
-      "expected_output": "Runs `reviewroom pr 128 --repo \u2026 --wait` in the background with a long timeout, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Reads the explainer profile's guide. Outlines a short intro and story ending in Risks, adds heading-only finding sections under the pre-made Findings section, writes the walkthrough and runs full slide-lint until it passes before filling the report. Each risk has a severity and rr:doc link to its finding; detailed findings stay in the report. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
+      "expected_output": "Runs `reviewroom pr 128 --repo \u2026` then runs the printed `wait` command in the background, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Reads the explainer profile's guide. Outlines a short intro and story ending in Risks, adds heading-only finding sections under the pre-made Findings section, writes the walkthrough and runs full slide-lint until it passes before filling the report. Each risk has a severity and rr:doc link to its finding; detailed findings stay in the report. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
       "files": []
     },
     {
@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "walk me through what https://github.com/example/uploads/pull/412 changes, top-down from the handler",
-      "expected_output": "Uses `reviewroom pr <url> --wait` in the background, checks PR ownership, outlines the story top-down from the handler, adds heading-only finding sections under the pre-made Findings section, then writes the walkthrough, passes full slide-lint, then fills the report and passes check. Fills the explainer profile's pre-made sections: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions, keeping their ids. Links every claim to code (rr:sym for functions and types), and never changes code.",
+      "expected_output": "Uses `reviewroom pr <url>` then runs the printed `wait` command in the background, checks PR ownership, outlines the story top-down from the handler, adds heading-only finding sections under the pre-made Findings section, then writes the walkthrough, passes full slide-lint, then fills the report and passes check. Fills the explainer profile's pre-made sections: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions, keeping their ids. Links every claim to code (rr:sym for functions and types), and never changes code.",
       "files": []
     },
     {
@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "Review my uncommitted changes in reviewroom before I commit.",
-      "expected_output": "Runs `reviewroom pr --head worktree --repo \u2026 --wait` in the background and continues with the normal walkthrough and report workflow.",
+      "expected_output": "Runs `reviewroom pr --head worktree --repo \u2026` then runs the printed `wait` command in the background and continues with the normal walkthrough and report workflow.",
       "files": []
     },
     {

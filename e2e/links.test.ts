@@ -19,7 +19,7 @@ describe('links', () => {
     expect(state().links[`rr:code/${file}#L3-4`]).toBeString();
   });
   test('a running server fingerprints new links at the current head, not the one it started on', async () => {
-    spawn(['review', '--forever', '--no-open', '--port', '0', ...d]);
+    spawn(['start', '--foreground', '--no-open', '--port', '0', ...d]);
     await url();
     prepend('added 3\n');
     await git('commit', '-qam', 'shift again');

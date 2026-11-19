@@ -2,15 +2,14 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import type { Global } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { dirForEdit, loadConfig, readConfig } from '../lib/config.ts';
+import { loadConfig, readConfig } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
 import { awaitingAgent, currentRound } from '../../src/kernel/state/ops.shared.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 
 export type StatusOpts = Global & { all?: boolean; json?: boolean };
 
-export function cmdStatus(repo: string | null, o: StatusOpts) {
-  const dir = dirForEdit(repo, o.dir);
+export function cmdStatus(repo: string | null, dir: string, o: StatusOpts) {
   const s = readState(dir);
   const open = s.threads.filter((t) => t.status === 'open');
   const waiting = awaitingAgent(s);
@@ -27,8 +26,7 @@ export function cmdStatus(repo: string | null, o: StatusOpts) {
   console.log(`${dir}\nround ${s.round} (${currentRound(s)?.status}) | ${s.threads.length} threads | ${open.length} open | ${waiting.length} awaiting agent reply`);
 }
 
-export async function cmdStop(repo: string | null, o: Global) {
-  const dir = dirForEdit(repo, o.dir);
+export async function cmdStop(_repo: string | null, dir: string) {
   const rec = await stopServer(dir);
   console.log(rec ? `stopped server on port ${rec.port}` : 'no server running for this review');
 }

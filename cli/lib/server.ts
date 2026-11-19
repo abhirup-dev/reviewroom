@@ -9,7 +9,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { makeProvider, type Provider } from './git.ts';
-import type { ReviewConfig } from './config.ts';
+import { reviewArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, reviewId } from './registry.ts';
@@ -38,12 +38,6 @@ function excerpt(prov: Provider, anchor: Anchor) {
   return lines.slice(anchor.start - 1, anchor.end).map((l, i) => `${String(anchor.start + i).padStart(4)}  ${l}`).join('\n');
 }
 
-
-export interface Finished {
-  kind: 'feedback' | 'approve';
-  md: string;
-  round: number;
-}
 
 /** Watch the review dir for report.html, walkthrough.json assets and progress.jsonl (debounced).
  *  The server is the only writer of state.json (it holds state.lock), so that is not watched. */
@@ -125,8 +119,8 @@ export const guarded = (ok: (c: Context) => boolean): MiddlewareHandler => async
 export const localOnly = guarded(allowed);
 
 /** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */
-type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onFinish?: (f: Finished) => void; onClient?: () => void; readOnly?: boolean };
-export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: ServerOpts) {
+type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onClient?: () => void; readOnly?: boolean };
+export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
@@ -166,21 +160,23 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     return s;
   };
   const checkNarrative = narrativeCheck(repo, dir, cfg, commit);
-  // read-only: no live reload, and no link check that would write state.json
+  // Watch only after the server owns state.lock. Read-only renderers never start it.
   let last = parts();
-  const watcher = readOnly
-    ? null
-    : watchNarrative(dir, (files) => {
-        const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
-        if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
-        if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
-        send('progress', readProgress(dir));
-        // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
-        const next = parts();
-        if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
-        last = next;
-        if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
-      });
+  let watcher: fs.FSWatcher | undefined;
+  const watch = () => {
+    checkNarrative();
+    watcher = watchNarrative(dir, (files) => {
+      const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
+      if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
+      if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
+      send('progress', readProgress(dir));
+      // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
+      const next = parts();
+      if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
+      last = next;
+      if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
+    });
+  };
 
   const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
   const app = new Hono();
@@ -320,16 +316,14 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    const md = feedbackMarkdown(prev, { kind, note, dir, lifecycleArgs: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));
     fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
     writeState(dir, s);
     send('state', s);
-    const res = json(c, { ok: true, round: s.round, state: s });
-    onFinish?.({ kind, md, round: n }); // serve.ts exits 150 ms later, after this response is out
-    return res;
+    return json(c, { ok: true, round: s.round, state: s });
   });
   app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
   // anything else: static files next to report.html (images, extra css/js the agent wrote). serveStatic refuses
@@ -354,7 +348,7 @@ export function startServer({ repo, dir, cfg, onFinish, onClient, readOnly }: Se
 
   // for a server that ends before its process does (`slide-lint`): the watch would keep the process alive
   const close = () => { watcher?.close(); return assistant?.close(); };
-  return { app, prov, commit, github, checkNarrative, close };
+  return { app, prov, commit, github, watch, close };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the `spread` after it. */
