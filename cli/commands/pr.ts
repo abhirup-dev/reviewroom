@@ -8,7 +8,7 @@ import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, isFullSha, remoteDefaultBranch, makeProvider, remoteHost } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, resolveReview, reviewArgs, loadConfig, configPath } from '../lib/config.ts';
+import { type ReviewConfig, resolveReview, reviewArgs, loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { formatReviewId, formatReviewRepository, parseReviewId, type ReviewId } from '../lib/review-id.ts';
 import { fetchPr } from '../lib/github.ts';
 import { walkthroughPath, writeAtomic } from '../lib/state.ts';
@@ -19,7 +19,7 @@ import { ensureServer, runningServer, type StartOpts } from './serve.ts';
 function prMetadata(repo: string, remote: string, pr: ReviewId) {
   const host = remoteHost(repo, remote);
   if (!host) return null;
-  const args = ['pr', 'view', String(pr.number), '--repo', `${host}/${formatReviewRepository(pr)}`, '--json', 'title,author,baseRefName,headRefName,url'];
+  const args = ['pr', 'view', String(pr.number), '--repo', `${host}/${formatReviewRepository(pr)}`, '--json', 'title,author,baseRefName,baseRefOid,headRefName,url'];
   let info;
   try {
     info = JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 }));
@@ -31,8 +31,8 @@ function prMetadata(repo: string, remote: string, pr: ReviewId) {
 }
 
 export type PrOpts = StartOpts & { base?: string; head?: string; title?: string; remote?: string; force?: boolean; profile?: string; agent?: boolean; serve?: boolean; assistant?: boolean };
-/** `pr <n>`: fetch the PR head and base branch, keeping the fetched PR ref for offline use. */
-function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId): ReviewConfig {
+/** `pr <n>`: fetch the PR head and its recorded base, keeping the fetched PR ref for offline use. */
+function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId, saved: ReturnType<typeof readConfig>): ReviewConfig {
   const n = String(pr.number);
   const info = prMetadata(repo, remote, pr);
   console.error(`reviewroom: fetching PR #${n}${info ? ` "${info.title}"` : ''} from ${remote}...`);
@@ -42,11 +42,21 @@ function prNumberConfig(repo: string, o: PrOpts, remote: string, pr: ReviewId): 
     if (!hasRef(head, repo)) fail(`could not fetch ${formatReviewId(pr)} from ${remote} and found no cached PR ref`);
     console.error(`reviewroom: fetch failed; using cached ${formatReviewId(pr)} (may be behind the PR)`);
   }
-  const baseBranch = (o.base ?? info?.baseRefName) || remoteDefaultBranch(repo, remote);
-  if (fetched) fetchRef(remote, `+refs/heads/${baseBranch}:refs/remotes/${remote}/${baseBranch}`, repo);
-  const base = [`${remote}/${baseBranch}`, baseBranch].find((r) => hasRef(r, repo));
-  if (!base) fail(`base branch ${baseBranch} not found locally or on ${remote} (pass --base <ref>)`);
-  return { base, head, title: o.title ?? info?.title, author: info?.author?.login, baseLabel: baseBranch, headLabel: info?.headRefName || `PR #${n}` };
+  const baseLabel = (o.base ?? info?.baseRefName ?? saved.baseLabel) || remoteDefaultBranch(repo, remote);
+  // GitHub compares against the PR's merge base. After a merge, force-push or branch deletion,
+  // today's branch tip may no longer share the history that GitHub used.
+  const recordedBase: unknown = info?.baseRefOid ?? saved.base;
+  let base: string | undefined;
+  if (!o.base && typeof recordedBase === 'string' && isFullSha(recordedBase)) {
+    if (!hasRef(recordedBase, repo)) fetchRef(remote, recordedBase, repo);
+    if (!hasRef(recordedBase, repo)) fail(`could not fetch PR base commit ${recordedBase} from ${remote} (pass --base <ref>)`);
+    base = recordedBase;
+  } else {
+    if (fetched && !isFullSha(baseLabel)) fetchRef(remote, `+refs/heads/${baseLabel}:refs/remotes/${remote}/${baseLabel}`, repo);
+    base = [`${remote}/${baseLabel}`, baseLabel].find((r) => hasRef(r, repo));
+    if (!base) fail(`base ref ${baseLabel} not found locally or on ${remote} (pass --base <ref>)`);
+  }
+  return { base, head, title: o.title ?? info?.title, author: info?.author?.login, baseLabel, headLabel: info?.headRefName || saved.headLabel || `PR #${n}` };
 }
 
 /** `pr <branch>`: a local branch, or one fetched from the remote, against --base or the default branch. */
@@ -107,7 +117,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
   }
   const remote = o.remote ?? saved.remote ?? 'origin';
   const isPath = arg?.startsWith('/') || arg?.startsWith('./');
-  const found = pr ? prNumberConfig(repo, o, remote, pr) : isPath ? loadConfig(dir, repo, o) : branchConfig(repo, o, arg!, remote);
+  const found = pr ? prNumberConfig(repo, o, remote, pr, saved) : isPath ? loadConfig(dir, repo, o) : branchConfig(repo, o, arg!, remote);
   const id = pr ? formatReviewId(pr) : undefined;
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
   const cfg = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, remote: pr ? remote : undefined, target: pr ? undefined : (isPath ? saved.target : arg), id: saved.id ?? id } as ReviewConfig;
