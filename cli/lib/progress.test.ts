@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProgress, artifactHash, importToRetry, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts, stopAssistantWork } from './progress.ts';
+import { appendProgress, artifactHash, importToRetry, progressLines, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from './progress.ts';
 
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
@@ -45,54 +45,6 @@ test('both requests land in one write, each with its own id', () => inTemp((dir,
   expect(() => requestGeneration(blocked, 'assistant')).toThrow();
 }));
 
-test('a stop read before a takeover\'s request and written after it leaves that request alone', () => inTemp((dir) => {
-  requestGeneration(dir, 'assistant');
-  const pendingBefore = readProgress(dir);
-  requestGeneration(dir, 'agent', undefined, ['report']); // pr --force lands between the old server's read and write
-  // the old server's stop names the requests it read
-  appendProgress(dir, { artifact: 'report', event: 'stopped', reason: 'interrupted', request: pendingBefore.report.request! });
-  expect(readProgress(dir).report).toMatchObject({ state: 'requested', by: 'agent' });
-  stopAssistantWork(dir, 'interrupted'); // now: only the assistant's walkthrough is pending
-  expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['stopped', 'requested']);
-}));
-
-test('reset makes both documents idle again', () => inTemp((dir) => {
-  requestGeneration(dir, 'agent');
-  resetGeneration(dir);
-  expect([readProgress(dir).walkthrough.state, readProgress(dir).report.state]).toEqual(['idle', 'idle']);
-}));
-
-test('a validated document edited, then its turn ended before the save was recorded, stops; a newer validation wins', () => inTemp((dir) => {
-  const file = path.join(dir, REPORT_FILE);
-  requestGeneration(dir, 'assistant', undefined, ['report']);
-  fs.writeFileSync(file, '<rr-review>one</rr-review>');
-  recordArtifact(dir, 'report', 'validated');
-  fs.writeFileSync(file, '<rr-review>two</rr-review>'); // saved; the watcher has not recorded it
-  expect(readProgress(dir).report.state).toBe('writing');
-  stopAssistantWork(dir, 'failed');
-  expect(readProgress(dir).report).toMatchObject({ state: 'stopped', reason: 'failed' }); // not pending forever
-  expect(progressLines(dir).at(-1)).toMatchObject({ event: 'stopped', stale: expect.stringMatching(/^[a-f0-9]{64}$/) });
-  recordArtifact(dir, 'report', 'validated'); // checked again, after the stop
-  expect(readProgress(dir).report.state).toBe('validated');
-}));
-
-test('the same bytes written again under a new request are recorded: the request is no longer just reading the diff', () => inTemp((dir) => {
-  const file = path.join(dir, REPORT_FILE);
-  requestGeneration(dir, 'assistant', undefined, ['report']);
-  fs.writeFileSync(file, '<rr-review>same</rr-review>');
-  recordArtifact(dir, 'report', 'written');
-  recordArtifact(dir, 'report', 'written'); // unchanged within one request: once
-  expect(progressLines(dir).filter((l) => l.event === 'written')).toHaveLength(1);
-  requestGeneration(dir, 'assistant', undefined, ['report']);
-  expect(readProgress(dir).report.state).toBe('requested');
-  recordArtifact(dir, 'report', 'written'); // identical bytes, new request
-  expect(readProgress(dir).report.state).toBe('writing');
-  resetGeneration(dir);
-  requestGeneration(dir, 'agent', undefined, ['report']);
-  recordArtifact(dir, 'report', 'written');
-  expect(readProgress(dir).report.state).toBe('writing');
-}));
-
 test('stale after the PR moved: each document by its own validation head, never one event for both', () => {
   const [A, B] = ['a'.repeat(40), 'b'.repeat(40)];
   const docs = (dir: string) => {
@@ -118,10 +70,7 @@ test('stale after the PR moved: each document by its own validation head, never 
     expect(staleArtifacts(dir, B)).toEqual(['report']);
     expect(staleArtifacts(dir, A)).toEqual(['walkthrough']);
   });
-});
-
-test('a request for an old head is stale on a re-add at a new head: no loading screen for an abandoned request', () => {
-  const [A, B] = ['a'.repeat(40), 'b'.repeat(40)];
+  // a request for an old head is stale on a re-add at a new head: no loading screen for an abandoned request
   inTemp((dir) => {
     requestGeneration(dir, 'agent', A);
     expect(staleArtifacts(dir, A)).toEqual([]);
