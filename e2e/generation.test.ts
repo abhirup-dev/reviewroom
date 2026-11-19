@@ -62,6 +62,8 @@ async function pastPlayer(page: Page, go: () => void) {
   await page.evaluate(`window.rrBeforeReload = true`);
   go();
   await until(page, `rr.app.generation?.context.progress.walkthrough.state === 'validated' && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`, 15_000);
+  // the outline was saved first: its own row, then the draft that passed (the steps are painted while the screen is closed)
+  expect(await page.evaluate<string[]>(`[...document.querySelectorAll('.rr-gen-step__passes li')].map((li) => li.textContent)`)).toEqual([expect.stringMatching(/^✓ Outline · \d+ slides/), expect.stringMatching(/^✓ Draft 1 · .* · passes$/)]);
   expect(await page.evaluate<boolean>(`!!window.rrBeforeReload`)).toBe(true);
   await page.evaluate(closePlayer);
   await until(page, `document.querySelector('.rr-tour').dataset.mode === 'closed' && !location.search.includes('walkthrough')`);

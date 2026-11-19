@@ -2,7 +2,7 @@
 // start that can wait or fail, a session that can hold its turn on an approval, a checkpoint, a stop. Turns stream
 // through AI SDK's real streamText on a mock model, so routes and pages follow them as they would Claude's.
 // The server loads `launch` by REVIEWROOM_TEST_ASSISTANT (e2e): a generation says it is reading, then waits for the
-// test's `go-1` (REVIEWROOM_TEST_GATES), writes and validates the walkthrough, waits for `go-2`, then the report. A
+// test's `go-1` (REVIEWROOM_TEST_GATES), saves the walkthrough's outline, writes and validates it, waits for `go-2`, then the report. A
 // question is answered at once. Unit tests make their own with `fakeAgent`.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -62,10 +62,19 @@ const write = (dir: string, artifact: 'walkthrough' | 'report', file: string) =>
   recordArtifact(dir, artifact, 'validated');
 };
 
+/** The walkthrough's outline (SKILL.md Step 4): its chapters and slides, one line each. A save, never checked. */
+const outline = (dir: string) => {
+  const w = JSON.parse(fs.readFileSync(path.join(import.meta.dir, `../examples/uploads/${WALKTHROUGH_FILE}`), 'utf8'));
+  const chapters = w.chapters.map((c: { id: string; title: string; steps: { id: string }[] }) => ({ id: c.id, title: c.title, steps: c.steps.map((s) => ({ id: s.id, text: `<p>${s.id}</p>` })) }));
+  fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify({ ...w, chapters }));
+  recordArtifact(dir, 'walkthrough', 'written');
+};
+
 export const { launch } = fakeAgent(async ({ say, asked, dir }) => {
   if (!asked.startsWith('Write only the following requested review artifacts')) return say(`You asked: ${asked}`);
   say('Reading the diff.');
   await gate('go-1');
+  outline(dir);
   write(dir, 'walkthrough', WALKTHROUGH_FILE);
   say('The walkthrough passes. Writing the report.');
   await gate('go-2');

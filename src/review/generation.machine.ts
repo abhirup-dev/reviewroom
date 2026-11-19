@@ -146,7 +146,8 @@ export function statusText(s: GenerationSnapshot): string {
   const { walkthrough: w, report: r } = s.context.progress;
   switch (stageIn(s)) {
     case 'starting': return 'Reading the diff';
-    case 'writing': return w.state === 'writing' ? `${w.slides ?? 0} slides in ${w.chapters ?? 0} chapters written, checking` : 'Writing the walkthrough';
+    // the first save is the outline (nothing to check yet), each later one a draft
+    case 'writing': return w.state !== 'writing' ? 'Writing the walkthrough' : (w.passes?.length ?? 0) < 2 ? 'Outline saved, writing the slides' : `${w.slides ?? 0} slides in ${w.chapters ?? 0} chapters written, checking`;
     case 'playable': return 'Writing the report';
     case 'stopped':
     case 'report-stopped': {
@@ -157,4 +158,37 @@ export function statusText(s: GenerationSnapshot): string {
     case 'done': return 'Walkthrough and report ready';
     default: return 'Nothing generated yet';
   }
+}
+
+// The loading screen's steps, from the progress alone. The walkthrough's first save (its outline, SKILL.md Step 4) ends
+// the reading; each save after it is one more draft under "Writing the walkthrough". A step never moves backwards.
+type StepState = 'done' | 'current' | 'upcoming' | 'stopped';
+type StepId = 'read' | 'write' | 'ready' | 'report';
+type PassRow = { text: string; state: Exclude<StepState, 'upcoming'> };
+export type GenStep = { id: StepId; title: string; detail: string; state: StepState; passes?: PassRow[] };
+
+const counts = (p: { slides?: number; chapters?: number }) => (p.slides === undefined ? '' : `${p.slides} slides in ${p.chapters ?? 0} chapters`);
+const stopText = (p: ArtifactProgress) => (p.reason === 'interrupted' ? 'Generation interrupted' : 'Stopped before it passed the check');
+
+export function generationSteps({ walkthrough: w, report: r }: Progress): GenStep[] {
+  const passes = w.passes ?? [];
+  const stopped = w.state === 'stopped';
+  // how far the walkthrough is: 0 reading (until its first save), 1 writing, 3 past ready (a walkthrough validated, or
+  // kept from the PR)
+  const at = w.state === 'validated' ? 3 : passes.length ? 1 : 0;
+  const state = (i: number): StepState => (i < at ? 'done' : i > at ? 'upcoming' : stopped ? 'stopped' : 'current');
+  // outline -> draft 1 -> draft 2 · passes: the outline is never checked, so it never fails (one save that passes is a draft)
+  const rows = passes.map((p, i): PassRow => {
+    const last = i === passes.length - 1, outline = i === 0 && !(last && at === 3);
+    const [label, s]: [string, PassRow['state']] = !last ? [outline ? '' : 'revised', 'done'] : at === 3 ? ['passes', 'done'] : stopped ? [outline ? '' : 'did not pass', 'stopped'] : [outline ? '' : 'checking', 'current'];
+    return { text: [outline ? 'Outline' : `Draft ${i || 1}`, counts(p), label].filter(Boolean).join(' · '), state: s };
+  });
+  const write = state(1);
+  const report: StepState = at < 3 ? 'upcoming' : r.state === 'validated' ? 'done' : r.state === 'stopped' ? 'stopped' : r.state === 'idle' ? 'upcoming' : 'current';
+  return [
+    { id: 'read', title: 'Reading the diff', detail: state(0) === 'stopped' ? stopText(w) : at ? 'Outline saved' : 'Until the walkthrough’s outline is saved', state: state(0) },
+    { id: 'write', title: 'Writing the walkthrough', detail: write === 'stopped' ? stopText(w) : write === 'upcoming' ? 'Each draft is checked until one passes' : `${passes.length} ${passes.length === 1 ? 'save' : 'saves'}`, state: write, ...(rows.length && { passes: rows }) },
+    { id: 'ready', title: 'Walkthrough ready', detail: at === 3 ? counts(w) || 'Ready' : 'The player opens here', state: state(2) },
+    { id: 'report', title: 'Writing the report', detail: report === 'stopped' ? stopText(r) : report === 'done' ? 'Ready' : report === 'current' ? 'Being written' : 'Continues in the review', state: report },
+  ];
 }

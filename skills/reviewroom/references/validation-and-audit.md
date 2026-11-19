@@ -7,7 +7,7 @@ Pass the review target as `<review>` in each command below. Use command-specific
 If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
 Use it as is and go straight to filling the report; do not regenerate it.
 
-Otherwise write the walkthrough (the order is in SKILL.md, Step 4), then:
+Otherwise save the walkthrough's outline, then write it in full (the order is in SKILL.md, Step 4), then:
 
 ```bash
 reviewroom slide-lint <review>
