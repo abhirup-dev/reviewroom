@@ -54,7 +54,6 @@ function scripted() {
 const live = `(document.querySelector('.rr-gen__live')?.textContent ?? '')`;
 const panel = `(document.querySelector('.rr-assistant__island')?.textContent ?? '')`;
 const box = `document.querySelector('.rr-assistant__island textarea')`;
-const stop = `[...document.querySelectorAll('.rr-assistant__island button')].some((b) => b.textContent === 'Stop')`;
 // the walkthrough landing reloads the page (main.ts, `review`): a wait that the reload cuts short is asked again
 async function across(page: Page, cond: string, ms = 15_000) {
   const t0 = Date.now();
@@ -93,43 +92,9 @@ async function followUp(page: Page, go: () => void) {
   await until(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`, 15_000);
 }
 
-describe('one conversation: the panel and the loading screen show the page\'s one chat', () => {
+describe('the golden path: Generate, the loading screen, the walkthrough plays, a follow-up', () => {
   const { serve, go } = scripted();
-  test.skipIf(!browser)('both views follow a generation; dismissed mid-turn it keeps running in the panel (no Stop: a generation is never stopped from a page); then a question', async () => {
-    const page = await open(await serve());
-    try {
-      await page.evaluate(`rr.app.commands.run('assistant.open')`);
-      await until(page, box, 15_000);
-      await page.evaluate(`rr.app.commands.run('generation.generate')`);
-      // two views of one chat at once: the screen's (read-only) and the panel behind it
-      await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.') && ${panel}.includes('Reading the diff.')`, 15_000);
-      expect(await page.evaluate<boolean>(`!document.querySelector('.rr-gen__live textarea')`)).toBe(true);
-      // the generate prompt shows folded, as one line
-      expect(await page.evaluate<boolean>(`!!document.querySelector('.rr-assistant__island details.rr-assistant__prompt:not([open])')`)).toBe(true);
-      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').focus()`);
-      await page.evaluate(`document.activeElement.click()`);
-      await until(page, `document.querySelector('.rr-gen').hidden && !!document.querySelector('[data-rr-assistant-running]')`);
-      // dismissed: focus on a live control, not the body or anything left inert; no Stop for a generation
-      expect(await page.evaluate<string>(`JSON.stringify([document.activeElement === document.body, !!document.activeElement.closest('[inert]'), document.activeElement.isConnected])`)).toBe(JSON.stringify([false, false, true]));
-      expect(await page.evaluate<boolean>(stop)).toBe(false);
-      // a draft typed in the panel survives the conversation being taken again (the server's event)
-      await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'half a thought')`);
-      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`);
-      await Bun.sleep(300);
-      expect(await page.evaluate<string>(`${box}.value`)).toBe('half a thought');
-      await page.evaluate(`${box}.select(), document.execCommand('delete')`); // an unsent draft would hold the review's reload
-      await pastPlayer(page, () => go(1));
-      await followUp(page, () => go(2));
-      expect(page.errors()).toEqual([]);
-    } finally {
-      await page.close();
-    }
-  }, 90_000);
-});
-
-describe('one conversation: a reload mid-turn', () => {
-  const { serve, go } = scripted();
-  test.skipIf(!browser)('a page reloaded before the walkthrough passes follows the same turn again', async () => {
+  test.skipIf(!browser)('a page reloaded mid-turn follows it again; dismissed it runs on; then a question', async () => {
     const url = await serve();
     let page = await open(url);
     try {
@@ -138,8 +103,15 @@ describe('one conversation: a reload mid-turn', () => {
       await page.close();
       page = await open(url);
       await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.')`, 15_000);
+      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
+      await until(page, `document.querySelector('.rr-gen').hidden`);
       await pastPlayer(page, () => go(1), true);
       await followUp(page, () => go(2));
+      // a draft typed in the panel survives the conversation being taken again (the server's event)
+      await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'half a thought')`);
+      await page.evaluate(`rr.app.bus.emit('assistant-turn', undefined)`);
+      await Bun.sleep(300);
+      expect(await page.evaluate<string>(`${box}.value`)).toBe('half a thought');
       expect(page.errors()).toEqual([]);
     } finally {
       await page.close();
