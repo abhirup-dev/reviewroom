@@ -30,7 +30,6 @@ import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../.
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
 import { buildId, serveClient, withHead } from './pwa.ts';
-import { Streams } from './streams.ts';
 import { assistantEnabled, assistantRoutes, VIA_HUB } from './assistant.ts';
 
 function excerpt(prov: Provider, anchor: Anchor) {
@@ -126,7 +125,7 @@ type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onClient?: () 
 export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) {
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
-  const clients = new Streams<SSEStreamingApi>();
+  const clients = new Set<SSEStreamingApi>();
   const pr = cfg.id ? parseReviewId(cfg.id) : null;
   const host = (pr && remoteHost(repo, cfg.remote ?? 'origin')) || 'github.com';
   const github = makeGitHub({ repo, dir, id: pr, host, prov, onChange: (snap) => send('github', snap) });
@@ -140,7 +139,9 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   };
   const hash = (p = parts()) => crypto.createHash('sha1').update([prov.base, prov.head, ...p].join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
-  const send = (event: string, data: unknown) => clients.send(event, data);
+  const send = (event: string, data: unknown) => {
+    for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
+  };
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
   const checkIdentity = () => {
     const actual = readConfig(dir).id;
@@ -338,7 +339,10 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
       // registered and its snapshot queued with no await between: an update sent meanwhile follows the snapshot, never
       // lost. The snapshot is computed first: one that throws leaves no stream registered
-      clients.add(stream, () => [['hello', { hash: hash(), started }], ...(readOnly ? [] : [['progress', progress()] as [string, unknown]])]);
+      const hello = JSON.stringify({ hash: hash(), started }), now = readOnly ? null : JSON.stringify(progress());
+      clients.add(stream);
+      stream.writeSSE({ event: 'hello', data: hello }).catch(() => {});
+      if (now) stream.writeSSE({ event: 'progress', data: now }).catch(() => {});
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
       try {
         onClient?.();

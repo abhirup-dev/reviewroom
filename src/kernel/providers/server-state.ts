@@ -106,12 +106,7 @@ export class ServerState implements StateBackend {
       sync.on('state', (e) => on.state(e.state)),
       sync.on('error', (e) => on.error(e.text)),
       sync.on('github', (e) => on.github?.(e.snapshot)),
-      // reconcile progress before reloading (a new run's hello reloads before its progress arrives): what generation
-      // decides from it (the walkthrough to play) is kept by the tab over the reload. A stalled fetch doesn't hold it.
-      sync.on('reload', () => {
-        const late = new Promise<void>((r) => setTimeout(r, this.reloadDeadlineMs));
-        void Promise.race([this.progress().then((p) => on.progress?.(p), () => {}), late]).finally(() => on.review());
-      }),
+      sync.on('reload', () => on.review()),
     );
     let unsaved = false;
     let status: 'approved' | 'offline' | null = null;
@@ -161,8 +156,6 @@ export class ServerState implements StateBackend {
       return (await (layout ? sendJSON(`${this.api}/layouts/${id}`, 'PUT', layout) : fetch(`${this.api}/layouts/${id}`, { method: 'DELETE' }))).ok;
     },
   };
-  /** How long a reload waits for the progress it reconciles first. */
-  reloadDeadlineMs = 2000;
   progress(): Promise<Progress> { return fetch(`${this.api}/progress`).then(json); }
   async generate() {
     const r = await fetch(`${this.api}/generate`, { method: 'POST' });

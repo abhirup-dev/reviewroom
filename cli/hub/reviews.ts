@@ -144,22 +144,16 @@ export type PlayResult = { ok: true; url: string; pid: number; started: boolean;
 /** api/generate on the review's own loopback URL: `starting` (the server is still recovering) is retried a few times. */
 export async function generate(rec: Pick<ServerRecord, 'url'>, timeoutMs = 5000): Promise<GenerateResult | null> {
   // each request, body included, is bounded: Play holds the review's lock, and a close or re-add waits behind it
-  const call = (p: string, init: RequestInit = {}) => fetch(rec.url + p, { ...init, signal: AbortSignal.timeout(timeoutMs) }).then(async (r) => ({ r, text: await r.text() }));
-  const parse = (text: string) => {
-    try {
-      return JSON.parse(text) as Record<string, unknown>;
-    } catch {
-      return {};
-    }
-  };
-  const meta = await call('api/meta').then(({ text }) => parse(text), (e: Error) => e);
+  const call = (p: string, init: RequestInit = {}) => fetch(rec.url + p, { ...init, signal: AbortSignal.timeout(timeoutMs) })
+    // a body that isn't JSON (a plain-text error) reads as {}; one that never ends is a timeout
+    .then(async (r) => ({ r, body: (await r.json().catch((e: Error) => { if (e.name !== 'SyntaxError') throw e; return {}; })) as { generate?: boolean; started?: boolean; code?: string; error?: string } }));
+  const meta = await call('api/meta').then(({ body }) => body, (e: Error) => e);
   if (meta instanceof Error) return { ok: false, code: null, error: `The review did not answer: ${meta.message}` };
   if (!meta.generate) return { ok: false, code: 'assistant_off', error: 'The review did not turn the built-in assistant on, so nothing was generated.' };
   for (let i = 0; ; i++) {
     const res = await call('api/generate', { method: 'POST' }).catch((e: Error) => e);
     if (res instanceof Error) return { ok: false, code: null, error: `The review did not answer: ${res.message}` };
-    const { r } = res;
-    const body = parse(res.text) as { started?: boolean; code?: string; error?: string };
+    const { r, body } = res;
     if (r.ok) return { ok: true, started: !!body.started };
     if (body.code === 'starting' && i < 20) {
       await new Promise((res) => setTimeout(res, 250));

@@ -81,29 +81,21 @@ test.each([
       await c.sync();
       await Promise.all([c.sync(), c.sync()]);
     }, ['q']],
+  ['Stop names the running turn; a reconnect takes the snapshot again', { 'api/assistant': [() => history([q], 's1'), () => history([q, a])], [STREAM]: [stalls],
+    'POST api/assistant/stop': [(init?: RequestInit) => {
+      expect(JSON.parse(init!.body as string)).toEqual({ streamId: 's1' });
+      return none();
+    }] },
+    async (c: Chat) => {
+      await c.sync();
+      await c.stop();
+      c.connected({ live: false, started: null });
+      c.connected({ live: true, started: null });
+    }, ['q', 'a']],
 ] as const)('%s: one resync, Send usable', async (_, routes, act, ids) => {
   serve(routes as never);
   const c = createAssistantChat();
   await act(c);
   await until(() => c.chat.messages.length === ids.length && !c.getState().activeStreamId);
   expect(c.chat.messages.map((m) => m.id)).toEqual([...ids]);
-});
-
-test('Stop names the running turn; a reconnect follows it again', async () => {
-  const stopped: unknown[] = [];
-  const asked = serve({
-    'api/assistant': [() => history([], 's1')],
-    [STREAM]: [stalls],
-    'POST api/assistant/stop': [(init) => {
-      stopped.push(JSON.parse(init?.body as string));
-      return new Response(null, { status: 204 });
-    }],
-  });
-  const c = createAssistantChat();
-  await c.sync();
-  await c.stop();
-  expect(stopped).toEqual([{ streamId: 's1' }]);
-  c.connected({ live: false, started: null });
-  c.connected({ live: true, started: null });
-  await until(() => asked.filter((u) => u === 'api/assistant').length === 2);
 });

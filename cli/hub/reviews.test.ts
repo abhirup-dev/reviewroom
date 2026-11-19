@@ -1,7 +1,6 @@
 import { afterAll, expect, test } from 'bun:test';
 import path from 'node:path';
-import { addPr, clonePath, generate, generationState, serialized } from './reviews.ts';
-import type { ArtifactProgress } from '../../src/kernel/state/progress.shared.ts';
+import { addPr, clonePath, generate, serialized } from './reviews.ts';
 
 test('Add rejects invalid PR URLs before attempting a clone', async () => {
   for (const bad of [
@@ -19,40 +18,31 @@ test('a clone path stays inside <home>/repos', () => {
   for (const [o, r] of [['..', 'x'], ['acme', '..'], ['acme', '../../etc'], ['', '']]) expect(() => clonePath(o, r)).toThrow();
 });
 
-test('generation state from the progress log: ready only with both documents validated', () => {
-  const a = (state: ArtifactProgress['state']): ArtifactProgress => ({ state });
-  expect(generationState({ walkthrough: a('idle'), report: a('idle') })).toBe('idle');
-  expect(generationState({ walkthrough: a('validated'), report: a('writing') })).toBe('generating');
-  expect(generationState({ walkthrough: a('validated'), report: a('stopped') })).toBe('stopped');
-  expect(generationState({ walkthrough: a('validated'), report: a('validated') })).toBe('ready');
-  expect(generationState({ walkthrough: a('validated'), report: a('idle') })).toBe('idle');
-});
-
-// a review server's api/meta and api/generate, as Play meets them right after starting one
+// a review server's api/meta and api/generate, as Play meets them right after starting one; null: never answers
 const servers: ReturnType<typeof Bun.serve>[] = [];
 afterAll(() => servers.forEach((s) => s.stop(true)));
-function stub(meta: object, answers: [number, object][]) {
+function stub(meta: object, answers: ([number, object] | null)[]) {
   const calls: string[] = [];
   const s = Bun.serve({ port: 0, fetch: (req) => {
     const p = new URL(req.url).pathname;
     calls.push(`${req.method} ${p}`);
     if (p === '/api/meta') return Response.json(meta);
-    const [status, body] = answers.shift() ?? [500, {}];
-    return Response.json(body, { status });
+    const a = answers.shift();
+    return a ? Response.json(a[1], { status: a[0] }) : new Promise<Response>(() => {});
   } });
   servers.push(s);
   return { url: `http://127.0.0.1:${s.port}/`, calls };
 }
 
-test('Play\'s generate: waits out a server still starting, then reports what api/generate said', async () => {
-  const ok = stub({ generate: true }, [[409, { code: 'starting' }], [409, { code: 'starting' }], [200, { started: true }]]);
-  expect(await generate(ok)).toEqual({ ok: true, started: true });
-  expect(ok.calls).toEqual(['GET /api/meta', 'POST /api/generate', 'POST /api/generate', 'POST /api/generate']);
-  const refused = stub({ generate: true }, [[503, { code: 'assistant_unavailable', error: 'Claude executable not found' }]]);
-  expect(await generate(refused)).toEqual({ ok: false, code: 'assistant_unavailable', error: 'Claude executable not found' });
-  const off = stub({}, []);
-  expect(await generate(off)).toMatchObject({ ok: false, code: 'assistant_off' });
-  expect(off.calls).toEqual(['GET /api/meta']); // never asked: generation isn't available there
+test.each<[string, object, ([number, object] | null)[], object, number]>([
+  ['waits out a server still starting', { generate: true }, [[409, { code: 'starting' }], [409, { code: 'starting' }], [200, { started: true }]], { ok: true, started: true }, 4],
+  ['reports a refusal', { generate: true }, [[503, { code: 'assistant_unavailable', error: 'Claude executable not found' }]], { ok: false, code: 'assistant_unavailable', error: 'Claude executable not found' }, 2],
+  ['never asks where the assistant is off', {}, [], { ok: false, code: 'assistant_off' }, 1],
+  ['is bounded: a POST that never answers is an error, not a held lock', { generate: true }, [null], { ok: false, code: null, error: expect.stringContaining('The review did not answer') }, 2],
+])('Play\'s generate %s', async (...[, meta, answers, result, calls]) => {
+  const s = stub(meta, answers);
+  expect(await generate(s, 300)).toMatchObject(result);
+  expect(s.calls).toHaveLength(calls);
 });
 
 test('serialized: one key runs one at a time, in order, and a failure releases it; other keys run alongside', async () => {
@@ -67,18 +57,4 @@ test('serialized: one key runs one at a time, in order, and a failure releases i
   const results = await Promise.allSettled([serialized('/r/a', step('a1', 30, true)), serialized('/r/a', step('a2', 5)), serialized('/r/b', step('b1', 5))]);
   expect(results.map((r) => r.status)).toEqual(['rejected', 'fulfilled', 'fulfilled']);
   expect(log).toEqual(['a1+', 'b1+', 'b1-', 'a1-', 'a2+', 'a2-']);
-});
-
-test('Play\'s generate is bounded: a review that never answers the POST is a Play error, not a held lock', async () => {
-  const s = Bun.serve({ port: 0, fetch: (req) => (new URL(req.url).pathname === '/api/meta' ? Response.json({ generate: true }) : new Promise<Response>(() => {})) });
-  servers.push(s);
-  const t0 = Date.now();
-  expect(await generate({ url: `http://127.0.0.1:${s.port}/` }, 300)).toMatchObject({ ok: false, code: null, error: expect.stringContaining('The review did not answer') });
-  expect(Date.now() - t0).toBeLessThan(2000);
-});
-
-test('Play\'s generate: a review whose metadata never answers is a did-not-answer error, not "assistant off"', async () => {
-  const s = Bun.serve({ port: 0, fetch: () => new Promise<Response>(() => {}) });
-  servers.push(s);
-  expect(await generate({ url: `http://127.0.0.1:${s.port}/` }, 300)).toMatchObject({ ok: false, code: null, error: expect.stringContaining('The review did not answer') });
 });

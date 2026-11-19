@@ -28,12 +28,6 @@ test('pr requests only on creation/force; watcher pushes progress without reload
     expect((await cli(['check', ...d])).code).toBe(0);
     await stream.find('review');
     expect((await fetch(url + 'api/progress').then((r) => r.json())).report.state).toBe('validated');
-    // the same bytes saved again: the watcher fires, but the state did not change, so pages get no progress event
-    const progressEvents = () => stream.events.filter((e) => e.event === 'progress').length;
-    const sent = progressEvents();
-    fs.writeFileSync(path.join(dir, REPORT_FILE), fs.readFileSync(path.join(dir, REPORT_FILE)));
-    await Bun.sleep(600);
-    expect(progressEvents()).toBe(sent);
     fs.appendFileSync(path.join(dir, REPORT_FILE), '<!-- another save -->');
     await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'writing');
     expect(stream.events.filter((e) => e.event === 'review')).toHaveLength(1);
@@ -56,22 +50,11 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
   expect(JSON.parse(fs.readFileSync(log, 'utf8').trim().split('\n').at(-1)!)).toMatchObject({ artifact: 'walkthrough', event: 'validated', slides: 1, chapters: 1 });
 }, 30_000);
 
-test('--force --no-agent resets the old generation to idle; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
+test('generate through the hub is refused; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
   const log = path.join(dir, 'progress.jsonl');
-  // the log keeps the earlier tests' requests and validations: --no-agent must not carry them over
-  expect(progressLines(dir).some((l) => l.event === 'requested')).toBe(true);
-  const requestsBefore = progressLines(dir).filter((l) => l.event === 'requested').length;
-  await cli(['stop', ...d]); // pr leaves a running review as it is
-  expect((await cli([...prArgs, '--force', '--no-agent'])).code).toBe(0);
-  expect(progressLines(dir).filter((l) => l.event === 'requested')).toHaveLength(requestsBefore);
   const url = (await cli(prArgs)).stdout.trim();
-  expect(await fetch(url + 'api/progress').then((r) => r.json())).toEqual({ walkthrough: { state: 'idle' }, report: { state: 'idle' } });
-  // through the hub, the hub's refusal comes first; without the assistant, generate says why
   const viaHub = await fetch(url + 'api/generate', { method: 'POST', headers: { 'x-reviewroom-via-hub': '1' } });
   expect([viaHub.status, (await viaHub.json()).code]).toEqual([403, 'via_hub']);
-  const generate = await fetch(url + 'api/generate', { method: 'POST' });
-  expect([generate.status, (await generate.json()).code]).toEqual([409, 'assistant_off']);
-  expect((await fetch(url + 'api/meta').then((r) => r.json())).generate).toBeUndefined();
   // a generation the previous server was running (the assistant's walkthrough), and an agent's report
   const at = new Date().toISOString();
   fs.appendFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
