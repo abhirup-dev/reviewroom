@@ -11,3 +11,5 @@ What an agent writes into a review folder. Code names each file through its cons
 
 A report profile's sections file (`skills/reviewroom/references/profiles/<name>/`) is also named by `REPORT_FILE`.
 Everything else in the review folder belongs to reviewroom: [review state](review-state.md).
+The agent reports generation progress through the CLI (`reviewroom progress <review> read` once it has read the diff,
+then `slide-lint` and `check`), never by writing it.

@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Can you set up a reviewroom review for PR 128 in ~/Codes/upload-service? Keep the narrative short.",
-      "expected_output": "Runs `reviewroom pr '<owner>/<repo>#128' --repo \u2026` then runs the printed `wait` command in the background, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Reads the explainer profile's guide. Outlines a short intro and story ending in Risks, adds heading-only finding sections under the pre-made Findings section, writes the walkthrough and runs full slide-lint until it passes before filling the report. Each risk has a severity and rr:doc link to its finding; detailed findings stay in the report. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
+      "expected_output": "Runs `reviewroom pr '<owner>/<repo>#128' --repo \u2026` then runs the printed `wait` command in the background, relays the URL, reads the diff at the head sha and compares the PR author with the authenticated gh login. Records `reviewroom progress <review> read` once it has read the diff, before writing the walkthrough. Reads the explainer profile's guide. Outlines a short intro and story ending in Risks, adds heading-only finding sections under the pre-made Findings section, writes the walkthrough and runs full slide-lint until it passes before filling the report. Each risk has a severity and rr:doc link to its finding; detailed findings stay in the report. Uses fewer slides for a small diff without asking whether a walkthrough is wanted. Runs check --fix until clean, then waits for feedback without asking the reviewer to type anything.",
       "files": []
     },
     {
@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "walk me through what https://github.com/example/uploads/pull/412 changes, top-down from the handler",
-      "expected_output": "Uses `reviewroom pr 'example/uploads#412'` then runs the printed `wait` command in the background, checks PR ownership, outlines the story top-down from the handler, adds heading-only finding sections under the pre-made Findings section, then writes the walkthrough, passes full slide-lint, then fills the report and passes check. Fills the explainer profile's pre-made sections: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions, keeping their ids. Links every claim to code (rr:sym for functions and types), and never changes code.",
+      "expected_output": "Uses `reviewroom pr 'example/uploads#412'` then runs the printed `wait` command in the background, checks PR ownership, records `reviewroom progress <review> read` once it has read the diff, outlines the story top-down from the handler, adds heading-only finding sections under the pre-made Findings section, then writes the walkthrough, passes full slide-lint, then fills the report and passes check. Fills the explainer profile's pre-made sections: Summary with a suggested verdict, Findings by severity, Questions for the author, Evidence, Your questions, keeping their ids. Links every claim to code (rr:sym for functions and types), and never changes code.",
       "files": []
     },
     {
@@ -52,7 +52,7 @@
     {
       "id": 9,
       "prompt": "Give me a walkthrough of PR 148 in reviewroom. The description cites a benchmark screenshot; while reading you find it builds on PR 145 and that a review thread made the author drop a bound.",
-      "expected_output": "Outlines the story and adds heading-only finding sections under the pre-made Findings section. Writes the walkthrough with context (no diff code yet), threads, convergence on the critical files, reconciliation, then a final Risks chapter. Each main risk is a one-liner with a severity and rr:doc link to its finding, without detailed findings on slides. Passes full slide-lint before filling the report and running check. The story chapters are parts of the change, not review categories. Attributes the benchmark to the description. PR 145 and the dropped bound are either explained as linked context or omitted, never assumed known or used as evidence for this PR.",
+      "expected_output": "Records `reviewroom progress <review> read` once it has read the diff, before writing the walkthrough. Outlines the story and adds heading-only finding sections under the pre-made Findings section. Writes the walkthrough with context (no diff code yet), threads, convergence on the critical files, reconciliation, then a final Risks chapter. Each main risk is a one-liner with a severity and rr:doc link to its finding, without detailed findings on slides. Passes full slide-lint before filling the report and running check. The story chapters are parts of the change, not review categories. Attributes the benchmark to the description. PR 145 and the dropped bound are either explained as linked context or omitted, never assumed known or used as evidence for this PR.",
       "files": []
     },
     {

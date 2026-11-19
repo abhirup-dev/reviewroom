@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 // Events (on disk, appended by the CLI and server) are facts; states (reduced) are what the page shows.
-// idle -> requested(by) -> writing -> validated; editing a validated file goes back to writing.
+// idle -> requested(by) -> writing -> validated; editing a validated file goes back to writing. `read` (the agent has read
+// the diff, `reviewroom progress <review> read`) moves a request to writing before its first save.
 // stopped(reason): an assistant generation turn ended unvalidated (`failed`), or a server started while an assistant
 // generation was pending (`interrupted`: turns live in the server process). `by: 'agent'` is never auto-stopped.
 // A stop names the request it stops (`request`: that request's `id`) and applies only while that request is current, so
@@ -14,6 +15,8 @@ export const ProgressLine = z.discriminatedUnion('event', [
   // `by` defaults to agent and `id` is optional: lines written before they existed still parse
   z.object({ ...identity, event: z.literal('requested'), by: Requester.default('agent'), id: z.string().optional() }),
   z.object({ ...identity, event: z.enum(['written', 'validated']), hash: z.string().regex(/^[a-f0-9]{64}$/) }),
+  // names its request, like a stop: it applies only while that request is current and unfinished
+  z.object({ ...identity, artifact: z.literal('walkthrough'), event: z.literal('read'), request: z.string() }),
   // `stale`: the validated hash the stop saw edited since (a validated document, then saved, then the turn ended before
   // the watcher recorded the save): it stops that validation too, unless a newer one came after it
   z.object({ ...identity, event: z.literal('stopped'), reason: StopReason, request: z.string(), stale: z.string().regex(/^[a-f0-9]{64}$/).optional() }),
@@ -27,8 +30,8 @@ export type GenerationState = 'idle' | 'requested' | 'writing' | 'validated' | '
 /** One save of a document under its request (a `written` or `validated` line with new bytes): what the page lists. */
 export type Pass = { at: string; slides?: number; chapters?: number };
 /** `stale`: writing because the validated file (that hash) was edited since; a stop of it names it.
- *  `since`: when it was requested; `passes`: its saves since, oldest first. */
-export type ArtifactProgress = { state: GenerationState; by?: Requester; request?: string; reason?: StopReason; hash?: string; stale?: string; slides?: number; chapters?: number; head?: string; source?: 'pr'; since?: string; passes?: Pass[] };
+ *  `since`: when it was requested; `read`: the agent said it has read the diff; `passes`: its saves since, oldest first. */
+export type ArtifactProgress = { state: GenerationState; by?: Requester; request?: string; reason?: StopReason; hash?: string; stale?: string; slides?: number; chapters?: number; head?: string; source?: 'pr'; since?: string; read?: true; passes?: Pass[] };
 /** `generation`: the built-in assistant's generation turn, from the server (absent where no assistant runs).
  *  `awaitingApproval`: the turn waits for the reviewer in the assistant panel; its documents stay requested/writing. */
 export type Progress = Record<Artifact, ArtifactProgress> & { generation?: { running: boolean; awaitingApproval: boolean } };
@@ -66,11 +69,14 @@ const stops = (line: Line<'stopped'>, prev: ArtifactProgress) => line.request ==
 /** A walkthrough imported from the PR (`pr --no-agent`) counts with nothing requested. */
 const imported = (line: ProgressLine) => line.event === 'validated' && line.source === 'pr';
 
-/** When it was requested and its passes, after `line`: under a request, new bytes are a new pass (a validation of the
- *  bytes just written is the same pass). */
-function passesAfter(prev: ArtifactProgress, line: Line<'written' | 'validated'>): Pick<ArtifactProgress, 'since' | 'passes'> {
+/** A read applies to the current request only, while unfinished. */
+const reads = (line: Line<'read'>, prev: ArtifactProgress) => line.request === prev.request && pendingArtifact(prev);
+
+/** What a save keeps of its request, after `line`: when it was requested, whether it was read, and its passes: under a
+ *  request, new bytes are a new pass (a validation of the bytes just written is the same pass). */
+function passesAfter(prev: ArtifactProgress, line: Line<'written' | 'validated'>): Pick<ArtifactProgress, 'since' | 'read' | 'passes'> {
   const passes = !prev.since || line.hash === prev.hash ? prev.passes : [...(prev.passes ?? []), { at: line.at, ...(line.slides !== undefined && { slides: line.slides, chapters: line.chapters }) }];
-  return { ...(prev.since && { since: prev.since }), ...(passes && { passes }) };
+  return { ...(prev.since && { since: prev.since }), ...(prev.read && { read: prev.read }), ...(passes && { passes }) };
 }
 
 /** `hashes`: each file's current content hash; `validated` holds only while the file still has the validated bytes. */
@@ -92,6 +98,10 @@ export function reduceProgress(lines: ProgressLine[], hashes: Partial<Record<Art
     if (line.event === 'stopped') {
       // only the current request, and only while it is unfinished; it keeps what was written (slides, hash) and who was asked
       if (stops(line, prev)) result[line.artifact] = { ...prev, state: 'stopped', reason: line.reason };
+      continue;
+    }
+    if (line.event === 'read') {
+      if (reads(line, prev)) result[line.artifact] = { ...prev, state: 'writing', read: true };
       continue;
     }
     const { at: _at, artifact: _a, event, ...rest } = line;
