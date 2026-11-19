@@ -7,7 +7,7 @@ import { read, setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
 
 describe('links', () => {
-  const { repo, dir, d, cli, git, state, spawn, url } = setup();
+  const { repo, dir, d, cli, git, state } = setup();
   const reviewFile = path.join(dir, REPORT_FILE);
   const prepend = (lines: string) => fs.writeFileSync(path.join(repo, file), lines + read(repo, file));
   let file = '';
@@ -19,8 +19,7 @@ describe('links', () => {
     expect(state().links[`rr:code/${file}#L3-4`]).toBeString();
   });
   test('a running server fingerprints new links at the current head, not the one it started on', async () => {
-    spawn(['start', '--foreground', '--no-open', '--port', '0', ...d]);
-    await url();
+    expect((await cli(['start', '--no-open', '--port', '0', ...d])).code).toBe(0);
     prepend('added 3\n');
     await git('commit', '-qam', 'shift again');
     fs.writeFileSync(reviewFile, `<rr-review><a href="rr:code/${file}#L6-7">x</a></rr-review>`);

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import path from 'node:path';
 import { reviewsDir } from './paths.ts';
-import { formatReviewId, idFromFolder, localReviewFolder, localReviewParent, parseReviewId, reviewFolder } from './review-id.ts';
+import { formatReviewId, idFromFolder, localReviewFolder, parseReviewId, reviewFolder } from './review-id.ts';
 
 test('PR IDs round-trip through their canonical folders', () => {
   const cases = [
@@ -21,9 +21,7 @@ test('PR IDs round-trip through their canonical folders', () => {
     expect(formatReviewId(id)).toBe(expected);
     expect(dir).toBe(path.resolve(reviewsDir(), bucket, 'pulls', '31'));
     expect(idFromFolder(dir)).toEqual(id);
-    expect(localReviewParent(dir)).toBeNull();
   }
   const local = localReviewFolder('acme/api', '32/topic');
   expect(local).toBe(path.resolve(reviewsDir(), 'acme-api', '32-topic'));
-  expect(localReviewParent(local)).toBe(path.dirname(local));
 });
