@@ -1,24 +1,9 @@
 // Which shell a device gets. A phone (touch, shorter screen side at most 720px) gets the phone shell upright and the
 // dock on its side, like a computer; it switches on rotation. Tablets keep the dock either way.
 import type { ReviewApp } from '../app';
-import { formFor, type Form } from './presentation';
+import { currentForm } from './form';
 import { dropReload, wantReload } from './pwa';
 import { ensurePanel, frontPanel } from './dock';
-
-const side = () => Math.min(screen.width, screen.height);
-// no matchMedia (tests without a DOM): the desktop
-const touch = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-/** The shorter screen side, CSS px: a phone at most PHONE_MAX, a tablet at most TABLET_MAX. */
-const PHONE_MAX = 720, TABLET_MAX = 1024;
-const small = () => touch() && side() <= PHONE_MAX;
-const landscape = () => screen.orientation?.type.startsWith('landscape') ?? matchMedia('(orientation: landscape)').matches;
-const forced = () => new URLSearchParams(globalThis.location?.search).has('phone');
-/** This screen's form (kernel/presentation.ts): a phone upright or `?phone` gets the phone shell; a phone on its side,
- *  the dock from the `tablet` layout, never saved over the reviewer's last layout. */
-export const currentForm = (): Form => formFor({ small: small(), landscape: landscape(), forced: forced() });
-const wantsPhone = () => currentForm() === 'phone';
-/** A tablet (touch, shorter side 721–1024px) or a turned phone: the dock, starting from the `tablet` layout. */
-export const isTablet = () => touch() && side() <= TABLET_MAX && !wantsPhone();
 
 const KEY = 'reviewroom:shell';
 /** When the screen stops suiting the form picked at boot (a phone rotated, a foldable opened), reload into the right

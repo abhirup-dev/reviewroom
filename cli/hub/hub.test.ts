@@ -97,7 +97,7 @@ describe('poll', () => {
 
   test('reviewroom: listed while its server answers with its pid, with counts; a dead record is deleted', async () => {
     const repo = tmp();
-    using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1 }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
+    using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1, additions: 12, deletions: 3, files: 2, updated: '2026-11-18T10:00:00.000Z' }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
     const dead = sleeper();
     write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'pr-42'), title: 'Upload limits', number: 42, head: 'refs/reviewroom/pr-42', mode: 'review', agent: { name: 'claude-code', pid: 77 }, author: 'sam-rivera' });
     const alsoLive = sleeper(); // answers as itself, with a body that is not JSON: kept
@@ -106,7 +106,7 @@ describe('poll', () => {
     write(rrHome, `${dead.pid}.json`, { pid: dead.pid, port: 1, repo, dir: repo, head: 'main', mode: 'serve' }); // alive pid, no server: stale
     const sessions = Object.fromEntries((await new Hub({ critHome: tmp(), plannotatorDataDir: tmp(), healthTimeoutMs: 500 }).poll()).map((x) => [x.id, x]));
     expect(Object.keys(sessions).sort()).toEqual([`reviewroom:${process.pid}`, `reviewroom:${alsoLive.pid}`].sort());
-    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Upload limits', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, origin: 'claude-code', parentAgentPid: 77, author: 'sam-rivera' });
+    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', target: '#42', label: 'Upload limits', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, additions: 12, deletions: 3, changedFiles: 2, updatedAt: '2026-11-18T10:00:00.000Z', origin: 'claude-code', parentAgentPid: 77, author: 'sam-rivera' });
     expect(sessions[`reviewroom:${alsoLive.pid}`]).toMatchObject({ health: 'ok', commentCount: null });
     expect(fs.existsSync(path.join(rrHome, 'sessions', `${dead.pid}.json`))).toBe(false);
   });

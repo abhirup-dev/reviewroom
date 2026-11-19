@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { isFullSha, makeProvider, type Provider } from './git.ts';
 import { readConfig, reviewArgs, reviewDirArgs, type ReviewConfig } from './config.ts';
-import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
+import { readState, readWalkthrough, statePath, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, reviewId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
@@ -234,12 +234,31 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   // A headless audit reads incomplete artifacts on purpose; generation must not cover its player.
   app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, report: { state: 'none' } } : readProgress(dir)));
   app.get('/api/state', (c) => json(c, read()));
+  // The diff's size for the hub's rows. shortcut: recomputed at most every 30 s (the hub asks every 2 s and git runs
+  // synchronously), so a working-tree review's numbers lag edits by up to 30 s; key it on a file watcher if that matters.
+  let sized: { at: number; key: string; value: { additions: number; deletions: number; files: number } | null } | null = null;
+  const diffSize = () => {
+    const key = `${prov.base}..${prov.head}`;
+    if (!sized || sized.key !== key || Date.now() - sized.at > 30_000) {
+      let value = null;
+      try {
+        const files = prov.files(prov.base, prov.head);
+        value = { additions: files.reduce((n, f) => n + f.additions, 0), deletions: files.reduce((n, f) => n + f.deletions, 0), files: files.length };
+      } catch {} // git failed (a rewritten base, a removed worktree): the hub shows no size
+      sized = { at: Date.now(), key, value };
+    }
+    return sized.value ?? {};
+  };
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = currentRound(s);
-    return json(c, { prReviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    let updated: string | null = null;
+    try {
+      updated = fs.statSync(statePath(dir)).mtime.toISOString();
+    } catch {} // no state.json yet: nothing has happened
+    return json(c, { ...diffSize(), updated, prReviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
