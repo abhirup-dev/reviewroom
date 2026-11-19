@@ -8,7 +8,7 @@ For existing feedback, begin with "Resume an existing review".
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
 ```bash
-reviewroom pr acme/api#31
+reviewroom pr 'acme/api#31'
 ```
 
 Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
@@ -17,16 +17,17 @@ After feedback, the page opens the next round immediately.
 
 ## Resume an existing review
 
-Run `reviewroom wait acme/api#31` in the background, using the PR's Review ID from any directory.
-For a local review, use its branch from the reviewed repo or use `--dir <dir>` for a custom folder. The command starts the server if needed and prints the next
-unread round as soon as it is available.
+Run `reviewroom wait 'acme/api#31'` in the background, using the PR's Review ID from any directory.
+For a local review, use its branch from the reviewed repo (or pass `--repo <path>`) or pass an existing
+review folder as an absolute or `./`-relative path. The command starts the server if needed and prints
+the next unread round as soon as it is available.
 
 ## Check status and stop
 
 Use `reviewroom list` to find running reviews and their IDs or local folders.
-Use `reviewroom status acme/api#31 --json` for the URL, review directory, base/head shas and status;
+Use `reviewroom status 'acme/api#31' --json` for the URL, review directory, base/head shas and status;
 add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
-for the round command's completion. To end the review when asked, run `reviewroom stop acme/api#31`.
+for the round command's completion. To end the review when asked, run `reviewroom stop 'acme/api#31'`.
 
 ## Wait for the reviewer
 
@@ -65,7 +66,7 @@ For each thread in the feedback:
 4. When the answer builds on an earlier thread, a team thread or what the report said in an
    earlier round, link it (`rr:thread/<id>`, `rr:thread/gh_<n>`, `rr:round/<n>`) instead of
    restating it.
-5. Reply with `reviewroom reply <thread-id> --file <reply.md> --dir <dir>`.
+5. Reply with `reviewroom reply <review> <thread-id> --file <reply.md>`.
 6. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the reviewer
    explicitly asks.
 
@@ -86,7 +87,7 @@ again using [Validation and audit](validation-and-audit.md) until clean.
 
 <important if="you are replying to several threads at once">
 Write the answers to a JSON file, then send them in one call (all or nothing):
-`reviewroom reply --json <replies.json> --dir <dir>`, with `[{"thread": "t_ab12", "body": "…"}]`.
+`reviewroom reply <review> --json <replies.json>`, with `[{"thread": "t_ab12", "body": "…"}]`.
 </important>
 
 <important if="the feedback lists threads under 'Open on GitHub'">
@@ -101,7 +102,7 @@ cannot reply to them. When one matters to your answer, link or embed it with `rr
 Run the command the feedback names **in the background**. For a PR, use its Review ID:
 
 ```bash
-reviewroom wait acme/api#31
+reviewroom wait 'acme/api#31'
 ```
 
 Tell the reviewer: **"Replies are in. Review them in the browser and click Send feedback or Approve

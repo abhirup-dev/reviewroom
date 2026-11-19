@@ -53,7 +53,7 @@ bun run setup-phone   # tailscale serve --bg --https=4847 → the hub; portless 
 ```
 
 The phone address is then fixed (the Mac's tailnet name and port 4847), and on this Mac the hub is also
-`https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub --public-origin <https origin>`, saved
+`https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub serve --public-origin <https origin>`, saved
 in your settings ([review state](docs/review-state.md); restart the hub to apply).
 
 Open the public URL on the phone: the hub lists your reviews, and each opens in a phone layout (bottom tabs,

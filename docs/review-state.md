@@ -6,7 +6,7 @@ reviewers don't edit these files; they change them through the CLI and the page.
 ## In a review folder
 
 Review folders live outside the checkout. PR reviews use `<home>/reviews/<owner>_<repo>/pulls/<n>/`.
-For a custom local review folder, use `--dir`.
+To target an existing review folder, pass its absolute or `./`-relative path after the command.
 
 A PR's `config.json` has a write-once `id` that must match its folder. PR commands resolve that
 folder directly from the ID.
@@ -34,7 +34,7 @@ round in state. `wait` prints the oldest undelivered round and records `delivere
 state operation after stdout flushes. A retry can reprint a round if interrupted before that write.
 Concurrent waiters can print the same round.
 A server restart between lock lookup and the delivery request may require a retry.
-The server stays up through feedback and approval. Stop it with `reviewroom stop acme/api#31` or the hub's Close.
+The server stays up through feedback and approval. Stop it with `reviewroom stop 'acme/api#31'` or the hub's Close.
 
 **`progress.jsonl`** appends events per document (walkthrough, report); `src/kernel/state/progress.shared.ts` reduces
 them to a state, and the client reads that state rather than the events:
@@ -46,7 +46,7 @@ them to a state, and the client reads that state rather than the events:
 | `written`, with the content hash | `writing` | the server, when the file changes |
 | `validated`, with the hash | `validated` while the file still has that hash, else `writing` | `slide-lint` (a full run) and `check` |
 | `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops; `stale`: the validated hash it saw edited since | `stopped`, only while that request is current and unfinished (or validated with exactly that `stale` hash) | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the server closed during an assistant generation, or a server started while one was pending (`interrupted`; turns live in the server's process) |
-| `reset` | `idle` | `reviewroom pr --force --no-agent` |
+| `reset` | `idle` | `reviewroom pr <review> --force --no-agent` |
 
 Requests and stops of both documents go in one write. Events before the first `requested` are ignored (a review that never asked for generation stays `idle`), except a walkthrough imported from the PR (`validated`, `source: pr`): it counts while the file has those bytes, and edited since, with nobody asked, is `idle` again. `stopped` keeps
 what was written and stays through later saves; a validation or a new request leaves it. An `agent`'s request is never
