@@ -2,14 +2,11 @@
 import type { SessionCategory, SessionKind, ToolName } from '../../src/hub/model.shared.ts';
 
 export interface ClassificationInput {
-  tool: ToolName;
+  tool: Exclude<ToolName, 'reviewroom'>;
   mode: string | null;
   label: string | null;
   args?: string[];
   command?: string | null;
-  /** reviewroom: PR number and head ref from its session record. */
-  pr?: number | string | null;
-  head?: string | null;
 }
 
 export interface SessionClassification {
@@ -30,18 +27,19 @@ function targetFromCommand(command: string | null, verb: string): string | null 
   return clean(command.match(new RegExp(`(?:^|\\s)${escaped}\\s+(?:--[^\\s]+\\s+)*([^\\s]+)`, 'i'))?.[1]);
 }
 
-export function classifySession(input: ClassificationInput): SessionClassification {
+export function classifySession(input: ClassificationInput | { tool: 'reviewroom'; reviewId?: string; head?: string | null }): SessionClassification {
+  const is = (category: SessionCategory, kind: SessionKind, target: string | null, source: string) => ({ category, kind, target, source });
+
+  if (input.tool === 'reviewroom') {
+    const source = 'reviewroom config';
+    if (input.reviewId) return is('review', 'pull-request-review', null, source);
+    return is('review', 'code-review', input.head === 'worktree' ? 'uncommitted changes' : clean(input.head), source);
+  }
+
   const mode = (input.mode ?? '').toLowerCase();
   const label = clean(input.label);
   const args = input.args ?? [];
   const command = input.command ?? null;
-  const is = (category: SessionCategory, kind: SessionKind, target: string | null, source: string) => ({ category, kind, target, source });
-
-  if (input.tool === 'reviewroom') {
-    const source = 'reviewroom session record';
-    if (input.pr) return is('review', 'pull-request-review', `#${input.pr}`, source);
-    return is('review', 'code-review', input.head === 'worktree' ? 'uncommitted changes' : clean(input.head), source);
-  }
 
   if (input.tool === 'crit') {
     const source = 'crit registry args';

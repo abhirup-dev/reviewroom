@@ -122,17 +122,15 @@ export function makeProvider(repo: string, cfg: ReviewConfig) {
   return {
     base,
     head,
-    meta(): Omit<ReviewMeta, 'id'> {
+    meta(): Omit<ReviewMeta, 'routeId'> {
       // Without a PR title, the oldest commit of the range describes the change better than the latest fixup.
       const subject = isWT(head) ? 'Working tree changes'
         : (git(['log', '--reverse', '--format=%s', `${base}..${head}`], repo, { soft: true }) || '').split('\n')[0].trim() || git(['log', '-1', '--format=%s', head], repo).trim();
       return {
         title: cfg.title || subject,
-        repo: cfg.repo || remoteName(repo, cfg.remote),
+        repo: remoteName(repo, cfg.remote),
         path: realRepo,
-        number: cfg.number,
         author: cfg.author || (!isWT(head) ? git(['log', '-1', '--format=%an', head], repo).trim() : undefined),
-        url: cfg.url,
         base,
         head,
         baseLabel: cfg.baseLabel || cfg.base,

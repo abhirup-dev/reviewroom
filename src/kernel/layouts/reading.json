@@ -1,6 +1,6 @@
 {
   "title": "Reading",
-  "hint": "Narrative centre, code on the right",
+  "hint": "Report centre, code on the right",
   "root": {
     "row": [
       { "size": 264, "column": [{ "tabs": ["toc"] }, { "tabs": ["files", "threads", "ci"], "active": "files" }] },

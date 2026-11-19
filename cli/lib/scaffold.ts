@@ -5,6 +5,7 @@ import type { ReviewConfig } from './config.ts';
 import { PKG } from './paths.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
+import { progressHash } from './progress.ts';
 
 export const DEFAULT_PROFILE = 'explainer';
 const profilesDir = () => path.join(PKG, 'skills', 'reviewroom', 'references', 'profiles');
@@ -20,11 +21,12 @@ export function profileSections(name: string) {
 /** Writes the report from the page shell and the review's profile, once (or again with --force). */
 export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = false) {
   const target = path.join(dir, REPORT_FILE);
-  if (fs.existsSync(target) && !force) return false;
+  if (fs.existsSync(target) && !force) return undefined;
   const body = profileSections(cfg.profile ?? DEFAULT_PROFILE);
   const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const html = fs.readFileSync(path.join(PKG, 'templates', REPORT_FILE), 'utf8');
   // function replacers: `$&`, `$'` in titles must stay literal
-  fs.writeFileSync(target, html.replaceAll('{{TITLE}}', () => esc(makeProvider(repo, cfg).meta().title)).replace('{{BODY}}', () => body));
-  return true;
+  const report = html.replaceAll('{{TITLE}}', () => esc(makeProvider(repo, cfg).meta().title)).replace('{{BODY}}', () => body);
+  fs.writeFileSync(target, report);
+  return progressHash(report);
 }

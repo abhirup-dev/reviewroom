@@ -1,4 +1,3 @@
-import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // shot: the review (report.html as the Review panel shows it) as PNGs, for an agent to look at without a browser
 // (`shot <chapter>/<step>`: one walkthrough slide instead, in slides.ts).
 // One picture when it is short; else one per section (the Contents' sections), a tall section cut between its blocks.
@@ -6,7 +5,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit } from '../lib/config.ts';
 import { pngSize, withPage, withServer } from '../lib/render.ts';
 import { shotSlide } from './slides.ts';
 
@@ -62,11 +60,10 @@ const PLAN = (only: string | undefined, max: number, width?: number) => `(async 
   return { width, parts, wide: wide.map(({ el, by }) => (el.closest('section[id]')?.id ?? 'review') + ': <' + label(el) + '> ' + by + ' px past the edge') };
 })()`;
 
-export async function cmdShot(repo: string | null, o: ShotOpts, [only]: string[]) {
+export async function cmdShot(repo: string | null, dir: string, o: ShotOpts, [only]: string[]) {
   if (o.theme && o.theme !== 'light' && o.theme !== 'dark') fail('--theme: light or dark', 2);
-  if (only?.includes('/')) return shotSlide(repo, o, only); // section ids have no '/'
+  if (only?.includes('/')) return shotSlide(repo, dir, o, only); // section ids have no '/'
   if (o.proseOnly) fail('--prose-only requires a guided slide: shot <chapter>/<step>; normal shots already capture review prose');
-  const dir = dirForEdit(repo, o.dir, REPORT_FILE);
   const theme = o.theme ?? 'light';
   const tmp = path.join(os.tmpdir(), 'reviewroom-shots', `${path.basename(dir)}-${theme}${o.mobile ? '-mobile' : ''}${o.native ? '-native' : ''}`);
   const out = path.resolve(o.out ?? tmp);

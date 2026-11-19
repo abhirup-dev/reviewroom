@@ -1,4 +1,21 @@
 /* The experimental assistant panel (src/assistant/). The composer, buttons, prose and empty state are the shared ones. */
+.rr-assistant__island {
+  flex: 1;
+  min-height: 0;
+}
+/* Generate, suggested while nothing is requested (panel.ts) */
+.rr-assistant__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rr-space-8);
+  padding: var(--rr-space-8) var(--rr-space-12);
+  border-bottom: 1px solid var(--rr-line);
+  color: var(--rr-ink-2);
+}
+.rr-assistant__suggest[hidden] {
+  display: none;
+}
 .rr-assistant__thread {
   display: flex;
   flex-direction: column;
@@ -20,6 +37,13 @@
   border-radius: var(--rr-radius-lg);
   background: var(--rr-surface-well);
   white-space: pre-wrap;
+}
+.rr-assistant__prompt > summary {
+  cursor: pointer;
+  white-space: normal;
+}
+.rr-assistant__prompt[open] > summary {
+  margin-bottom: var(--rr-space-6);
 }
 .rr-assistant__tool {
   display: flex;

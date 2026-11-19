@@ -18,7 +18,7 @@ export function desktopPlayer({ actor, root, chapterBtn, next }: { actor: Actor<
         ),
       ),
     paintNav: ({ isLast }: ReturnType<typeof current>) => {
-      next.title = isLast ? 'End the guided walkthrough' : 'Next slide';
+      next.title = isLast ? 'End the walkthrough' : 'Next slide';
       next.replaceChildren(isLast ? 'Finish' : 'Next', isLast ? icon('check', 14) : icon('chevron', 14));
     },
   };

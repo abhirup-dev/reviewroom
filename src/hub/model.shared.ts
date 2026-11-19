@@ -21,6 +21,9 @@ export type SessionKind =
   | 'goal-setup'
   | 'unknown';
 
+/** reviewroom: where generation stands, from the review's progress log. */
+export type GenerationState = 'idle' | 'generating' | 'ready' | 'stopped';
+
 /** Did the session's server answer a short loopback request? */
 export type Health = 'ok' | 'unreachable' | 'unknown';
 
@@ -52,7 +55,7 @@ export interface RawPlanEntry {
   label: string | null;
 }
 
-/** A live session as the API and page show it. */
+/** A session as the API and page show it: live, or (reviewroom) a review folder whose server is stopped. */
 export interface SessionInfo {
   /** Stable across polls: `<tool>:<registry-key-or-pid>`. */
   id: string;
@@ -99,10 +102,15 @@ export interface SessionInfo {
   changedFiles: number | null;
   /** reviewroom: the review has a guided walkthrough (walkthrough.json) */
   walkthrough?: boolean;
-  /** reviewroom: first 12 hex of sha1(review dir); the hub serves the review at /r/<reviewId>/ */
-  reviewId?: string;
+  /** reviewroom: first 12 hex of sha1(review dir); the hub serves the review at /r/<routeId>/ */
+  routeId?: string;
+  /** reviewroom: a review folder on disk with no server running (Play starts one) */
+  stopped?: boolean;
+  generation?: GenerationState;
+  /** reviewroom, stopped: it holds work Remove would lose (documents, threads, the assistant's transcript) */
+  hasWork?: boolean;
   /** Stable PR identity in owner/repo#n form. */
-  prReviewId?: string;
+  reviewId?: string;
   interacted: boolean | null;
   /** When the hub first saw this session (kept across polls). */
   firstSeenAt: string;

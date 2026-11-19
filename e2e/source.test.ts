@@ -35,18 +35,18 @@ test('declaration lookup batches languages, qualifies before limits and preserve
   expect(result.results[6].declarations[0].range.start.character).toBe(files['unicode.ts'].indexOf('function'));
   const refs = ['Worker.Process', 'symbols.py:process', 'Target.run', 'Second', 'supported.rs:Fallback', 'unsupported.custom:Legacy'];
   fs.writeFileSync(path.join(dir, REPORT_FILE), `<rr-app><rr-review>${refs.map((r) => `<a href="rr:sym/${r}">${r}</a>`).join('')}</rr-review></rr-app>`);
-  const checked = await cli(['check', '--json', ...d]);
+  const checked = await cli(['check', ...d, '--json']);
   expect([checked.code, JSON.parse(checked.stdout).links]).toEqual([0, []]);
   expect(checked.stderr).not.toContain('fell back');
   // A dirty checkout must not replace the committed revision's definitions.
   fs.writeFileSync(path.join(repo, 'symbols.go'), 'package symbols\n// Worker Process Second\n');
-  expect((await cli(['check', '--json', ...d])).code).toBe(0);
+  expect((await cli(['check', ...d, '--json'])).code).toBe(0);
   const config = path.join(dir, 'config.json');
   const cfg = JSON.parse(fs.readFileSync(config, 'utf8'));
   fs.writeFileSync(config, JSON.stringify({ ...cfg, head: 'worktree' }));
   fs.writeFileSync(path.join(repo, 'untracked.py'), 'class NewlyAdded: pass\n');
   fs.appendFileSync(path.join(dir, REPORT_FILE), '<a href="rr:sym/NewlyAdded">new</a><a href="rr:sym/ActuallyMissing">missing</a>');
-  const changed = await cli(['check', '--json', ...d]);
+  const changed = await cli(['check', ...d, '--json']);
   const links = JSON.parse(changed.stdout).links;
   expect(changed.code).toBe(1);
   expect(links).toContainEqual(expect.objectContaining({ ref: 'rr:sym/Worker.Process', status: 'changed' }));

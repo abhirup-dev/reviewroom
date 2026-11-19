@@ -71,6 +71,7 @@ const styles = [
   panelsStyles,
   overlaysStyles,
   ['src/slides/styles/slides.css'],
+  ['src/review/styles/generation.css'],
   ['src/review/styles/content.css'],
   ['src/review/styles/diagrams.css'],
   ['src/kernel/styles/dockview.css'],

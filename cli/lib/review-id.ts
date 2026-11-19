@@ -8,12 +8,12 @@ type ReviewRepository = { owner: string; repo: string };
 export type ReviewId = ReviewRepository & { number: number };
 export const formatReviewRepository = ({ owner, repo }: ReviewRepository) => `${owner}/${repo}`;
 export const formatReviewId = (id: ReviewId) => `${formatReviewRepository(id)}#${id.number}`;
+export const pullUrl = (id: ReviewId, host = 'github.com') => `https://${host}/${formatReviewRepository(id)}/pull/${id.number}`;
 
 // The optional suffix covers PR subpages, query strings, and comment anchors.
 const PR_URL = /^https?:\/\/[^/]+\/([^/]+\/[^/]+)\/pulls?\/(\d+)(?:[/?#].*)?$/i;
 const PR_NUMBER = /^\d+$/;
 const PULLS = 'pulls';
-export const isReviewUrl = (text: string) => PR_URL.test(text);
 
 function parseReviewRepository(repository: string): ReviewRepository | null {
   const [owner, repo, extra] = repository.toLowerCase().split('/');
@@ -51,18 +51,22 @@ export function idFromFolder(dir: string): ReviewId | null {
   return id;
 }
 
-// Local reviews share a repository directory. Their branch labels are plain path segments.
+// Use lowercase escapes for branch targets so case-insensitive filesystems keep distinct refs apart.
 const localSegment = (value: string) => value.replace(/[^\w.-]+/g, '-').replace(/^\.*$/, '_');
+const branchSegment = (branch: string) => branch === PULLS ? '%70ulls' : branch
+  .replace(/[^a-z0-9_.-]/gu, (c) => Buffer.from(c).toString('hex').replace(/../g, '%$&'))
+  .replace(/\.+$/, (dots) => '%2e'.repeat(dots.length));
 export const localReviewsFolder = (repository: string) => path.resolve(reviewsDir(), localSegment(repository));
-export const localReviewFolder = (repository: string, branch: string) => path.join(localReviewsFolder(repository), localSegment(branch));
+export const localReviewFolder = (repository: string, branch: string) => path.join(localReviewsFolder(repository), branchSegment(branch));
 
 const directories = (root: string) => fs.existsSync(root)
   ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))
   : [];
 
+/** Every review folder on this machine: local `<repository>/<branch>` and PR `<owner>_<repo>/pulls/<n>`. */
+export const allReviewFolders = () => directories(reviewsDir()).flatMap(directories).flatMap((dir) => path.basename(dir) === PULLS ? directories(dir) : [dir]);
+
 export function reviewFoldersForRepository(repository: string): string[] {
   const prRepo = parseReviewRepository(repository);
   return [...directories(localReviewsFolder(repository)), ...(prRepo ? directories(pullsFolder(prRepo)) : [])];
 }
-
-// Future branch folders can use encodeURIComponent to round-trip refs as portable path segments.

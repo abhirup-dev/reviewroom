@@ -23,6 +23,7 @@ class TocPanel implements PanelInstance {
     this.offs.push(
       app.bus.on('state', r),
       app.bus.on('prefs', r),
+      app.bus.on('doc-ready', r),
       app.bus.on('active-section', (id) => {
         this.active = id;
         this.mark();
@@ -68,7 +69,7 @@ class TocPanel implements PanelInstance {
         items.push(tocItem(app, { id: sub.id }, app.docTitle(sub.id) ?? sub.id, { class: 'rr-toc-item rr-toc-item--sub' + (deep ? ' rr-toc-item--deep' : ''), 'data-id': sub.id, 'data-trail': trail }));
       });
     });
-    if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This review has no sections.'));
+    if (!items.length) items.push(h('div', { class: 'rr-empty' }, 'This report has no sections.'));
     // the PR description's own headings (its ids are stripped, so they are addressed by path)
     const heads = [...app.descDoc.querySelectorAll('h1, h2, h3, h4')].map((el) => {
       const at = { id: PR_DESCRIPTION, path: cssPathWithin(app.descDoc, el) };
@@ -90,7 +91,7 @@ class TocPanel implements PanelInstance {
       }),
       heads.length ? h('div', { class: 'rr-group-label' }, 'Description') : null,
       ...heads,
-      h('div', { class: 'rr-group-label' }, 'Walkthrough'),
+      h('div', { class: 'rr-group-label' }, 'Report'),
       ...items,
       ].filter(Boolean) as HTMLElement[]),
     );

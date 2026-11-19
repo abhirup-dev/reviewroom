@@ -46,13 +46,25 @@ export interface StateBackend {
   walkthrough?(): Promise<unknown>;
   /** Generation progress (progress.jsonl, reduced by the server). */
   progress?(): Promise<Progress>;
+  /** POST api/generate: the assistant writes both documents. Taken (`started`: false when nothing was left to write) or
+   *  refused (`code`: busy, starting, assistant_off, …). What happens to the request comes over the progress events. */
+  generate?(): Promise<{ ok: true; started: boolean } | { ok: false; code?: string; error?: string }>;
   /** For the update flow (src/kernel/pwa.ts): ops not stored yet, and when the server we stream from started. */
   pending?(): { unsent: boolean; started: string | null };
 }
+/** `started`: null until the first hello. */
+export type Connection = { live: boolean; started: string | null };
 export interface BackendEvents {
   progress?(p: Progress): void;
+  /** The assistant's conversation changed on the server (a turn started, ended or paused). */
+  assistant?(): void;
+  /** The live event stream to the server: up or down, and when the server it talks to started (its hello). */
+  connection?(c: Connection): void;
   state(s: ReviewState): void;
+  /** The review changed under the page in a way only a reload shows (a new run, the Git range, the report's assets). */
   review(): void;
+  /** Only these documents changed (validated again, or stopped): the page takes them in place. */
+  changed?(documents: ('report' | 'walkthrough')[]): void;
   error(text: string): void;
   /** Some changes failed to save and are being retried (true), or all are saved again (false). */
   unsaved?(on: boolean): void;

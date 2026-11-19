@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { PullRequest } from '@octokit/graphql-schema';
-import { branchPr, ciOf, normalize, prTarget, toGitHubMarkdown } from './github.ts';
+import { ciOf, normalize, toGitHubMarkdown } from './github.ts';
 
 const author = (login: string) => ({ login, avatarUrl: `https://avatars.example/${login}` });
 const comment = (databaseId: number, login: string, body: string, extra = {}) => ({ id: `C${databaseId}`, databaseId, body, createdAt: `2026-10-0${databaseId % 9}T00:00:00Z`, url: `https://github.com/o/r/pull/7#c${databaseId}`, viewerCanUpdate: login === 'me', viewerCanDelete: login === 'me', author: author(login), ...extra });
@@ -26,7 +26,7 @@ const pr: PullRequest = {
 } as never;
 
 test('GitHub threads map onto reviewroom threads and anchors', () => {
-  const s = normalize(pr, 'me', 'a'.repeat(40));
+  const s = normalize(pr, 'me', 'a'.repeat(40), pr.url);
   expect(s.stale).toBe(true);
   expect(s.pending).toEqual({ id: 'R3', drafts: 1 });
   expect(s.description).toEqual({ body: 'Adds the thing.', login: 'ann', avatar: 'https://avatars.example/ann', at: '2026-10-01T00:00:00Z' });
@@ -46,22 +46,16 @@ test('GitHub threads map onto reviewroom threads and anchors', () => {
 
 test('GitHub may send null nodes, a deleted author (null) and missing connections', () => {
   const ghost = { ...comment(9, 'x', 'from a deleted account'), author: null };
-  const s = normalize({ ...pr, author: null, reviewThreads: { nodes: [null, thread({}, [ghost as never])] }, comments: null, reviews: { nodes: [null] }, commits: null } as never, 'me', null);
+  const s = normalize({ ...pr, author: null, reviewThreads: { nodes: [null, thread({}, [ghost as never])] }, comments: null, reviews: { nodes: [null] }, commits: null } as never, 'me', null, pr.url);
   expect(s.threads.map((t) => [t.id, t.messages[0].gh.login])).toEqual([['gh_9', 'ghost']]);
   expect([s.description.login, s.pending, s.ci]).toEqual(['ghost', null, []]);
 });
 
 test('rr: links become GitHub links or plain text', () => {
-  const t = { host: 'github.com', owner: 'o', name: 'r', number: 7 };
+  const t = { owner: 'o', repo: 'r', number: 7 };
   const out = toGitHubMarkdown('see [x](rr:code/a.go#L3-5), [old](rr:code/a.go@base#L2), [intro](rr:doc/intro), [that](rr:thread/gh_42) and [mine](rr:thread/t3)', t, { base: 'B', head: 'H' });
   expect(out).toBe('see [x](https://github.com/o/r/blob/H/a.go#L3-L5), [old](https://github.com/o/r/blob/B/a.go#L2), intro, [that](https://github.com/o/r/pull/7#discussion_r42) and mine');
   expect(toGitHubMarkdown('[s](rr:code/my%20dir/a.go#L1)', t, { base: 'B', head: 'H' })).toBe('[s](https://github.com/o/r/blob/H/my%20dir/a.go#L1)');
-});
-
-test('the PR comes from config url, else repo + number', () => {
-  expect(prTarget({ url: 'https://ghe.corp/o/r/pull/12' })).toEqual({ host: 'ghe.corp', owner: 'o', name: 'r', number: 12 });
-  expect(prTarget({ repo: 'o/r', number: 3 })).toEqual({ host: 'github.com', owner: 'o', name: 'r', number: 3 });
-  expect(prTarget({ repo: 'o/r' })).toBe(null);
 });
 
 test('CI: each commit is running, failed, passed or unchecked, newest first', () => {
@@ -71,10 +65,4 @@ test('CI: each commit is running, failed, passed or unchecked, newest first', ()
   const ci = ciOf([commit('a', run('lint', 'COMPLETED', 'SUCCESS'), st('jenkins', 'SUCCESS')), commit('b', run('lint', 'COMPLETED', 'FAILURE'), run('skip', 'COMPLETED', 'SKIPPED')), commit('c', run('lint', 'COMPLETED', 'FAILURE'), st('jenkins', 'PENDING')), commit('d')]);
   expect(ci.map((c) => [c.sha, c.state])).toEqual([['d', 'none'], ['c', 'pending'], ['b', 'failure'], ['a', 'success']]);
   expect(ci[3].checks).toEqual([{ name: 'CI / lint', state: 'success', url: 'd' }, { name: 'jenkins', state: 'success', url: null }]);
-});
-
-test('branchPr: no lookup for a review that already has a PR, a fetched PR ref or a commit', () => {
-  expect(branchPr('.', { url: 'https://github.com/o/r/pull/3', head: 'feature' })).toBe(null);
-  expect(branchPr('.', { head: 'refs/reviewroom/pr-12' })).toBe(null);
-  expect(branchPr('.', { head: '57027b80' })).toBe(null);
 });

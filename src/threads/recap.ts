@@ -14,7 +14,7 @@ import { recapAvailable } from './docking';
 
 /** A new round the agent has answered: float the panel over the dock, once per round in this tab. */
 export function recapOnNewRound(app: ReviewApp) {
-  const key = `reviewroom:recap:${app.meta.id}`;
+  const key = `reviewroom:recap:${app.meta.routeId}`;
   if (!recapAvailable(app) || sessionStorage.getItem(key) === String(app.state.round) || !app.state.threads.some((t) => app.services.threads.unreadAgent(t))) return;
   sessionStorage.setItem(key, String(app.state.round));
   ensurePanel(app, 'recap');

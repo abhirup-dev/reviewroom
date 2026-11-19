@@ -7,6 +7,8 @@ import type { Anchor } from '../kernel/state/schema.shared';
 
 const MAX_LINES = 40;
 export const MAX_EXCERPT = 4000;
+/** The response header naming the turn a stream is (its `activeStreamId`): a page knows what it attached to. */
+export const TURN_HEADER = 'x-reviewroom-turn';
 
 /** A quote the assistant takes: assistant-ui's QuoteInfo (text, messageId) plus the link and its description. */
 export const AskContext = z.object({

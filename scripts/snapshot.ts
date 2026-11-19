@@ -40,18 +40,18 @@ const FORMS: [string, string, Viewport][] = [
 
 async function capture(out: string) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-snapshot-'));
-  const repo = path.join(tmp, 'repo'), dir = path.join(tmp, 'review');
+  const repo = path.join(tmp, 'repo'), dir = path.join(tmp, 'home', 'reviews', 'repo', 'feat%2fupload-rate-limit');
   const env = { ...process.env, REVIEWROOM_HOME: path.join(tmp, 'home') };
   const cli = (args: string[]) => $`${process.execPath} ${path.join(root, 'dist/cli/reviewroom.js')} ${args}`.env(env).quiet();
   await $`bash ${path.join(root, 'examples/make-demo-repo.sh')} ${repo}`.quiet();
   fs.cpSync(path.join(root, 'examples/uploads'), dir, { recursive: true });
-  const url = (await cli(['pr', 'feat/upload-rate-limit', '--repo', repo, '--dir', dir, '--detach', '--no-open', '--port', '0'])).stdout.toString().trim();
+  const url = (await cli(['pr', 'feat/upload-rate-limit', '--repo', repo, '--no-open', '--port', '0'])).stdout.toString().trim();
   const snap: Snapshot = {};
   const runs = FORMS.flatMap(([form, query, vp]) => ['light', 'dark'].flatMap((theme) => STATES.map(([state, js]) => ({ name: `${form}/${theme}/${state}`, url: url + query, vp, theme, js }))));
   try {
     for (const run of runs) snap[run.name] = await shot(run);
   } finally {
-    await cli(['stop', '--repo', repo, '--dir', dir]).nothrow();
+    await cli(['stop', 'feat/upload-rate-limit', '--repo', repo]).nothrow();
     fs.rmSync(tmp, { recursive: true, force: true });
   }
   fs.writeFileSync(out, JSON.stringify(snap));

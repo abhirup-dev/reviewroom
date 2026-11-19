@@ -3,22 +3,22 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { reviewId } from '../cli/hub/hub.ts';
+import { routeId } from '../cli/lib/registry.ts';
 import { expectClientHeaders, op, readJson, setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
 import { reviewEvents } from './transport.ts';
 
 describe('hub', () => {
   // the review runs the assistant: reaching it through the hub must not reach Claude Code
-  const { tmp, dir, d, cli, serve, sessions } = setup({ REVIEWROOM_ASSISTANT: '1' });
+  const { tmp, repo, dir, d, cli, serve, sessions, hub: client } = setup({ assistant: true });
   let review = '', hub = '';
-  const list = async () => (await (await fetch(hub + 'api/sessions')).json()).sessions as { id: string; tool: string; label: string; reviewRound: number; commentCount: number; health: string }[];
+  const list = client.sessions;
   beforeAll(async () => {
     review = await serve();
-    await cli(['comment', 'general', 'why?', ...d]);
-    hub = (await cli(['hub', 'serve', '--detach', '--no-open', '--port', '0'])).stdout.trim();
+    await cli(['comment', ...d, 'general', 'why?']);
+    hub = await client.start();
   });
-  afterAll(() => cli(['hub', 'stop']));
+  afterAll(client.stop);
 
   test('hub serve prints and reuses the running hub URL', async () => {
     expect(hub).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
@@ -40,8 +40,8 @@ describe('hub', () => {
   });
 
   test('a server killed without cleanup is dropped and its record deleted', async () => {
-    const other = path.join(path.dirname(dir), 'other');
-    expect((await cli(['start', '--no-open', '--port', '0', ...d.slice(0, 2), '--dir', other])).code).toBe(0);
+    const other = path.join(path.dirname(dir), 'main');
+    expect((await cli(['pr', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo])).code).toBe(0);
     const { pid } = readJson(other, 'server.json');
     try {
       expect(sessions().map((s) => s.pid)).toContain(pid);
@@ -52,8 +52,8 @@ describe('hub', () => {
   describe('proxy /r/<id>/', () => {
     let r = '';
     beforeAll(async () => {
-      const [s] = (await (await fetch(hub + 'api/sessions')).json()).sessions.filter((x: { tool: string }) => x.tool === 'reviewroom');
-      r = `${hub}r/${s.reviewId}/`;
+      const [s] = (await (await fetch(hub + 'api/sessions')).json()).sessions.filter((x: { tool: string; stopped?: boolean }) => x.tool === 'reviewroom' && !x.stopped); // stopped reviews are listed too
+      r = `${hub}r/${s.routeId}/`;
     });
 
     test('serves the review: page with a relative entry, its build, the same state as direct', async () => {
@@ -62,9 +62,9 @@ describe('hub', () => {
       expect(page).toContain('src="_rr/reviewroom.js"');
       expect(page).not.toContain('"/_rr/reviewroom.js"');
       expect(await (await fetch(r + 'api/state')).json()).toEqual(await (await fetch(review + 'api/state')).json());
-      // the client keys its storage by meta.id: the review id, whichever way it is reached
-      expect((await (await fetch(review + 'api/meta')).json()).id).toBe(r.split('/').at(-2));
-      expect((await (await fetch(r + 'api/meta')).json()).id).toBe(r.split('/').at(-2));
+      // the client keys its storage by meta.routeId: the route id, whichever way it is reached
+      expect((await (await fetch(review + 'api/meta')).json()).routeId).toBe(r.split('/').at(-2));
+      expect((await (await fetch(r + 'api/meta')).json()).routeId).toBe(r.split('/').at(-2));
       const red = await fetch(r.slice(0, -1), { redirect: 'manual' });
       expect([red.status, new URL(red.headers.get('location')!, hub).href]).toEqual([302, r]);
     });
@@ -115,6 +115,12 @@ describe('hub', () => {
       expect(proxied[0]).toBe(403);
       const ask = await fetch(r + 'api/assistant', { method: 'POST', headers: { 'content-type': 'application/json', origin: hub.slice(0, -1) }, body: JSON.stringify({ trigger: 'submit-message', messages: [] }) });
       expect([ask.status, await ask.text()]).toEqual([403, expect.stringContaining('only on this machine')]);
+      const generate = await fetch(r + 'api/generate', { method: 'POST', headers: { origin: hub.slice(0, -1) } });
+      expect([generate.status, (await generate.json()).code]).toEqual([403, 'via_hub']);
+      expect((await (await fetch(r + 'api/meta')).json()).generate).toBeUndefined();
+      expect((await (await fetch(review + 'api/meta')).json()).generate).toBe(true);
+      const log = path.join(dir, 'progress.jsonl');
+      expect(fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '').not.toContain('"assistant"'); // nothing requested
       expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false); // nothing ran
     });
 
@@ -128,7 +134,7 @@ describe('hub', () => {
       const file = path.join(tmp, 'home', 'sessions', `${process.pid}.json`);
       fs.writeFileSync(file, JSON.stringify({ ...sessions()[0], pid: process.pid, port: other.port, url: `http://127.0.0.1:${other.port}/`, dir: fake }));
       try {
-        expect((await fetch(`${hub}r/${reviewId(fake)}/`)).status).toBe(404);
+        expect((await fetch(`${hub}r/${routeId(fake)}/`)).status).toBe(404);
         expect(fs.existsSync(file)).toBe(false); // the poll dropped it: nothing answered as that pid
       } finally {
         fs.rmSync(file, { force: true });
@@ -137,12 +143,13 @@ describe('hub', () => {
     });
   });
 
-  test('closing a review from the hub stops its server', async () => {
-    const [s] = (await list()).filter((x) => x.tool === 'reviewroom');
-    const r = await fetch(`${hub}api/sessions/${encodeURIComponent(s.id)}/close`, { method: 'POST', headers: { 'x-reviewroom-action': 'close-session' } });
+  test('closing a review from the hub stops its server; the review stays listed, stopped', async () => {
+    const [s] = (await list()).filter((x) => x.tool === 'reviewroom' && !x.stopped);
+    const r = await client.post(`api/sessions/${encodeURIComponent(s.id)}/close`, 'close-session');
     expect(r.status).toBe(202);
     expect(fs.existsSync(path.join(dir, 'server.json'))).toBe(false);
-    expect((await list()).filter((x) => x.tool === 'reviewroom')).toEqual([]);
+    const now = (await list()).filter((x) => x.tool === 'reviewroom');
+    expect([now.some((x) => !x.stopped), now.some((x) => x.id === `review:${s.routeId}`)]).toEqual([false, true]);
   });
 
   test('two hubs started at once: both print the one that runs', async () => {
@@ -158,6 +165,13 @@ describe('hub', () => {
   test('`hub stop` stops it', async () => {
     expect((await cli(['hub', 'stop'])).stdout).toStartWith('stopped');
     await until(() => !fs.existsSync(path.join(tmp, 'home', 'hub.json')));
+  });
+
+  test('a hub whose hub.json is gone exits (no `hub --stop` could reach it)', async () => {
+    await cli(['hub', '--detach', '--no-open', '--port', '0']);
+    const { pid } = JSON.parse(fs.readFileSync(path.join(tmp, 'home', 'hub.json'), 'utf8'));
+    fs.rmSync(path.join(tmp, 'home', 'hub.json'));
+    await until(() => { try { process.kill(pid, 0); return false; } catch { return true; } });
   });
 });
 
@@ -186,8 +200,8 @@ describe('hub with a public origin', () => {
 
   test('a request on the public origin passes, and its writes reach the review', async () => {
     const as = { host: 'mac.tailnet.ts.net', 'sec-fetch-site': 'same-origin' };
-    const [s] = (await (await fetch(hub + 'api/sessions', { headers: as })).json()).sessions.filter((x: { tool: string }) => x.tool === 'reviewroom');
-    const r = `${hub}r/${s.reviewId}/`;
+    const [s] = (await (await fetch(hub + 'api/sessions', { headers: as })).json()).sessions.filter((x: { tool: string; stopped?: boolean }) => x.tool === 'reviewroom' && !x.stopped); // stopped reviews are listed too
+    const r = `${hub}r/${s.routeId}/`;
     expect((await fetch(r, { headers: as })).status).toBe(200);
     const post = (origin: string, ops: unknown[]) => fetch(r + 'api/ops', { method: 'POST', headers: { ...as, origin, 'content-type': 'application/json' }, body: JSON.stringify({ ops }) }).then((x) => x.status);
     expect(await post(pub, [{ op: 'createThread', id: 't_pub', anchor: { kind: 'general' }, msgId: 'm_pub', body: 'from the phone', author: 'you' }])).toBe(200);

@@ -54,6 +54,18 @@
   border-radius: var(--rr-shape-full);
 }
 
+/* Add a PR: the field fills the line */
+.rr-hub.is-phone .rr-hub__adder {
+  padding: var(--rr-space-8) var(--rr-space-16);
+  border-top: 0;
+}
+.rr-hub.is-phone .rr-hub__addform {
+  max-width: none;
+}
+.rr-hub.is-phone .rr-hub__addform > * {
+  height: var(--rr-touch);
+}
+
 /* the counts: tabs, scrolled sideways; the chosen one underlined */
 .rr-hub.is-phone .rr-hub__strip {
   flex-wrap: nowrap;
@@ -138,7 +150,7 @@
 .rr-hub.is-phone :is(.rr-hub__bulk, .rr-hub__count) {
   display: none;
 }
-/* the Live tab says how many; the line shows only while a filter narrows the list, with its Clear */
+/* the All tab says how many; the line shows only while a filter narrows the list, with its Clear */
 .rr-hub.is-phone .rr-hub__bar:not(.is-filtered) {
   display: none;
 }
@@ -237,12 +249,24 @@
 }
 /* the supporting line: plain text, no mono, no squares, no bars */
 .rr-hub.is-phone .rr-hub__review > :is(.rr-hub__mono, .rr-hub__branch),
-.rr-hub.is-phone .rr-hub__table :is(.c-round, .c-diff, .c-threads, .c-agent, .c-active) {
+.rr-hub.is-phone .rr-hub__table :is(.c-state, .c-round, .c-diff, .c-threads, .c-agent, .c-active) {
   order: 2;
   min-width: 0;
   color: var(--rr-ink-2);
   font-family: inherit;
   font-size: var(--rr-text-md);
+}
+/* a review's state, plain like the rest of the line: no pill */
+.rr-hub.is-phone .rr-hub__table .c-state {
+  display: block;
+}
+.rr-hub.is-phone .c-state .rr-pill {
+  display: inline;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
 }
 .rr-hub.is-phone .rr-hub__table .c-active {
   order: 3;

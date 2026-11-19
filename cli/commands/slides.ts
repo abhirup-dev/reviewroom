@@ -4,8 +4,8 @@ import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
+import { reviewArgs } from '../lib/config.ts';
 import { artifactHash, recordArtifact } from '../lib/progress.ts';
-import { dirForEdit } from '../lib/config.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough } from '../lib/state.ts';
 import { findingReport, judge, type Finding } from '../lib/slide-lint.ts';
@@ -16,9 +16,8 @@ import { runCheck, schemaReport } from './check.ts';
 type SlideOpts = Global & { viewport?: string; theme?: string; out?: string; json?: boolean; chapter?: string; slide?: string; native?: boolean; proseOnly?: boolean; jobs?: string };
 
 
-export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
+export async function cmdSlideLint(repo: string | null, dir: string, o: SlideOpts) {
   const jobs = auditJobs(o.jobs);
-  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
   const checkedHash = artifactHash(dir, 'walkthrough');
   const c = await runCheck(repo, dir, { store: false, estimates: false, select: { chapter: o.chapter, slide: o.slide } });
   if ('issues' in c) fail(schemaReport(c.issues));
@@ -39,15 +38,14 @@ export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
     console.log(`${selection.slides.length}${partial ? ` of ${selection.total}` : ''} slides measured at ${viewports.map(vpName).join(', ')} (${engine}; ${rendered.jobs} worker${rendered.jobs === 1 ? '' : 's'}${partial ? '; partial check' : ''})`);
     if (c.bad.length) console.log(`\n${c.bad.length} link(s) need attention:\n${report(c.bad)}`);
     console.log(findings.length ? `\n${findingReport(findings, tour)}` : partial ? '\nno findings in the selected slides (partial check).' : '\nno findings: every slide fits.');
-    if (findings.some((f) => f.level === 'warn')) console.log('\nSee a slide with `reviewroom shot <chapter>/<step>`.');
+    if (findings.some((f) => f.level === 'warn')) console.log(`\nSee a slide with \`reviewroom shot ${reviewArgs(repo ?? '', dir)} <chapter>/<step>\`.`);
   }
   if (c.bad.length || findings.some((f) => f.level === 'warn')) process.exitCode = 1;
   else if (!partial) recordArtifact(dir, 'walkthrough', 'validated', { head: c.head }, checkedHash);
 }
 
 /** `reviewroom shot <chapter>/<step>`: one slide's PNG, and what lint finds on it. */
-export async function shotSlide(repo: string | null, o: SlideOpts, at: string) {
-  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
+export async function shotSlide(repo: string | null, dir: string, o: SlideOpts, at: string) {
   const [chapter, step] = at.split('/');
   const w = readWalkthrough(dir);
   if (!w?.ok) fail(w ? schemaReport(w.issues) : `no ${WALKTHROUGH_FILE} in ${dir}`);

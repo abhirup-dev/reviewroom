@@ -8,13 +8,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
-import { isFullSha, makeProvider, type Provider } from './git.ts';
-import { readConfig, reviewArgs, reviewDirArgs, type ReviewConfig } from './config.ts';
+import { isFullSha, makeProvider, remoteHost, type Provider } from './git.ts';
+import { readConfig, reviewArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, statePath, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
-import { ensureHub, reviewId } from './registry.ts';
+import { ensureHub, routeId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
 import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import { formatReviewRepository, parseReviewId, pullUrl } from './review-id.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
 import { tourText } from './slides-file.ts';
@@ -24,6 +25,7 @@ import { compress } from 'hono/compress';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { errorText } from '../../src/kernel/errors.shared.ts';
 import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
@@ -60,6 +62,32 @@ function watchNarrative(dir: string, onChange: (files: Set<string>) => void) {
 }
 
 /** Stale-link check of report.html and walkthrough.json: fingerprint new links, tell the agent (stderr) when the report changes. */
+/** The diff's size for the hub's rows. shortcut: recomputed at most every 30 s (the hub asks every 2 s and git runs
+ *  synchronously), so a working-tree review's numbers lag edits by up to 30 s; key it on a file watcher if that matters. */
+function diffSizer(prov: Provider) {
+  let sized: { at: number; key: string; value: { additions: number; deletions: number; files: number } | null } | null = null;
+  return () => {
+    const key = `${prov.base}..${prov.head}`;
+    if (!sized || sized.key !== key || Date.now() - sized.at > 30_000) {
+      let value = null;
+      try {
+        const files = prov.files(prov.base, prov.head);
+        value = { additions: files.reduce((n, f) => n + f.additions, 0), deletions: files.reduce((n, f) => n + f.deletions, 0), files: files.length };
+      } catch {} // git failed (a rewritten base, a removed worktree): the hub shows no size
+      sized = { at: Date.now(), key, value };
+    }
+    return sized.value ?? {};
+  };
+}
+/** When the review last changed: its state.json's time; null before anything has happened. */
+function lastChange(dir: string): string | null {
+  try {
+    return fs.statSync(statePath(dir)).mtime.toISOString();
+  } catch {
+    return null;
+  }
+}
+
 function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
   const reviewFile = path.join(dir, REPORT_FILE);
   let lastReport = '';
@@ -124,7 +152,9 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Set<SSEStreamingApi>();
-  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
+  const pr = cfg.id ? parseReviewId(cfg.id) : null;
+  const host = (pr && remoteHost(repo, cfg.remote ?? 'origin')) || 'github.com';
+  const github = makeGitHub({ repo, dir, id: pr, host, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, REPORT_FILE);
   // A reconnecting client reloads when the Git range or either artifact changes.
   // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
@@ -180,16 +210,25 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
       const head = isFullSha(prov.head) ? { head: prov.head } : {};
       if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
       if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
-      send('progress', readProgress(dir));
-      // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
+      send('progress', progress());
+      // a file's content shows something new, never when it goes back to pending (the page shows that live): the page
+      // takes a document in place, and reloads for anything else (`changed` says which)
       const next = parts();
-      if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
+      const changed = (['report', 'walkthrough'] as const).filter((_, i) => next[i] !== last[i] && next[i] !== 'pending');
+      const assets = [...files].some((f) => /\.(css|js|svg|png)$/.test(f));
+      if (changed.length || assets) send('review', { hash: hash(next), changed: assets ? [...changed, 'assets'] : changed });
       last = next;
       if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
     });
   };
 
-  const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
+  // REVIEWROOM_TEST_ASSISTANT: a module whose `launch` stands in for Claude (e2e only: a scripted, streaming assistant)
+  const fake = process.env.REVIEWROOM_TEST_ASSISTANT;
+  type Launch = NonNullable<Parameters<typeof assistantRoutes>[0]['launch']>;
+  const launch: Launch | undefined = fake ? (o) => import(fake).then((m: { launch: Launch }) => m.launch(o)) : undefined;
+  const assistant = assistantEnabled(dir) && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head }, send, ...(launch && { launch }) }) : undefined;
+  // with the assistant's generation, when one runs here
+  const progress = () => (assistant ? assistant.progress() : readProgress(dir));
   const app = new Hono();
   app.use(localOnly);
   app.use(async (c, next) => {
@@ -197,7 +236,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     await next();
   });
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies
-  if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
+  if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server', code: 'read_only' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
   app.onError((e, c) => {
     if (e instanceof HTTPException) return json(c, { error: e.message, code: 'bad_op' }, e.status); // malformed JSON
@@ -214,9 +253,20 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  // The directory hash is the same for direct and proxied access.
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), prReviewId: cfg.id, ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
-  if (assistant) app.route('/api/assistant', assistant.app);
+  // Direct and proxied requests share a route ID. Only direct requests can use the assistant.
+  app.get('/api/meta', (c) => {
+    const meta = prov.meta();
+    return json(c, {
+      ...meta, routeId: routeId(dir), reviewId: cfg.id,
+      repo: pr ? formatReviewRepository(pr) : meta.repo, number: pr?.number,
+      url: pr ? pullUrl(pr, host) : undefined,
+      ...(assistant && !c.req.header(VIA_HUB) && { assistant: true, generate: true }),
+    });
+  });
+  if (assistant) {
+    app.route('/api/assistant', assistant.app);
+    app.route('/api/generate', assistant.generate);
+  } else app.post('/api/generate', (c) => c.req.header(VIA_HUB) ? json(c, { error: 'Generation starts only on this machine: open the review from its own URL.', code: 'via_hub' }, 403) : json(c, { error: 'The built-in assistant is off for this review: Play it from the hub, or set it up with `reviewroom pr --assistant`.', code: 'assistant_off' }, 409));
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
   app.get('/api/patch', (c) => c.text(prov.patch(c.req.query('base') || prov.base, c.req.query('head') || prov.head, !!c.req.query('ws'))));
@@ -232,33 +282,15 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   });
   app.get('/api/tree', (c) => json(c, prov.tree(c.req.query('rev') || prov.head)));
   // A headless audit reads incomplete artifacts on purpose; generation must not cover its player.
-  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'none' }, report: { state: 'none' } } : readProgress(dir)));
+  app.get('/api/progress', (c) => json(c, readOnly ? { walkthrough: { state: 'idle' }, report: { state: 'idle' } } : progress()));
   app.get('/api/state', (c) => json(c, read()));
-  // The diff's size for the hub's rows. shortcut: recomputed at most every 30 s (the hub asks every 2 s and git runs
-  // synchronously), so a working-tree review's numbers lag edits by up to 30 s; key it on a file watcher if that matters.
-  let sized: { at: number; key: string; value: { additions: number; deletions: number; files: number } | null } | null = null;
-  const diffSize = () => {
-    const key = `${prov.base}..${prov.head}`;
-    if (!sized || sized.key !== key || Date.now() - sized.at > 30_000) {
-      let value = null;
-      try {
-        const files = prov.files(prov.base, prov.head);
-        value = { additions: files.reduce((n, f) => n + f.additions, 0), deletions: files.reduce((n, f) => n + f.deletions, 0), files: files.length };
-      } catch {} // git failed (a rewritten base, a removed worktree): the hub shows no size
-      sized = { at: Date.now(), key, value };
-    }
-    return sized.value ?? {};
-  };
+  const diffSize = diffSizer(prov);
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
   app.get('/api/summary', (c) => {
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = currentRound(s);
-    let updated: string | null = null;
-    try {
-      updated = fs.statSync(statePath(dir)).mtime.toISOString();
-    } catch {} // no state.json yet: nothing has happened
-    return json(c, { ...diffSize(), updated, prReviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    return json(c, { ...diffSize(), updated: lastChange(dir), reviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
@@ -297,7 +329,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
       try {
         return Layout.parse(JSON.parse(fs.readFileSync(path.join(layoutsDir(), f), 'utf8')));
       } catch (e) {
-        console.error(`reviewroom: skipping layout ${f}: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`reviewroom: skipping layout ${f}: ${errorText(e)}`);
       }
     };
     const layouts = Object.fromEntries(files.flatMap((f) => {
@@ -335,14 +367,20 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   app.get('/api/events', (c) =>
     // Hono answers HEAD with the GET handler and drops the body without aborting it: no stream for HEAD
     c.req.method === 'HEAD' ? c.body(null, 200, { 'content-type': 'text/event-stream' }) : streamSSE(c, async (stream) => {
-      await stream.writeSSE({ event: 'hello', data: JSON.stringify({ hash: hash(), started }) });
-      if (!readOnly) await stream.writeSSE({ event: 'progress', data: JSON.stringify(readProgress(dir)) });
+      // registered and its snapshot queued with no await between: an update sent meanwhile follows the snapshot, never
+      // lost. The snapshot is computed first: one that throws leaves no stream registered
+      const hello = JSON.stringify({ hash: hash(), started }), now = readOnly ? null : JSON.stringify(progress());
       clients.add(stream);
+      stream.writeSSE({ event: 'hello', data: hello }).catch(() => {});
+      if (now) stream.writeSSE({ event: 'progress', data: now }).catch(() => {});
       const ping = setInterval(() => stream.write(': ping\n\n').catch(() => {}), 20000);
-      onClient?.();
-      await new Promise<void>((r) => stream.onAbort(r));
-      clearInterval(ping);
-      clients.delete(stream);
+      try {
+        onClient?.();
+        await new Promise<void>((r) => stream.onAbort(r));
+      } finally {
+        clearInterval(ping);
+        clients.delete(stream);
+      }
     }),
   );
   app.post('/api/finish', body(FinishRound.omit({ op: true, at: true })), (c) => {
@@ -350,7 +388,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dirArgs: reviewDirArgs(dir), lifecycleArgs: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    const md = feedbackMarkdown(prev, { kind, note, target: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));
@@ -382,7 +420,9 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
 
   // for a server that ends before its process does (`slide-lint`): the watch would keep the process alive
   const close = () => { watcher?.close(); return assistant?.close(); };
-  return { app, prov, commit, github, watch, close };
+  /** The lock is held and startup recovery done (serve.ts): generation may start. */
+  const ready = () => assistant?.ready();
+  return { app, prov, commit, github, watch, close, ready };
 }
 
 /** Serve on 127.0.0.1 at `port`, or the next free one of the `spread` after it. */

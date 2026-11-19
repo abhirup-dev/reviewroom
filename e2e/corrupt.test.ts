@@ -9,7 +9,7 @@ describe('corrupt state', () => {
   const state = path.join(dir, 'state.json');
   const corrupt = () => fs.readdirSync(dir).filter((f) => f.startsWith('state.json.corrupt-'));
   const fails = async (args: string[], stderr: RegExp) => {
-    const r = await cli([...args, ...d]);
+    const r = await cli([args[0], ...d, ...args.slice(1)]);
     expect(r.code).not.toBe(0);
     expect(r.stderr).toMatch(stderr);
   };

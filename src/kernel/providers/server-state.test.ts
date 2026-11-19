@@ -129,19 +129,3 @@ test('reloading replaces the previous actor and stream', async () => {
   await tick();
   expect(Stream.opened[1].closed).toBe(true);
 });
-
-test('progress is delivered without requesting a reload and stops at disposal', async () => {
-  using t = fixture();
-  t.global('fetch', async () => Response.json(emptyState()));
-  const { backend } = server(t);
-  await backend.load();
-  let updates = 0, reloads = 0;
-  backend.subscribe({ state: () => {}, error: () => {}, review: () => reloads++, progress: () => updates++ });
-  const stream = Stream.opened[0];
-  const push = () => stream.dispatchEvent(new MessageEvent('progress', { data: JSON.stringify({ walkthrough: { state: 'written' }, report: { state: 'requested' } }) }));
-  push();
-  expect([updates, reloads]).toEqual([1, 0]);
-  backend.dispose();
-  push();
-  expect(updates).toBe(1);
-});

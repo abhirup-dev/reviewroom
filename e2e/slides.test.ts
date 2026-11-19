@@ -17,10 +17,10 @@ describe('slides', () => {
   });
 
   test('a comment on a step is a tour thread; status --threads shows the slide', async () => {
-    const c = await cli(['comment', 'rr:tour/enforce/s2', 'why retry immediately?', ...d]);
+    const c = await cli(['comment', ...d, 'rr:tour/enforce/s2', 'why retry immediately?']);
     expect(c.code).toBe(0);
     expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'enforce', step: 's2' });
-    const s = await cli(['status', '--threads', ...d]);
+    const s = await cli(['status', ...d, '--threads']);
     expect(s.stdout).toMatch(/guided walkthrough "The handler joins the contract" slide 2\/2: "The client retries/);
   });
 
@@ -39,18 +39,18 @@ describe('slides', () => {
   });
 
   test('publish-slides --dry-run prints the PR block; without a PR it cannot post', async () => {
-    const dry = await cli(['publish-slides', '--dry-run', ...d]);
+    const dry = await cli(['publish-slides', ...d, '--dry-run']);
     expect([dry.code, dry.stdout]).toEqual([0, expect.stringContaining('<!-- reviewroom-walkthrough -->\n```reviewroom-walkthrough\n{')]);
     const real = await cli(['publish-slides', ...d]);
     expect([real.code, real.stderr]).toEqual([1, expect.stringContaining('not about a GitHub PR')]);
   });
 
   test('a tour anchor without a step breaks the schema', async () => {
-    await cli(['comment', 'rr:tour/enforce/s2', 'why retry immediately?', ...d]);
+    await cli(['comment', ...d, 'rr:tour/enforce/s2', 'why retry immediately?']);
     const st = state();
     st.threads[0].anchor = { kind: 'tour', chapter: 'enforce' };
     fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(st));
-    const r = await cli(['status', '--threads', ...d]);
+    const r = await cli(['status', ...d, '--threads']);
     expect(r.stderr).toMatch(/does not match schema.*step/);
   });
 

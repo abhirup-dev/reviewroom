@@ -1,6 +1,6 @@
 {
   "title": "Tablet",
-  "hint": "Two panes: the narrative and its tabs, code beside",
+  "hint": "Two panes: the report and its tabs, code beside",
   "root": {
     "row": [
       { "tabs": ["narrative", "toc", "files", "threads", "description", "ci"], "active": "narrative" },

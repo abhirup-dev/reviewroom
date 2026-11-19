@@ -1,12 +1,13 @@
-// The hub's page (`reviewroom hub`): every review running on this machine, refreshed every 2 s from the hub's
-// own server (a review server refuses requests from other ports). A snapshot strip of counts, facets, and one table
-// grouped by repository (or author, tool); open, play, close.
+// The hub's page (`reviewroom hub`): every review on this machine, running or stopped, refreshed every 2 s from the
+// hub's own server (a review server refuses requests from other ports). A snapshot strip of counts, facets, and one
+// table grouped by repository (or author, tool); open, play, close; add a PR by URL, Play or Remove a stopped review
+// (cli/hub/reviews.ts).
 import { installButton } from '../kernel/install'; // first: it listens for Chrome's install prompt
 import { avatarUrl, backdropCloses, diffstat, h, icon, plural, relTime, seg } from '../kernel/dom';
 import { mountTooltips } from '../kernel/tooltip';
 import { startUpdates } from '../kernel/pwa';
 import { CRIT_LOGO, PLANNOTATOR_LOGO } from './logos';
-import type { HubSnapshot, SessionInfo } from './model.shared';
+import type { GenerationState, HubSnapshot, SessionInfo } from './model.shared';
 // the agents' own marks (LobeHub icons, MIT), bundled as text
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg' with { type: 'text' };
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg' with { type: 'text' };
@@ -17,9 +18,10 @@ import kiro from '@lobehub/icons-static-svg/icons/kiro-color.svg' with { type: '
 import amp from '@lobehub/icons-static-svg/icons/amp-color.svg' with { type: 'text' };
 import pi from '@lobehub/icons-static-svg/icons/pi.svg' with { type: 'text' };
 import { currentForm } from '../kernel/form';
+import { addForm, inApp, ownAgent, play, remote, removeReview, type HubPage, type Notice } from './start';
 
 type Compat = Record<string, { installed: string | null; verifiedAgainst: string; status: string }>;
-type SortKey = 'subject' | 'author' | 'reviewRound' | 'changes' | 'threads' | 'origin' | 'activity';
+type SortKey = 'subject' | 'state' | 'author' | 'reviewRound' | 'changes' | 'threads' | 'origin' | 'activity';
 type GroupBy = 'repo' | 'author' | 'tool' | 'none';
 type Facet = 'repo' | 'author' | 'tool';
 
@@ -52,6 +54,7 @@ const base = (p: string | null) => p?.split('/').filter(Boolean).pop() ?? '';
 /** What the review is about, in a few words. */
 function subject(s: SessionInfo): string {
   if (s.tool === 'reviewroom' && s.label) return s.label;
+  if (s.reviewId) return s.reviewId;
   if (s.target && !/^https?:\/\//.test(s.target)) return base(s.target) || s.target;
   if (s.kind === 'code-review') return s.branch || s.repository || 'Code changes';
   return s.target || s.label || s.project || s.branch || s.repository || base(s.cwd) || s.id;
@@ -80,6 +83,7 @@ dark.addEventListener('change', applyTheme);
 let data: HubSnapshot | null = null;
 let failed = '';
 let warnings: string[] = [];
+let notice: Notice | null = null;
 const selected = new Set<string>();
 const sort: { key: SortKey; dir: 1 | -1 } = { key: 'activity', dir: -1 };
 let group: GroupBy = 'repo';
@@ -90,7 +94,7 @@ const seen = new Set<string>(); // sessions already shown: only new ones fade in
 
 /** The snapshot's counts, each also a filter. */
 const TILES: { id: string; label: string; tip: string; test: (s: SessionInfo) => boolean; value?: (rows: SessionInfo[]) => number; sub: (n: number, rows: SessionInfo[]) => string; tone?: string }[] = [
-  { id: 'live', label: 'Live', tip: 'Every session running on this machine: reviewroom, Crit and Plannotator', test: () => true, sub: () => 'sessions' },
+  { id: 'live', label: 'All', tip: 'Every review on this machine: reviewroom’s, running or stopped, and Crit and Plannotator sessions', test: () => true, sub: (_, rows) => `${rows.filter((s) => !s.stopped).length} running` },
   { id: 'tab', label: 'Open in a tab', tip: 'A browser tab is connected to it', test: (s) => tabs(s) > 0, sub: () => 'being read' },
   { id: 'open', label: 'Open threads', tip: 'Reviews with unresolved threads', test: (s) => (s.unresolvedCommentCount ?? 0) > 0, value: (rows) => rows.reduce((n, s) => n + (s.unresolvedCommentCount ?? 0), 0), sub: (_, rows) => `in ${plural(rows.filter((s) => (s.unresolvedCommentCount ?? 0) > 0).length, 'review')}`, tone: 'comment' },
   { id: 'round', label: 'Round 2+', tip: 'Reviews past their first round', test: (s) => (s.reviewRound ?? 0) >= 2, sub: () => 'reviews' },
@@ -138,7 +142,7 @@ narrow.addEventListener('change', () => (rail.open = !narrow.matches));
 const shown = h('span', { class: 'rr-hub__shown' });
 const count = h('span', { class: 'rr-hub__count' });
 const openBtn = h('button', { class: 'rr-btn rr-btn--small rr-hub__bulk', disabled: true, title: 'Open the selected sessions in new tabs', onclick: () => chosen().forEach(open) }, icon('popout', 14), 'Open');
-const closeBtn = h('button', { class: 'rr-btn rr-btn--small rr-hub__bulk', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen()) }, icon('close', 14), 'Close…');
+const closeBtn = h('button', { class: 'rr-btn rr-btn--small rr-hub__bulk', disabled: true, title: 'Stop the selected sessions (asks first)', onclick: () => askClose(chosen().filter((s) => !s.stopped)) }, icon('close', 14), 'Close…');
 const clearBtn = h('button', { class: 'rr-btn rr-btn--ghost rr-btn--small', hidden: true, title: 'Clear every filter', onclick: () => { q.value = ''; tile = 'live'; for (const k of Object.keys(facet) as Facet[]) delete facet[k]; paint(); } }, 'Clear filters');
 const all = h('input', { type: 'checkbox', class: 'rr-hub__check', 'aria-label': 'Select all shown', title: 'Select every session shown', onchange: () => { visible().forEach((s) => (all.checked ? selected.add(s.id) : selected.delete(s.id))); paint(); } });
 const bar = h('div', { class: 'rr-hub__bar' }, shown, h('span', { class: 'rr-hub__spacer' }), count, openBtn, closeBtn, clearBtn);
@@ -146,6 +150,7 @@ const empty = h('div', { class: 'rr-empty rr-hub__empty' }, 'Looking for running
 
 const columns: [SortKey | null, string, string, string?][] = [
   ['subject', 'Review', 'What is under review: the title, PR, branch or file', 'c-review'],
+  ['state', 'State', 'reviewroom: running or stopped (Play starts it), and where its walkthrough and report stand', 'c-state'],
   ['author', 'Author', 'Who opened the pull request on GitHub (only for reviews of a PR)', 'c-author'],
   ['reviewRound', 'Round', 'The review round it is on: each round ends when the reviewer sends feedback', 'c-round'],
   ['changes', '', 'Lines added and removed in the reviewed diff (reviewroom only)', 'c-diff'],
@@ -162,6 +167,11 @@ const heads = columns.map(([key, label, tip, cls]) =>
   ),
 );
 const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', null, h('tr', null, h('th', { class: 'rr-hub__sel', scope: 'col' }, all), ...heads)));
+
+const hubPage: HubPage = { say: (n) => { notice = n; paint(true); }, refresh, subject, forget: (id) => selected.delete(id) };
+const stateOf: Record<GenerationState, string> = { idle: 'not generated', generating: 'generating', ready: 'ready', stopped: 'generation stopped' };
+/** Running or stopped, and where generation stands (reviewroom only). */
+const stateText = (s: SessionInfo) => [s.stopped ? 'Stopped' : 'Running', s.generation && stateOf[s.generation]].filter(Boolean).join(' · ');
 
 mountTooltips();
 startUpdates(import.meta.url);
@@ -181,6 +191,7 @@ root.append(
       h('label', { class: 'rr-hub__find' }, icon('search', 14), q),
       installButton(true),
     ),
+    h('div', { class: 'rr-hub__adder' }, addForm(hubPage)),
     banners,
     h('section', { class: 'rr-hub__strip', 'aria-label': 'Snapshot' }, ...tileEls.map((t) => t.el)),
     h(
@@ -199,12 +210,13 @@ root.append(
 // ------------------------------------------------------------ filtering, sorting, grouping
 function visible(): SessionInfo[] {
   const text = q.value.trim().toLowerCase();
-  const hay = (s: SessionInfo) => [s.id, subject(s), s.tool, s.category, s.kind, prettyKind(s.kind), s.target, s.repository, s.repoRoot, s.branch, s.cwd, s.pid, s.parentAgentPid, s.origin, s.author, s.mode, s.label, s.project].join(' ').toLowerCase();
+  const hay = (s: SessionInfo) => [s.id, subject(s), stateText(s), s.tool, s.category, s.kind, s.reviewId, prettyKind(s.kind), s.target, s.repository, s.repoRoot, s.branch, s.cwd, s.pid, s.parentAgentPid, s.origin, s.author, s.mode, s.label, s.project].join(' ').toLowerCase();
   const test = TILES.find((t) => t.id === tile)!.test;
   const rows = (data?.sessions ?? []).filter((s) => test(s) && (!text || hay(s).includes(text)) && (Object.keys(facet) as Facet[]).every((k) => facetOf[k](s) === facet[k]));
   const val = (s: SessionInfo): string | number | null => {
     switch (sort.key) {
       case 'subject': return subject(s);
+      case 'state': return stateText(s);
       case 'activity': return Date.parse(activity(s) ?? '') || null;
       case 'changes': return s.additions == null ? null : s.additions + (s.deletions ?? 0);
       case 'threads': return s.commentCount == null ? null : (s.unresolvedCommentCount ?? 0) * 1e6 + s.commentCount; // open first, then total
@@ -229,18 +241,18 @@ function groups(rows: SessionInfo[]): [string, SessionInfo[]][] {
 }
 const chosen = () => visible().filter((s) => selected.has(s.id));
 const open = (s: SessionInfo) => s.url && window.open(s.url, '_blank', 'noopener');
-const inApp = 'reviewroomApp' in window; // set by the macOS app (app/src/main.rs), which opens local pages in its tabs
 
 // ------------------------------------------------------------ rendering
 function row(s: SessionInfo) {
   const on = selected.has(s.id);
   const down = s.health === 'unreachable';
   const [agentName, mark] = s.origin ? (AGENTS[s.origin] ?? [s.origin]) : [];
-  const pr = s.target?.startsWith('#') ? s.target : null;
+  // a PR's Review ID (owner/repo#n), unless it is the title already
+  const pr = s.reviewId && s.reviewId !== subject(s) ? s.reviewId : s.target?.startsWith('#') ? s.target : null;
   const where = [prettyKind(s.kind), s.cwd, s.pid != null && `pid ${s.pid}${s.port ? ` on port ${s.port}` : ''}`].filter(Boolean).join(' · ');
   const name = s.url
     ? h('a', { class: 'rr-hub__name', href: s.url, target: '_blank', rel: 'noopener', title: `${inApp ? 'Open in a tab here' : 'Open in a new tab'}: ${where}` }, subject(s))
-    : h('span', { class: 'rr-hub__name', title: `Cannot open: ${s.urlNote ?? 'no loopback URL'}. ${where}` }, subject(s));
+    : h('span', { class: 'rr-hub__name', title: s.stopped ? `Stopped: Play starts it. ${where}` : `Cannot open: ${s.urlNote ?? 'no loopback URL'}. ${where}` }, subject(s));
   const openN = s.unresolvedCommentCount ?? 0;
   const threads = s.commentCount == null
     ? h('span', { class: 'rr-hub__dim', title: 'Not reported by this tool' }, '–')
@@ -261,7 +273,7 @@ function row(s: SessionInfo) {
       h(
         'div',
         { class: 'rr-hub__review' },
-        h('span', { class: 'rr-hub__dot' + (down ? ' is-down' : tabs(s) ? ' is-tab' : ''), title: down ? 'Not answering: its server may be busy or stopped' : tabs(s) ? `Live, ${plural(tabs(s), 'tab')} open` : 'Live, no tab open' }),
+        h('span', { class: 'rr-hub__dot' + (s.stopped ? ' is-stopped' : down ? ' is-down' : tabs(s) ? ' is-tab' : ''), title: s.stopped ? 'Stopped: no server runs for it; Play starts it' : down ? 'Not answering: its server may be busy or stopped' : tabs(s) ? `Live, ${plural(tabs(s), 'tab')} open` : 'Live, no tab open' }),
         toolMark(s.tool),
         name,
         pr ? h('span', { class: 'rr-hub__mono rr-hub__dim' }, pr) : null,
@@ -269,6 +281,7 @@ function row(s: SessionInfo) {
         group !== 'repo' && s.repository ? h('span', { class: 'rr-hub__dim rr-hub__branch' }, s.repository) : null,
       ),
     ),
+    h('td', { class: 'c-state' }, h('span', { class: `rr-pill${s.generation === 'ready' ? ' rr-pill--ok' : ''}`, title: s.stopped ? 'No server runs for this review: Play starts it' : 'Its server is running' }, stateText(s))),
     h(
       'td',
       { class: 'c-author' },
@@ -287,11 +300,15 @@ function row(s: SessionInfo) {
       h(
         'div',
         { class: 'rr-hub__actions' },
-        s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn is-play', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the guided walkthrough', 'aria-label': `Play the guided walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
+        s.stopped ? h('button', { class: 'rr-icon-btn is-play', title: 'Play: start this review and open it; the built-in assistant writes its walkthrough and report', 'aria-label': `Play ${subject(s)}`, onclick: () => void play(hubPage, s) }, icon('play', 14)) : null,
+        s.stopped ? h('button', { class: 'rr-icon-btn', title: 'Use my own agent: a prompt to paste into your agent, which writes the review instead', 'aria-label': `Use my own agent for ${subject(s)}`, onclick: () => ownAgent(s) }, icon('copy', 14)) : null,
+        s.url && s.walkthrough ? h('a', { class: 'rr-icon-btn is-play', href: `${s.url}?walkthrough`, target: '_blank', rel: 'noopener', title: 'Play the walkthrough', 'aria-label': `Play the walkthrough of ${subject(s)}` }, icon('play', 14)) : null,
         s.url ? h('a', { class: 'rr-icon-btn', href: s.url, target: '_blank', rel: 'noopener', title: inApp ? 'Open in a tab here' : 'Open in a new tab', 'aria-label': `Open ${subject(s)}` }, icon('popout', 14)) : null,
         // #rr-browser: the app hands this one to the browser instead
         inApp && s.url ? h('a', { class: 'rr-icon-btn', href: `${s.url}#rr-browser`, target: '_blank', rel: 'noopener', title: 'Open in the browser', 'aria-label': `Open ${subject(s)} in the browser` }, icon('link', 14)) : null,
-        h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
+        s.stopped
+          ? h('button', { class: 'rr-icon-btn', title: s.hasWork ? 'Remove this review and its artifacts (asks first)' : 'Remove this review', 'aria-label': `Remove ${subject(s)}`, onclick: () => removeReview(hubPage, s) }, icon('trash', 14))
+          : h('button', { class: 'rr-icon-btn', title: 'Stop this session (asks first)', 'aria-label': `Close ${subject(s)}`, onclick: () => askClose([s]) }, icon('close', 14)),
       ),
     ),
   );
@@ -341,7 +358,8 @@ function paintFacets(sessions: SessionInfo[]) {
   }
 }
 
-function paint() {
+function paint(force = false) {
+  if (force) painted = '';
   const sessions = data?.sessions ?? [];
   const ids = new Set(sessions.map((s) => s.id));
   for (const id of selected) if (!ids.has(id)) selected.delete(id);
@@ -351,16 +369,18 @@ function paint() {
   // re-render only on change: a 2 s refresh must not steal focus or a hover
   const key = JSON.stringify([
     rows.map((s) => [{ ...s, lastSeenAt: '' }, activity(s) && when(activity(s)!)]),
-    [...selected], sort, group, [...collapsed], tile, facet, failed, warnings, data?.generatedAt && relTime(data.generatedAt),
+    [...selected], sort, group, [...collapsed], tile, facet, failed, warnings, data?.generatedAt && relTime(data.generatedAt), notice,
   ]);
   if (key === painted) return;
   const focus = (document.activeElement as HTMLElement | null)?.dataset.focus; // rebuilt controls get it back
   painted = key;
 
-  meta.textContent = `${plural(total, 'session')} running` + (data ? ` · updated ${relTime(data.generatedAt)}` : '');
+  const stopped = sessions.filter((s) => s.stopped).length;
+  meta.textContent = `${total - stopped} running` + (stopped ? ` · ${stopped} stopped` : '') + (data ? ` · updated ${relTime(data.generatedAt)}` : '');
   if (data) meta.title = `Refreshes every 2 s; last at ${new Date(data.generatedAt).toLocaleTimeString()}`;
   banners.replaceChildren(
     ...(failed ? [h('div', { class: 'rr-hub__banner rr-hub__banner--risk', role: 'alert' }, failed)] : []),
+    ...(notice ? [h('div', { class: `rr-hub__banner${notice.risk ? ' rr-hub__banner--risk' : ''}`, role: notice.risk ? 'alert' : 'status' }, notice.text, notice.link ? h('a', { href: notice.link, target: '_blank', rel: 'noopener' }, ' open it') : null)] : []),
     ...warnings.map((w) => h('div', { class: 'rr-hub__banner' }, w)),
   );
   for (const { t, el, value, sub } of tileEls) {
@@ -377,7 +397,7 @@ function paint() {
   shown.textContent = rows.length === total ? plural(total, 'review') : `${rows.length} of ${plural(total, 'review')}`;
   count.textContent = picked.length ? `${picked.length} selected` : '';
   openBtn.disabled = !picked.some((s) => s.url);
-  closeBtn.disabled = !picked.length;
+  closeBtn.disabled = !picked.some((s) => !s.stopped);
   clearBtn.hidden = tile === 'live' && !q.value && !Object.keys(facet).length;
   bar.classList.toggle('is-filtered', !clearBtn.hidden);
   all.checked = !!rows.length && picked.length === rows.length;
@@ -394,7 +414,7 @@ function paint() {
   for (const s of rows) seen.add(s.id);
   table.hidden = !rows.length;
   empty.hidden = !!rows.length;
-  empty.textContent = total ? 'No reviews match the filters.' : 'No reviews running. Start one with `reviewroom pr`; Crit and Plannotator sessions show up here too.';
+  empty.textContent = total ? 'No reviews match the filters.' : 'No reviews yet. Add a PR above, or start one with `reviewroom pr`; Crit and Plannotator sessions show up here too.';
   if (focus) document.querySelector<HTMLElement>(`[data-focus="${CSS.escape(focus)}"]`)?.focus();
 }
 
@@ -431,8 +451,7 @@ async function refresh() {
     const [r, hr] = await Promise.all([fetch('/api/sessions', { cache: 'no-store' }), fetch('/api/health', { cache: 'no-store' })]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = (await r.json()) as HubSnapshot;
-    // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
-    if (!/^(127\.|localhost$|\[::1\]$)/.test(location.hostname)) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
+    if (remote) for (const s of data.sessions) [s.url, s.urlNote] = s.routeId && !s.stopped ? [`/r/${s.routeId}/`, null] : [null, 'only reachable on the machine itself'];
     const health = hr.ok ? ((await hr.json()) as { compatibility?: Compat }) : null;
     const compat = Object.entries(health?.compatibility ?? {})
       .filter(([tool, c]) => c.status === 'unverified' || (c.status === 'unavailable' && data!.sessions.some((s) => s.tool === tool)))

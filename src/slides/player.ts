@@ -258,42 +258,18 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   const bottom = h('div', { class: 'rr-tour__bottom' }, prev, progress, next);
   const player = h(
     'div',
-    { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Guided walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), btn('close', 'Close the guided walkthrough', () => actor.send({ type: 'close' }))),
+    { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Walkthrough', tabindex: '-1' },
+    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), btn('close', 'Close the walkthrough', () => actor.send({ type: 'close' }))),
     (split.append(left, right), split),
     bottom,
   );
   splitAt(loadJSON(SPLIT)); // on the player: on the desktop its grid holds the columns, so the chapter bar spans only the narration
   const pillText = h('span', { class: 'rr-tour__pill-text' });
   const pillBar = h('i');
-  const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the guided walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
+  const pill = h('button', { class: 'rr-tour__pill', title: 'Resume the walkthrough at this slide', onclick: () => actor.send({ type: 'resume' }) }, h('span', { class: 'rr-tour__pill-play' }, icon('play', 12)), pillText, h('span', { class: 'rr-tour__pill-bar' }, pillBar));
   // slides' text rendered ahead (below: prose)
   const stash = h('div', { class: 'rr-tour__stash rr-prose', 'aria-hidden': 'true', inert: true });
   const root = h('div', { class: 'rr-tour', 'data-mode': 'closed' }, h('div', { class: 'rr-tour__scrim', onclick: () => actor.send({ type: 'pause' }) }), player, pill, stash);
-  const status = h('p');
-  const show = h('button', { class: 'rr-btn', onclick: async () => {
-    const w = decodeWalkthrough(await app.backend.walkthrough?.());
-    if (w && 'version' in w) {
-      app.walkthrough = w;
-      app.bus.emit('walkthrough', w);
-      actor.send({ type: 'load', doc: w });
-      actor.send({ type: 'open' });
-    } else app.toast('The guided walkthrough is not ready to show yet');
-  } }, 'Show it anyway');
-  const writing = h('div', { class: 'rr-tour__writing', role: 'status', tabindex: '-1' },
-    h('h1', null, 'Writing your walkthrough'), h('p', null, app.meta.title),
-    h('p', null, `${app.files.length} files changed · +${app.files.reduce((n, f) => n + f.additions, 0)} / -${app.files.reduce((n, f) => n + f.deletions, 0)} · ${app.commits.length} commits`), status, show);
-  root.append(writing);
-  let pendingVersion: string | null = null;
-  const progressChanged = () => {
-    const p = app.progress.walkthrough;
-    status.textContent = p.state === 'requested' ? 'Reading the diff' : `${p.slides ?? 0} slides in ${p.chapters ?? 0} chapters written, checking`;
-    show.hidden = p.state !== 'written';
-    const version = pendingArtifact(p) ? `${p.state}:${p.hash ?? ''}` : null;
-    if (version && version !== pendingVersion) actor.send({ type: 'writing', active: true });
-    pendingVersion = version;
-  };
-  app.onDispose(app.bus.on('progress', progressChanged));
   root.addEventListener('rr-mermaid:ready', paintFocus);
   app.root.append(root);
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
@@ -397,16 +373,15 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     for (const el of app.root.children) if (el !== root) (el as HTMLElement).inert = on;
     if (on) {
       back = document.activeElement as HTMLElement | null;
-      (actor.getSnapshot().matches('writing') ? writing : player).focus();
+      player.focus();
     } else if (player.contains(document.activeElement)) back?.focus();
   };
   actor.subscribe((s) => {
-    const mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : s.matches('writing') ? 'writing' : 'closed';
+    const mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
     const was = root.dataset.mode;
     root.dataset.mode = mode; // first: the player can't take focus while hidden
     pill.inert = mode !== 'paused'; // transparent, not hidden: keep it out of the tab order
-    if ((mode === 'playing' || mode === 'writing') !== (was === 'playing' || was === 'writing')) modal(mode === 'playing' || mode === 'writing');
-    if (mode === 'playing' && was === 'writing') player.focus();
+    if ((mode === 'playing') !== (was === 'playing')) modal(mode === 'playing');
     if (!s.matches('open')) return void (last = { chapter: -1, step: -1, doc: null });
     const { chapter, step, doc: d } = s.context;
     const cur = current(s.context);
@@ -486,9 +461,42 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   );
 
   app.bus.on('walkthrough-open', ({ chapter, step }) => {
-    if (!app.walkthrough) return app.toast('No guided walkthrough for this review');
+    if (!app.walkthrough) return app.toast('No walkthrough for this review');
     actor.send({ type: 'open', chapter, step });
   });
+  // An open the reader didn't ask for (generation's show, the boot's deep link) waits on a fetch: a close meanwhile
+  // cancels it, so a late answer never undoes the close. `autoOpen()` before the fetch, its result after.
+  let closes = 0;
+  let wasOpen = false;
+  actor.subscribe((s) => {
+    if (wasOpen && !s.matches('open')) closes++;
+    wasOpen = s.matches('open');
+  });
+  const autoOpen = () => {
+    const asked = closes;
+    // one play: the boot's deep link (or an earlier show) may have opened it, and the reader may have moved on
+    return (at: { chapter?: string; step?: string } = {}) => void (closes === asked && !actor.getSnapshot().matches('open') && actor.send({ type: 'open', ...at }));
+  };
+  // generation (src/review/generation.ts) shows a walkthrough as soon as it is playable, or one still being written
+  app.onDispose(app.bus.on('walkthrough-show', async () => {
+    const open = autoOpen();
+    const w = decodeWalkthrough(await app.backend.walkthrough?.().catch(() => null));
+    if (disposed) return;
+    if (!w || !('version' in w)) return app.toast('The walkthrough is not ready to show yet');
+    app.walkthrough = w;
+    app.bus.emit('walkthrough', w);
+    actor.send({ type: 'load', doc: w });
+    open();
+  }));
+  app.onDispose(app.bus.on('walkthrough-load', async () => {
+    const w = decodeWalkthrough(await app.backend.walkthrough?.().catch(() => null));
+    if (disposed || !w) return;
+    app.walkthrough = 'version' in w ? w : null;
+    app.walkthroughIssues = 'issues' in w ? w.issues : null;
+    actor.send({ type: 'load', doc: app.walkthrough });
+    app.bus.emit('walkthrough', app.walkthrough);
+  }));
+  const bootOpen = autoOpen();
   const loaded = app.backend.walkthrough?.().then(
     (input) => {
       if (disposed) return;
@@ -498,8 +506,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const link = deepLink(location.search); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
-      progressChanged();
-      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough)) actor.send({ type: 'open', ...link });
+      if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough)) bootOpen(link);
     },
     () => {},
   );
@@ -570,7 +577,7 @@ export async function renderWalkthroughPreview(app: ReviewApp, r: Extract<Ref, {
   const w = loaded && 'version' in loaded ? loaded : null;
   const ch = w?.chapters.find((c) => c.id === r.chapter);
   const i = ch?.steps.findIndex((s) => s.id === r.step) ?? -1;
-  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This guided walkthrough slide no longer exists');
+  if (!ch || i < 0) return h('div', { class: 'rr-empty' }, 'This walkthrough slide no longer exists');
   const step = ch.steps[i];
   const text = h('div', { class: 'rr-prose rr-slide__text' });
   text.innerHTML = sanitizeProse(step.text); // a walkthrough can come from a PR
@@ -578,7 +585,7 @@ export async function renderWalkthroughPreview(app: ReviewApp, r: Extract<Ref, {
   const code = opts.compact
     ? refs.length ? [h('div', { class: 'rr-slide__refs' }, ...refs.map((x) => h('span', { class: 'rr-slide__ref' }, refIcon(parseRef(x)!), app.label(x))))] : []
     : await Promise.all(refs.map((x) => renderPreview(app, x, { compact: true })));
-  const title = 'Play the guided walkthrough from this slide';
+  const title = 'Play the walkthrough from this slide';
   const play = h('button', {
     class: 'rr-icon-btn',
     title,

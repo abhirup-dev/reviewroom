@@ -55,7 +55,7 @@ Every addressable thing has a durable link. Use them in `<a href>`, `<rr-ref ref
 
 A file in the diff opens in the diff view; any other file opens whole. (`rr:file/<path>@<rev>` is the
 older spelling and still works.) Line numbers are the **head** revision's unless you add `@base`. The head is a sha from
-`reviewroom status acme/api#31 --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
+`reviewroom status 'acme/api#31' --json`, not your checkout: verify with `git show <head>:<path> | sed -n '45,54p'`.
 
 Hovering any link shows a live preview of its target; clicking it opens the target in the code or
 report panel. Never show the raw `rr:` string.
@@ -137,7 +137,7 @@ Give it an `id` so threads can anchor on it. Pele has no animation; the walkthro
 ```
 
 Each `<rr-check>` is one **flagged question**; the reviewer marks it settled or not, and the feedback
-lists them under `Open questions` by `id`. Always give it an `id`: without one, the first 40
+lists them under `Flagged questions` by `id`. Always give it an `id`: without one, the first 40
 characters of its text stand in, and rewording it loses the reviewer's mark.
 
 ## Scripting: `window.rr`
@@ -223,7 +223,7 @@ Use [Validation and audit](validation-and-audit.md) for checks, iteration and sc
 
 - `rr.walkthrough(chapter?, step?)` plays it from a script; `rr:tour/<chapter>/<step>` links to a slide,
   and `<rr-embed ref="rr:tour/<chapter>/<step>">` puts the slide in the report.
-- `reviewroom publish-slides` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
+- `reviewroom publish-slides <review>` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
   comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 
 ## Typography and colour

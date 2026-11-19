@@ -86,6 +86,39 @@
   background: var(--rr-risk-soft);
   color: var(--rr-risk);
 }
+.rr-hub__banner a {
+  color: inherit;
+  font-weight: 600;
+}
+
+/* starting reviews: Add a PR (src/hub/index.ts) */
+.rr-hub__adder {
+  flex: none;
+  display: flex;
+  padding: var(--rr-space-6) var(--rr-space-16);
+  border-top: 1px solid var(--rr-line-strong);
+}
+.rr-hub__addform {
+  display: flex;
+  flex: 1 1 24em;
+  gap: var(--rr-space-6);
+  max-width: 40em;
+}
+.rr-hub__add {
+  flex: 1;
+  min-width: 0;
+}
+.rr-hub__prompt {
+  margin: var(--rr-space-8) 0 0;
+  padding: var(--rr-space-8);
+  border-radius: var(--rr-radius);
+  background: var(--rr-surface-bar);
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
 
 /* the snapshot: five counts, each a filter */
 .rr-hub__strip {
@@ -393,6 +426,10 @@ a.rr-hub__name:hover {
   border-radius: 50%;
   box-shadow: inset 0 0 0 1.5px var(--rr-line-strong);
 }
+.rr-hub__dot.is-stopped {
+  background: var(--rr-line-strong);
+  box-shadow: none;
+}
 .rr-hub__dot.is-tab {
   background: var(--rr-ok);
   box-shadow: none;
@@ -654,7 +691,7 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
 }
 /* a phone: drop who ran it; everything else stays, scrolled to */
 @media (max-width: 639px) {
-  .rr-hub__table .c-agent {
+  .rr-hub__table :is(.c-agent, .c-state) {
     display: none;
   }
   .rr-hub__table .c-review {

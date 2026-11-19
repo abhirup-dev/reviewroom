@@ -12,6 +12,7 @@ const w: Walkthrough = {
   chapters: [
     { id: 'one', title: 'One', steps: [step('s1'), step('s2', 'rr:code/pkg/a.go#L1-80', 'word '.repeat(130))] },
     { id: 'two', title: 'Two', steps: [step('s1', undefined, '<a href="rr:sym/Thing">Thing</a>')] },
+    { id: 'risks', title: 'Risks', steps: [step('s1')] },
   ],
 };
 const checks = (o = {}) => lintTour(w, changed, (n) => (n === 'Thing' ? 'pkg/sym.go' : undefined), o);

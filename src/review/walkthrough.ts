@@ -6,7 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
-import { pendingArtifact } from '../kernel/state/progress.shared';
+import { generateOffered, reportWaiting, stageIn } from './generation.machine';
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
 import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
@@ -93,14 +93,21 @@ class WalkthroughPanel implements PanelInstance {
     this.wrap = h('div', { class: 'rr-doc-wrap' }, this.head, this.current, this.rail);
     this.scroller = h('div', { class: 'rr-scroll rr-narrative-scroll' + (isDesc ? ' rr-description' : ''), 'data-rr-scope': isDesc ? null : 'narrative', tabindex: '-1' }, this.banner, this.wrap);
     const writing = h('div', { class: 'rr-empty' }, 'The report is being written');
-    this.element = h('div', { class: 'rr-narrative' }, writing, this.scroller);
+    // a stop of the report alone (the walkthrough validated): said here, not on the loading screen (generation.machine.ts)
+    const retry = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => app.commands.run('generation.generate') }, 'Retry');
+    const stopped = h('div', { class: 'rr-empty' }, h('p', null, 'The report was not finished.'), retry);
+    this.element = h('div', { class: 'rr-narrative' }, writing, stopped, this.scroller);
+    // generation (generation.ts) says when the report is still being written, or stopped
     const progress = () => {
-      const waiting = !isDesc && pendingArtifact(app.progress.report);
+      const g = !isDesc ? app.generation : undefined;
+      const waiting = !!g && reportWaiting(g), halted = !!g && stageIn(g) === 'report-stopped';
       writing.hidden = !waiting;
-      this.scroller.hidden = waiting;
+      stopped.hidden = !halted;
+      retry.hidden = !(g && generateOffered(g));
+      this.scroller.hidden = waiting || halted;
     };
     progress();
-    this.offs.push(app.bus.on('progress', progress));
+    this.offs.push(app.bus.on('generation', progress));
     // what the presentation adds (the phone's Contents button, walkthrough.phone.ts); not on the description
     if (!isDesc) extension?.(app, this.element);
 
@@ -147,11 +154,23 @@ class WalkthroughPanel implements PanelInstance {
       app.bus.on('reveal-doc', (t) => (t.id === PR_DESCRIPTION) === isDesc && this.reveal(t.id, t.path, t.threadId)),
     );
     if (!isDesc) {
-      this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)));
+      this.offs.push(app.bus.on('round-view', (n) => this.showRound(n)), app.bus.on('doc-ready', () => this.ready()));
       this.setupSpy();
       void this.markSymbols(this.current);
     }
     queueMicrotask(() => { this.renderHead(); this.decorate(); });
+    this.onImages();
+  }
+
+  /** The report came again (takeReport): what the panel lays over it, again. */
+  private ready() {
+    this.tools.dismiss();
+    void this.markSymbols(this.current);
+    if (!this.historic) this.setupSpy();
+    this.decorate();
+    this.onImages();
+  }
+  private onImages() {
     this.current.querySelectorAll('img').forEach((img) => img.addEventListener('load', () => this.layoutRail(), { once: true }));
   }
 
@@ -221,7 +240,7 @@ class WalkthroughPanel implements PanelInstance {
     if (this.historic) void this.showRound(0);
     this.app.showPanel(this.isDesc ? 'description' : 'narrative');
     const el = this.app.docElement(id, path);
-    if (!el) return this.app.toast(this.isDesc ? 'That part of the PR description is gone' : `“${id}” is not in the narrative`, 'error');
+    if (!el) return this.app.toast(this.isDesc ? 'That part of the PR description is gone' : `“${id}” is not in the report`, 'error');
     if (el instanceof HTMLDetailsElement) el.open = true;
     el.closest('details')?.setAttribute('open', '');
     const top = el.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop;
@@ -398,6 +417,25 @@ class WalkthroughPanel implements PanelInstance {
   }
 }
 
+/** The report changed on the server (validated again): the agent's new <rr-review> in place of the shown one, whole (the
+ *  client still never edits it), from the page's own URL as a reload would fetch it; the reader's scroll kept. The page
+ *  it came in (the caller takes its #rr-meta), or null when it can't be had: the caller reloads. */
+export async function takeReport(app: ReviewApp): Promise<Document | null> {
+  const doc = app.doc;
+  const html = doc && (await fetch(location.href, { cache: 'no-store' }).then((r) => (r.ok ? r.text() : null), () => null));
+  const page = html ? new DOMParser().parseFromString(html, 'text/html') : null;
+  const next = page?.querySelector('rr-review');
+  if (!doc || !page || !next) return null;
+  next.querySelectorAll('script').forEach((s) => s.remove());
+  const scroller = doc.closest('.rr-narrative-scroll'), top = scroller?.scrollTop ?? 0;
+  for (const a of next.attributes) doc.setAttribute(a.name, a.value);
+  doc.classList.add('rr-prose', 'rr-doc');
+  doc.replaceChildren(...document.importNode(next, true).childNodes);
+  if (scroller) scroller.scrollTop = top;
+  app.bus.emit('doc-ready', doc);
+  return page;
+}
+
 /** What a presentation adds to the walkthrough panel (never the description). Composition sets it before panels mount. */
 export type WalkthroughExtension = (app: ReviewApp, panel: HTMLElement) => void;
 let extension: WalkthroughExtension | undefined;
@@ -405,5 +443,5 @@ export function registerWalkthroughExtension(next: WalkthroughExtension | undefi
   extension = next;
 }
 
-definePanel({ id: 'narrative', title: 'Review', icon: 'doc', create: (app) => new WalkthroughPanel(app) });
+definePanel({ id: 'narrative', title: 'Report', icon: 'doc', create: (app) => new WalkthroughPanel(app) });
 definePanel({ id: 'description', title: 'Description', icon: 'doc', create: (app) => new WalkthroughPanel(app, true) });

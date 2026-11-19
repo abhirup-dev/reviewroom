@@ -5,7 +5,7 @@
       "title": "Read",
       "icon": "book",
       "pages": [
-        { "id": "narrative", "title": "Review" },
+        { "id": "narrative", "title": "Report" },
         { "id": "description", "title": "Description" },
         { "id": "recap", "title": "Last round" }
       ]

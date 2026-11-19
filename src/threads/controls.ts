@@ -133,11 +133,11 @@ export function feedbackButton(app: ReviewApp): HTMLElement {
 
 /** Round navigation and the walkthrough comment picker, in their header order. */
 export function threadHeaderControls(app: ReviewApp): (HTMLElement | null)[] {
-  const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Review rounds: view the narrative as it was at the end of an earlier round' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
+  const roundBtn = h('button', { class: 'rr-hbtn', 'aria-haspopup': 'menu', title: 'Review rounds: view the report as it was at the end of an earlier round' }, icon('round', 14), h('span', null, `Round ${app.state.round}`), icon('chevronDown', 12));
   roundBtn.onclick = () => roundMenu(app, roundBtn);
   return [
     app.services.threads.teamMode ? null : roundBtn,
-    h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.picking ? ' is-on' : ''), title: 'Pick any element in the narrative to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.picking) }, icon('target', 16)),
+    h('button', { class: 'rr-hbtn rr-hbtn--icon' + (app.picking ? ' is-on' : ''), title: 'Pick any element in the report to comment on (or hold Alt while hovering)', 'data-keys': 'x', 'aria-label': 'Pick element to comment', onclick: () => app.bus.emit('picker', !app.picking) }, icon('target', 16)),
   ];
 }
 

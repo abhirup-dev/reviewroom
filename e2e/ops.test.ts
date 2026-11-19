@@ -20,20 +20,20 @@ describe('ops', () => {
       codes.push((await op(url, { op: 'setViewed', path: 'x.go', viewed: true })).status);
       return codes;
     };
-    const [reply, codes] = await Promise.all([cli(['reply', 't_one', 'because', ...d]), browserOps()]);
+    const [reply, codes] = await Promise.all([cli(['reply', ...d, 't_one', 'because']), browserOps()]);
     const s = state();
     expect([reply.code, codes.every((c) => c === 200), s.threads[0].messages.length, s.viewed['x.go']]).toEqual([0, true, 22, 1]);
     expect(s.threads[0].messages.some((m: StoredMessage) => m.body === 'because')).toBe(true);
   });
   test('rounds cannot be finished through /api/ops', async () => expect((await op(url, { op: 'finishRound', kind: 'feedback' })).status).toBe(400));
   test('reply --json answers several threads', async () => {
-    const second = (await cli(['comment', 'general', 'fyi', ...d])).stdout.trim();
-    const bulk = await cli(['reply', '--json', '-', ...d], JSON.stringify([{ thread: 't_one', body: 'bulk one' }, { thread: second, body: 'bulk two', resolve: true }]));
+    const second = (await cli(['comment', ...d, 'general', 'fyi'])).stdout.trim();
+    const bulk = await cli(['reply', ...d, '--json', '-'], JSON.stringify([{ thread: 't_one', body: 'bulk one' }, { thread: second, body: 'bulk two', resolve: true }]));
     expect([bulk.code, state().threads[0].messages.at(-1).body, state().threads[1].status]).toEqual([0, 'bulk one', 'resolved']);
   });
   test('reply --json is all-or-nothing', async () => {
     const before = state().threads[0].messages.length;
-    const bad = await cli(['reply', '--json', '-', ...d], JSON.stringify([{ thread: 't_one', body: 'x' }, { thread: 't_missing', body: 'y' }]));
+    const bad = await cli(['reply', ...d, '--json', '-'], JSON.stringify([{ thread: 't_one', body: 'x' }, { thread: 't_missing', body: 'y' }]));
     expect(bad.code).not.toBe(0);
     expect(state().threads[0].messages).toHaveLength(before);
   });

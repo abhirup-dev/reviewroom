@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: reviewroom
-description: A local workbench for reading a diff with an agent's walkthrough beside it. Warm paper and quiet tooling, square and dense, with colour kept for meaning.
+description: A local workbench for reading a diff with an agent's report beside it. Warm paper and quiet tooling, square and dense, with colour kept for meaning.
 colors:
   # the light theme; dark values follow as dark-* (the CSS switches with [data-rr-theme="dark"])
   primary: "#1b1a17"
@@ -237,7 +237,7 @@ them. If the two disagree, the CSS is right and this file is stale. Most rules h
 
 ## Overview
 
-**Creative North Star: "The Reading Desk."** Warm paper on a desk. The agent's walkthrough is the document; files,
+**Creative North Star: "The Reading Desk."** Warm paper on a desk. The agent's report is the document; files,
 threads and toolbars are quiet tooling arranged around it on slightly darker, warmer planes. Reading comes first, and
 the interface asks for attention only where the reviewer has to act.
 
@@ -262,10 +262,10 @@ A warm neutral palette with one conversational colour (orange) and a handful of 
 - **Margin Orange** (`tertiary`, `comment`): conversation. Thread marks, comment highlights, the Agent send button,
   the feedback count. It marks talk, never navigation.
 - **Paper planes** (`surface-*`): `chrome` behind the dock and in the header; `surface-nav` for Contents, Files and
-  Threads; `surface-doc` for the walkthrough and thread windows; `surface-code` for code; `surface-bar` and
+  Threads; `surface-doc` for the report and thread windows; `surface-code` for code; `surface-bar` and
   `surface-bar-active` for tab bars and toolbars; `surface-overlay` for menus, dialogs and the palette.
 - **Hairlines** (`line`, `line-strong`): borders, dividers, guide lines; strong for control outlines and active guides.
-- **Blue** (`accent`): focus rings, the walkthrough's progress and the current position. Never links or highlights.
+- **Blue** (`accent`): focus rings, the report's progress and the current position. Never links or highlights.
 - **Magenta** (`pin`): what's pinned to Contents, and nothing else.
 - **Diff** (`add`, `del`): added and removed code, its washes and changed words.
 - **State** (`ok`, `warn`, `risk` with `-soft` fills): approved, caution, failure. `risk` also marks unread replies.
@@ -291,18 +291,18 @@ the label is medium weight with a drawn faint underline (SVG text takes no under
 
 ## Typography
 
-**Text:** Inter, for both the walkthrough's prose and the interface.
+**Text:** Inter, for both the report's prose and the interface.
 **Headings:** Mona Sans (GitHub's face), 600, slightly tightened; h1 and h2 sit on a hairline, as in a GitHub README.
 **Code:** the system monospace (SF Mono on a Mac), for code, paths, ids and identifiers.
 
-A reader can switch to the classic set (Typography: classic serif): Source Serif 4 for the walkthrough, Inter for the
+A reader can switch to the classic set (Typography: classic serif): Source Serif 4 for the report, Inter for the
 interface, JetBrains Mono for code, no heading rules. Inter, Mona Sans and the classic faces are bundled; nothing loads
 from the network.
 
 ### Hierarchy
-- **Headline** (Mona Sans 600): h1 32px, h2 23px, h3 19px. The guided walkthrough's chapter title is an h3.
-- **Lede** (19px, `ink-2`): a walkthrough's opening paragraph.
-- **Body** (16px / 1.5): the walkthrough. **Comments** 14px. **Interface** 13px: controls, rows, lists.
+- **Headline** (Mona Sans 600): h1 32px, h2 23px, h3 19px. The walkthrough's chapter title is an h3.
+- **Lede** (19px, `ink-2`): a report's opening paragraph.
+- **Body** (16px / 1.5): the report. **Comments** 14px. **Interface** 13px: controls, rows, lists.
 - **Label** (12px): tabs, group headings and toolbar titles at 600, in sentence case. Segments and chips at 500.
 - **Small** (11px): metadata, round tags (`R2`, mono, semibold, no fill), the unread tag (dark red, semibold).
 - **Count** (10px, 600): numbers inside a fixed box.
@@ -310,7 +310,7 @@ from the network.
 
 ### Named rules
 **The Sentence Case Rule.** Labels and group headings are sentence case at 600 in `ink-2`. No tracked capitals in the
-desktop interface (the guided walkthrough's "SLIDE 1 OF 4" divider is the one small-caps label).
+desktop interface (the walkthrough's "SLIDE 1 OF 4" divider is the one small-caps label).
 
 **The Type Scale Rule.** Every font size is a `--rr-text-*` step (10, 11, 12, 13, 14, 16, 19, 23, 32px) or relative
 to its context (em, %). Weights are 400, 500 and 600.
@@ -318,28 +318,31 @@ to its context (em, %). Weights are 400, 500 and 600.
 ## Layout
 
 A 52px header (`chrome`) over docked panels, one line: the mark, the change's number and title, an ⓘ and a small
-diffstat on the left; search, status, the walkthrough, a quiet icon group (layout, All reviews, theme) and Send feedback
+diffstat on the left; search, status, generation (its indicator, or Generate), the walkthrough, a quiet icon group (layout, All reviews, theme) and Send feedback
 on the right. The repository, author, branches, merge base and worktree live in a popover from the title or the ⓘ,
 each row copying its value (and a PR opens on GitHub), not in the header. Every bar of tools (the dock's tab bars, the code panel's toolbar, a
 floating window's title bar) is 36px with 8px padding at its ends and 6px between controls. A file's band, its status,
-path, size and Viewed above its code, is 38px and is the same component in the code panel and the walkthrough.
+path, size and Viewed above its code, is 38px and is the same component in the code panel and the report.
 
-Panels pick their surface by kind (`data-rr-kind`): navigation on `surface-nav`, the walkthrough and threads on
+Panels pick their surface by kind (`data-rr-kind`): navigation on `surface-nav`, the report and threads on
 `surface-doc`, code on `surface-code`. A component paints `--rr-panel` and `--rr-panel-2`, which the panel holding it
-sets, so it fits any panel. The walkthrough column is capped at 760px, and the thread rail beside it is 232px.
+sets, so it fits any panel. The report column is capped at 760px, and the thread rail beside it is 232px.
 
 Spacing is a fixed scale: 2px steps up to 12 for dense controls (2, 4, 6, 8, 10, 12), then 16, 24, 32, 48 for layout.
 Trees indent 14px per level.
 
-**The guided walkthrough** is a two-column player: narration on `surface-doc` at about a third of the width
+**The walkthrough** is a two-column player: narration on `surface-doc` at about a third of the width
 (draggable), code the rest, full height. The chapter heading belongs to the narration column and is exactly as tall
 as the code's toolbar plus its file band (`--rr-bar-h + --rr-band-h`), so a slide's first line starts level with the
 code's first line, whether or not the chapter has an intro.
 
-**Generation loading** uses the shared guided walkthrough root on desktop and phone. A quiet full-page paper surface shows the review facts and writing/checking status; once content exists, Show it anyway lets the reviewer open it.
+**Generation loading** (`src/review/generation.ts`, `generation.css`) is a quiet full-page paper surface over the review, on desktop and phone: the review's facts and elapsed time (since the request; never an estimate), the **generation steps**, and Continue to the review. Once slides exist, Peek at the walkthrough opens them; after a stop it reads Generation stopped, with Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, a header indicator (a pulsing accent dot; `warn` once stopped) shows generation running and opens the screen again.
+
+- **Generation steps** (`generationSteps()` in `src/review/generation.machine.ts` derives them from the progress): Reading the diff (until the walkthrough's first save, its outline), Writing the walkthrough (until a draft passes), Walkthrough ready, Writing the report. Each step is a square marker `control` high (1.5px `line-strong` border, its number in `mono` 600) joined to the next by a 1px `line-strong` rule, a `text-lg` 600 title and a `text-md` `muted` detail. Done: an `ink` box with a `surface-doc` check. Current: `accent` border and number with a soft `accent-soft` ring that pulses (steady under reduced motion). Stopped: `risk` border and text on `risk-soft`, the detail its reason. Upcoming: `faint` number and title (500). Under Writing the walkthrough, one `mono` `text-sm` row per save: the outline, then each draft ("Draft 2 · 7 slides in 4 chapters · checking"), the last one "passes"; earlier ones `muted` (drafts revised), the current one `accent`, a stopped one `risk` (a stopped draft did not pass; the outline is never checked, so never fails). Steps never move backwards.
+- **The assistant's window**: with the built-in assistant (and only on this machine's own URL, never through the hub) the head (title, PR, facts) runs across, and under it two equal columns: the steps, and the assistant, edgeless on the same paper, as tall as the steps. Its label ("Assistant", `muted` caps, and Open full) sits level with the first step; under it, the page's one chat with the assistant, read-only (no composer, no approvals), following the running turn and scrolling like the panel. The generate prompt that opens a generation's turn shows folded, here and in the panel: one line, "Generate the walkthrough and report", opened on request. Below 960px it goes under the steps. Your own agent gets a `muted` note and the time since its last save instead.
 
 **Contents** follows the reader: the section and headings down to the one being read are bold, that last one is
-underlined, and its guide lines firm up. Pinned entries sit at the top without a heading; the Walkthrough group has a
+underlined, and its guide lines firm up. Pinned entries sit at the top without a heading; the Report group has a
 heading over a full-width hairline, its entries flush with the heading.
 
 ## Elevation & Depth
@@ -349,7 +352,7 @@ float above the page.
 
 - **Small** (`--rr-shadow-sm`): a slight lift for cards inside a panel, the block handle.
 - **Floating** (`--rr-shadow`): menus, hover cards, tooltips.
-- **Modal** (`--rr-shadow-lg`) over a `--rr-scrim` backdrop: dialogs, the palette, the guided walkthrough player.
+- **Modal** (`--rr-shadow-lg`) over a `--rr-scrim` backdrop: dialogs, the palette, the walkthrough player.
 
 A floating thread window is the thread panel it docks into, on the same surfaces, with the dock's tab bar as its title
 bar.
@@ -390,9 +393,9 @@ hairline border; focus adds the accent ring.
 
 ### Thread marks
 The agent's sprite (or GitHub's mark, or the starter's avatar) and the message count, with no fill. 12px in side panels,
-18px with larger numbers in the walkthrough, the guided walkthrough and the code. Orange for the agent, `ink-2` for
+18px with larger numbers in the report, the walkthrough and the code. Orange for the agent, `ink-2` for
 GitHub, grey once resolved. In the Threads list the mark sits at the right end of the row, after the round tag; the
-icon before the location (the walkthrough's page, code's brackets) says what the thread is on, so the list has no group
+icon before the location (the report's page, code's brackets) says what the thread is on, so the list has no group
 headings. "unread" (dark red, semibold) marks a thread the agent answered this round.
 
 ### Pins
@@ -403,7 +406,7 @@ Pinning a heading that opens a section pins the section.
 Hovering a link for 400ms opens its preview; it closes 200ms after the pointer leaves the link and the card, and at
 once on any scroll. A scroll moving content under a still pointer doesn't count as hovering.
 
-### Walkthrough block actions
+### Report block actions
 Either margin, or a 500ms block dwell, reveals Comment, Copy reference and Pin through a plus. The right shares the
 thread rail and yields to its markers. Right-click offers Comment and Copy reference, preserving native menus.
 Saved quotes stay highlighted; selecting text offers Comment. Only Pick/Alt outlines whole blocks; menus use a bracket.
@@ -426,7 +429,7 @@ each role, snapped to a step. It names no roles of its own: its CSS uses the ste
 
 | Role | Desktop | Phone (M3) | On the phone |
 |---|---|---|---|
-| Headline | 32 / 23 / 19 | 32 / 23 / 19 | walkthrough headings |
+| Headline | 32 / 23 / 19 | 32 / 23 / 19 | report headings |
 | Title | 16 | 16 (title-medium) | app bar, drawer, sheet headers |
 | Body | 16 / 14 / 13 | 16 / 14 / 13 | reading and slide text / rows / interface |
 | Label large | 12 | 14 (label-large) | chips, primary tabs, the code sheet's title |
@@ -447,7 +450,7 @@ re-styles a core selector is a layer too: keep it only where the phone genuinely
   properties, unknown properties and units); no phone selectors in core CSS.
 - **`scripts/css-usage.ts`**: an `rr-` class nothing writes, a `--rr-*` token set outside `tokens.css` (but the
   `--rr-panel` pair), a variable read but never set or set but never read.
-- **e2e** (`e2e/slides.test.ts`): the guided walkthrough's narration starts level with the code, with or without a
+- **e2e** (`e2e/slides.test.ts`): the walkthrough's narration starts level with the code, with or without a
   chapter intro.
 - **Snapshots** for refactors meant to change nothing: `bun scripts/snapshot.ts` diffs computed styles on a phone and a
   computer, light and dark.
@@ -476,4 +479,4 @@ Token layers: (1) `tokens.css`, the scales and palette, the only place `--rr-*` 
 - Don't set a `--rr-*` token outside `tokens.css`, or write a literal percentage in `color-mix()`.
 - Don't load fonts from the network.
 - Don't show raw `rr:` strings, ids or CSS paths as visible text; label them.
-- Don't let the walkthrough's agent content be rewritten: layer on it with data attributes and overlays.
+- Don't let the report's agent content be rewritten: layer on it with data attributes and overlays.
