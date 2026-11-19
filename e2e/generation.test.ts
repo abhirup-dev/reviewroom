@@ -1,7 +1,7 @@
 // Generation and the assistant in a real page: the golden path (Generate, the loading screen live, dismissed mid-turn,
 // the panel live, a follow-up answered; and a reload mid-turn), with a scripted assistant (e2e/fake-assistant.ts). The
 // machines' and the store's unit tests cover the narrow cases.
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -46,6 +46,7 @@ describe('the trust boundary in the page', () => {
  *  (the walkthrough) and `go-2` (the report). The stand-in claude only passes generate's checks. */
 function scripted() {
   const gates = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-gates-'));
+  afterAll(() => fs.rmSync(gates, { recursive: true, force: true }));
   const claude = path.join(gates, 'claude');
   fs.writeFileSync(claude, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   const { serve } = setup({ env: { CLAUDE_CODE_EXECUTABLE: claude, REVIEWROOM_TEST_ASSISTANT: path.join(import.meta.dir, 'fake-assistant.ts'), REVIEWROOM_TEST_GATES: gates }, assistant: true });

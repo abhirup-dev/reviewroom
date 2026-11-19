@@ -72,7 +72,11 @@ function review({ script = answers, held, starting, ready = true, readSettings =
       await routes.close();
       routes = open();
     },
-    [Symbol.dispose]: () => fs.rmSync(dir, { recursive: true, force: true }),
+    // a turn still running writes to the dir: close it first, or the removal races its writes
+    [Symbol.asyncDispose]: async () => {
+      await routes.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    },
   };
 }
 /** Reads `res` until `done` holds of what it said so far (or it ends). */
@@ -85,7 +89,7 @@ async function readUntil(res: Response, done: (said: string) => boolean = () => 
 const partial = (said: string) => said.includes('partial answer');
 
 test('one turn at a time, told to every page; a window that leaves only detaches; Stop takes only its turn\'s id, and saves what was said', async () => {
-  using r = review({ script: hangs });
+  await using r = review({ script: hangs });
   expect((await r.routes.app.request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{broken' })).status).toBe(400);
   const asked = await r.post([user('q1')]);
   const id = await r.turn();
@@ -103,7 +107,7 @@ test('one turn at a time, told to every page; a window that leaves only detaches
 });
 
 test('everything is refused through the hub: questions, the turn\'s stream, Stop and generate', async () => {
-  using r = review({ script: hangs });
+  await using r = review({ script: hangs });
   await r.generate();
   const id = await r.turn();
   const [status, body] = await r.generate(HUB);
@@ -114,7 +118,7 @@ test('everything is refused through the hub: questions, the turn\'s stream, Stop
 });
 
 test('the conversation is saved: a window that missed a turn is refused and nothing is written; an approval continues the last answer in place', async () => {
-  using r = review();
+  await using r = review();
   const res = await r.post([user('q1')]);
   const id = (await res.text()).match(/"type":"start","messageId":"([^"]+)"/)![1]; // the id the window got
   const transcript = r.saved().messages;
@@ -127,7 +131,7 @@ test('the conversation is saved: a window that missed a turn is refused and noth
 });
 
 test('closing stops a running answer and saves it, stops the agent once; the next server finds it interrupted, as it does a turn the last one never ended', async () => {
-  using r = review({ script: hangs });
+  await using r = review({ script: hangs });
   void (await r.post([user('q1')])).text();
   await until(() => r.calls.launched === 1);
   await Promise.all([r.routes.close(), r.routes.close()]);
@@ -146,8 +150,8 @@ test('closing stops a running answer and saves it, stops the agent once; the nex
   expect([after.status, after.messages, r.saved().messages]).toEqual(['interrupted', before, before]);
 });
 
-test('the store is private to its review and writes atomically', () => {
-  using r = review();
+test('the store is private to its review and writes atomically', async () => {
+  await using r = review();
   const store = assistantStore(r.dir, r.dir);
   store.saved.messages = [user('why?')];
   store.write();
@@ -158,7 +162,7 @@ test('the store is private to its review and writes atomically', () => {
 
 test('a failed start keeps the question, so the same window can ask again', async () => {
   let fail!: (e: Error) => void;
-  using r = review({ starting: new Promise<void>((_, no) => (fail = no)) });
+  await using r = review({ starting: new Promise<void>((_, no) => (fail = no)) });
   const res = await r.post([user('q1')]);
   fail(new Error('bridge did not start'));
   expect([res.status, await res.text()]).toEqual([200, expect.stringContaining('"errorText":"bridge did not start"')]); // the chat's error
@@ -167,7 +171,7 @@ test('a failed start keeps the question, so the same window can ask again', asyn
 });
 
 test('a broken conversation or settings disable only the assistant, keep what was saved, and save nothing new', async () => {
-  using r = review();
+  await using r = review();
   const file = path.join(r.dir, 'assistant.json');
   fs.writeFileSync(file, '{broken');
   const read = async (res: Response) => [res.status, await res.text()] as const;
@@ -180,14 +184,14 @@ test('a broken conversation or settings disable only the assistant, keep what wa
   expect(await read(await r.routes.app.request('/'))).toEqual([503, expect.stringContaining('was started in /another/checkout')]);
   expect(JSON.parse(fs.readFileSync(file, 'utf8')).messages).toEqual([user('mine')]);
   fs.rmSync(file);
-  using bad = review({ readSettings: () => { throw new Error('Invalid assistant settings in config.json'); } });
+  await using bad = review({ readSettings: () => { throw new Error('Invalid assistant settings in config.json'); } });
   expect(await read(await bad.routes.app.request('/'))).toEqual([503, 'Invalid assistant settings in config.json']);
   expect(await read(await bad.post([user('q1')]))).toEqual([503, 'Invalid assistant settings in config.json']);
   expect(fs.existsSync(path.join(bad.dir, 'assistant.json'))).toBe(false); // read before the question is saved
 });
 
 test('generate requests only what is not validated and starts one turn; meanwhile it starts nothing, a question is refused, Stop interrupts what it requested, not an agent\'s request', async () => {
-  using r = review({ script: hangs });
+  await using r = review({ script: hangs });
   const [status, body] = await r.generate();
   expect([status, body.started, body.generation, body.walkthrough]).toEqual([200, true, { running: true, awaitingApproval: false }, { state: 'requested', by: 'assistant', request: expect.any(String), since: expect.any(String) }]);
   expect(r.events()).toEqual(['walkthrough requested assistant', 'report requested assistant']);
@@ -204,7 +208,7 @@ test('generate requests only what is not validated and starts one turn; meanwhil
   await r.routes.close();
   expect([r.events().slice(2), r.calls.launched]).toEqual([['report requested agent', 'walkthrough stopped interrupted'], 1]);
 
-  using kept = review();
+  await using kept = review();
   fs.writeFileSync(path.join(kept.dir, 'walkthrough.json'), '{}');
   requestGeneration(kept.dir, 'agent', undefined, ['walkthrough']);
   recordArtifact(kept.dir, 'walkthrough', 'validated', { source: 'pr' }); // a PR walkthrough kept
@@ -222,7 +226,7 @@ test('generate requests only what is not validated and starts one turn; meanwhil
 
 test('a generation turn ends: failed what it did not validate, told to the pages; paused on an approval it keeps running until the panel continues it', async () => {
   let waiting = true;
-  using r = review({ held: () => waiting });
+  await using r = review({ held: () => waiting });
   await r.generate();
   await r.awaiting();
   const [, paused] = await r.generate();
@@ -236,7 +240,7 @@ test('a generation turn ends: failed what it did not validate, told to the pages
 });
 
 test('a failed log append starts nothing and leaves nothing running or half-requested', async () => {
-  using r = review({ script: hangs });
+  await using r = review({ script: hangs });
   fs.mkdirSync(path.join(r.dir, 'progress.jsonl')); // appending fails
   expect((await r.generate())[0]).toBe(500);
   expect(r.calls.launched).toBe(0);
@@ -250,7 +254,7 @@ test.each([
   ['a configured Claude that is missing', { claudeExecutable: '/nonexistent/claude' }, [503, 'assistant_unavailable'], '/nonexistent/claude'],
   ['nothing left to write: started false, before it looks for Claude', { claudeExecutable: '/nonexistent/claude' }, [200, undefined], undefined],
 ] as const)('generate checks what a turn needs before answering: %s, nothing requested', async (_, override, [status, code], why) => {
-  using r = review({ readSettings: () => ({ ...settings, ...override }) });
+  await using r = review({ readSettings: () => ({ ...settings, ...override }) });
   if (status === 200)
     for (const [artifact, file] of [['walkthrough', 'walkthrough.json'], ['report', 'report.html']] as const) {
       fs.writeFileSync(path.join(r.dir, file), artifact === 'report' ? '<rr-review></rr-review>' : '{}');

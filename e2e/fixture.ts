@@ -7,10 +7,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { config, readJson, hubClient, runCli, spawnCli } from './transport.ts';
 import { until } from '../src/testing/wait.ts';
+import { alive } from '../cli/lib/lock.ts';
 
 const root = path.resolve(import.meta.dir, '..');
-const template = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-template-'));
-process.on('exit', () => fs.rmSync(template, { recursive: true, force: true }));
+// each test file evaluates this module once; a run that was killed leaves its templates, swept here by dead pid
+for (const name of fs.readdirSync(os.tmpdir())) {
+  const pid = Number(/^rr-e2e-template-(\d+)-/.exec(name)?.[1]);
+  if (pid && !alive(pid)) fs.rmSync(path.join(os.tmpdir(), name), { recursive: true, force: true });
+}
+const template = fs.mkdtempSync(path.join(os.tmpdir(), `rr-e2e-template-${process.pid}-`));
+afterAll(() => fs.rmSync(template, { recursive: true, force: true }));
 await $`bash ${path.join(root, 'examples', 'make-demo-repo.sh')} ${path.join(template, 'repo')}`.quiet();
 // --no-agent: the fixture review asks nobody for its documents, so generation stays idle
 for (const args of [['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--no-agent'], ['stop', 'feat/upload-rate-limit']]) {
