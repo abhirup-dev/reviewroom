@@ -1,6 +1,7 @@
 // Finishing rounds and handing the feedback to the agent.
 import { describe, expect, test } from 'bun:test';
 import { op, post, read, setup } from './fixture.ts';
+import { shellArg } from '../cli/lib/config.ts';
 
 describe('a round finished while no agent waits', () => {
   const { dir, d, cli, serve, state } = setup();
@@ -15,7 +16,7 @@ describe('a round finished while no agent waits', () => {
     expect(late.code).toBe(0);
     expect(late.stdout).toContain('t_one');
     expect(late.stdout).toContain('and?');
-    expect(late.stdout).toContain(`reviewroom wait ${dir}`);
+    expect(late.stdout).toContain(`reviewroom wait ${shellArg(dir)}`);
     expect(state().rounds[0].deliveredAt).toBeString();
     expect((await fetch(url + 'api/meta')).ok).toBe(true);
   });

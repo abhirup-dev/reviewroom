@@ -51,10 +51,13 @@ export function idFromFolder(dir: string): ReviewId | null {
   return id;
 }
 
-// Local reviews share a repository directory. Their branch labels are plain path segments.
+// Use lowercase escapes for branch targets so case-insensitive filesystems keep distinct refs apart.
 const localSegment = (value: string) => value.replace(/[^\w.-]+/g, '-').replace(/^\.*$/, '_');
+const branchSegment = (branch: string) => branch === PULLS ? '%70ulls' : branch
+  .replace(/[^a-z0-9_.-]/gu, (c) => Buffer.from(c).toString('hex').replace(/../g, '%$&'))
+  .replace(/\.+$/, (dots) => '%2e'.repeat(dots.length));
 export const localReviewsFolder = (repository: string) => path.resolve(reviewsDir(), localSegment(repository));
-export const localReviewFolder = (repository: string, branch: string) => path.join(localReviewsFolder(repository), localSegment(branch));
+export const localReviewFolder = (repository: string, branch: string) => path.join(localReviewsFolder(repository), branchSegment(branch));
 
 const directories = (root: string) => fs.existsSync(root)
   ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))
@@ -67,5 +70,3 @@ export function reviewFoldersForRepository(repository: string): string[] {
   const prRepo = parseReviewRepository(repository);
   return [...directories(localReviewsFolder(repository)), ...(prRepo ? directories(pullsFolder(prRepo)) : [])];
 }
-
-// Future branch folders can use encodeURIComponent to round-trip refs as portable path segments.

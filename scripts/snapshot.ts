@@ -40,7 +40,7 @@ const FORMS: [string, string, Viewport][] = [
 
 async function capture(out: string) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-snapshot-'));
-  const repo = path.join(tmp, 'repo'), dir = path.join(tmp, 'home', 'reviews', 'repo', 'feat-upload-rate-limit');
+  const repo = path.join(tmp, 'repo'), dir = path.join(tmp, 'home', 'reviews', 'repo', 'feat%2fupload-rate-limit');
   const env = { ...process.env, REVIEWROOM_HOME: path.join(tmp, 'home') };
   const cli = (args: string[]) => $`${process.execPath} ${path.join(root, 'dist/cli/reviewroom.js')} ${args}`.env(env).quiet();
   await $`bash ${path.join(root, 'examples/make-demo-repo.sh')} ${repo}`.quiet();

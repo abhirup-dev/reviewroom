@@ -72,7 +72,7 @@ export function setup({ env: extraEnv = {}, assistant = false, repo: kind = 'dem
   // the demo repo has no remote: its reviews are keyed by the checkout's name
   const reviews = path.join(home, 'reviews', 'repo');
   const branch = kind === 'tiny' ? 'feature' : 'feat/upload-rate-limit';
-  const dir = path.join(reviews, branch.replaceAll('/', '-'));
+  const dir = path.join(reviews, kind === 'tiny' ? 'feature' : 'feat%2fupload-rate-limit');
   const d = [dir];
   const env = { ...process.env, REVIEWROOM_HOME: home, ...extraEnv };
   const procs: Subprocess[] = [];

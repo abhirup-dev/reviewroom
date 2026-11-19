@@ -23,5 +23,11 @@ test('PR IDs round-trip through their canonical folders', () => {
     expect(idFromFolder(dir)).toEqual(id);
   }
   const local = localReviewFolder('acme/api', '32/topic');
-  expect(local).toBe(path.resolve(reviewsDir(), 'acme-api', '32-topic'));
+  expect(local).toBe(path.resolve(reviewsDir(), 'acme-api', '32%2ftopic'));
+});
+
+test('distinct branch targets get distinct review folders on case-insensitive filesystems', () => {
+  const branches = ['feat/collision', 'feat-collision', 'feat%2fcollision', 'Feat/collision'];
+  const folders = branches.map((branch) => localReviewFolder('acme/api', branch).toLowerCase());
+  expect(new Set(folders).size).toBe(branches.length);
 });
