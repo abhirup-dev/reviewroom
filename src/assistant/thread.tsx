@@ -26,7 +26,7 @@ function Tool({ toolName, args, status, isError, approval, respondToApproval }: 
   return (
     <div className={`rr-assistant__tool is-${state.replace(' ', '-')}`}>
       <span className="rr-assistant__tool-name">{toolName}</span>
-      <code title={summary}>{summary}</code>
+      <code title={asking ? summary : undefined}>{summary}</code>{/* the full command only where it is approved */}
       <span className="rr-muted">{state}</span>
       {asking && !readOnly && (
         <span className="rr-assistant__approve">
