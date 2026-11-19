@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { defaultBase, remoteName, repoRoot } from './git.ts';
+import { defaultBase, remoteHost, remoteName, repoRoot } from './git.ts';
 import {
   formatReviewId, formatReviewRepository, idFromFolder, localReviewFolder,
   allReviewFolders, parseReviewId, reviewFolder, reviewFoldersForRepository, type ReviewId,
@@ -52,7 +52,7 @@ function checkPullRepo(pr: ReviewId, repo: string | null, remote: string, select
     : `remote ${remote} in ${repo} does not match the repository for ${id}`);
 }
 
-function requiredTarget(repo: string | null, target: string | undefined, command: string): string {
+function requiredTarget(repo: string | null, target: string | undefined, command: string, remote = 'origin'): string {
   if (!target) {
     const reviews = repo ? reviewFoldersForRepository(remoteName(repo)) : allReviewFolders();
     const calls = reviews.filter((dir) => fs.existsSync(configPath(dir))).map((dir) => `  reviewroom ${command} ${shellArg(readConfig(dir).id ?? dir)}`);
@@ -61,12 +61,15 @@ function requiredTarget(repo: string | null, target: string | undefined, command
   if (/^#\d+$/.test(target) || (command !== 'pr' && /^\d+$/.test(target))) {
     throw new ReviewroomError('use a full PR review ID (owner/repo#n), URL, branch, or review-folder path; bare numbers are only accepted by pr');
   }
+  if (/^\d+$/.test(target) && (!repo || !remoteHost(repo, remote))) {
+    throw new ReviewroomError("A bare PR number needs a GitHub remote. Use the 'owner/repo#n' form.");
+  }
   return target;
 }
 
 export function resolveReview(repo: string | null, o: { dir?: string; repo?: string; remote?: string }, input: string | undefined, command: string) {
   if (o.dir !== undefined) throw new ReviewroomError('--dir was removed; use reviewroom <command> <review-folder> instead');
-  const target = requiredTarget(repo, input, command);
+  const target = requiredTarget(repo, input, command, o.remote);
   const isPath = target.startsWith('/') || target.startsWith('./');
   const selected = repo ? remoteName(repo, o.remote) : undefined;
   const targetId = isPath ? null : parseReviewId(target, selected, true);
