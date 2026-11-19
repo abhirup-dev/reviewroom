@@ -13,7 +13,7 @@ import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestRe
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorOf, githubThread, parseRef } from '../../src/kernel/refs/refs.shared.ts';
-import type { Provider } from './git.ts';
+import { isFullSha, type Provider } from './git.ts';
 import type { ReviewConfig } from './config.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/kernel/state/model.shared.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
@@ -241,7 +241,7 @@ const live = (s: Snapshot | null): s is Live => !!s?.ok && !!s.pr && !!s.headSha
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
 export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; dir: string; cfg: ReviewConfig; prov: Provider; onChange?: (snap: Snapshot) => void }) {
   const target = prTarget(cfg);
-  const localHead = /^[0-9a-f]{40}$/.test(prov.head) ? prov.head : null;
+  const localHead = isFullSha(prov.head) ? prov.head : null;
   const file = path.join(dir, 'github.json');
   let snap: Snapshot | null = null;
   let inflight: Promise<Snapshot> | null = null;

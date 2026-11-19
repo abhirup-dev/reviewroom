@@ -5,10 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
-import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider, remoteUrl } from '../lib/git.ts';
+import { git, fetchRef, hasRef, defaultBase, isFullSha, remoteDefaultBranch, makeProvider, remoteHost } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveReview, currentBranch, reviewArgs, loadConfig, configPath } from '../lib/config.ts';
-import { formatReviewId, parseReviewId, type ReviewId } from '../lib/review-id.ts';
+import { formatReviewId, formatReviewRepository, parseReviewId, type ReviewId } from '../lib/review-id.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
 import { walkthroughPath, writeAtomic } from '../lib/state.ts';
 import { pickBlock } from '../lib/slides-file.ts';
@@ -16,10 +16,9 @@ import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 import { cmdWait, ensureServer, runningServer, type StartOpts } from './serve.ts';
 
 function prMetadata(repo: string, remote: string, pr: ReviewId) {
-  const url = remoteUrl(repo, remote);
-  const host = URL.parse(url)?.hostname || /^(?:[^@/:]+@)?([^/:]+):[^/]/.exec(url)?.[1];
+  const host = remoteHost(repo, remote);
   if (!host) return null;
-  const args = ['pr', 'view', String(pr.number), '--repo', `${host}/${pr.owner}/${pr.repo}`, '--json', 'number,title,author,baseRefName,headRefName,url'];
+  const args = ['pr', 'view', String(pr.number), '--repo', `${host}/${formatReviewRepository(pr)}`, '--json', 'number,title,author,baseRefName,headRefName,url'];
   let info;
   try {
     info = JSON.parse(execFileSync('gh', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 }));
@@ -78,7 +77,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   const r = parseWalkthrough(pick.text);
   if (!r.ok) return console.error(`reviewroom: the walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
   fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
-  recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(/^[a-f0-9]{40}$/.test(head) ? { head } : {}) });
+  recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(isFullSha(head) ? { head } : {}) });
   console.error(`reviewroom: walkthrough from ${pick.from}`);
 }
 
@@ -105,7 +104,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
   if (fresh || o.force) {
-    for (const artifact of ['walkthrough', 'report'] as const) appendProgress(dir, { artifact, event: 'requested', ...(/^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {}) });
+    for (const artifact of ['walkthrough', 'report'] as const) appendProgress(dir, { artifact, event: 'requested', ...(isFullSha(prov.head) ? { head: prov.head } : {}) });
   }
   const files = prov.files(prov.base, prov.head);
   console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);

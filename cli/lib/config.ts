@@ -4,29 +4,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { git, defaultBase, remoteName, repoRoot } from './git.ts';
-import { reviewsDir } from './paths.ts';
-import { formatReviewId, idFromFolder, parseReviewId, reviewFolder, type ReviewId } from './review-id.ts';
+import {
+  formatReviewId, formatReviewRepository, idFromFolder, isReviewUrl, legacyReviewFolders, localReviewFolder,
+  localReviewParent, localReviewsFolder, parseReviewId, reviewFolder, reviewFoldersForRepository, type ReviewId,
+} from './review-id.ts';
 import { liveServer } from './registry.ts';
 import { writeAtomic } from './state.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 
-/** Where a repo's reviews live: ~/.reviewroom/reviews/<owner>-<repo>/, shared by all its worktrees. */
-const reviewsOf = (repo: string) => path.join(reviewsDir(), remoteName(repo).replace(/[^\w.-]+/g, '-').replace(/^\.*$/, '_')); // one segment, never `..`
 export const currentBranch = (repo: string) => git(['rev-parse', '--abbrev-ref', 'HEAD'], repo, { soft: true })?.trim() || 'review';
-const branchName = (branch: string) => branch.replace(/[^\w.-]+/g, '-').replace(/^\.+$/, '_');
-const directories = (root: string) => fs.existsSync(root) ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name)) : [];
 
 /** Resolve a local review, including the current branch or sole-review fallback. */
 export function resolveDir(repo: string | null, dirFlag: string | undefined, { existing = false, target, command, repoFlag }: { existing?: boolean; target?: string; command?: string; repoFlag?: string } = {}): string {
   if (dirFlag) return path.resolve(dirFlag);
   if (!repo) throw new ReviewroomError('not inside a git repository (use --repo or --dir)');
-  const root = reviewsOf(repo);
-  const own = path.join(root, branchName(target ?? currentBranch(repo)));
+  const remote = remoteName(repo);
+  const root = localReviewsFolder(remote);
+  const own = localReviewFolder(remote, target ?? currentBranch(repo));
   if (!existing || fs.existsSync(own)) return own;
   if (target) throw new ReviewroomError(`no review for ${shellArg(target)} - run \`reviewroom pr ${shellArg(target)}\` first`);
-  const remote = remoteName(repo).toLowerCase();
-  const pulls = remote.includes('/') ? path.dirname(reviewFolder(parseReviewId('1', remote))) : null;
-  const reviews = [...directories(root), ...(pulls ? directories(pulls) : [])].filter((dir) => fs.existsSync(path.join(dir, REPORT_FILE)));
+  const reviews = reviewFoldersForRepository(remote).filter((dir) => fs.existsSync(path.join(dir, REPORT_FILE)));
   if (reviews.length === 1) return reviews[0];
   if (!reviews.length) throw new ReviewroomError(`no review in ${root} - run \`reviewroom pr <n>\` first, or pass --dir`);
   if (!command) throw new ReviewroomError(`several reviews in ${root}: ${reviews.map((dir) => path.basename(dir)).join(', ')} - pass --dir`);
@@ -54,15 +51,15 @@ const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title
 export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
 export const configPath = (dir: string) => path.join(dir, 'config.json');
 const shellArg = (value: string) => /^[\w./][\w./#-]*$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
+export const reviewDirArgs = (dir: string) => `--dir ${shellArg(dir)}`;
 
 export function reviewArgs(repo: string, dir: string, cfg = readConfig(dir)): string {
   if (cfg.id) return cfg.id;
-  if (path.dirname(dir) === reviewsOf(repo)) {
-    for (const branch of [cfg.target, cfg.headLabel, cfg.head]) {
-      if (branch && branchName(branch) === path.basename(dir)) return shellArg(branch);
-    }
+  const remote = remoteName(repo);
+  for (const branch of [cfg.target, cfg.headLabel, cfg.head]) {
+    if (branch && localReviewFolder(remote, branch) === dir) return shellArg(branch);
   }
-  return `--dir ${shellArg(dir)}`;
+  return reviewDirArgs(dir);
 }
 
 export function readConfig(dir: string): z.infer<typeof ConfigFile> {
@@ -85,8 +82,8 @@ export function readConfig(dir: string): z.infer<typeof ConfigFile> {
 type ReviewLocation = { dir: string; cfg: ReturnType<typeof readConfig> };
 
 function legacyLocationId({ dir, cfg }: ReviewLocation, requested?: ReviewId): string | undefined {
-  const bucket = path.dirname(dir);
-  if (cfg.id || !cfg.number || path.dirname(bucket) !== path.resolve(reviewsDir())) return;
+  const bucket = localReviewParent(dir);
+  if (cfg.id || !cfg.number || !bucket) return;
   try {
     if (cfg.url) {
       const id = parseReviewId(cfg.url);
@@ -94,15 +91,15 @@ function legacyLocationId({ dir, cfg }: ReviewLocation, requested?: ReviewId): s
       return;
     }
     const remote = cfg.repo ?? (cfg.repoPath && remoteName(cfg.repoPath, cfg.remote));
-    const repository = remote?.includes('/') ? remote : requested && `${requested.owner}/${requested.repo}`;
+    const repository = remote?.includes('/') ? remote : requested && formatReviewRepository(requested);
     if (!repository) return;
     const id = parseReviewId(String(cfg.number), repository);
-    if (path.basename(bucket).toLowerCase() === `${id.owner}-${id.repo}`) return formatReviewId(id);
+    if (bucket.toLowerCase() === localReviewsFolder(formatReviewRepository(id)).toLowerCase()) return formatReviewId(id);
   } catch {} // invalid legacy metadata cannot identify a PR
 }
 
 function findLegacy(pr: ReviewId, id: string): ReviewLocation | undefined {
-  const matches = directories(reviewsDir()).flatMap(directories).flatMap((dir) => {
+  const matches = legacyReviewFolders().flatMap((dir) => {
     try {
       const cfg = readConfig(dir);
       return legacyLocationId({ dir, cfg }, pr) === id ? [{ dir, cfg }] : [];
@@ -132,7 +129,7 @@ function checkPullRemote(id: string, repository: string, saved: ReviewLocation['
 function resolvePull(pr: ReviewId, explicit: ReviewLocation | undefined, lookup: PullLookup): ReviewLocation {
   const { command } = lookup;
   const id = formatReviewId(pr);
-  const repository = `${pr.owner}/${pr.repo}`;
+  const repository = formatReviewRepository(pr);
   const canonical = reviewFolder(pr);
   const cfg = readConfig(canonical);
   let legacy: ReviewLocation | undefined;
@@ -172,7 +169,7 @@ export function resolveReview(repo: string | null, o: { dir?: string; repo?: str
   }
   const pull = pr ?? (savedId ? parseReviewId(savedId) : null);
   const resolved = pull ? resolvePull(pull, explicitDir ? location : undefined, {
-    command, repo, remote: o.remote, verifyRepo: !!o.repo || !!target && /^https?:/i.test(target),
+    command, repo, remote: o.remote, verifyRepo: !!o.repo || !!target && isReviewUrl(target),
   }) : location!;
   return { ...resolved, repo: resolved.cfg.repoPath ? repoRoot(resolved.cfg.repoPath) : repo, pr: pull };
 }

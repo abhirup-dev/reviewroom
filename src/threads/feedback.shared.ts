@@ -61,8 +61,8 @@ export function githubContext(threads: Thread[] = []) {
 export interface FeedbackOpts {
   kind: 'feedback' | 'approve';
   note?: string;
-  /** The review dir; when known, the commands to run name it (agents run from anywhere). */
-  dir?: string;
+  /** Shell arguments selecting the review directory for edit commands. */
+  dirArgs?: string;
   /** Shell arguments naming the review for lifecycle commands. */
   lifecycleArgs?: string;
   codeExcerpt?: (a: Anchor) => string | null;
@@ -74,7 +74,7 @@ export interface FeedbackOpts {
 
 export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   const round = state.round;
-  const at = opts.dir ? ` --dir '${opts.dir.replace(/'/g, `'\\''`)}'` : '';
+  const at = opts.dirArgs ? ` ${opts.dirArgs}` : '';
   const target = opts.lifecycleArgs ? ` ${opts.lifecycleArgs}` : at;
   // walkthrough threads last, in tour order, so the agent reads them like the reviewer played them
   const order = (t: Thread) => {

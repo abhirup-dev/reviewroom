@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
-import { makeProvider, type Provider } from './git.ts';
-import { readConfig, reviewArgs, type ReviewConfig } from './config.ts';
+import { isFullSha, makeProvider, type Provider } from './git.ts';
+import { readConfig, reviewArgs, reviewDirArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, reviewId } from './registry.ts';
@@ -177,7 +177,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
         console.error(`reviewroom: ${(e as Error).message}`);
         return;
       }
-      const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
+      const head = isFullSha(prov.head) ? { head: prov.head } : {};
       if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
       if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
       send('progress', readProgress(dir));
@@ -224,7 +224,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const { rev, path: p } = c.req.query();
     const text = prov.read(rev, p);
     if (text === null) return json(c, { error: 'not found' }, 404);
-    return c.text(text, 200, { 'cache-control': /^[0-9a-f]{40}$/.test(rev) ? 'max-age=86400' : 'no-store' });
+    return c.text(text, 200, { 'cache-control': isFullSha(rev) ? 'max-age=86400' : 'no-store' });
   });
   app.get('/api/search', (c) => {
     const q = c.req.query();
@@ -331,7 +331,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dir, lifecycleArgs: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    const md = feedbackMarkdown(prev, { kind, note, dirArgs: reviewDirArgs(dir), lifecycleArgs: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));
