@@ -13,7 +13,7 @@
 // It emits `play` once per walkthrough request: when the walkthrough validates for a request this page saw pending (or
 // asked for), whatever else the same snapshot carries; and `refused` with Generate's refusal, readable.
 import { assign, emit, enqueueActions, fromPromise, setup, stateIn, type SnapshotFrom } from 'xstate';
-import { pendingArtifact, stageOf, type Progress, type Stage } from '../kernel/state/progress.shared';
+import { pendingArtifact, stageOf, type ArtifactProgress, type Progress, type Stage } from '../kernel/state/progress.shared';
 
 /** The request pair a progress shows: what the screen's closing and Generate's bridge are keyed on. */
 const requestKey = ({ walkthrough: w, report: r }: Progress) => `${w.request ?? ''}|${r.request ?? ''}`;
@@ -39,6 +39,7 @@ type GenerationEvent = { type: 'progress'; progress: Progress } | { type: 'gener
 const progressOf = (e: GenerationEvent) => (e as Extract<GenerationEvent, { type: 'progress' }>).progress;
 const keyOf = ({ event }: { event: GenerationEvent }) => requestKey(progressOf(event));
 const reason = (error: unknown) => (error as Error).message;
+const pendingAssistant = (p: ArtifactProgress) => pendingArtifact(p) && p.by === 'assistant';
 
 export const generationMachine = setup({
   types: {
@@ -50,10 +51,9 @@ export const generationMachine = setup({
     generate: fromPromise<boolean>(async () => false),
   },
   guards: {
-    // apart from the stage shown: any document not validated and none on its way (a PR's walkthrough with no report
-    // yet shows done, and Generate writes the report: api/generate asks only for what isn't validated)
-    canGenerate: ({ context: { canGenerate, progress: { walkthrough: w, report: r } } }) =>
-      canGenerate && !pendingArtifact(w) && !pendingArtifact(r) && !(w.state === 'validated' && r.state === 'validated'),
+    // The assistant can take over an external request; only its own pending work blocks another Generate.
+    canGenerate: ({ context: { canGenerate, progress: { walkthrough: w, report: r, generation } } }) =>
+      canGenerate && !generation?.running && !pendingAssistant(w) && !pendingAssistant(r) && !(w.state === 'validated' && r.state === 'validated'),
   },
   actions: {
     take: enqueueActions(({ context: c, event, enqueue }) => {
@@ -134,7 +134,7 @@ export const remembered = ({ context: c }: GenerationSnapshot): Remembered => ({
 export const screenShown = (s: GenerationSnapshot) => ['starting', 'writing', 'stopped'].includes(stageIn(s)) && s.matches({ screen: 'open' });
 /** The header indicator: generation under way (or stopped) with the loading screen closed. Gone at idle and done. */
 export const indicatorShown = (s: GenerationSnapshot) => !['idle', 'done'].includes(stageIn(s)) && !screenShown(s);
-/** Generate (or Retry) is offered: a document not validated, where the server can generate, and no request on its way. */
+/** Generate (or Retry) is offered: a document not validated, where the server can generate, and no assistant generation on its way. */
 export const generateOffered = (s: GenerationSnapshot) => s.can({ type: 'generate' });
 /** The turn waits for the reviewer's approval in the assistant panel (rare: assistant turns approve their tools). */
 export const awaitingApproval = (s: GenerationSnapshot) => !!s.context.progress.generation?.awaitingApproval && ['starting', 'writing', 'playable'].includes(stageIn(s));

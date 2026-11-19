@@ -58,6 +58,9 @@ test.each<[string, Step[], Seen, ({ canGenerate?: boolean } & Remembered)?]>([
   ['a report stop after the walkthrough validated never opens the screen', [WRITING, PLAYABLE, KEPT('w1', stoppedReport('r1'))], ['report-stopped', false, true, true, ['w1']]],
   ['a report-only retry does not replay the kept walkthrough', [KEPT('w0', stoppedReport('r0')), 'generate', KEPT('w0', doc('requested', 'r1')), KEPT('w0', doc('validated', 'r1', { hash }))], ['done', false, false, false, []]],
   ['a PR walkthrough with no report shows done and offers Generate', [KEPT('w0', doc('idle', ''))], ['done', false, false, true, []]],
+  ['Generate can take over a pending agent walkthrough and keep the validated report', [
+    p(doc('requested', 'w1', { by: 'agent' }), doc('validated', 'r1', { by: 'agent', hash })), 'dismiss',
+  ], ['starting', false, true, true, []]],
   ['Generate is not offered where the server cannot generate', [STOPPED, 'generate'], ['stopped', true, false, false, []], { canGenerate: false }],
   // the screen, closed per request
   ['dismissed, it holds for the same request through its stop', [REQUESTED, 'dismiss', REQUESTED, WRITING, STOPPED], ['stopped', false, true, true, []]],

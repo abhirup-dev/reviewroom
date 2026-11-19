@@ -135,6 +135,7 @@ export function mountGeneration(app: ReviewApp) {
   const error = h('p', { class: 'rr-gen__error', role: 'alert' });
   const btn = (label: string, onclick: () => void) => h('button', { class: 'rr-btn', onclick }, label);
   const retry = btn('Retry', generate);
+  const takeOver = btn('Generate', generate);
   const soFar = btn('Peek at the walkthrough', () => { dismiss(); app.bus.emit('walkthrough-show', undefined); });
   const cont = btn('Continue to the review', dismiss);
   const added = app.files.reduce((n, f) => n + f.additions, 0), deleted = app.files.reduce((n, f) => n + f.deletions, 0);
@@ -147,7 +148,7 @@ export function mountGeneration(app: ReviewApp) {
   const screen = h('div', { class: 'rr-gen', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Generation', tabindex: '-1', hidden: true },
     h('div', { class: 'rr-gen__body' },
       h('div', { class: 'rr-gen__head' }, heading, h('p', { class: 'rr-gen__title' }, app.meta.title), facts),
-      h('div', { class: 'rr-gen__main' }, steps, external, status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, soFar, cont)),
+      h('div', { class: 'rr-gen__main' }, steps, external, status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, takeOver, soFar, cont)),
       side));
   app.root.append(screen);
   // elapsed time while the screen is up: since the request, and since the last save
@@ -195,6 +196,7 @@ export function mountGeneration(app: ReviewApp) {
     error.textContent = s.context.error ?? '';
     error.hidden = !s.context.error;
     retry.hidden = !(stopped && generateOffered(s));
+    takeOver.hidden = stopped || !generateOffered(s);
     retry.classList.add('rr-btn--primary');
     // what was written so far: the walkthrough on its way, or one a stop left behind
     soFar.hidden = !(w.hash && (stage === 'writing' || stopped));
@@ -250,7 +252,7 @@ export function mountGeneration(app: ReviewApp) {
   app.onDispose(() => { actor.stop(); screen.remove(); });
 
   app.commands.register(
-    { id: 'generation.generate', title: 'Generate the walkthrough and report', group: 'Navigate', hint: 'The built-in assistant writes both', when: () => generateOffered(snap()), run: generate },
+    { id: 'generation.generate', title: 'Generate review artifacts', group: 'Navigate', hint: 'The built-in assistant writes the unfinished artifacts', when: () => generateOffered(snap()), run: generate },
     { id: 'generation.show', title: 'Show generation progress', group: 'Navigate', when: () => indicatorShown(snap()), run: show },
   );
 }
@@ -270,10 +272,10 @@ export function generationIndicator(app: ReviewApp, iconOnly = false): HTMLEleme
   return el;
 }
 
-/** Generate, in the header: offered in idle and stopped, where the server can generate. The same element every time. */
+/** Generate, in the header: offered for unfinished artifacts, where the server can generate. The same element every time. */
 export function generateButton(app: ReviewApp, iconOnly = false): HTMLElement | null {
   if (!app.generation || !generateOffered(app.generation)) return null;
-  const all = headerOf(app).generate, title = 'Generate the walkthrough and report with the built-in assistant';
+  const all = headerOf(app).generate, title = 'Generate unfinished artifacts with the built-in assistant';
   const run = () => app.commands.run('generation.generate');
   return (all[iconOnly ? 'icon' : 'full'] ??= (iconOnly
     ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-gen-btn', 'aria-label': 'Generate', title, onclick: run }, icon('bolt', 24))

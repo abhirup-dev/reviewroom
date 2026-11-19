@@ -53,7 +53,7 @@ const UserMessage = () => {
       <MessagePrimitive.Quote>{(quote) => <About quote={quote} />}</MessagePrimitive.Quote>
       {generate ? (
         <details className="rr-assistant__prompt">
-          <summary title="Show the prompt the assistant was given">Generate the walkthrough and report</summary>
+          <summary title="Show the prompt the assistant was given">Generate review artifacts</summary>
           <MessagePrimitive.Parts />
         </details>
       ) : <MessagePrimitive.Parts />}

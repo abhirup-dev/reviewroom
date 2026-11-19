@@ -208,7 +208,11 @@ test('generate requests only what is not validated and starts one turn; meanwhil
   fs.writeFileSync(path.join(kept.dir, 'walkthrough.json'), '{}');
   requestGeneration(kept.dir, 'agent', undefined, ['walkthrough']);
   recordArtifact(kept.dir, 'walkthrough', 'validated', { source: 'pr' }); // a PR walkthrough kept
+  requestGeneration(kept.dir, 'agent', undefined, ['report']);
+  const previous = readProgress(kept.dir);
   const [, one] = await kept.generate();
+  expect(one.report.request).not.toBe(previous.report.request);
+  expect(one.walkthrough).toEqual(previous.walkthrough);
   expect([one.started, one.walkthrough.state, one.report]).toEqual([true, 'validated', expect.objectContaining({ state: 'requested', by: 'assistant' })]);
   expect(kept.saved().messages[0].parts[0]).toMatchObject({ type: 'text', text: expect.stringContaining('in order: report. Do not modify or revalidate any other review artifact.') });
   expect(kept.saved().messages[0].parts[0]).not.toMatchObject({ type: 'text', text: expect.stringContaining('walkthrough') });
