@@ -180,6 +180,8 @@ export class Layouts {
     if (saved) {
       try {
         api.fromJSON(saved.dock as SerializedDockview);
+        // Use dockview's removal so it also fixes active tabs and removes empty groups.
+        for (const panel of api.panels) if (!panelDef(panel.view.contentComponent)) api.removePanel(panel);
         restored = api.panels.length > 0;
       } catch (e) {
         console.warn('[reviewroom] stale layout, starting over', e);
