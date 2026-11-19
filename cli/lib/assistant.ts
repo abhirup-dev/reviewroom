@@ -21,8 +21,52 @@ import { assistantStore, type SavedAssistant } from './assistant-store.ts';
 import { readProgress, requestGeneration, stopAssistantWork } from './progress.ts';
 import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
 import { errorText } from '../../src/kernel/errors.shared.ts';
-import { replayStream } from './replay-stream.ts';
-import { afterTurn, askRefusal, generateRefusal, generationOf, modelFor, originOf, type Origin, type Phase, type Running } from './assistant-phase.ts';
+import { replayStream, type ReplayStream } from './replay-stream.ts';
+
+// Where the review's one conversation with the assistant stands, and what each place allows.
+/** What started a turn: the reviewer's question, or api/generate. A paused turn keeps its origin when continued. */
+type Origin = 'question' | 'generation';
+/** `running`: its stream (`id`, the AI SDK's active stream id), the model it runs on, how to stop it and when it ended.
+ *  `paused`: the native session holds the last turn on an approval (allow-all asks nothing; kept so a pause never reads
+ *  as failed). `starting`: before the server holds its lock and has recovered (generation's own turn could be stopped
+ *  by that recovery). */
+type Phase =
+  | { name: 'starting' }
+  | { name: 'idle' }
+  | { name: 'running'; origin: Origin; id: string; model: string; stream: ReplayStream; abort: AbortController; done: Promise<void> }
+  | { name: 'paused'; origin: Origin; model: string }
+  | { name: 'closing'; done: Promise<void> };
+type Running = Extract<Phase, { name: 'running' }>;
+
+type Key = 'starting' | 'idle' | `${'running' | 'paused'}:${Origin}` | 'closing';
+const keyOf = (p: Phase): Key => ('origin' in p ? `${p.name}:${p.origin}` : p.name);
+
+const BUSY = { error: 'The assistant is answering a question; generate when it is done.', code: 'busy' };
+const CLOSING = 'The review is closing.';
+const STARTING = 'The review is still starting';
+/** Why a question (POST api/assistant) is refused (409), by phase; null: taken (an approval answers a paused turn). */
+const ASK: Record<Key, string | null> = {
+  starting: `${STARTING}; ask in a moment.`,
+  idle: null,
+  'running:question': 'The assistant is already answering a question.',
+  'running:generation': 'The assistant is writing the review.',
+  'paused:question': null,
+  'paused:generation': null,
+  closing: CLOSING,
+};
+/** Why api/generate starts nothing, by phase: refused (409), `running` (it already runs: answered `started: false`), or
+ *  null: it starts. */
+const GENERATE: Record<Key, { error: string; code: string } | 'running' | null> = {
+  starting: { error: `${STARTING}; generate in a moment.`, code: 'starting' },
+  idle: null,
+  'running:question': BUSY,
+  'paused:question': BUSY,
+  'running:generation': 'running',
+  'paused:generation': 'running',
+  closing: { error: CLOSING, code: 'closing' },
+};
+/** Where a generation stands, as the pages read it (progress' `generation`). */
+const generationOf = (p: Phase) => ({ running: 'origin' in p && p.origin === 'generation', awaitingApproval: p.name === 'paused' && p.origin === 'generation' });
 
 /** `assistant: true` in the review's own config.json. Never throws: a bad file only leaves it off. */
 export function assistantEnabled(dir: string) {
@@ -45,7 +89,7 @@ const AssistantSettings = z.object({
 });
 
 /** Machine-wide defaults: the model is read for each new question, the rest when the native session starts. */
-export function readAssistantSettings(file = settingsFile()) {
+function readAssistantSettings(file = settingsFile()) {
   try {
     const settings = AssistantSettings.parse(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {});
     return { ...settings,
@@ -64,15 +108,10 @@ const OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile --prod --store-dir .pnpm-store';
 const bunCommand = `'${process.execPath.replaceAll("'", "'\\''")}'`;
 
-/** Scope subscription overrides to the bridge process; upstream currently launches it as `node <bridge>`. */
-export function assistantLaunch(command: string) {
-  return `env ${OVERRIDES.map((key) => `-u ${key}`).join(' ')} ${command.replace(/^node /, `${bunCommand} `)}`;
-}
-
 /** The native agent's package and lock: the harness installs them once under assistantHome() and reuses them. */
 const agentFile = (f: string) => fs.readFileSync(path.join(PKG, 'cli/lib/assistant-agent', f), 'utf8');
 
-export function instructions(repo: string, dir: string, cfg: ReviewConfig, promptFile = path.join(PKG, 'templates/assistant-prompt.md')) {
+function instructions(repo: string, dir: string, cfg: ReviewConfig, promptFile: string) {
   const prompt = fs.readFileSync(promptFile, 'utf8').trim();
   if (!prompt) throw new Error(`The agent prompt file is empty: ${promptFile}`);
   return `${prompt}\n\nReview instance:\n${JSON.stringify({
@@ -152,7 +191,8 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
       },
       spawn: (o: Parameters<typeof view.spawn>[0]) => view.spawn({
         ...o,
-        command: assistantLaunch(o.command),
+        // overrides scoped to the bridge process; upstream launches it as `node <bridge>`
+        command: `env ${OVERRIDES.map((key) => `-u ${key}`).join(' ')} ${o.command.replace(/^node /, `${bunCommand} `)}`,
         // Claude keeps its native login, plugins and connectors; do not redirect its HOME with the harness state.
         env: { ...launchEnv(o.env), HOME: process.env.HOME ?? os.homedir(),
           ...(claudeExecutable ? { CLAUDE_CODE_EXECUTABLE: claudeExecutable } : {}),
@@ -188,7 +228,7 @@ export type Live = Pick<Awaited<ReturnType<typeof start>>, 'agent' | 'session' |
  * A new question carries what the reviewer attached (its quote, validated by AskMetadata) as text before it. Only a
  * last user message: the harness sends just that to the native session, and approval continuations end otherwise.
  */
-export function withContext(messages: UIMessage[], revs: { base: string; head: string }): UIMessage[] {
+function withContext(messages: UIMessage[], revs: { base: string; head: string }): UIMessage[] {
   const last = messages.at(-1);
   const quote = last?.role === 'user' ? AskMetadata.parse(last.metadata)?.custom?.quote : undefined;
   if (!last || !quote) return messages;
@@ -199,7 +239,7 @@ export function withContext(messages: UIMessage[], revs: { base: string; head: s
  *  or pauses), `progress` when generation moves. */
 type Send = (event: 'assistant' | 'progress', data: unknown) => void;
 const STREAM_HEADERS = { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', 'x-vercel-ai-ui-message-stream': 'v1', 'x-accel-buffering': 'no' };
-type RouteOpts = { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings; launch?: typeof start; send?: Send; generatePrompt?: string };
+type RouteOpts = { repo: string; dir: string; cfg: ReviewConfig; readSettings?: typeof readAssistantSettings; launch?: typeof start; send?: Send };
 type TurnEnd = { paused?: boolean; aborted?: boolean };
 
 /**
@@ -208,7 +248,8 @@ type TurnEnd = { paused?: boolean; aborted?: boolean };
  * question, or api/generate); the server keeps the history. Failures (settings, a moved-aside or another checkout's
  * assistant.json) disable only the assistant.
  */
-export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSettings, launch = start, send = () => {}, generatePrompt = path.join(PKG, 'templates/generate-prompt.md') }: RouteOpts) {
+export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSettings, launch = start, send = () => {} }: RouteOpts) {
+  const generatePrompt = path.join(PKG, 'templates/generate-prompt.md');
   let store: Store | undefined;
   let live: Promise<Live> | undefined;
   let phase: Phase = { name: 'starting' };
@@ -234,17 +275,10 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     phase = next;
     send('assistant', { ...active(), generation: generationOf(phase) });
   };
-  /** What a turn's start and end mean beyond the conversation, by origin: a generation's documents and progress. */
-  const EFFECTS: Record<Origin, { started(): void; ended(left: Phase, reason: 'interrupted' | 'failed'): void }> = {
-    question: { started: () => {}, ended: () => {} },
-    generation: {
-      started: () => send('progress', progressNow()),
-      ended: (left, reason) => {
-        // whatever the turn did not validate stopped with it; a paused one is the panel's to continue
-        if (left.name !== 'paused') stopAssistantWork(dir, reason);
-        send('progress', progressNow());
-      },
-    },
+  /** A generation's turn ended: whatever it did not validate stopped with it; a paused one is the panel's to continue. */
+  const generationEnded = (left: Phase, reason: 'interrupted' | 'failed') => {
+    if (left.name !== 'paused') stopAssistantWork(dir, reason);
+    send('progress', progressNow());
   };
   /**
    * Starts a turn: the question saved as working and the turn made in one synchronous step, before Claude launches, so
@@ -265,13 +299,14 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     const id = randomUUID();
     const turn: Running = { name: 'running', origin, model, id, stream: replayStream({ ...STREAM_HEADERS, [TURN_HEADER]: id }), abort: new AbortController(), done: new Promise((r) => (release = r)) };
     setPhase(turn);
-    EFFECTS[origin].started();
+    if (origin === 'generation') send('progress', progressNow());
     // after the answer is saved
     const end = ({ paused = false, aborted = false }: TurnEnd = {}) => {
       release();
-      const left = afterTurn(phase, turn, paused);
+      // a closing review stays closing; a turn the native session holds waits
+      const left: Phase = phase.name === 'closing' ? phase : paused ? { name: 'paused', origin, model } : { name: 'idle' };
       if (left !== phase) setPhase(left);
-      EFFECTS[origin].ended(left, aborted || left.name === 'closing' ? 'interrupted' : 'failed');
+      if (origin === 'generation') generationEnded(left, aborted || left.name === 'closing' ? 'interrupted' : 'failed');
     };
     void (async () => {
       try {
@@ -363,7 +398,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
 
   app.post('/', async (c) => {
     const refused = () => {
-      const why = askRefusal(phase);
+      const why = ASK[keyOf(phase)];
       return why ? c.text(why, 409) : undefined;
     };
     const early = refused();
@@ -389,8 +424,9 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     // checked again with nothing awaited before the start: one turn at a time
     const blocked = refused();
     if (blocked) return blocked;
-    const model = modelFor(phase, asking, () => readSettings().defaultReviewModel); // read before the question is saved: it may throw
-    return startTurn(asking ? [...saved, last] : [...saved.slice(0, -1), last], originOf(phase), model).stream.follow();
+    // read before the question is saved: it may throw. An approval continues what is paused, on its model and origin
+    const model = !asking && phase.name === 'paused' ? phase.model : readSettings().defaultReviewModel;
+    return startTurn(asking ? [...saved, last] : [...saved.slice(0, -1), last], phase.name === 'paused' ? phase.origin : 'question', model).stream.follow();
   });
 
   /**
@@ -405,7 +441,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   });
   generate.post('/', (c) => {
     // decided and taken synchronously: two requests can't both start one
-    const refused = generateRefusal(phase);
+    const refused = GENERATE[keyOf(phase)];
     if (refused === 'running') return c.json({ started: false, ...progressNow() });
     if (refused) return c.json(refused, 409);
     // a validated document (a walkthrough kept from the PR, say) is not asked for again; nothing to do needs no Claude
@@ -448,7 +484,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
       }
       try {
         // a paused turn has no end to come: it stops here
-        if (was.name === 'paused') EFFECTS[was.origin].ended(phase, 'interrupted');
+        if (was.name === 'paused' && was.origin === 'generation') generationEnded(phase, 'interrupted');
       } catch (e) {
         // the next server's start stops it as interrupted instead
         console.error(`reviewroom: could not record the stopped generation: ${errorText(e)}`);

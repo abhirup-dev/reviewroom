@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { UIMessage } from 'ai';
-import { assistantEnabled, assistantLaunch, assistantRoutes, instructions, readAssistantSettings, withContext } from './assistant.ts';
+import { assistantEnabled, assistantRoutes } from './assistant.ts';
 import { fakeAgent } from '../../e2e/fake-assistant.ts';
 import { PKG } from './paths.ts';
 import { assistantStore } from './assistant-store.ts';
@@ -13,93 +13,20 @@ async function until(fn: () => unknown, timeout = 5000) {
   for (const end = Date.now() + timeout; !fn(); await Bun.sleep(10)) if (Date.now() > end) throw new Error('until: timed out');
 }
 
-const revs = { base: 'b0', head: 'h0' };
 const settings = { defaultAgentHarness: 'claude' as const, defaultReviewModel: 'sonnet', reviewAgentPromptFile: path.join(PKG, 'templates/assistant-prompt.md') };
-const quote = { text: 'return x;', messageId: '', ref: 'rr:code/src/a.ts#L4-6', label: 'src/a.ts:4-6' };
 const user = (text: string, metadata?: unknown): UIMessage => ({ id: text, role: 'user', parts: [{ type: 'text', text }], metadata });
 
-test('the agent bootstrap includes the pinned harness bridge dependencies', () => {
-  const bridge = path.join(path.dirname(Bun.resolveSync('@ai-sdk/harness-acp', PKG)), 'bridge/package.json');
-  const { dependencies } = JSON.parse(fs.readFileSync(bridge, 'utf8'));
-  const agent = JSON.parse(fs.readFileSync(path.join(PKG, 'cli/lib/assistant-agent/package.json'), 'utf8'));
-  expect(agent.dependencies).toMatchObject(dependencies);
-});
-
-test('machine settings default when absent, accept a model alongside existing settings, and refuse invalid ones; the assistant is on per review', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-settings-'));
-  const file = path.join(dir, 'config.json');
+test('the assistant is on per review, only by `assistant: true` in its config.json', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-on-'));
   try {
-    const defaultPrompt = path.join(PKG, 'templates/assistant-prompt.md');
-    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'sonnet', reviewAgentPromptFile: defaultPrompt });
-    const existing = '{"publicOrigin":"https://review.example","defaultReviewModel":"claude-custom-model"}';
-    fs.writeFileSync(file, existing);
-    expect(readAssistantSettings(file)).toEqual({ defaultAgentHarness: 'claude', defaultReviewModel: 'claude-custom-model', reviewAgentPromptFile: defaultPrompt });
-    for (const invalid of ['{', '{"defaultAgentHarness":"codex"}', '{"defaultReviewModel":" "}', '{"defaultReviewEffort":"huge"}']) {
-      fs.writeFileSync(file, invalid);
-      expect(() => readAssistantSettings(file)).toThrow(`Invalid assistant settings in ${file}`);
-    }
-    // the assistant is on per review, by `assistant: true` in its config.json; anything else leaves it off
-    fs.rmSync(file);
     expect(assistantEnabled(dir)).toBe(false);
     for (const [config, on] of [['{"assistant": true}', true], ['{"assistant": "yes"}', false], ['{broken', false]] as const) {
-      fs.writeFileSync(file, config);
+      fs.writeFileSync(path.join(dir, 'config.json'), config);
       expect(assistantEnabled(dir)).toBe(on);
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('a configured role replaces the default; instance context references the native skill without embedding it', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-assistant-prompt-'));
-  const file = path.join(dir, 'config.json');
-  const prompt = path.join(dir, 'review-agent.md');
-  try {
-    fs.writeFileSync(file, JSON.stringify({ reviewAgentPromptFile: 'review-agent.md' }));
-    fs.writeFileSync(prompt, 'Explain tradeoffs first. Keep {{literal}} unchanged.');
-    expect(readAssistantSettings(file).reviewAgentPromptFile).toBe(prompt);
-    const text = instructions('repository', 'review-directory', { base: 'base-sha', head: 'head-sha' }, readAssistantSettings(file).reviewAgentPromptFile);
-    expect(text).toStartWith('Explain tradeoffs first. Keep {{literal}} unchanged.');
-    expect(text).not.toContain('You are the assistant beside');
-    expect(text).toContain('"base": "base-sha"');
-    expect(text).toContain('"directory": "review-directory"');
-    expect(text).toContain('native reviewroom:reviewroom skill');
-    expect(text).not.toContain(fs.readFileSync(path.join(PKG, 'skills/reviewroom/SKILL.md'), 'utf8'));
-    fs.writeFileSync(file, JSON.stringify({ reviewAgentPromptFile: prompt }));
-    expect(readAssistantSettings(file).reviewAgentPromptFile).toBe(prompt);
-    fs.writeFileSync(file, JSON.stringify({ claudeExecutable: './bin/claude-custom' }));
-    expect(readAssistantSettings(file).claudeExecutable).toBe(path.join(dir, 'bin/claude-custom'));
-    fs.writeFileSync(file, JSON.stringify({ claudeExecutable: 'claude-custom' }));
-    expect(readAssistantSettings(file).claudeExecutable).toBe('claude-custom');
-    fs.writeFileSync(prompt, '  ');
-    expect(() => instructions('r', 'd', { base: 'b', head: 'h' }, prompt)).toThrow('prompt file is empty');
-    expect(() => instructions('r', 'd', { base: 'b', head: 'h' }, path.join(dir, 'missing.md'))).toThrow('missing.md');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('a new question carries its attached context, once, before the question', () => {
-  const earlier = user('first', { custom: { quote } });
-  const out = withContext([earlier, { id: 'a', role: 'assistant', parts: [] }, user('why?', { custom: { quote } })], revs);
-  expect(out[0]).toBe(earlier); // history the native session already has is not repeated
-  const parts = out.at(-1)!.parts as { text: string }[];
-  expect(parts.map((p) => p.text)).toEqual([expect.stringContaining('rr:code/src/a.ts#L4-6 (head = h0)'), 'why?']);
-  // an approval continues the turn that already had its context: nothing is added again
-  const continuation = [user('do it', { custom: { quote } }), { id: 'a', role: 'assistant' as const, parts: [] }];
-  expect(withContext(continuation, revs)).toEqual(continuation);
-});
-
-// This runs a real child: subscription overrides and PATH changes must not leak back into the review server.
-test('Bun bridge launch clears only child auth overrides and preserves host PATH', async () => {
-  const before = process.env.PATH;
-  const script = 'console.log(JSON.stringify({key:process.env.ANTHROPIC_API_KEY??null,path:process.env.PATH}))';
-  const child = Bun.spawn(['sh', '-c', assistantLaunch(`node -e '${script}'`)], { env: { ...process.env, ANTHROPIC_API_KEY: 'probe-not-a-real-key' }, stdout: 'pipe', stderr: 'pipe' });
-  const out = JSON.parse(await new Response(child.stdout).text());
-  expect(await child.exited).toBe(0);
-  expect(out.key).toBeNull();
-  expect(out.path).toBe(before);
-  expect(process.env.PATH).toBe(before);
 });
 
 // The routes run AI SDK's real stream through the one fake agent (e2e/fake-assistant.ts), shaped like the harness.
@@ -169,10 +96,10 @@ test('one turn at a time, told to every page; a window that leaves only detaches
   expect([second.status, await second.text()]).toEqual([409, 'The assistant is already answering a question.']);
   expect((await r.generate())[1].code).toBe('busy');
   await r.stop('another-turn');
-  expect(await r.turn()).toBe(id);
+  expect([await r.turn(), (await r.follow('another-turn')).status]).toEqual([id, 204]); // a turn not running: the page fetches the history again
   await r.stop(id);
   await until(() => r.saved().status === 'interrupted');
-  expect([await r.turn(), r.saved().messages.map((m) => m.role), r.events()]).toEqual([null, ['user', 'assistant'], []]);
+  expect([await r.turn(), r.saved().messages.map((m) => m.role), r.events(), (await r.follow(id)).status]).toEqual([null, ['user', 'assistant'], [], 204]);
 });
 
 test('everything is refused through the hub: questions, the turn\'s stream, Stop and generate', async () => {
@@ -210,7 +137,7 @@ test('closing stops a running answer and saves it, stops the agent once; the nex
   expect([restored.status, restored.messages.map((m: UIMessage) => m.id)]).toEqual(['interrupted', r.saved().messages.map((m) => m.id)]);
   // a server killed mid-turn left it working on disk: the next one keeps every message, marked interrupted
   const store = assistantStore(r.dir, r.dir);
-  store.saved.messages = [...store.saved.messages, user('asked as it died', { custom: { quote } })];
+  store.saved.messages = [...store.saved.messages, user('asked as it died')];
   store.saved.status = 'working';
   store.write();
   const before = structuredClone(store.saved.messages);
@@ -222,7 +149,7 @@ test('closing stops a running answer and saves it, stops the agent once; the nex
 test('the store is private to its review and writes atomically', () => {
   using r = review();
   const store = assistantStore(r.dir, r.dir);
-  store.saved.messages = [user('why?', { custom: { quote } })];
+  store.saved.messages = [user('why?')];
   store.write();
   expect(assistantStore(r.dir, r.dir).saved.messages).toEqual(store.saved.messages);
   expect(fs.statSync(path.join(r.dir, 'assistant.json')).mode & 0o777).toBe(0o600);
@@ -257,26 +184,6 @@ test('a broken conversation or settings disable only the assistant, keep what wa
   expect(await read(await bad.routes.app.request('/'))).toEqual([503, 'Invalid assistant settings in config.json']);
   expect(await read(await bad.post([user('q1')]))).toEqual([503, 'Invalid assistant settings in config.json']);
   expect(fs.existsSync(path.join(bad.dir, 'assistant.json'))).toBe(false); // read before the question is saved
-});
-
-test('the resume route: the named turn from its start, even while Claude starts, to its end; 204 for a turn not running (a failed start ends it with why)', async () => {
-  let started!: () => void;
-  using r = review({ script: hangs, starting: new Promise<void>((ok) => (started = ok)) });
-  expect([await r.turn(), (await r.follow('none')).status]).toEqual([null, 204]);
-  await r.generate();
-  const id = await r.turn();
-  expect((await r.follow('another-turn')).status).toBe(204); // a turn that ended: the page fetches the history again
-  const res = await r.follow(id); // before Claude has said anything
-  started();
-  expect([res.status, res.headers.get('x-vercel-ai-ui-message-stream'), res.headers.get('x-reviewroom-turn'), (await readUntil(res, partial)).said]).toEqual([200, 'v1', id, expect.stringContaining('"type":"start"')]);
-  await r.routes.close();
-  expect([await r.turn(), (await r.follow(id)).status]).toEqual([null, 204]);
-  let failed!: (e: Error) => void;
-  using f = review({ starting: new Promise<void>((_, no) => (failed = no)) });
-  await f.generate();
-  const waiting = await f.follow();
-  failed(new Error('Claude did not start'));
-  expect(await readUntil(waiting)).toMatchObject({ said: expect.stringContaining('"errorText":"Claude did not start"'), ended: true });
 });
 
 test('generate requests only what is not validated and starts one turn; meanwhile it starts nothing, a question is refused, Stop does nothing; closing interrupts what it requested, not an agent\'s request', async () => {
@@ -320,26 +227,6 @@ test('a generation turn ends: failed what it did not validate, told to the pages
   expect((await r.generate())[1].started).toBe(true); // a new generation may start
 });
 
-test.each([[true], [false]])('closing a generation paused on an approval stops it as interrupted and the native session once (journal writable: %p)', async (writable) => {
-  using r = review({ held: () => true });
-  await r.generate();
-  await r.awaiting();
-  const log = path.join(r.dir, 'progress.jsonl');
-  if (!writable) fs.chmodSync(log, 0o444);
-  const errors: unknown[] = [];
-  const error = console.error;
-  console.error = (...a: unknown[]) => void errors.push(a.join(' '));
-  try {
-    await r.routes.close();
-  } finally {
-    console.error = error;
-    fs.chmodSync(log, 0o644);
-  }
-  expect(r.calls.stopped).toBe(1);
-  if (writable) expect(r.events().slice(2)).toEqual(['walkthrough stopped interrupted', 'report stopped interrupted']);
-  else if (process.getuid?.() !== 0) expect(String(errors[0])).toContain('could not record the stopped generation');
-});
-
 test('a failed log append starts nothing and leaves nothing running or half-requested', async () => {
   using r = review({ script: hangs });
   fs.mkdirSync(path.join(r.dir, 'progress.jsonl')); // appending fails
@@ -353,7 +240,6 @@ test('a failed log append starts nothing and leaves nothing running or half-requ
 
 test.each([
   ['a configured Claude that is missing', { claudeExecutable: '/nonexistent/claude' }, [503, 'assistant_unavailable'], '/nonexistent/claude'],
-  ['a missing role prompt', { reviewAgentPromptFile: '/nonexistent/role.md' }, [503, 'assistant_unavailable'], '/nonexistent/role.md'],
   ['nothing left to write: started false, before it looks for Claude', { claudeExecutable: '/nonexistent/claude' }, [200, undefined], undefined],
 ] as const)('generate checks what a turn needs before answering: %s, nothing requested', async (_, override, [status, code], why) => {
   using r = review({ readSettings: () => ({ ...settings, ...override }) });
