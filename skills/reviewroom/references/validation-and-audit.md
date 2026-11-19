@@ -46,6 +46,8 @@ Selectors use chapter and step **IDs**, not titles or positions. `--slide` also 
 and inherited code, but skip whole-walkthrough coverage and pacing. The entire schema is still
 validated. Startup still costs time. Finish with an unscoped run.
 
+In a full audit, each chapter needs at least two slides. The final chapter may have one.
+
 `--jobs` accepts 1–8; default 1. More workers can add contention, so do not assume they are faster.
 `--json` gives structured findings and, for slide audits, the selection and coverage.
 
