@@ -78,7 +78,7 @@ it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/gene
 `REVIEWROOM_HOME` overrides the root.
 
 - `reviews/`: the review folders (above). PR identity appears as `id` in CLI status JSON and
-  `prReviewId` in review metadata and hub sessions.
+  `reviewId` in review metadata and hub sessions.
 - `sessions/<pid>.json`: one per running server, read by `reviewroom list`, the hub, and other local tools.
   `list --json` reads the PR ID from `config.json`. The hub deletes stale records. `hub.json` is the running hub.
 - `layouts/<name>.json`: the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the
