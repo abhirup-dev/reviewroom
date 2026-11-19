@@ -418,13 +418,14 @@ class WalkthroughPanel implements PanelInstance {
 }
 
 /** The report changed on the server (validated again): the agent's new <rr-review> in place of the shown one, whole (the
- *  client still never edits it), from the page's own URL as a reload would fetch it; the reader's scroll kept. False
- *  when it can't be had: the caller reloads. */
-export async function takeReport(app: ReviewApp): Promise<boolean> {
+ *  client still never edits it), from the page's own URL as a reload would fetch it; the reader's scroll kept. The page
+ *  it came in (the caller takes its #rr-meta), or null when it can't be had: the caller reloads. */
+export async function takeReport(app: ReviewApp): Promise<Document | null> {
   const doc = app.doc;
   const html = doc && (await fetch(location.href, { cache: 'no-store' }).then((r) => (r.ok ? r.text() : null), () => null));
-  const next = html && new DOMParser().parseFromString(html, 'text/html').querySelector('rr-review');
-  if (!doc || !next) return false;
+  const page = html ? new DOMParser().parseFromString(html, 'text/html') : null;
+  const next = page?.querySelector('rr-review');
+  if (!doc || !page || !next) return null;
   next.querySelectorAll('script').forEach((s) => s.remove());
   const scroller = doc.closest('.rr-narrative-scroll'), top = scroller?.scrollTop ?? 0;
   for (const a of next.attributes) doc.setAttribute(a.name, a.value);
@@ -432,7 +433,7 @@ export async function takeReport(app: ReviewApp): Promise<boolean> {
   doc.replaceChildren(...document.importNode(next, true).childNodes);
   if (scroller) scroller.scrollTop = top;
   app.bus.emit('doc-ready', doc);
-  return true;
+  return page;
 }
 
 /** What a presentation adds to the walkthrough panel (never the description). Composition sets it before panels mount. */

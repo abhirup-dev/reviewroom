@@ -101,10 +101,28 @@ function applyThemeOverrides(t: ThemeOverrides) {
       .filter(([k, v]) => /^[\w-]+$/.test(k) && !/[;{}<]/.test(v))
       .map(([k, v]) => `${k.startsWith('--') ? k : '--rr-' + k}:${v};`)
       .join('');
-  const s = document.createElement('style');
-  s.dataset.reviewroomTheme = '';
+  const s = document.head.querySelector<HTMLStyleElement>('style[data-reviewroom-theme]') ?? document.head.appendChild(h('style', { 'data-reviewroom-theme': '' }));
   s.textContent = `:root{${decl(t.light)}}:root[data-rr-theme='dark']{${decl(t.dark)}}`;
-  document.head.append(s);
+}
+
+/** What the page says of the review: its #rr-meta, under its <rr-app>'s own attributes. */
+function authoredMeta(root: Element): Partial<ReviewMeta> & { theme?: ThemeOverrides } {
+  const authored = (readJSON('#rr-meta', root) as (Partial<ReviewMeta> & { theme?: ThemeOverrides }) | null) ?? {};
+  for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
+  return authored;
+}
+
+/** A report taken in place (takeReport) brings its page's #rr-meta: the header and the tab show it, as a reload would.
+ *  The review's identity (route, range) and what the server may do here stay as they are. */
+function takeMeta(app: ReviewApp, page: Document) {
+  const root = page.querySelector('rr-app');
+  if (!root) return;
+  // shortcut: a field the new #rr-meta drops keeps its old value until a reload; refetch provider.meta() if that matters
+  const { theme, assistant: _a, generate: _g, routeId: _r, base: _b, head: _h, ...fromReport } = authoredMeta(root);
+  applyThemeOverrides(theme ?? {});
+  Object.assign(app.meta, fromReport);
+  document.title = page.title || app.meta.title;
+  app.bus.emit('meta', app.meta);
 }
 
 export interface BootOptions {
@@ -131,9 +149,8 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   themeQuery.addEventListener('change', onTheme);
   app.onDispose(() => themeQuery.removeEventListener('change', onTheme));
 
-  const authored = (readJSON('#rr-meta', root) as (Partial<ReviewMeta> & { theme?: ThemeOverrides }) | null) ?? {};
+  const authored = authoredMeta(root);
   if (authored.theme) applyThemeOverrides(authored.theme);
-  for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
   const fixture = readJSON('#rr-fixture') as Fixture | null;
   const seedState = readJSON('#rr-state') as ReviewState | null;
   const seedTour = document.querySelector('#rr-walkthrough')?.textContent ?? undefined;
@@ -241,7 +258,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
       if (docs.includes('walkthrough')) app.bus.emit('walkthrough-load', undefined);
       if (!docs.includes('report')) return;
       if (app.state.threads.some((t) => t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)) return reloadReview();
-      void takeReport(app).then((ok) => ok || reloadReview());
+      void takeReport(app).then((page) => (page ? takeMeta(app, page) : reloadReview()));
     },
   });
   restoreScroll();

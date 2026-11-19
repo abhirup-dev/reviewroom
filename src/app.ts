@@ -76,6 +76,8 @@ export interface AppEvents extends Record<string, unknown> {
   selection: Selection;
   /** the report came again in place (takeReport, src/review/walkthrough.ts): what reads it reads it again */
   'doc-ready': HTMLElement;
+  /** app.meta changed in place: a report taken in place brought a new #rr-meta (main.ts) */
+  meta: ReviewMeta;
   /** What the reader is in: the deepest section or h3/h4 heading (by id) whose top has passed the reading line. */
   'active-section': string;
   'active-file': string;

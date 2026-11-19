@@ -78,6 +78,8 @@ async function followUp(page: Page, go: () => void) {
   await until(page, `${panel}.includes('Both pass.') && !document.querySelector('[data-rr-assistant-running]') && !rr.app.doc.contains(window.rrOldReport) && !document.querySelector('.rr-narrative-scroll').hidden`, 20_000);
   expect(await page.evaluate<boolean>(`!!window.rrBeforeReload`)).toBe(true);
   expect(await page.evaluate<boolean>(`document.querySelector('.rr-tour')?.dataset.mode !== 'playing'`)).toBe(true);
+  // the header and the tab take the new report's #rr-meta and <title>, as a reload would
+  expect(await page.evaluate<string>(`document.querySelector('.rr-header__title').textContent + ' | ' + document.title`)).toBe('Limit file uploads per account | Limit file uploads per account');
   await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'what changed?')`);
   await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send' && !b.disabled).click()`);
   await until(page, `${panel}.includes('You asked: what changed?') && ${panel}.includes('Reading the diff.')`, 15_000);
