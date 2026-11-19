@@ -108,6 +108,11 @@ const OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile --prod --store-dir .pnpm-store';
 const bunCommand = `'${process.execPath.replaceAll("'", "'\\''")}'`;
 
+const generationSteps = {
+  walkthrough: 'Write the walkthrough (Step 4). Run a full `reviewroom slide-lint <review>` and fix what it reports, repeating until it passes. Scoped runs do not count.',
+  report: 'Fill the report sections (Step 4b). Run `reviewroom check <review> --fix` and fix what it reports, repeating until it passes.',
+};
+
 /** The native agent's package and lock: the harness installs them once under assistantHome() and reuses them. */
 const agentFile = (f: string) => fs.readFileSync(path.join(PKG, 'cli/lib/assistant-agent', f), 'utf8');
 
@@ -430,7 +435,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
   });
 
   /**
-   * POST api/generate: request both documents of the assistant and write them in one turn, with no page needed. Answers
+   * POST api/generate: request the unvalidated documents of the assistant and write them in one turn, with no page needed. Answers
    * at once with the progress; the turn's end (or its pause on an approval) is pushed over SSE. Idempotent while a
    * generation runs; `busy` while the assistant answers the reviewer (or waits on their approval).
    */
@@ -452,6 +457,7 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
     try {
       text = fs.readFileSync(generatePrompt, 'utf8').trim();
       if (!text) throw new Error(`The generate prompt is empty: ${generatePrompt}`);
+      text = text.replace('{{artifacts}}', wanted.join(', ')).replace('{{steps}}', wanted.map((a) => generationSteps[a]).join('\n\n'));
       settings = readSettings();
       claudeBinary(settings);
       instructions(repo, dir, cfg, settings.reviewAgentPromptFile); // the role prompt the turn starts with: there and not empty

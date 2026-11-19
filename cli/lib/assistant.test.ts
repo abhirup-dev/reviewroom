@@ -208,6 +208,8 @@ test('generate requests only what is not validated and starts one turn; meanwhil
   recordArtifact(kept.dir, 'walkthrough', 'validated', { source: 'pr' }); // a PR walkthrough kept
   const [, one] = await kept.generate();
   expect([one.started, one.walkthrough.state, one.report]).toEqual([true, 'validated', expect.objectContaining({ state: 'requested', by: 'assistant' })]);
+  expect(kept.saved().messages[0].parts[0]).toMatchObject({ type: 'text', text: expect.stringContaining('in order: report. Do not modify or revalidate any other review artifact.') });
+  expect(kept.saved().messages[0].parts[0]).not.toMatchObject({ type: 'text', text: expect.stringContaining('walkthrough') });
   await until(() => kept.events().includes('report stopped failed'));
   expect(readProgress(kept.dir).walkthrough.state).toBe('validated'); // not failed with the turn
 });
