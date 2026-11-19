@@ -2,7 +2,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit, readConfig } from '../lib/config.ts';
+import { readConfig } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
 import { anchorOf, anchorRef } from '../../src/kernel/refs/refs.shared.ts';
@@ -25,8 +25,7 @@ function readBody(file: string | undefined, arg: string | undefined) {
   return b.trim();
 }
 
-export function cmdThreads(repo: string | null, o: Global & { all?: boolean; json?: boolean }) {
-  const dir = dirForEdit(repo, o.dir);
+export function cmdThreads(_repo: string | null, dir: string, o: Global & { all?: boolean; json?: boolean }) {
   const s = readState(dir);
   const list = s.threads.filter((t) => o.all || t.status === 'open');
   const github = cachedThreads(dir).filter((t) => o.all || t.status === 'open');
@@ -58,12 +57,11 @@ function replyOps(s: ReviewState, input: unknown) {
   });
 }
 
-export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: boolean; json?: string | true }, [thread, body]: string[]) {
-  const dir = dirForEdit(repo, o.dir);
+export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & { resolve?: boolean; json?: string | true }, [thread, body]: string[]) {
   let items: unknown;
   if (o.json) {
-    // `--json file`, `--json -`, or `--json` alone (stdin); cac may leave the file as the first argument
-    const src = typeof o.json === 'string' ? o.json : (thread ?? '-');
+    if (thread || body) fail('reply <review> --json [file] takes no thread or body');
+    const src = typeof o.json === 'string' ? o.json : '-';
     try {
       items = JSON.parse(fs.readFileSync(src === '-' ? 0 : src, 'utf8'));
     } catch (e) {
@@ -82,8 +80,7 @@ export async function cmdReply(repo: string | null, o: BodyOpts & { resolve?: bo
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
 }
 
-export async function cmdComment(repo: string | null, o: BodyOpts, [ref, body]: string[]) {
-  const dir = dirForEdit(repo, o.dir);
+export async function cmdComment(_repo: string | null, dir: string, o: BodyOpts, [ref, body]: string[]) {
   if (!ref) fail('missing rr: ref (or "general")');
   const id = uid('t_');
   await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);

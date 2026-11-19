@@ -2,61 +2,37 @@
 // No GitHub: REVIEWROOM_TEST_CLONE_ROOT clones a local bare repo, and a stand-in `gh` fails. No Claude: Play turns the
 // built-in assistant on for the review and asks it to generate, but CLAUDE_CODE_EXECUTABLE names a missing file, so
 // api/generate refuses in its preflight, before any turn starts.
-import { afterAll, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { $ } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { SessionInfo } from '../src/hub/model.shared.ts';
 import { recordArtifact, requestGeneration } from '../cli/lib/progress.ts';
 import { WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
-import { setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
+import { config, setup } from './fixture.ts';
 
 const root = path.resolve(import.meta.dir, '..');
 
 describe('the hub starts reviews', async () => {
-  const scratch = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? '/tmp'), 'rr-e2e-hubrev-'));
-  const clones = path.join(scratch, 'clones');
-  const bare = path.join(clones, 'acme', 'demo.git');
-  const bin = path.join(scratch, 'bin');
-  fs.mkdirSync(bin);
-  // a stand-in `gh`: every PR comes from a fork branch called patch-1; anything else fails
-  fs.writeFileSync(path.join(bin, 'gh'), `#!/bin/sh
-[ "$1 $2" = "pr view" ] || exit 1
-echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"main","url":"https://github.com/acme/demo/pull/'$3'","author":{"login":"x"}}'
-`, { mode: 0o755 });
-  await $`bash ${path.join(root, 'examples', 'make-demo-repo.sh')} ${path.join(scratch, 'src')}`.quiet();
-  await $`git clone -q --bare ${path.join(scratch, 'src')} ${bare}`.quiet();
-  await $`git -C ${bare} update-ref refs/pull/7/head refs/heads/feat/upload-rate-limit`.quiet();
-  await $`git -C ${bare} update-ref refs/pull/8/head refs/heads/feat/upload-rate-limit~1`.quiet();
-  await $`git -C ${bare} update-ref refs/pull/9/head refs/heads/feat/upload-rate-limit`.quiet();
-  await $`git -C ${bare} update-ref refs/pull/10/head refs/heads/feat/upload-rate-limit`.quiet();
-  const { cli, tmp, repo } = setup({
-    REVIEWROOM_TEST_CLONE_ROOT: clones,
-    CLAUDE_CODE_EXECUTABLE: path.join(scratch, 'no-claude'),
-    PATH: `${bin}:${process.env.PATH}`,
-  });
-  afterAll(async () => {
-    await cli(['hub', '--stop']);
-    fs.rmSync(scratch, { recursive: true, force: true });
-  });
-  const hub = (await cli(['hub', '--detach', '--no-open', '--port', '0'])).stdout.trim();
+  const { cli, tmp, repo, hub: client, mockPullRepository } = setup();
+  const scratch = tmp;
+  const { clones, bare } = await mockPullRepository();
+  const hub = await client.start();
   const PR = 'https://github.com/acme/demo/pull/7';
-  const post = (p: string, action: string, body?: object) => fetch(hub + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-reviewroom-action': action }, body: body && JSON.stringify(body) });
-  const ours = async () => ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((s) => s.target === '#7');
+  const post = client.post;
+  const ours = async () => (await client.sessions()).filter((s) => s.reviewId === 'acme/demo#7');
   let id = '';
 
-  const config = (dir: string) => JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
   test('Add a PR: cloned under repos/<owner>/<repo>, listed stopped and not generated, the assistant not chosen', async () => {
     expect((await post('api/reviews', 'add-review', { url: 'https://example.com/x' })).status).toBe(422);
     expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/nothing/pull/1' })).status).toBe(422);
     expect((await fetch(hub + 'api/reviews', { method: 'POST', body: JSON.stringify({ url: PR }) })).status).toBe(403); // no action header
     const r = await post('api/reviews', 'add-review', { url: PR });
     expect(r.status).toBe(201);
-    id = (await r.json()).id;
+    id = (await r.json()).routeId;
     expect(fs.existsSync(path.join(tmp, 'home', 'repos', 'acme', 'demo', '.git'))).toBe(true);
     const [s] = await ours();
-    expect(s).toMatchObject({ id: `review:${id}`, stopped: true, generation: 'idle', hasWork: false, pid: null, url: null, repository: 'demo', prUrl: PR });
+    expect(s).toMatchObject({ id: `review:${id}`, stopped: true, generation: 'idle', hasWork: false, pid: null, url: null, repository: 'demo', reviewId: 'acme/demo#7' });
     expect(config(s.reviewPath!).assistant).toBeUndefined();
   }, 60_000);
 
@@ -110,17 +86,17 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
 
   test('two PRs from branches of the same name are two reviews: the Review ID names the folder', async () => {
     expect((await post('api/reviews', 'add-review', { url: 'https://github.com/acme/demo/pull/8' })).status).toBe(201);
-    const all = ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).filter((s) => s.target === '#7' || s.target === '#8');
+    const all = (await client.sessions()).filter((s) => s.reviewId === 'acme/demo#7' || s.reviewId === 'acme/demo#8');
     expect(all.map((s) => s.reviewPath!.split(path.sep).slice(-3).join('/')).sort()).toEqual(['acme_demo/pulls/7', 'acme_demo/pulls/8']);
   }, 60_000);
 
   test('two first Adds of one new repository at once: one clones, the other waits and fetches; both set it up', async () => {
-    await $`git clone -q --bare ${path.join(scratch, 'src')} ${path.join(clones, 'acme', 'other.git')}`.quiet();
+    await $`git clone -q --bare ${repo} ${path.join(clones, 'acme', 'other.git')}`.quiet();
     await $`git -C ${path.join(clones, 'acme', 'other.git')} update-ref refs/pull/1/head refs/heads/feat/upload-rate-limit`.quiet();
     const rs = await Promise.all([0, 1].map(() => post('api/reviews', 'add-review', { url: 'https://github.com/acme/other/pull/1' })));
     const bodies = await Promise.all(rs.map((r) => r.json()));
     expect(rs.map((r) => r.status)).toEqual([201, 201]);
-    expect(bodies[0].id).toBe(bodies[1].id);
+    expect(bodies[0].routeId).toBe(bodies[1].routeId);
     expect(fs.readdirSync(path.join(tmp, 'home', 'repos', 'acme')).sort()).toEqual(['demo', 'other']); // no staging left in repos/
   }, 60_000);
 
@@ -154,15 +130,4 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
     expect((await post(`api/reviews/${id}/remove`, 'remove-review')).status).toBe(404);
   }, 60_000);
 
-  test('a running review in a custom --dir shows its generation state too', async () => {
-    const custom = path.join(tmp, 'elsewhere');
-    const d = ['--repo', repo, '--dir', custom];
-    try {
-      expect((await cli(['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--no-agent', ...d])).code).toBe(0);
-      const s = await until(async () => ((await (await fetch(hub + 'api/sessions')).json()).sessions as SessionInfo[]).find((x) => x.reviewPath === custom && !x.stopped), { timeout: 10_000, every: 200 });
-      expect(s.generation).toBe('idle');
-    } finally {
-      await cli(['stop', ...d]);
-    }
-  }, 60_000);
 });

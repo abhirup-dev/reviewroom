@@ -29,7 +29,7 @@ export function phonePalette(app: ReviewApp, { input, close, refresh }: PaletteH
   const clear = h('button', { class: 'rr-icon-btn rr-palette__clear', 'aria-label': 'Clear', title: 'Clear', hidden: true, onclick: () => { input.value = ''; input.dispatchEvent(new Event('input')); input.focus(); } }, icon('close', 20));
   let stopKb: (() => void) | undefined; // the full-screen palette keeps its list above the keyboard
 
-  const recentKey = () => `reviewroom:recent:${app.meta.id}`;
+  const recentKey = () => `reviewroom:recent:${app.meta.routeId}`;
   // a list (loadLocal merges objects): anything else stored there is no list of recents
   const stored = (): Recent[] => {
     try {

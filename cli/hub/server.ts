@@ -4,8 +4,8 @@
 //   GET  /api/health                counters and the Crit/Plannotator versions against the verified ones
 //   POST /api/sessions/:id/close    SIGTERM a session a fresh poll still finds (needs x-reviewroom-action: close-session)
 //   POST /api/reviews               { url }: Add a PR (needs x-reviewroom-action: add-review)
-//   POST /api/reviews/:id/play      start a stopped review, or find the running one (play-review)
-//   POST /api/reviews/:id/remove    delete a stopped review's folder; a running one is refused (remove-review)
+//   POST /api/reviews/:routeId/play      start a stopped review, or find the running one (play-review)
+//   POST /api/reviews/:routeId/remove    delete a stopped review's folder; a running one is refused (remove-review)
 //   ALL  /r/<hash>/*                the review whose directory has this hash, proxied to its server (ADR 0001)
 // Behind hubAccess: loopback, or the configured public origin.
 import { Hono, type Context } from 'hono';
@@ -78,17 +78,17 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
     const body = (await c.req.json().catch(() => ({}))) as { url?: unknown };
     const r = await addPr(typeof body.url === 'string' ? body.url : '', hub.entry);
     hub.invalidate();
-    return r.ok ? c.json({ ok: true, id: r.id }, 201) : c.json({ error: r.error }, 422);
+    return r.ok ? c.json({ ok: true, routeId: r.routeId }, 201) : c.json({ error: r.error }, 422);
   });
-  app.post('/api/reviews/:id/play', async (c) => {
+  app.post('/api/reviews/:routeId/play', async (c) => {
     if (!action(c, 'play-review')) return refused(c);
-    const r = await play(c.req.param('id'), hub.entry);
+    const r = await play(c.req.param('routeId'), hub.entry);
     hub.invalidate();
     return r.ok ? c.json(r) : c.json({ error: r.error }, 409);
   });
-  app.post('/api/reviews/:id/remove', async (c) => {
+  app.post('/api/reviews/:routeId/remove', async (c) => {
     if (!action(c, 'remove-review')) return refused(c);
-    const r = await remove(c.req.param('id'));
+    const r = await remove(c.req.param('routeId'));
     hub.invalidate();
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   });

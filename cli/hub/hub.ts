@@ -13,7 +13,7 @@ import { diskReviews, generationOf, serialized } from './reviews.ts';
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/hub/model.shared.ts';
 import { alive } from '../lib/lock.ts';
-import { reviewId, stopServer, unregister } from '../lib/registry.ts';
+import { routeId, stopServer, unregister } from '../lib/registry.ts';
 import { registryDir } from '../lib/paths.ts';
 
 export interface HubOptions {
@@ -57,8 +57,6 @@ const getJson = async (url: string, timeout: number) => {
   const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(timeout) });
   return { res, body: res.ok ? ((await res.json()) as Record<string, unknown>) : null };
 };
-
-export { reviewId };
 
 export class Hub {
   readonly pollIntervalMs: number;
@@ -213,10 +211,10 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir), prUrl: r.prUrl, generation: generationOf(r.dir), // from its own folder, wherever --dir put it
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, label: r.title, project: basename(r.repo), reviewPath: r.dir, routeId: routeId(r.dir), reviewId: r.reviewId, generation: generationOf(r.dir),
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
-      withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
+      withClassification(info, classifySession({ tool: 'reviewroom', reviewId: r.reviewId, head: r.head }));
       next.set(info.id, info);
       // nothing answers as this server: it died without cleaning up (SIGKILL, crash)
       const gone = () => {
@@ -236,7 +234,6 @@ export class Hub {
           info.health = res.ok ? 'ok' : 'unreachable';
           // counts only (rounds, threads, tabs): /api/summary never carries thread text. Optional: a bad body is not a dead server.
           const body = res.ok ? ((await res.json().catch(() => null)) as Record<string, unknown> | null) : null;
-          if (typeof body?.prReviewId === 'string') info.prReviewId = body.prReviewId;
           info.reviewRound = num(body?.round);
           info.commentCount = num(body?.threads);
           info.unresolvedCommentCount = num(body?.open);
@@ -254,11 +251,11 @@ export class Hub {
     // reviews on disk not running show as stopped (Play starts them); a running one is listed above already
     for (const d of read('reviews on disk', diskReviews)) {
       if ([...next.values()].some((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir)) continue;
-      const info = session(`review:${d.id}`, 'reviewroom', now, {
-        cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, reviewId: d.id, branch: d.branch,
-        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, hasWork: d.hasWork, prUrl: d.prUrl,
+      const info = session(`review:${d.routeId}`, 'reviewroom', now, {
+        cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, routeId: d.routeId, reviewId: d.reviewId, branch: d.branch,
+        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, hasWork: d.hasWork,
       });
-      withClassification(info, classifySession({ tool: 'reviewroom', mode: 'review', label: d.title, pr: d.number, head: d.branch ?? undefined }));
+      withClassification(info, classifySession({ tool: 'reviewroom', reviewId: d.reviewId, head: d.branch }));
       next.set(info.id, info);
     }
     for (const info of next.values()) info.firstSeenAt = this.sessions.get(info.id)?.firstSeenAt ?? info.firstSeenAt;
@@ -268,15 +265,15 @@ export class Hub {
     return [...next.values()];
   }
 
-  /** The live review server for /r/<id>/ (the proxy): from the last poll, polling again only when a server came or
+  /** The live review server for /r/<routeId>/ (the proxy): from the last poll, polling again only when a server came or
    *  went (its sessions/<pid>.json) or the poll is a minute old, so neither each request nor an unknown id polls. */
-  async review(id: string): Promise<SessionInfo | null> {
+  async review(route: string): Promise<SessionInfo | null> {
     const m = mtime(registryDir());
     if (m !== this.polledRegistry || Date.now() - this.lastPollAtMs > 60_000) {
       await this.poll();
       this.polledRegistry = m;
     }
-    return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.reviewId === id && s.port && s.pid) ?? null;
+    return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.routeId === route && s.port && s.pid) ?? null;
   }
 
   /** The next look polls again (a review was added or started). */

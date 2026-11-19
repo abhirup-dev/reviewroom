@@ -68,7 +68,7 @@ function paintIndicator(el: HTMLButtonElement, s: GenerationSnapshot) {
 
 export function mountGeneration(app: ReviewApp) {
   // what this tab keeps over a reload: the request the screen was closed on, the walkthrough request it waited for and played
-  const KEY = `reviewroom:generation:${app.meta.id}`;
+  const KEY = `reviewroom:generation:${app.meta.routeId}`;
   let kept: Remembered = {};
   try { kept = JSON.parse(sessionStorage.getItem(KEY) ?? '{}') as Remembered; } catch { /* storage off, or not ours */ }
   const actor = createActor(generationMachine, { input: { canGenerate: !!app.meta.generate, ...kept } });

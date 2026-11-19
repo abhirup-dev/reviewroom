@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { browser, setupSlides } from './fixture.ts';
 
 const { d, cli } = setupSlides(true);
-const lint = (args: string[]) => cli(['slide-lint', '--json', ...args, ...d]);
+const lint = (args: string[]) => cli(['slide-lint', ...d, '--json', ...args]);
 const outcome = (r: { code: number; stdout: string }) => {
   const { jobs: _jobs, ...report } = JSON.parse(r.stdout);
   return { code: r.code, report };

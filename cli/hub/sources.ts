@@ -91,11 +91,8 @@ export function readReviewroom(): (SessionRecord & { registryUpdatedAt: string |
       repo: str(o.repo) ?? '',
       dir: str(o.dir) ?? '',
       title: str(o.title),
-      number: typeof o.number === 'number' || typeof o.number === 'string' ? o.number : null,
-      prUrl: str(o.prUrl),
-      base: str(o.base) ?? '',
+      reviewId: str(o.reviewId) ?? undefined,
       head: str(o.head) ?? '',
-      mode: o.mode === 'review' ? 'review' : 'serve',
       startedAt: normalizeTimestamp(o.startedAt) ?? '',
       // a GitHub login: it ends up in an avatar URL
       author: typeof o.author === 'string' && /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(o.author) ? o.author : null,

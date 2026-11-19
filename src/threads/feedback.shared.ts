@@ -61,10 +61,8 @@ export function githubContext(threads: Thread[] = []) {
 export interface FeedbackOpts {
   kind: 'feedback' | 'approve';
   note?: string;
-  /** Shell arguments selecting the review directory for edit commands. */
-  dirArgs?: string;
-  /** Shell arguments naming the review for lifecycle commands. */
-  lifecycleArgs?: string;
+  /** Shell-quoted review target, shared by every printed command. */
+  target?: string;
   codeExcerpt?: (a: Anchor) => string | null;
   /** The PR's GitHub threads, listed as context (colleagues' comments, not this reviewer's feedback). */
   github?: Thread[];
@@ -74,8 +72,7 @@ export interface FeedbackOpts {
 
 export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   const round = state.round;
-  const at = opts.dirArgs ? ` ${opts.dirArgs}` : '';
-  const target = opts.lifecycleArgs ? ` ${opts.lifecycleArgs}` : at;
+  const target = ` ${opts.target ?? '<review>'}`;
   // walkthrough threads last, in tour order, so the agent reads them like the reviewer played them
   const order = (t: Thread) => {
     if (t.anchor.kind !== 'tour') return 0;
@@ -94,7 +91,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   lines.push(`# Review feedback - round ${round}`, '');
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
-    `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
+    `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply${target} <thread-id> "<markdown>"\``,
     `(leave resolving to the reviewer), change code and/or the report (${REPORT_FILE}) as needed,`,
     `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom wait${target}\` for round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,

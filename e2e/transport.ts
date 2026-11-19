@@ -1,6 +1,8 @@
 import { expect } from 'bun:test';
 import { $ } from 'bun';
 import path from 'node:path';
+import fs from 'node:fs';
+import type { SessionInfo } from '../src/hub/model.shared.ts';
 import { until } from '../src/testing/wait.ts';
 
 const entry = path.resolve(import.meta.dir, '../dist/cli/reviewroom.js');
@@ -12,6 +14,25 @@ export const runCli = async (env: CliEnv, args: string[], input = '') => {
 };
 export const spawnCli = (env: CliEnv, args: string[], cwd?: string) =>
   Bun.spawn([bun, entry, ...args], { env, cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+
+export const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8');
+export const readJson = (...p: string[]) => JSON.parse(read(...p));
+export const config = (dir: string) => readJson(dir, 'config.json');
+
+export function hubClient(cli: (args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>) {
+  let url = '';
+  return {
+    async start(args: string[] = []) {
+      const result = await cli(['hub', 'serve', '--detach', '--no-open', '--port', '0', ...args]);
+      if (result.code) throw new Error(result.stderr);
+      url = result.stdout.trim();
+      return url;
+    },
+    sessions: async () => (await (await fetch(url + 'api/sessions')).json()).sessions as SessionInfo[],
+    post: (p: string, action: string, body?: object) => fetch(url + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-reviewroom-action': action }, body: body && JSON.stringify(body) }),
+    stop: () => cli(['hub', 'stop']),
+  };
+}
 
 export async function reviewEvents(url: string) {
   const abort = new AbortController();

@@ -35,7 +35,7 @@ export async function mountReview(html: string, storage = memoryBackend()) {
     doc.innerHTML = html;
     const app = new ReviewApp(root);
     app.doc = doc;
-    app.meta = { id: 'integration', title: 'Integration review', base: 'base', head: 'head' };
+    app.meta = { routeId: 'integration', title: 'Integration review', base: 'base', head: 'head' };
     app.range = { base: 'base', head: 'head', key: 'all', label: 'All changes' };
     app.provider = new StaticProvider({ meta: app.meta, files: [{ path: 'src/change.ts', status: 'modified', additions: 1, deletions: 1 }], contents: { 'head:src/change.ts': 'export const changed = true;' } });
     app.backend = storage.backend;

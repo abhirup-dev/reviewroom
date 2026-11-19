@@ -8,13 +8,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
-import { isFullSha, makeProvider, type Provider } from './git.ts';
-import { readConfig, reviewArgs, reviewDirArgs, type ReviewConfig } from './config.ts';
+import { isFullSha, makeProvider, remoteHost, type Provider } from './git.ts';
+import { readConfig, reviewArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
-import { ensureHub, reviewId } from './registry.ts';
+import { ensureHub, routeId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
 import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import { formatReviewRepository, parseReviewId, pullUrl } from './review-id.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
 import { tourText } from './slides-file.ts';
@@ -126,7 +127,9 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   const prov = makeProvider(repo, cfg);
   const started = new Date().toISOString(); // a page tells this run from the next one by it
   const clients = new Streams<SSEStreamingApi>();
-  const github = makeGitHub({ repo, dir, cfg, prov, onChange: (snap) => send('github', snap) });
+  const pr = cfg.id ? parseReviewId(cfg.id) : null;
+  const host = (pr && remoteHost(repo, cfg.remote ?? 'origin')) || 'github.com';
+  const github = makeGitHub({ repo, dir, id: pr, host, prov, onChange: (snap) => send('github', snap) });
   const reviewFile = path.join(dir, REPORT_FILE);
   // A reconnecting client reloads when the Git range or either artifact changes.
   // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
@@ -220,8 +223,16 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  // id: the directory hash, the same for direct and proxied access; the assistant and generation only for direct access (ADR 0001)
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), prReviewId: cfg.id, ...(assistant && !c.req.header(VIA_HUB) && { assistant: true, generate: true }) }));
+  // Direct and proxied requests share a route ID. Only direct requests can use the assistant.
+  app.get('/api/meta', (c) => {
+    const meta = prov.meta();
+    return json(c, {
+      ...meta, routeId: routeId(dir), reviewId: cfg.id,
+      repo: pr ? formatReviewRepository(pr) : meta.repo, number: pr?.number,
+      url: pr ? pullUrl(pr, host) : undefined,
+      ...(assistant && !c.req.header(VIA_HUB) && { assistant: true, generate: true }),
+    });
+  });
   if (assistant) {
     app.route('/api/assistant', assistant.app);
     app.route('/api/generate', assistant.generate);
@@ -248,7 +259,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = currentRound(s);
-    return json(c, { prReviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    return json(c, { reviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
@@ -343,7 +354,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const prev = readState(dir);
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
-    const md = feedbackMarkdown(prev, { kind, note, dirArgs: reviewDirArgs(dir), lifecycleArgs: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
+    const md = feedbackMarkdown(prev, { kind, note, target: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
     const rdir = path.join(dir, 'rounds', String(n));
     fs.mkdirSync(rdir, { recursive: true });
     if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));

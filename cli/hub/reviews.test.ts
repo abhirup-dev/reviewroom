@@ -1,16 +1,16 @@
 import { afterAll, expect, test } from 'bun:test';
 import path from 'node:path';
-import { clonePath, generate, generationState, parsePrUrl, serialized } from './reviews.ts';
+import { addPr, clonePath, generate, generationState, serialized } from './reviews.ts';
 import type { ArtifactProgress } from '../../src/kernel/state/progress.shared.ts';
 
-test('a PR URL: GitHub only, and no name that leaves repos/<owner>/', () => {
-  expect(parsePrUrl('https://github.com/acme/demo/pull/7')).toEqual({ owner: 'acme', repo: 'demo', number: 7 });
-  expect(parsePrUrl(' https://github.com/acme/demo.js/pull/12/files?x#y ')).toEqual({ owner: 'acme', repo: 'demo.js', number: 12 });
-  for (const bad of ['', 'acme/demo#7', 'http://github.com/acme/demo/pull/7', 'https://gitlab.com/acme/demo/pull/7', 'https://github.com/acme/../pull/7', 'https://github.com/acme/demo/issues/7', 'https://github.com/a/b/pull/x',
-    // empty, `.` or `..` once `.git` is stripped; characters outside [A-Za-z0-9._-]; a dot-only owner
-    'https://github.com/acme/.git/pull/7', 'https://github.com/acme/..git/pull/7', 'https://github.com/acme/...git/pull/7', 'https://github.com/acme/de%2Fmo/pull/7', 'https://github.com/../demo/pull/7'])
-    expect(parsePrUrl(bad)).toBeNull();
-  expect(parsePrUrl('https://github.com/acme/demo.git/pull/7')).toEqual({ owner: 'acme', repo: 'demo', number: 7 });
+test('Add rejects invalid PR URLs before attempting a clone', async () => {
+  for (const bad of [
+    '', 'acme/demo#7', 'http://github.com/acme/demo/pull/7', 'https://gitlab.com/acme/demo/pull/7',
+    'https://github.com/acme/../pull/7', 'https://github.com/acme/demo/issues/7', 'https://github.com/acme/demo/pull/0',
+    'https://github.com/acme/de%2Fmo/pull/7', 'https://user@github.com/acme/demo/pull/7',
+  ]) {
+    expect(await addPr(bad)).toMatchObject({ ok: false, error: expect.stringContaining('GitHub pull request URL') });
+  }
 });
 
 test('a clone path stays inside <home>/repos', () => {

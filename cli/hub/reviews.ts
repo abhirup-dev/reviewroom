@@ -10,11 +10,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { configPath, readConfig } from '../lib/config.ts';
-import { allReviewFolders, formatReviewId, parseReviewId, pullUrl, reviewFolder } from '../lib/review-id.ts';
-import { answers } from '../lib/lock.ts';
+import { allReviewFolders, formatReviewId, parseReviewId, reviewFolder, type ReviewId } from '../lib/review-id.ts';
 import { homeDir } from '../lib/paths.ts';
 import { readProgress } from '../lib/progress.ts';
-import { liveServer, reviewId, startDetached, type ServerRecord } from '../lib/registry.ts';
+import { routeId, runningServer, startDetached, type ServerRecord } from '../lib/registry.ts';
 import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.shared.ts';
 import type { GenerationState } from '../../src/hub/model.shared.ts';
 import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
@@ -41,7 +40,7 @@ export function generationState({ walkthrough: w, report: r }: Progress): Genera
   return 'idle';
 }
 
-/** A running review's generation state, from its own folder (a custom --dir too); undefined if it can't be read. */
+/** A running review's generation state, from its own folder; undefined if it can't be read. */
 export function generationOf(dir: string): GenerationState | undefined {
   try {
     return generationState(readProgress(dir));
@@ -50,7 +49,7 @@ export function generationOf(dir: string): GenerationState | undefined {
   }
 }
 
-export type DiskReview = { dir: string; id: string; repo: string; title: string | null; number: number | string | null; prUrl: string | null; branch: string | null; generation: GenerationState; hasWork: boolean; updatedAt: string | null };
+export type DiskReview = { dir: string; routeId: string; reviewId?: string; repo: string; title: string | null; branch: string | null; generation: GenerationState; hasWork: boolean; updatedAt: string | null };
 // what Remove would lose; Add writes only config.json, a scaffolded report and the PR snapshot
 const WORK = [WALKTHROUGH_FILE, 'state.json', 'assistant.json', 'rounds'];
 
@@ -63,7 +62,7 @@ export function diskReviews(): DiskReview[] {
       const c = readConfig(dir);
       const generation = generationState(readProgress(dir));
       return [{
-        dir, id: reviewId(dir), repo: c.repoPath ?? '', title: c.title ?? null, number: c.number ?? null, prUrl: c.url ?? (c.id ? pullUrl(parseReviewId(c.id)) : null), branch: c.headLabel ?? c.head ?? null,
+        dir, routeId: routeId(dir), reviewId: c.id, repo: c.repoPath ?? '', title: c.title ?? null, branch: c.headLabel ?? c.head ?? null,
         generation, hasWork: generation !== 'idle' || WORK.some((f) => fs.existsSync(path.join(dir, f))), updatedAt: fs.statSync(file).mtime.toISOString(),
       }];
     } catch {
@@ -73,16 +72,6 @@ export function diskReviews(): DiskReview[] {
 }
 
 // ------------------------------------------------------------ Add a PR
-/** A GitHub pull request URL: owner, repo and number, or null. */
-export function parsePrUrl(v: string): { owner: string; repo: string; number: number } | null {
-  const m = /^https:\/\/github\.com\/([^/?#]+)\/([^/?#]+)\/pull\/(\d{1,9})(?:\/[^?#]*)?(?:[?#].*)?$/.exec(v.trim());
-  if (!m) return null;
-  const [owner, repo] = [m[1], m[2].replace(/\.git$/, '')];
-  // checked after normalizing: each is one path segment under repos/, never empty, `.` or `..`
-  const segment = (s: string) => /^[A-Za-z0-9._-]{1,100}$/.test(s) && !/^\.+$/.test(s);
-  return segment(owner) && segment(repo) ? { owner, repo, number: +m[3] } : null;
-}
-
 /** Where Add a PR clones a repository: `<home>/repos/<owner>/<repo>`, asserted to stay inside `<home>/repos`. */
 export function clonePath(owner: string, repo: string) {
   const root = path.resolve(homeDir(), 'repos');
@@ -103,10 +92,17 @@ const why = (e: unknown) => {
   return line.replace(/^(fatal|error|reviewroom):\s*/i, '');
 };
 
-/** Clones (or fetches) the PR's repository and sets its review up without a server or an agent. The review's id. */
-export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok: true; id: string; dir: string } | { ok: false; error: string }> {
-  const pr = parsePrUrl(url);
-  if (!pr) return { ok: false, error: 'That is not a GitHub pull request URL (https://github.com/<owner>/<repo>/pull/<number>).' };
+/** Clones (or fetches) the PR's repository and sets its review up without a server or an agent. Returns the hub route ID. */
+export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok: true; routeId: string; dir: string } | { ok: false; error: string }> {
+  const raw = url.trim();
+  const page = URL.parse(raw);
+  let pr: ReviewId;
+  try {
+    if (page?.origin !== 'https://github.com' || page.username || page.password) throw new Error('not a GitHub URL');
+    pr = parseReviewId(raw);
+  } catch {
+    return { ok: false, error: 'That is not a GitHub pull request URL (https://github.com/<owner>/<repo>/pull/<number>).' };
+  }
   const dest = clonePath(pr.owner, pr.repo);
   const source = cloneSource(pr.owner, pr.repo);
   try {
@@ -132,10 +128,10 @@ export async function addPr(url: string, entry = process.argv[1]): Promise<{ ok:
   }
   try {
     // the Review ID names the folder: a re-add waits for a Play or close of it, and they for it
-    const id = formatReviewId(parseReviewId(`${pr.owner}/${pr.repo}#${pr.number}`));
-    const dir = reviewFolder(parseReviewId(id));
+    const id = formatReviewId(pr);
+    const dir = reviewFolder(pr);
     await serialized(dir, () => run(process.execPath, [entry, 'pr', id, '--no-agent', '--no-serve', '--no-open', '--repo', dest], { maxBuffer: 1 << 24 }));
-    return { ok: true, id: reviewId(dir), dir };
+    return { ok: true, routeId: routeId(dir), dir };
   } catch (e) {
     return { ok: false, error: `Could not set up the review: ${why(e) || 'reviewroom pr failed'}` };
   }
@@ -176,36 +172,37 @@ export async function generate(rec: Pick<ServerRecord, 'url'>, timeoutMs = 5000)
 /** Play, the built-in path: a running review just opens. A stopped one is marked as the built-in assistant's
  *  (`assistant: true` in its config.json), started, and asked for both documents unless they are validated already.
  *  ("Use my own agent" is the client's: a prompt to paste, and nothing started here.) */
-export async function play(id: string, entry = process.argv[1]): Promise<PlayResult> {
-  const found = diskReviews().find((r) => r.id === id);
+export async function play(route: string, entry = process.argv[1]): Promise<PlayResult> {
+  const found = diskReviews().find((r) => r.routeId === route);
   if (!found) return { ok: false, error: 'No such review on this machine.' };
   // one at a time with other Plays, closes and re-adds of it: only the Play that starts the server asks it to generate,
   // and a later one finds that server and just opens it
   return serialized(found.dir, async (): Promise<PlayResult> => {
-    const review = diskReviews().find((r) => r.id === id); // as it is now, after whatever held the lock before
+    const review = diskReviews().find((r) => r.routeId === route); // as it is now, after whatever held the lock before
     if (!review) return { ok: false, error: 'No such review on this machine.' };
-    const live = liveServer(review.dir);
-    const rec = live && (await answers(live.pid, live.port, 1500)) !== false ? live : null;
+    const rec = await runningServer(review.dir);
     if (rec) return { ok: true, url: rec.url, pid: rec.pid, started: false, generate: null };
     if (!review.repo || !fs.existsSync(review.repo)) return { ok: false, error: `The review's repository is gone: ${review.repo || 'not recorded'}` };
     const file = configPath(review.dir);
     fs.writeFileSync(file, JSON.stringify({ ...(JSON.parse(fs.readFileSync(file, 'utf8')) as object), assistant: true }, null, 2));
-    const started = await startDetached(review.repo, review.dir, ['--no-open'], entry);
-    if (!started) return { ok: false, error: `The review did not start: see ${path.join(review.dir, 'server.log')}` };
-    const gen = review.generation === 'ready' ? null : await generate(started);
-    return { ok: true, url: started.url, pid: started.pid, started: true, generate: gen };
+    try {
+      const { server, started } = await startDetached(review.repo, review.dir, ['--no-open'], entry);
+      const gen = started && review.generation !== 'ready' ? await generate(server) : null;
+      return { ok: true, url: server.url, pid: server.pid, started, generate: gen };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
   });
 }
 
 /** Remove a stopped review: its folder is deleted (the page asked first if it held work). The repository's clone stays:
  *  other reviews may use it. A running one is refused: Close it first. */
-export async function remove(id: string): Promise<{ ok: true } | { ok: false; error: string; status: 404 | 409 }> {
-  const found = diskReviews().find((r) => r.id === id); // the folder comes from disk, never from the request
+export async function remove(route: string): Promise<{ ok: true } | { ok: false; error: string; status: 404 | 409 }> {
+  const found = diskReviews().find((r) => r.routeId === route); // the folder comes from disk, never from the request
   if (!found) return { ok: false, error: 'No such review on this machine.', status: 404 };
   // one at a time with Plays, closes and re-adds of it: a Play waiting behind this finds nothing to start
   return serialized(found.dir, async () => {
-    const live = liveServer(found.dir);
-    if (live && (await answers(live.pid, live.port, 1500)) !== false) return { ok: false, error: 'It is running: Close it first.', status: 409 };
+    if (await runningServer(found.dir)) return { ok: false, error: 'It is running: Close it first.', status: 409 };
     fs.rmSync(found.dir, { recursive: true, force: true });
     return { ok: true };
   });

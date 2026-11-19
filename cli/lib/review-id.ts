@@ -8,14 +8,12 @@ type ReviewRepository = { owner: string; repo: string };
 export type ReviewId = ReviewRepository & { number: number };
 export const formatReviewRepository = ({ owner, repo }: ReviewRepository) => `${owner}/${repo}`;
 export const formatReviewId = (id: ReviewId) => `${formatReviewRepository(id)}#${id.number}`;
-/** The PR's page on github.com (the hub adds PRs from there). */
-export const pullUrl = (id: ReviewId) => `https://github.com/${formatReviewRepository(id)}/pull/${id.number}`;
+export const pullUrl = (id: ReviewId, host = 'github.com') => `https://${host}/${formatReviewRepository(id)}/pull/${id.number}`;
 
 // The optional suffix covers PR subpages, query strings, and comment anchors.
 const PR_URL = /^https?:\/\/[^/]+\/([^/]+\/[^/]+)\/pulls?\/(\d+)(?:[/?#].*)?$/i;
 const PR_NUMBER = /^\d+$/;
 const PULLS = 'pulls';
-export const isReviewUrl = (text: string) => PR_URL.test(text);
 
 function parseReviewRepository(repository: string): ReviewRepository | null {
   const [owner, repo, extra] = repository.toLowerCase().split('/');

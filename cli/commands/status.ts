@@ -2,7 +2,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import type { Global } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { loadConfig, readConfig, reviewDirArgs } from '../lib/config.ts';
+import { loadConfig, readConfig, shellArg } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
 import { awaitingAgent, currentRound } from '../../src/kernel/state/ops.shared.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
@@ -45,5 +45,5 @@ export async function cmdList({ json }: { json?: boolean }) {
   const reviews = sessions.filter((review) => review !== null).sort((a, b) => (a.id ?? a.dir).localeCompare(b.id ?? b.dir));
   if (json) console.log(JSON.stringify(reviews, null, 2));
   else if (!reviews.length) console.log('No running reviews');
-  else for (const { id, dir, url } of reviews) console.log(`${id ?? reviewDirArgs(dir)}\t${url}`);
+  else for (const { id, dir, url } of reviews) console.log(`${shellArg(id ?? dir)}\t${url}`);
 }

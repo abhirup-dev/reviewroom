@@ -48,7 +48,7 @@ function scripted() {
   const gates = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-e2e-gates-'));
   const claude = path.join(gates, 'claude');
   fs.writeFileSync(claude, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
-  const { serve } = setup({ CLAUDE_CODE_EXECUTABLE: claude, REVIEWROOM_TEST_ASSISTANT: path.join(import.meta.dir, 'fake-assistant.ts'), REVIEWROOM_TEST_GATES: gates }, { assistant: true });
+  const { serve } = setup({ env: { CLAUDE_CODE_EXECUTABLE: claude, REVIEWROOM_TEST_ASSISTANT: path.join(import.meta.dir, 'fake-assistant.ts'), REVIEWROOM_TEST_GATES: gates }, assistant: true });
   return { serve, go: (n: 1 | 2) => fs.writeFileSync(path.join(gates, `go-${n}`), '') };
 }
 const live = `(document.querySelector('.rr-gen__live')?.textContent ?? '')`;

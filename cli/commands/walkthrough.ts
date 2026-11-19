@@ -1,8 +1,9 @@
-import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // publish-slides: ship walkthrough.json with the PR, as a comment `reviewroom pr` picks up.
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit, readConfig } from '../lib/config.ts';
-import { prTarget, upsertComment } from '../lib/github.ts';
+import { readConfig } from '../lib/config.ts';
+import { upsertComment } from '../lib/github.ts';
+import { parseReviewId } from '../lib/review-id.ts';
+import { remoteHost } from '../lib/git.ts';
 import { report } from '../lib/links.ts';
 import { BLOCK_MARK, encodeBlock, type Walkthrough } from '../../src/slides/model.shared.ts';
 import { runCheck, schemaReport } from './check.ts';
@@ -18,17 +19,17 @@ export function publishBody(w: Walkthrough, pr?: number) {
 
 type WalkthroughOpts = Global & { dryRun?: boolean; allowStale?: boolean };
 
-export async function cmdPublishSlides(repo: string | null, o: WalkthroughOpts) {
-  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
+export async function cmdPublishSlides(repo: string | null, dir: string, o: WalkthroughOpts) {
   const c = await runCheck(repo, dir, { store: !o.dryRun, notes: false });
   if ('issues' in c) fail(schemaReport(c.issues));
   if (c.bad.length && !o.allowStale) fail(`${c.bad.length} link(s) need attention (fix them, or publish anyway with --allow-stale):\n${report(c.bad)}`);
-  const t = prTarget(readConfig(dir));
+  const cfg = readConfig(dir);
+  const t = cfg.id ? parseReviewId(cfg.id) : null;
   const body = publishBody(c.tour!, t?.number);
   if (o.dryRun) {
     console.log(body);
     return;
   }
   if (!t) fail('this review is not about a GitHub PR (start it with `reviewroom pr <number>`)');
-  console.log(await upsertComment(dir, t, BLOCK_MARK, body));
+  console.log(await upsertComment(repo ?? dir, t, BLOCK_MARK, body, repo ? remoteHost(repo, cfg.remote ?? 'origin') ?? 'github.com' : 'github.com'));
 }

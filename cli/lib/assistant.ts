@@ -77,7 +77,7 @@ export function instructions(repo: string, dir: string, cfg: ReviewConfig, promp
   if (!prompt) throw new Error(`The agent prompt file is empty: ${promptFile}`);
   return `${prompt}\n\nReview instance:\n${JSON.stringify({
     repository: repo, directory: dir, base: cfg.base, head: cfg.head,
-    title: cfg.title, url: cfg.url, number: cfg.number, round: readState(dir).round,
+    title: cfg.title, reviewId: cfg.id, round: readState(dir).round,
   }, null, 2)}\n\nUse the native reviewroom:reviewroom skill before working on this review. Its files are loaded by the session's Review Room plugin.`;
 }
 
@@ -174,13 +174,7 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
     let stopped: Promise<void> | undefined;
     return {
       agent,
-      get session() { return session; },
-      async checkpoint() {
-        if (session.hasUnfinishedTurn()) return; // approvals stay with the harness's active turn
-        const resume = await session.detach();
-        remember(resume);
-        session = await agent.createSession({ sandboxSession: sandbox, sessionId: session.sessionId, resumeFrom: resume });
-      },
+      session,
       stop: () => (stopped ??= session.stop().then(remember).finally(cleanup)),
     };
   } catch (error) {
@@ -188,7 +182,7 @@ async function start({ repo, dir, cfg, settings, store, model }: { repo: string;
     throw error;
   }
 }
-export type Live = Pick<Awaited<ReturnType<typeof start>>, 'agent' | 'session' | 'checkpoint' | 'stop'>;
+export type Live = Pick<Awaited<ReturnType<typeof start>>, 'agent' | 'session' | 'stop'>;
 
 /**
  * A new question carries what the reviewer attached (its quote, validated by AskMetadata) as text before it. Only a
@@ -331,15 +325,8 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
         throw e;
       });
       const current = await live;
-      let result: Awaited<ReturnType<Live['agent']['stream']>>;
-      try {
-        // the harness sends only the last user message to the native session, or continues the paused turn
-        result = await current.agent.stream({ session: current.session, messages, abortSignal: signal });
-      } catch (error) {
-        live = undefined;
-        await current.stop().catch(() => {});
-        throw error;
-      }
+      // The harness sends the last user message, or continues the paused turn.
+      const result = await current.agent.stream({ session: current.session, messages, abortSignal: signal });
       const response = result.toUIMessageStreamResponse({
         originalMessages: valid, generateMessageId: randomUUID,
         // also when the reviewer stops or leaves: the partial answer is saved under the id their window has
@@ -351,14 +338,10 @@ export function assistantRoutes({ repo, dir, cfg, readSettings = readAssistantSe
             if (answer?.role === 'assistant') answer.metadata = { model, resolvedModel: resolved?.modelId };
             s.saved.messages = completed;
             s.saved.status = isAborted || isCancelled ? 'interrupted' : outcome.status === 'failed' ? 'failed' : 'idle';
-            s.write();
             p = !isAborted && !isCancelled && current.session.hasUnfinishedTurn();
-            if (phase.name !== 'closing') await current.checkpoint();
+            s.write();
           } catch (error) {
             console.error(`reviewroom: assistant: ${errorText(error)}`);
-            live = undefined; // recover from the saved checkpoint on the next question
-            p = false;
-            await current.stop().catch(() => {});
           } finally {
             end({ paused: p, aborted: isAborted || isCancelled });
           }

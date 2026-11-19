@@ -5,9 +5,9 @@ import { critLoopbackUrl, isLoopbackHost, normalizeTimestamp, parseStrictPid, pa
 
 describe('classifySession', () => {
   test('reviewroom: a PR, uncommitted changes, a branch', () => {
-    expect(classifySession({ tool: 'reviewroom', mode: 'review', label: 'x', pr: 42 })).toMatchObject({ kind: 'pull-request-review', target: '#42' });
-    expect(classifySession({ tool: 'reviewroom', mode: 'serve', label: null, head: 'worktree' })).toMatchObject({ kind: 'code-review', target: 'uncommitted changes' });
-    expect(classifySession({ tool: 'reviewroom', mode: 'serve', label: null, head: 'feat/a' }).target).toBe('feat/a');
+    expect(classifySession({ tool: 'reviewroom', reviewId: 'acme/demo#42' })).toMatchObject({ kind: 'pull-request-review', target: null });
+    expect(classifySession({ tool: 'reviewroom', head: 'worktree' })).toMatchObject({ kind: 'code-review', target: 'uncommitted changes' });
+    expect(classifySession({ tool: 'reviewroom', head: 'feat/a' }).target).toBe('feat/a');
   });
 
   test('Crit review surfaces from launch args', () => {

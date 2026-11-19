@@ -157,11 +157,11 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.base ||= 'base';
     meta.head ||= 'head';
     const titleId = [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
-    meta.id ||= titleId; // the server sends the directory hash: titles collide once every review shares the hub's origin
-    rekeyStorage(titleId, meta.id);
+    meta.routeId ||= titleId; // the server sends the directory hash: titles collide once every review shares the hub's origin
+    rekeyStorage(titleId, meta.routeId);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
-    app.backend = options.backend ?? (backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.id, seedState ?? undefined, seedTour));
+    app.backend = options.backend ?? (backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.routeId, seedState ?? undefined, seedTour));
     app.state = { ...emptyState(), ...(await app.backend.load()) };
     app.progress = await app.backend.progress?.() ?? app.progress;
     const layouts = app.backend.layouts;

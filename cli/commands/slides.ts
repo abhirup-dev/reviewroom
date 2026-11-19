@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
 import { artifactHash, recordArtifact } from '../lib/progress.ts';
-import { dirForEdit } from '../lib/config.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough } from '../lib/state.ts';
 import { findingReport, judge, type Finding } from '../lib/slide-lint.ts';
@@ -16,9 +15,8 @@ import { runCheck, schemaReport } from './check.ts';
 type SlideOpts = Global & { viewport?: string; theme?: string; out?: string; json?: boolean; chapter?: string; slide?: string; native?: boolean; proseOnly?: boolean; jobs?: string };
 
 
-export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
+export async function cmdSlideLint(repo: string | null, dir: string, o: SlideOpts) {
   const jobs = auditJobs(o.jobs);
-  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
   const checkedHash = artifactHash(dir, 'walkthrough');
   const c = await runCheck(repo, dir, { store: false, estimates: false, select: { chapter: o.chapter, slide: o.slide } });
   if ('issues' in c) fail(schemaReport(c.issues));
@@ -46,8 +44,7 @@ export async function cmdSlideLint(repo: string | null, o: SlideOpts) {
 }
 
 /** `reviewroom shot <chapter>/<step>`: one slide's PNG, and what lint finds on it. */
-export async function shotSlide(repo: string | null, o: SlideOpts, at: string) {
-  const dir = dirForEdit(repo, o.dir, WALKTHROUGH_FILE);
+export async function shotSlide(repo: string | null, dir: string, o: SlideOpts, at: string) {
   const [chapter, step] = at.split('/');
   const w = readWalkthrough(dir);
   if (!w?.ok) fail(w ? schemaReport(w.issues) : `no ${WALKTHROUGH_FILE} in ${dir}`);

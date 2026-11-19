@@ -8,7 +8,7 @@ import { browser, setupSlides } from './fixture.ts';
 
 const { dir, repo, tmp, d, cli, file } = setupSlides();
 const out = path.join(tmp, 'shot-modes');
-const shot = (args: string[]) => cli(['shot', ...args, '--out', out, ...d]);
+const shot = (args: string[]) => cli(['shot', ...d, ...args, '--out', out]);
 const image = (stdout: string) => new Blob([fs.readFileSync(stdout.split('\n')[0])]);
 const pane = (page: Page) => page.evaluate<{ x: number; y: number; width: number; height: number; viewport: [number, number] }>(`(() => {
   const r = document.querySelector('.rr-tour__left').getBoundingClientRect();

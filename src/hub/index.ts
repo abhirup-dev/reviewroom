@@ -50,6 +50,7 @@ const base = (p: string | null) => p?.split('/').filter(Boolean).pop() ?? '';
 /** What the review is about, in a few words. */
 function subject(s: SessionInfo): string {
   if (s.tool === 'reviewroom' && s.label) return s.label;
+  if (s.reviewId) return s.reviewId;
   if (s.target && !/^https?:\/\//.test(s.target)) return base(s.target) || s.target;
   if (s.kind === 'code-review') return s.branch || s.repository || 'Code changes';
   return s.target || s.label || s.project || s.branch || s.repository || base(s.cwd) || s.id;
@@ -118,7 +119,7 @@ async function addPr() {
   addBtn.disabled = false;
   await refresh();
 }
-// opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
+// opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<routeId>/
 const remote = !/^(127\.|localhost$|\[::1\]$)/.test(location.hostname);
 /** Play, the built-in path: start a stopped review with the built-in assistant writing it (unless it is written
  *  already), then open it the way the hub's links open (a new tab; the
@@ -126,14 +127,14 @@ const remote = !/^(127\.|localhost$|\[::1\]$)/.test(location.hostname);
 async function play(s: SessionInfo) {
   notice = { text: `Starting “${subject(s)}”…` };
   paint(true);
-  const r = await fetch(`/api/reviews/${encodeURIComponent(s.reviewId ?? '')}/play`, action('play-review')).catch((e: Error) => e);
+  const r = await fetch(`/api/reviews/${encodeURIComponent(s.routeId ?? '')}/play`, action('play-review')).catch((e: Error) => e);
   type Played = { error?: string; url?: string; generate?: { ok: boolean; started?: boolean; error?: string } | null };
   const body = r instanceof Error ? { error: r.message } : ((await r.json().catch(() => ({}))) as Played);
   if (r instanceof Error || !r.ok || !body.url) {
     notice = { text: body.error ?? 'The review did not start.', risk: true };
     return refresh();
   }
-  const url = remote ? `/r/${s.reviewId}/` : body.url;
+  const url = remote ? `/r/${s.routeId}/` : body.url;
   const g = body.generate;
   notice = g && !g.ok ? { text: `Started, but the assistant is not writing it: ${g.error}`, risk: true } : { text: g?.started ? 'Started; the built-in assistant is writing the walkthrough and report.' : 'Started.' };
   // after the request the click's activation may have expired: a blocked tab gets a link instead
@@ -144,7 +145,7 @@ async function play(s: SessionInfo) {
 }
 /** "Use my own agent": the prompt for an agent the reviewer runs themselves (prompt.ts). The hub starts nothing. */
 function ownAgent(s: SessionInfo) {
-  const text = ownAgentPrompt(s.prUrl ?? s.branch ?? '', s.repoRoot ?? s.cwd ?? '.');
+  const text = ownAgentPrompt(s.reviewId ?? s.reviewPath ?? '', s.repoRoot ?? s.cwd ?? '.');
   const close = () => box.close();
   const copy = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => void navigator.clipboard.writeText(text).then(() => (copy.textContent = 'Copied'), () => (copy.textContent = 'Copy failed: select the text')) }, 'Copy');
   const box = h(
@@ -161,7 +162,7 @@ function ownAgent(s: SessionInfo) {
 /** Remove a stopped review's folder; asks first only if it holds work (documents, threads, the assistant's transcript). */
 function removeReview(s: SessionInfo) {
   const go = async () => {
-    const r = await fetch(`/api/reviews/${encodeURIComponent(s.reviewId ?? '')}/remove`, action('remove-review')).catch((e: Error) => e);
+    const r = await fetch(`/api/reviews/${encodeURIComponent(s.routeId ?? '')}/remove`, action('remove-review')).catch((e: Error) => e);
     const error = r instanceof Error ? r.message : r.ok ? null : (((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'It was not removed.');
     notice = error ? { text: error, risk: true } : { text: `Removed “${subject(s)}”.` };
     selected.delete(s.id);
@@ -244,7 +245,7 @@ document.body.append(
 // ------------------------------------------------------------ filtering and sorting
 function visible(): SessionInfo[] {
   const q = f.q.value.trim().toLowerCase();
-  const text = (s: SessionInfo) => [s.id, s.tool, s.category, s.kind, s.target, s.repository, s.repoRoot, s.branch, s.cwd, s.pid, s.parentAgentPid, s.origin, s.author, s.mode, s.label, s.project].join(' ').toLowerCase();
+  const text = (s: SessionInfo) => [s.id, s.tool, s.category, s.kind, s.reviewId, s.target, s.repository, s.repoRoot, s.branch, s.cwd, s.pid, s.parentAgentPid, s.origin, s.author, s.mode, s.label, s.project].join(' ').toLowerCase();
   const rows = (data?.sessions ?? []).filter(
     (s) =>
       (!q || text(s).includes(q)) &&
@@ -283,7 +284,7 @@ function row(s: SessionInfo) {
       { class: 'rr-hub__subject', title: s.target ?? subject(s) },
       h('div', { class: 'rr-hub__name' }, subject(s)),
       // what the hidden columns said, under the title on narrow screens
-      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, toolMark(s.tool)), h('span', { class: 'rr-hub__sub-text' }, [s.stopped && 'Stopped', s.repository, s.target?.startsWith('#') ? s.target : s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
+      h('div', { class: 'rr-hub__sub' }, h('span', { class: 'rr-hub__sub-tool' }, toolMark(s.tool)), h('span', { class: 'rr-hub__sub-text' }, [s.stopped && 'Stopped', s.reviewId === subject(s) ? null : (s.reviewId ?? s.repository), s.reviewId ? null : s.branch, prettyKind(s.kind)].filter(Boolean).join(' · ')), s.origin ? agent.cloneNode(true) : null),
     ),
     h('td', { class: 'c-state' }, h('span', { class: `rr-pill${s.generation === 'ready' ? ' rr-pill--ok' : ''}`, title: s.stopped ? 'No server runs for this review: Play starts it' : 'Its server is running' }, stateText(s))),
     h(
@@ -398,8 +399,8 @@ async function refresh() {
     const [r, hr] = await Promise.all([fetch('/api/sessions', { cache: 'no-store' }), fetch('/api/health', { cache: 'no-store' })]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = (await r.json()) as HubSnapshot;
-    // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<id>/
-    if (remote) for (const s of data.sessions) [s.url, s.urlNote] = s.reviewId && !s.stopped ? [`/r/${s.reviewId}/`, null] : [null, 'only reachable on the machine itself'];
+    // opened through a front (the public origin): loopback URLs don't reach this machine; reviews go through /r/<routeId>/
+    if (remote) for (const s of data.sessions) [s.url, s.urlNote] = s.routeId && !s.stopped ? [`/r/${s.routeId}/`, null] : [null, 'only reachable on the machine itself'];
     const health = hr.ok ? ((await hr.json()) as { compatibility?: Compat }) : null;
     const compat = Object.entries(health?.compatibility ?? {})
       .filter(([tool, c]) => c.status === 'unverified' || (c.status === 'unavailable' && data!.sessions.some((s) => s.tool === tool)))

@@ -8,7 +8,7 @@ import { browser, setupSlides } from './fixture.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
 const { dir, d, cli, file } = setupSlides();
-const lint = (args: string[]) => cli(['slide-lint', '--json', ...args, ...d]);
+const lint = (args: string[]) => cli(['slide-lint', ...d, '--json', ...args]);
 
 test('a partial check still validates the entire schema, including unselected chapters', async () => {
   const w = JSON.parse(read(file));

@@ -1,34 +1,14 @@
 import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
-import { afterAll, expect, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-import { $ } from 'bun';
 import { until } from '../src/testing/wait.ts';
 import { progressLines } from '../cli/lib/progress.ts';
-import { reviewEvents, runCli } from './transport.ts';
+import { setup } from './fixture.ts';
+import { reviewEvents } from './transport.ts';
 
-// A tiny independent repository: this contract must not depend on demo content.
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-e2e-'));
-const repo = path.join(tmp, 'repo'), dir = path.join(tmp, 'review');
-const env = { ...process.env, REVIEWROOM_HOME: path.join(tmp, 'home') };
-const d = ['--repo', repo, '--dir', dir];
-const cli = (args: string[]) => runCli(env, args);
-afterAll(async () => {
-  await cli(['stop', ...d]);
-  fs.rmSync(tmp, { recursive: true, force: true });
-});
-fs.mkdirSync(repo);
-await $`git -C ${repo} init -b main`.quiet();
-await $`git -C ${repo} config user.name Fixture`.quiet();
-await $`git -C ${repo} config user.email fixture@example.invalid`.quiet();
-fs.writeFileSync(path.join(repo, 'example.ts'), 'export const value = 1;\n');
-await $`git -C ${repo} add .`.quiet();
-await $`git -C ${repo} commit -m initial`.quiet();
-await $`git -C ${repo} checkout -b feature`.quiet();
-fs.writeFileSync(path.join(repo, 'example.ts'), 'export const value = 2;\n');
-await $`git -C ${repo} commit -am update`.quiet();
-const prArgs = ['pr', 'feature', '--base', 'main', '--no-open', '--port', '0', ...d];
+const { tmp, repo, dir, d, cli } = setup({ repo: 'tiny', scaffold: false });
+const prArgs = ['pr', 'feature', '--base', 'main', '--no-open', '--port', '0', '--repo', repo];
 test('pr requests only on creation/force; watcher pushes progress without reload until check passes', async () => {
   const initial = await cli([...prArgs, '--force']);
   expect(initial.code).toBe(0);
@@ -68,7 +48,7 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
     { id: 'change', title: 'Change the value', steps: [{ id: 'value', text: '<p>The value changes from one to two.</p>', ref: 'rr:code/example.ts#L1' }] },
   ] }));
   const log = path.join(dir, 'progress.jsonl');
-  const scoped = await cli(['slide-lint', '--slide', 'change/value', ...d]);
+  const scoped = await cli(['slide-lint', ...d, '--slide', 'change/value']);
   expect(scoped.code).toBe(0);
   expect(progressLines(dir).filter((l) => l.artifact === 'walkthrough' && l.event === 'validated')).toHaveLength(0);
   const full = await cli(['slide-lint', ...d]);
@@ -105,9 +85,9 @@ test('--force --no-agent resets the old generation to idle; a server start stops
 test('a failed setup writes no config.json: a re-run keeps the old one, a new folder gets none (no playable row)', async () => {
   await cli(['stop', ...d]); // pr leaves a running review as it is
   const before = fs.readFileSync(path.join(dir, 'config.json'), 'utf8');
-  expect((await cli(['pr', 'feature', '--base', 'no-such-ref', '--no-serve', ...d])).code).not.toBe(0);
+  expect((await cli(['pr', ...d, '--base', 'no-such-ref', '--no-serve'])).code).not.toBe(0);
   expect(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')).toBe(before);
-  const fresh = path.join(tmp, 'never-set-up');
-  expect((await cli(['pr', 'feature', '--base', 'no-such-ref', '--no-serve', '--repo', repo, '--dir', fresh])).code).not.toBe(0);
+  const fresh = path.join(tmp, 'home', 'reviews', 'repo', 'never-set-up');
+  expect((await cli(['pr', 'never-set-up', '--head', 'feature', '--base', 'no-such-ref', '--no-serve', '--repo', repo])).code).not.toBe(0);
   expect(fs.existsSync(path.join(fresh, 'config.json'))).toBe(false);
 });
