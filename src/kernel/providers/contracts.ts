@@ -61,7 +61,10 @@ export interface BackendEvents {
   /** The live event stream to the server: up or down, and when the server it talks to started (its hello). */
   connection?(c: Connection): void;
   state(s: ReviewState): void;
+  /** The review changed under the page in a way only a reload shows (a new run, the Git range, the report's assets). */
   review(): void;
+  /** Only these documents changed (validated again, or stopped): the page takes them in place. */
+  changed?(documents: ('report' | 'walkthrough')[]): void;
   error(text: string): void;
   /** Some changes failed to save and are being retried (true), or all are saved again (false). */
   unsaved?(on: boolean): void;

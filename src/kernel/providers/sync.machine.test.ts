@@ -29,7 +29,7 @@ const start = (scope: Fixture) => {
   );
   scope.defer(() => a.stop());
   const out: { type: string; text?: string; state?: ReviewState }[] = [];
-  for (const t of ['state', 'error', 'reload'] as const) a.on(t, (e) => void out.push(e));
+  for (const t of ['state', 'error', 'reload', 'changed'] as const) a.on(t, (e) => void out.push(e));
   a.start();
   a.send({ type: 'connect' });
   const reply = async (r: { rev: number } | { rejected: number; error: string } | Error) => {
@@ -129,6 +129,20 @@ test('the stream reconnects after a drop and catches up; a new run reloads once 
   t.a.send({ type: 'hello', hash: 'h2', started: S }); // the report or Git range changed
   expect(t.out.some((e) => e.type === 'reload')).toBe(false);
   await t.reply({ rev: 6 });
+  expect(t.out.filter((e) => e.type === 'reload').length).toBe(1);
+});
+
+test('a document changed alone is taken in place: no reload, the stream stays, a reconnect compares the new hash', async () => {
+  using scope = fixture();
+  const t = start(scope);
+  t.a.send({ type: 'hello', hash: 'h1', started: S });
+  t.a.send({ type: 'review', hash: 'h2', changed: ['report'] });
+  expect([t.out.map((e) => e.type), t.ctx().hash]).toEqual([['changed'], 'h2']);
+  t.a.send({ type: 'down' });
+  t.clock.increment(5000);
+  t.a.send({ type: 'hello', hash: 'h2', started: S });
+  expect(t.out.some((e) => e.type === 'reload')).toBe(false);
+  t.a.send({ type: 'review', hash: 'h3', changed: ['walkthrough', 'assets'] }); // the report's assets: a reload
   expect(t.out.filter((e) => e.type === 'reload').length).toBe(1);
 });
 

@@ -18,7 +18,7 @@ import { pendingArtifact, stageOf, type ArtifactProgress, type Progress, type St
 /** The request pair a progress shows: what the screen's closing and Generate's bridge are keyed on. */
 const requestKey = ({ walkthrough: w, report: r }: Progress) => `${w.request ?? ''}|${r.request ?? ''}`;
 
-/** What a tab keeps over a reload (the server reloads the page when a document stops or lands). */
+/** What a tab keeps over a reload (a new run, a new Git range, or a report change with threads anchored in it). */
 export type Remembered = { closedFor?: string | null; waitedFor?: string | null; played?: string | null };
 type GenerationContext = {
   progress: Progress;

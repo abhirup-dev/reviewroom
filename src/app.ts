@@ -74,6 +74,7 @@ export interface AppEvents extends Record<string, unknown> {
   /** ask the assistant (when the server runs one) about a code range or walkthrough block, with its text if known */
   'ask-assistant': { anchor: Extract<Anchor, { kind: 'code' | 'doc' }>; quote?: string };
   selection: Selection;
+  /** the report came again in place (takeReport, src/review/walkthrough.ts): what reads it reads it again */
   'doc-ready': HTMLElement;
   /** What the reader is in: the deepest section or h3/h4 heading (by id) whose top has passed the reading line. */
   'active-section': string;
@@ -85,6 +86,8 @@ export interface AppEvents extends Record<string, unknown> {
   generation: GenerationSnapshot;
   /** fetch the walkthrough and play it from slide 1, written or not (generation: playable, or "Show it anyway") */
   'walkthrough-show': void;
+  /** the walkthrough changed on the server: fetch it again, open or not (the player keeps its slide where it still exists) */
+  'walkthrough-load': void;
   /** the assistant's conversation changed on the server (a turn started, ended or paused) */
   'assistant-turn': void;
   /** the page's live event stream to its server went up or down (ServerState's own, not the round's badge) */

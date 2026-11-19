@@ -488,6 +488,14 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     actor.send({ type: 'load', doc: w });
     open();
   }));
+  app.onDispose(app.bus.on('walkthrough-load', async () => {
+    const w = decodeWalkthrough(await app.backend.walkthrough?.().catch(() => null));
+    if (disposed || !w) return;
+    app.walkthrough = 'version' in w ? w : null;
+    app.walkthroughIssues = 'issues' in w ? w.issues : null;
+    actor.send({ type: 'load', doc: app.walkthrough });
+    app.bus.emit('walkthrough', app.walkthrough);
+  }));
   const bootOpen = autoOpen();
   const loaded = app.backend.walkthrough?.().then(
     (input) => {

@@ -185,9 +185,12 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
       if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
       if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
       send('progress', progress());
-      // reload when a file's content shows something new, never when it goes back to pending (the page shows that live)
+      // a file's content shows something new, never when it goes back to pending (the page shows that live): the page
+      // takes a document in place, and reloads for anything else (`changed` says which)
       const next = parts();
-      if (next.some((p, i) => p !== last[i] && p !== 'pending') || [...files].some((f) => /\.(css|js|svg|png)$/.test(f))) send('review', { hash: hash(next) });
+      const changed = (['report', 'walkthrough'] as const).filter((_, i) => next[i] !== last[i] && next[i] !== 'pending');
+      const assets = [...files].some((f) => /\.(css|js|svg|png)$/.test(f));
+      if (changed.length || assets) send('review', { hash: hash(next), changed: assets ? [...changed, 'assets'] : changed });
       last = next;
       if (files.has(REPORT_FILE) || files.has(WALKTHROUGH_FILE)) checkNarrative();
     });

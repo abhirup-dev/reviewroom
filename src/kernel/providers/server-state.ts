@@ -74,7 +74,7 @@ export class ServerState implements StateBackend {
             es.addEventListener('assistant', () => this.onAssistant?.());
             es.addEventListener('hello', (e) => sendBack({ type: 'hello', ...JSON.parse(e.data) }));
             es.addEventListener('state', (e) => sendBack({ type: 'state', state: JSON.parse(e.data) }));
-            es.addEventListener('review', () => sendBack({ type: 'review' }));
+            es.addEventListener('review', (e) => sendBack({ type: 'review', ...JSON.parse(e.data || '{}') }));
             es.addEventListener('github', (e) => sendBack({ type: 'github', snapshot: JSON.parse(e.data) }));
             es.onerror = () => sendBack({ type: 'down' });
             return () => es.close();
@@ -107,6 +107,7 @@ export class ServerState implements StateBackend {
       sync.on('error', (e) => on.error(e.text)),
       sync.on('github', (e) => on.github?.(e.snapshot)),
       sync.on('reload', () => on.review()),
+      sync.on('changed', (e) => on.changed?.(e.changed.filter((c) => c !== 'assets'))),
     );
     let unsaved = false;
     let status: 'approved' | 'offline' | null = null;

@@ -55,38 +55,28 @@ function scripted() {
 const live = `(document.querySelector('.rr-gen__live')?.textContent ?? '')`;
 const panel = `(document.querySelector('.rr-assistant__island')?.textContent ?? '')`;
 const box = `document.querySelector('.rr-assistant__island textarea')`;
-// the walkthrough landing reloads the page (main.ts, `review`): a wait that the reload cuts short is asked again
-async function across(page: Page, cond: string, ms = 15_000) {
-  const t0 = Date.now();
-  for (;;) {
-    try {
-      return await until(page, cond, Math.max(500, ms - (Date.now() - t0)));
-    } catch (e) {
-      if ((!String(e).includes('navigated') && !String(e).includes('is not defined')) || Date.now() - t0 > ms) throw e;
-      await Bun.sleep(200);
-    }
-  }
-}
 const closePlayer = `document.querySelector('.rr-tour__top [aria-label="Close the walkthrough"], .rr-tour__top [title="Close the walkthrough"]')?.click()`;
-/** Lets the walkthrough pass (`go(1)`): it plays, and one Close leaves it closed; then the panel. `reloads`: nothing holds
- *  the review reload it brings (no composer on the page yet), so it is waited for. */
-async function pastPlayer(page: Page, go: () => void, reloads = false) {
+/** Lets the walkthrough pass (`go(1)`): it plays, with no reload (the page takes it as data), and one Close leaves it
+ *  closed; then the panel. */
+async function pastPlayer(page: Page, go: () => void) {
   await page.evaluate(`window.rrBeforeReload = true`);
   go();
-  await across(page, `rr.app && ${reloads ? '!window.rrBeforeReload && ' : ''}rr.app.generation?.context.progress.walkthrough.state === 'validated' && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`);
+  await until(page, `rr.app.generation?.context.progress.walkthrough.state === 'validated' && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`, 15_000);
+  expect(await page.evaluate<boolean>(`!!window.rrBeforeReload`)).toBe(true);
   await page.evaluate(closePlayer);
   await until(page, `document.querySelector('.rr-tour').dataset.mode === 'closed' && !location.search.includes('walkthrough')`);
-  await across(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);
+  await until(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);
   expect(await page.evaluate<string>(`document.querySelector('.rr-tour').dataset.mode`)).toBe('closed'); // nothing reopened it
   // the walkthrough passed, the report not yet: its panel says so
   await until(page, `[...document.querySelectorAll('.rr-narrative > .rr-empty')].some((e) => !e.hidden && e.textContent.includes('The report is being written'))`);
 }
-/** Lets the turn end (`go(2)`), then the same conversation answers a question. The review reload the turn held (main.ts:
- *  the documents changed) comes as it ends: after it, the player closed before stays closed and one send is answered. */
+/** Lets the turn end (`go(2)`), then the same conversation answers a question. The report comes in place, with no
+ *  reload: the player closed before stays closed and one send is answered. */
 async function followUp(page: Page, go: () => void) {
-  await page.evaluate(`window.rrBeforeReload = true`);
+  await page.evaluate(`window.rrOldReport = rr.app.doc.firstChild`);
   go();
-  await across(page, `rr.app && !window.rrBeforeReload && ${panel}.includes('Both pass.') && !document.querySelector('[data-rr-assistant-running]')`, 20_000);
+  await until(page, `${panel}.includes('Both pass.') && !document.querySelector('[data-rr-assistant-running]') && !rr.app.doc.contains(window.rrOldReport) && !document.querySelector('.rr-narrative-scroll').hidden`, 20_000);
+  expect(await page.evaluate<boolean>(`!!window.rrBeforeReload`)).toBe(true);
   expect(await page.evaluate<boolean>(`document.querySelector('.rr-tour')?.dataset.mode !== 'playing'`)).toBe(true);
   await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'what changed?')`);
   await page.evaluate(`[...document.querySelectorAll('.rr-assistant__island button')].find((b) => b.textContent === 'Send' && !b.disabled).click()`);
@@ -109,7 +99,7 @@ describe('the golden path: Generate, the loading screen, the walkthrough plays, 
       await until(page, `[...document.querySelectorAll('.rr-assistant__island button')].some((b) => b.textContent === 'Stop' && !b.disabled)`);
       await page.evaluate(`rr.app.dock.getPanel('assistant').api.close()`);
       await until(page, `document.querySelector('.rr-gen').hidden`);
-      await pastPlayer(page, () => go(1), true);
+      await pastPlayer(page, () => go(1));
       await followUp(page, () => go(2));
       // a draft typed in the panel survives the conversation being taken again (the server's event)
       await page.evaluate(`${box}.focus(), document.execCommand('insertText', false, 'half a thought')`);

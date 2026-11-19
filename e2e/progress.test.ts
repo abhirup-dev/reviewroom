@@ -26,7 +26,7 @@ test('pr requests only on creation/force; watcher pushes progress without reload
     }
     expect(stream.events.filter((e) => e.event === 'review')).toHaveLength(0);
     expect((await cli(['check', ...d])).code).toBe(0);
-    await stream.find('review');
+    expect(JSON.parse((await stream.find('review')).data).changed).toEqual(['report']); // the page takes it in place
     expect((await fetch(url + 'api/progress').then((r) => r.json())).report.state).toBe('validated');
     fs.appendFileSync(path.join(dir, REPORT_FILE), '<!-- another save -->');
     await until(async () => (await fetch(url + 'api/progress').then((r) => r.json())).report.state === 'writing');

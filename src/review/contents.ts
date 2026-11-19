@@ -23,6 +23,7 @@ class TocPanel implements PanelInstance {
     this.offs.push(
       app.bus.on('state', r),
       app.bus.on('prefs', r),
+      app.bus.on('doc-ready', r),
       app.bus.on('active-section', (id) => {
         this.active = id;
         this.mark();

@@ -13,7 +13,7 @@ import cssText from './bundle.css' with { type: 'text' };
 import { canInstall, install } from './kernel/install'; // first: it listens for Chrome's install prompt
 import { h } from './kernel/dom';
 import { loadRaw, rekeyStorage } from './kernel/store';
-import { anchorOf, parseRef, formatRef } from './kernel/refs/refs.shared';
+import { anchorOf, parseRef, formatRef, PR_DESCRIPTION } from './kernel/refs/refs.shared';
 import { renderMarkdown } from './kernel/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './kernel/state/model.shared';
 import { ReviewApp } from './app';
@@ -42,7 +42,7 @@ import { mountWalkthrough, renderWalkthroughPreview } from './slides/player';
 import { renderPreview, registerPreviewExtensions } from './review/previews';
 import { provideFocusCode } from './review/focus';
 import { openInNewPanel } from './review/code';
-import { registerWalkthroughExtension } from './review/walkthrough';
+import { registerWalkthroughExtension, takeReport } from './review/walkthrough';
 import { mountGeneration } from './review/generation';
 import './review/code';
 import './review/files';
@@ -212,6 +212,11 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.onDispose(app.commands.attach(document));
 
+  const reloadReview = () => {
+    if (!options.reload) return wantReload('review', 'the review changed');
+    keepScroll();
+    options.reload();
+  };
   app.backend.subscribe?.({
     // generation (review/generation.ts) decides what it means
     progress: (p) => {
@@ -228,11 +233,15 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     status: (s) => (['approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
     connection: (c) => app.bus.emit('connection', c),
     github: (s) => app.services.github.set(s),
-    // the backend has let a save in flight finish first
-    review: () => {
-      if (app.meta.assistant && !options.reload) return wantReload('review', 'the walkthrough changed');
-      keepScroll();
-      (options.reload ?? (() => location.reload()))();
+    // the backend has let a save in flight finish first; held while the reader is busy (pwa.ts busy(): the loading
+    // screen and the playing walkthrough among it)
+    review: reloadReview,
+    // a document in place: the walkthrough as the player's data, the report swapped in, unless threads are anchored in it
+    changed: (docs) => {
+      if (docs.includes('walkthrough')) app.bus.emit('walkthrough-load', undefined);
+      if (!docs.includes('report')) return;
+      if (app.state.threads.some((t) => t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)) return reloadReview();
+      void takeReport(app).then((ok) => ok || reloadReview());
     },
   });
   restoreScroll();
