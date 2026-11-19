@@ -35,6 +35,16 @@ export type Progress = Record<Artifact, ArtifactProgress> & { generation?: { run
 export const ARTIFACTS: readonly Artifact[] = ['walkthrough', 'report'];
 /** Generation is under way: someone was asked and has not finished. */
 export const pendingArtifact = (p: ArtifactProgress) => p.state === 'requested' || p.state === 'writing';
+export type Stage = 'idle' | 'starting' | 'writing' | 'playable' | 'done' | 'stopped' | 'report-stopped';
+/** Where generation stands. A stop wins over all but both validated; `report-stopped`: only the report, once the
+ *  walkthrough is validated (said where the report goes, never on the loading screen). */
+export function stageOf({ walkthrough: w, report: r }: Progress): Stage {
+  if (w.state === 'validated' && r.state === 'validated') return 'done';
+  if (w.state === 'stopped' || r.state === 'stopped') return w.state === 'validated' ? 'report-stopped' : 'stopped';
+  if (pendingArtifact(w)) return w.state === 'requested' ? 'starting' : 'writing';
+  if (pendingArtifact(r)) return w.state === 'validated' ? 'playable' : r.state === 'requested' ? 'starting' : 'writing';
+  return w.state === 'idle' && r.state === 'idle' ? 'idle' : 'done';
+}
 /** Pending assistant work, with the request to stop: what a starting server stops as `interrupted` (its turn died with
  *  the previous server), and what an ended generation turn stops (never an agent's request made since). */
 export const pendingAssistantWork = (progress: Progress) =>

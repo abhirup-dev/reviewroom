@@ -3,6 +3,7 @@
 // assistant-ui on AI SDK); nothing loads React until it opens. Ask actions elsewhere show only once this registered.
 import { h } from '../kernel/dom';
 import { errorText } from '../kernel/errors.shared';
+import { stageOf } from '../kernel/state/progress.shared';
 import { addPanelAt, definePanel, showPanel } from '../kernel/dock';
 import type { ReviewApp } from '../app';
 import { askRef, excerptLines, type AskContext } from './context.shared';
@@ -42,7 +43,7 @@ export function registerAssistant(app: ReviewApp) {
       const suggest = h('div', { class: 'rr-assistant__suggest', hidden: true }, h('span', null, 'No walkthrough or report yet.'), h('button', { class: 'rr-btn rr-btn--primary', onclick: () => app.commands.run('generation.generate') }, 'Generate them'));
       const paintSuggest = () => {
         const c = app.commands.get('generation.generate');
-        suggest.hidden = !(app.generation?.matches({ stage: 'idle' }) && c && (!c.when || c.when()));
+        suggest.hidden = !(app.generation && stageOf(app.generation.context.progress) === 'idle' && c && (!c.when || c.when()));
       };
       paintSuggest();
       const element = h('div', { class: 'rr-side rr-assistant' }, suggest, island);

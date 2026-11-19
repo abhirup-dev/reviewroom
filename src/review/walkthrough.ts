@@ -6,7 +6,7 @@
 //  - select text to comment on a quote
 //  - threads show as passive highlights + chips in a right-hand margin rail
 // The same panel shows the PR's description (read-only, from GitHub) with the same commenting.
-import { generateOffered, reportStopped, reportWaiting } from './generation.machine';
+import { generateOffered, reportWaiting, stageIn } from './generation.machine';
 import { avatarUrl, h, icon, copyText, debounce, relTime, threadBadge } from '../kernel/dom';
 import { PR_DESCRIPTION, parseRef } from '../kernel/refs/refs.shared';
 import { linkedSymbol } from './symbols';
@@ -100,7 +100,7 @@ class WalkthroughPanel implements PanelInstance {
     // generation (generation.ts) says when the report is still being written, or stopped
     const progress = () => {
       const g = !isDesc ? app.generation : undefined;
-      const waiting = !!g && reportWaiting(g), halted = !!g && reportStopped(g) === true;
+      const waiting = !!g && reportWaiting(g), halted = !!g && stageIn(g) === 'report-stopped';
       writing.hidden = !waiting;
       stopped.hidden = !halted;
       retry.hidden = !(g && generateOffered(g));

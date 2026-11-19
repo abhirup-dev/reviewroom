@@ -73,7 +73,7 @@ const closePlayer = `document.querySelector('.rr-tour__top [aria-label="Close th
 async function pastPlayer(page: Page, go: () => void, reloads = false) {
   await page.evaluate(`window.rrBeforeReload = true`);
   go();
-  await across(page, `rr.app && ${reloads ? '!window.rrBeforeReload && ' : ''}rr.app.generation?.matches({ stage: 'playable' }) && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`);
+  await across(page, `rr.app && ${reloads ? '!window.rrBeforeReload && ' : ''}rr.app.generation?.context.progress.walkthrough.state === 'validated' && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`);
   await page.evaluate(closePlayer);
   await until(page, `document.querySelector('.rr-tour').dataset.mode === 'closed' && !location.search.includes('walkthrough')`);
   await across(page, `rr.app && (${panel}.includes('The walkthrough passes.') || (rr.app.commands.run('assistant.open'), false))`);

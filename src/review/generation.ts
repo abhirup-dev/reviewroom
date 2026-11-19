@@ -2,11 +2,43 @@
 // walkthrough is being written (or after a stop), the header indicator once that screen is closed, Generate and Retry.
 // Everything else that cares (the report's placeholder, the headers, the assistant panel) reads `app.generation` on
 // the bus's `generation` event.
-import { createActor } from 'xstate';
+import { createActor, fromPromise } from 'xstate';
 import type { ReviewApp } from '../app';
 import { h, icon } from '../kernel/dom';
-import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, reportStopped, screenShown, stageIn, statusText, type GenerationSnapshot, type Remembered } from './generation.machine';
-import { generationSteps, type GenStep } from './generation-steps';
+import type { ArtifactProgress, Progress } from '../kernel/state/progress.shared';
+import { awaitingApproval, generateOffered, generationMachine, indicatorShown, remembered, screenShown, stageIn, statusText, type GenerationSnapshot, type Remembered } from './generation.machine';
+
+// The loading screen's steps, from the progress alone. A step never moves backwards: each new save of the walkthrough
+// is one more pass under "Checking the slides".
+type StepState = 'done' | 'current' | 'upcoming' | 'stopped';
+type StepId = 'read-write' | 'check' | 'ready' | 'report';
+type PassRow = { text: string; state: Exclude<StepState, 'upcoming'> };
+type GenStep = { id: StepId; title: string; detail: string; state: StepState; passes?: PassRow[] };
+
+const counts = (p: { slides?: number; chapters?: number }) => (p.slides === undefined ? '' : `${p.slides} slides in ${p.chapters ?? 0} chapters`);
+const stopText = (p: ArtifactProgress) => (p.reason === 'interrupted' ? 'Stopped: the review restarted' : 'Stopped before it passed the check');
+
+function generationSteps({ walkthrough: w, report: r }: Progress): GenStep[] {
+  const passes = w.passes ?? [];
+  const stopped = w.state === 'stopped';
+  // how far the walkthrough is: 0 reading and writing (until its first save), 1 checking, 3 past ready (a walkthrough
+  // validated, or kept from the PR)
+  const at = w.state === 'validated' ? 3 : passes.length ? 1 : 0;
+  const state = (i: number): StepState => (i < at ? 'done' : i > at ? 'upcoming' : stopped ? 'stopped' : 'current');
+  const rows = passes.map((p, i): PassRow => {
+    const last = i === passes.length - 1;
+    const [label, s]: [string, PassRow['state']] = !last ? ['revised', 'done'] : at === 3 ? ['passed', 'done'] : stopped ? ['did not pass', 'stopped'] : ['checking', 'current'];
+    return { text: [`Pass ${i + 1}`, counts(p), label].filter(Boolean).join(' · '), state: s };
+  });
+  const first = state(0) === 'stopped' ? stopText(w) : passes[0] ? `First draft · ${counts(passes[0])}` : 'The first draft';
+  const report: StepState = at < 3 ? 'upcoming' : r.state === 'validated' ? 'done' : r.state === 'stopped' ? 'stopped' : r.state === 'idle' ? 'upcoming' : 'current';
+  return [
+    { id: 'read-write', title: 'Reading the change and writing the walkthrough', detail: first, state: state(0) },
+    { id: 'check', title: 'Checking the slides', detail: state(1) === 'stopped' ? stopText(w) : passes.length > 1 ? `${passes.length} passes` : 'Every save is checked', state: state(1), ...(rows.length && { passes: rows }) },
+    { id: 'ready', title: 'Walkthrough ready', detail: at === 3 ? counts(w) || 'Ready' : 'The player opens here', state: state(2) },
+    { id: 'report', title: 'Writing the report', detail: report === 'stopped' ? stopText(r) : report === 'done' ? 'Ready' : report === 'current' ? 'Being written' : 'Continues in the review', state: report },
+  ];
+}
 
 /** "1m 40s": how long ago `iso` was (elapsed only, never an estimate). */
 const ago = (iso: string | undefined) => {
@@ -59,9 +91,9 @@ const headerOf = (app: ReviewApp) => header.get(app) ?? (header.set(app, { indic
 
 function paintIndicator(el: HTMLButtonElement, s: GenerationSnapshot) {
   const stage = stageIn(s);
-  const label = stage === 'stopped' ? (reportStopped(s) ? 'Report not finished' : 'Generation stopped') : stage === 'playable' ? 'Writing the report' : 'Generating';
-  el.classList.toggle('is-stopped', stage === 'stopped');
-  el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : reportStopped(s) ? 'Show the report' : 'Show the progress'}`;
+  const label = stage === 'report-stopped' ? 'Report not finished' : stage === 'stopped' ? 'Generation stopped' : stage === 'playable' ? 'Writing the report' : 'Generating';
+  el.classList.toggle('is-stopped', stage === 'stopped' || stage === 'report-stopped');
+  el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : stage === 'report-stopped' ? 'Show the report' : 'Show the progress'}`;
   if (el.classList.contains('rr-hbtn--icon')) el.setAttribute('aria-label', label);
   else el.lastElementChild!.textContent = label;
 }
@@ -71,26 +103,22 @@ export function mountGeneration(app: ReviewApp) {
   const KEY = `reviewroom:generation:${app.meta.routeId}`;
   let kept: Remembered = {};
   try { kept = JSON.parse(sessionStorage.getItem(KEY) ?? '{}') as Remembered; } catch { /* storage off, or not ours */ }
-  const actor = createActor(generationMachine, { input: { canGenerate: !!app.meta.generate, ...kept } });
+  // the POST's answer only settles the request: what happens to it comes over SSE
+  const post = fromPromise(async () => {
+    const r = await app.backend.generate?.().catch(() => undefined);
+    if (r?.ok) return r.started;
+    throw new Error(refused(r ?? {}));
+  });
+  const actor = createActor(generationMachine.provide({ actors: { generate: post } }), { input: { canGenerate: !!app.meta.generate, ...kept } });
   const snap = () => actor.getSnapshot();
-  const generate = async () => {
-    if (!generateOffered(snap()) || !app.backend.generate) return;
-    actor.send({ type: 'generate' });
-    const { attempt } = snap().context;
-    const r = await app.backend.generate().catch(() => ({ ok: false as const, code: undefined }));
-    if (snap().context.attempt !== attempt) return; // an earlier press's answer: nothing to settle, nothing to say
-    // the answer only settles the request: what happens to it comes over SSE
-    if (r.ok) return actor.send({ type: 'generated', attempt, started: r.started });
-    const error = refused(r);
-    actor.send({ type: 'failed', attempt, error });
-    if (!screenShown(snap())) app.toast(error, 'error'); // the screen shows it already
-  };
+  const generate = () => actor.send({ type: 'generate' });
+  actor.on('refused', ({ error }) => { if (!screenShown(snap())) app.toast(error, 'error'); }); // the screen shows it already
   const dismiss = () => actor.send({ type: 'dismiss' });
   // in playable the screen has nothing left to show: the indicator plays the walkthrough; a stopped report is shown
   // (with Retry) where the report goes
   const show = () => {
     if (stageIn(snap()) === 'playable') return app.bus.emit('walkthrough-open', {});
-    if (reportStopped(snap())) return void app.showPanel('narrative');
+    if (stageIn(snap()) === 'report-stopped') return void app.showPanel('narrative');
     actor.send({ type: 'reopen' });
   };
 
@@ -106,7 +134,7 @@ export function mountGeneration(app: ReviewApp) {
   const approval = h('p', { class: 'rr-gen__note' }, 'The assistant is waiting for your approval. ', openAssistant);
   const error = h('p', { class: 'rr-gen__error', role: 'alert' });
   const btn = (label: string, onclick: () => void) => h('button', { class: 'rr-btn', onclick }, label);
-  const retry = btn('Retry', () => void generate());
+  const retry = btn('Retry', generate);
   const soFar = btn('Peek at the walkthrough', () => { dismiss(); app.bus.emit('walkthrough-show', undefined); });
   const cont = btn('Continue to the review', dismiss);
   const added = app.files.reduce((n, f) => n + f.additions, 0), deleted = app.files.reduce((n, f) => n + f.deletions, 0);
@@ -222,7 +250,7 @@ export function mountGeneration(app: ReviewApp) {
   app.onDispose(() => { actor.stop(); screen.remove(); });
 
   app.commands.register(
-    { id: 'generation.generate', title: 'Generate the walkthrough and report', group: 'Navigate', hint: 'The built-in assistant writes both', when: () => generateOffered(snap()), run: () => void generate() },
+    { id: 'generation.generate', title: 'Generate the walkthrough and report', group: 'Navigate', hint: 'The built-in assistant writes both', when: () => generateOffered(snap()), run: generate },
     { id: 'generation.show', title: 'Show generation progress', group: 'Navigate', when: () => indicatorShown(snap()), run: show },
   );
 }
