@@ -12,14 +12,15 @@ const imported = (): ProgressLine => ({ at, artifact: 'walkthrough', event: 'val
 
 const stale = (h: string): ProgressLine => ({ at, artifact: 'walkthrough', event: 'stopped', reason: 'failed', request: 'assistant-1', stale: h });
 const H = { walkthrough: hash }, EDITED = { walkthrough: 'b'.repeat(64) };
-const STOPPED = [requested('assistant'), line('written'), stopped('failed', 'assistant-1')];
-const VALIDATED = [requested('assistant'), line('validated')];
+// an assistant's walkthrough run: requested, read, saved, then stopped or validated
+const STOPPED = [requested('assistant'), read(), line('written'), stopped('failed', 'assistant-1')];
+const VALIDATED = [requested('assistant'), read(), line('validated')];
 
 test.each<[string, ProgressLine[], Partial<Record<Doc, string>>, GenerationState]>([
   ['nothing requested', [], {}, 'idle'],
   ['legacy: a validation with nothing requested', [line('validated')], H, 'idle'],
   ['legacy: a stop with nothing requested', [stopped('failed', 'agent-1')], {}, 'idle'],
-  ['written under a request', [requested('assistant'), line('written')], {}, 'writing'],
+  ['fallback (older skill, no read): a save ends reading', [requested('assistant'), line('written')], {}, 'writing'],
   ['read under its request: writing before any save', [requested('assistant'), read()], {}, 'writing'],
   ['a late read never lands on a newer request', [requested('assistant'), requested('agent'), read()], {}, 'requested'],
   ['a read leaves a validation alone', [...VALIDATED, read()], H, 'validated'],
@@ -37,7 +38,7 @@ test.each<[string, ProgressLine[], Partial<Record<Doc, string>>, GenerationState
   ['a stop naming another validation does not', [...VALIDATED, stale('c'.repeat(64))], EDITED, 'writing'],
   ['reset, whatever it was', [...VALIDATED, reset()], H, 'idle'],
   ['a save after a reset', [requested('agent'), reset(), line('written')], {}, 'idle'],
-  ['a new request after a validation', [requested(), line('validated'), requested()], {}, 'requested'],
+  ['a new request after a validation', [...VALIDATED, requested()], {}, 'requested'],
   ['a PR import counts with nothing requested (pr --no-agent)', [imported()], H, 'validated'],
   ['a PR import after a reset', [reset(), imported()], H, 'validated'],
   ['a PR import edited since: idle, never pending', [imported()], EDITED, 'idle'],
@@ -47,13 +48,12 @@ test.each<[string, ProgressLine[], Partial<Record<Doc, string>>, GenerationState
 
 test('a document carries who was asked, the request, what was written, and the stale validation', () => {
   expect(reduceProgress([requested('assistant')], {}).walkthrough).toEqual({ state: 'requested', by: 'assistant', request: 'assistant-1', since: at });
-  expect(reduceProgress(STOPPED, {}).walkthrough).toMatchObject({ state: 'stopped', reason: 'failed', by: 'assistant', request: 'assistant-1', hash });
+  expect(reduceProgress([...STOPPED.slice(0, 2), read(), ...STOPPED.slice(2)], {}).walkthrough).toMatchObject({ state: 'stopped', reason: 'failed', by: 'assistant', request: 'assistant-1', hash, read: true, passes: [{ at }] }); // read kept through a save and a stop; twice is once
   expect(reduceProgress(VALIDATED, EDITED).walkthrough).toMatchObject({ state: 'writing', stale: hash });
   expect(reduceProgress([imported()], H).walkthrough).toEqual({ state: 'validated', hash, source: 'pr' });
-  expect(reduceProgress([requested('assistant'), read(), read(), line('written'), stopped('failed', 'assistant-1')], {}).walkthrough).toMatchObject({ state: 'stopped', read: true, passes: [{ at }] }); // kept through saves and a stop; twice is once
 });
 test('pending assistant work names its request; an agent request made since is not the assistant\'s to stop', () => {
-  expect(pendingAssistantWork(reduceProgress([requested('assistant'), line('written'), requested('agent', 'report')], {}))).toEqual([{ artifact: 'walkthrough', request: 'assistant-1' }]);
+  expect(pendingAssistantWork(reduceProgress([requested('assistant'), read(), line('written'), requested('agent', 'report')], {}))).toEqual([{ artifact: 'walkthrough', request: 'assistant-1' }]);
   expect(pendingAssistantWork(reduceProgress(STOPPED, {}))).toEqual([]);
   expect(pendingAssistantWork(reduceProgress(VALIDATED, EDITED))).toEqual([{ artifact: 'walkthrough', request: 'assistant-1', stale: hash }]); // edited since: a stop names it
   expect(pendingAssistantWork(reduceProgress([requested('assistant'), requested('agent')], {}))).toEqual([]);
@@ -64,7 +64,7 @@ test('malformed and partial lines are ignored; a by-less request was an agent\'s
 });
 test('each save with new bytes under a request is a pass; validating the same bytes is not; a new request starts over', () => {
   const save = (h: string, slides: number, event: 'written' | 'validated' = 'written'): ProgressLine => ({ at, artifact: 'walkthrough', event, hash: h.repeat(64), slides, chapters: 3 });
-  const lines = [requested('assistant'), save('a', 7), save('b', 8), save('b', 8, 'validated')];
+  const lines = [requested('assistant'), read(), save('a', 7), save('b', 8), save('b', 8, 'validated')];
   expect(reduceProgress(lines, { walkthrough: 'b'.repeat(64) }).walkthrough).toMatchObject({ state: 'validated', since: at, passes: [{ at, slides: 7, chapters: 3 }, { at, slides: 8, chapters: 3 }] });
   expect(reduceProgress([...lines, requested('assistant', 'walkthrough', 'assistant-2')], {}).walkthrough.passes).toBeUndefined();
   expect(reduceProgress([imported()], { walkthrough: hash }).walkthrough.passes).toBeUndefined(); // nothing requested: no passes

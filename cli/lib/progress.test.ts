@@ -64,6 +64,7 @@ test('stale after the PR moved: each document by its own validation head, never 
   inTemp((dir) => {
     docs(dir);
     requestGeneration(dir, 'agent', A);
+    recordRead(dir);
     recordArtifact(dir, 'walkthrough', 'validated', { head: A });
     recordArtifact(dir, 'report', 'validated', { head: B });
     expect(staleArtifacts(dir, B)).toEqual(['walkthrough']);
