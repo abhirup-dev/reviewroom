@@ -153,7 +153,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     meta.base ||= 'base';
     meta.head ||= 'head';
     const titleId = [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
-    meta.id ||= titleId; // the server sends its review id: titles collide once every review shares the hub's origin
+    meta.id ||= titleId; // the server sends the directory hash: titles collide once every review shares the hub's origin
     rekeyStorage(titleId, meta.id);
     app.meta = meta;
     if (!document.title) document.title = meta.title;

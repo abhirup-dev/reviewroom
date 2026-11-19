@@ -37,7 +37,7 @@ Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
 3. The agent gets structured feedback, replies per thread, adds `data-round="2"` sections for bigger
    answers, changes code, and waits again. Your open tab reconnects and shows round 2.
 
-Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch-or-pr-n>/`:
+Everything is kept outside the repo, in `~/.reviewroom/reviews/`:
 what the agent writes ([review artifacts](docs/review-artifacts.md)) and [reviewroom's own state](docs/review-state.md):
 threads, rounds, viewed files and the panels as you left them. Browse old rounds from the **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 

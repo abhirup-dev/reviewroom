@@ -20,7 +20,7 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 ## The review directory
 
 `reviewroom pr` creates the review directory and, in it, the report from the review's report profile.
-`reviewroom status --json --dir <dir>` gives the directory and the report's path. You write only:
+`reviewroom status acme/api#31 --json` gives the directory and the report's path. You write only:
 
 - The report (`report.html`): the long-form review, starting with the profile's sections.
 - The walkthrough (`walkthrough.json`): the chaptered slides.
@@ -46,31 +46,34 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 | The reviewer wants                                        | Run                                                                  |
 | ---                                                       | ---                                                                  |
-| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <target>` → Step 1                                    |
+| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr acme/api#31` (or `pr <branch>`) → Step 1                                    |
 | A review of uncommitted work                              | `reviewroom pr --head worktree` → Step 1                             |
 | You to answer feedback they already sent                  | Read `references/review-rounds.md`, "Resume an existing review"      |
-| To see where a review stands                              | `reviewroom status <target> --json` (`--threads` for the threads)    |
-| To end the review                                         | `reviewroom stop <target>`                                           |
+| To see where a review stands                              | `reviewroom status acme/api#31 --json` (`--threads` for the threads)    |
+| To end the review                                         | `reviewroom stop acme/api#31`                                           |
 
-Run lifecycle commands from the reviewed repo or pass `--repo <path>`. Use `--dir <dir>` for custom review folders.
+Use the PR's Review ID (`owner/repo#n`, with the base repository for forks) in `pr`, `wait`, `status` and
+`stop`. An existing PR review can be reached by ID from any directory. To create one, run `pr` from its
+checkout or pass `--repo <path>`. For a local review, use its branch from the checkout or use `--dir <dir>`
+for a custom folder. Stop a review only when the reviewer explicitly asks.
 
 ## Step 1: Start the review
 
-Run `pr`, then run the `wait` command it prints in the background while writing the walkthrough and the report.
+Run `pr`, then run the printed command (for example, `reviewroom wait acme/api#31`) in the background while writing the walkthrough and the report.
 The detached server stays up between rounds. See `references/review-rounds.md`.
 `--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 
 ## Step 2: Relay the URL
 
 `pr` prints the review directory outside the repo and the URL.
-`reviewroom status <target> --json` gives both again, plus the base/head shas. Relay the URL
+`reviewroom status acme/api#31 --json` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
 > **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the walkthrough first."**
 
 ## Step 3: Understand the diff
 
-Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status --json`,
+Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status acme/api#31 --json`,
 not your checkout: every line number you link is the head sha's, so read files with
 `git show <head>:<path>`. For uncommitted work (`--head worktree`) the head is the literal `worktree`:
 run `git diff <base> --stat`, read files from disk, and add untracked files

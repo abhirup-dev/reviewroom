@@ -9,7 +9,7 @@ service workers only run on an HTTPS origin the phone trusts. Today every review
 (`http://127.0.0.1:<4848+>`), and `allowed()` in `cli/lib/server.ts` answers only `127.0.0.1` and `localhost`.
 
 **Decision:** the **hub** (127.0.0.1:4847, one per machine) is the only origin a phone sees. It serves its page at `/`
-and the **hub proxy** forwards `/r/<review id>/...` to that review's server on `127.0.0.1:<port>`. How a phone reaches
+and the **hub proxy** forwards `/r/<hash>/...` to that review's server on `127.0.0.1:<port>`. How a phone reaches
 the hub is outside reviewroom, as in Collie: the servers bind loopback, the reviewer puts a front in front of the hub
 (tailscale serve, a tunnel, anything that ends in HTTPS) and tells the hub its **public origin**. One client build works
 under any path prefix.
@@ -87,7 +87,7 @@ Known consequences, accepted for now:
 | Hub page links (`session.url` = `http://127.0.0.1:<port>/`) | loopback | on the public origin link `/r/<id>/`; on loopback keep per-port URLs (the macOS app keys tabs by port) |
 | SSE `/api/events` | direct | streams through a `fetch` passthrough (prototyped); 20 s pings keep both hops open |
 | `localStorage` `reviewroom:prefs`, `:layouts`, `:github-token` | per port | shared by all reviews (what prefs and saved layouts should have been) |
-| `localStorage` keyed by `meta.id` (`draft:`, `recap:`, `layout:`, `state:`) | per port and id | per id only; `meta.id` is `repo#number#title`, so key by the review id instead |
+| `localStorage` keyed by `meta.id` (`draft:`, `recap:`, `layout:`, `state:`) | per port and id | per id only; `meta.id` is `repo#number#title`, so key by the review directory hash instead |
 | Hub port | drifts to 4848+ if 4847 is taken | with a public origin set, bind 4847 or fail: the front points at a fixed port |
 
 ## Configuration
@@ -99,7 +99,7 @@ All reviews button. The hub prints the public URL next to the loopback one. The 
 
 ## Consequences
 
-- **rr-o9x.2** implements the proxy, `hubAccess`, relative paths, the review id in the hub snapshot, the config key and
+- **rr-o9x.2** implements the proxy, `hubAccess`, relative paths, the directory hash in the hub snapshot, the config key and
   the e2e cases (foreign Host, foreign Origin, unknown id, SSE through the proxy). The proxy caches the id-to-port map
   rather than polling every session per request.
 - **rr-o9x.4**: worker at `/sw.js`, scope `/`; never intercept `/api/*` or `/r/*/api/*`. A review page's client is

@@ -7,12 +7,13 @@ import { appendProgress, recordArtifact } from '../lib/progress.ts';
 import { fail } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, remoteDefaultBranch, makeProvider } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, resolveDir, currentBranch, prNumber, reviewArgs, loadConfig, readConfig, configPath } from '../lib/config.ts';
+import { type ReviewConfig, resolveReview, currentBranch, reviewArgs, loadConfig, configPath } from '../lib/config.ts';
+import { formatReviewId, parseReviewId } from '../lib/review-id.ts';
 import { fetchPr, prTarget } from '../lib/github.ts';
-import { walkthroughPath } from '../lib/state.ts';
+import { walkthroughPath, writeAtomic } from '../lib/state.ts';
 import { pickBlock } from '../lib/slides-file.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
-import { cmdWait, ensureServer, type StartOpts } from './serve.ts';
+import { cmdWait, ensureServer, runningServer, type StartOpts } from './serve.ts';
 
 function gh(repo: string, args: string[]) {
   try {
@@ -74,19 +75,29 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   console.error(`reviewroom: walkthrough from ${pick.from}`);
 }
 
-export async function cmdPr(repo: string | null, o: PrOpts, arg?: string) {
-  if (!repo) fail('not inside a git repository (cd into the project, or pass --repo <path>)');
-  const n = prNumber(arg);
-  const target = n ?? arg ?? currentBranch(repo);
-  const defaultDir = resolveDir(repo, undefined, { target: arg });
-  const dir = o.dir ? resolveDir(repo, o.dir) : defaultDir;
-  const found = n ? prNumberConfig(repo, o, n) : arg ? branchConfig(repo, o, arg) : loadConfig(dir, repo, o);
-  fs.mkdirSync(dir, { recursive: true });
+export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
+  const { repo, dir, cfg: saved, pr } = resolveReview(selected, o, arg, 'pr');
+  if (!repo) fail('review checkout is unavailable (use --repo <path>)');
+  const live = await runningServer(dir);
+  if (live) {
+    const args = reviewArgs(repo, dir, saved);
+    console.error(`reviewroom: review is running in ${dir}. To pick up new commits, run \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\`.`);
+    if (o.wait) return cmdWait(repo, dir, o);
+    console.error(`reviewroom: next round: reviewroom wait ${args}`);
+    console.log(live.url);
+    return;
+  }
+  const found = pr ? prNumberConfig(repo, o, String(pr.number)) : arg ? branchConfig(repo, o, arg) : loadConfig(dir, repo, o);
+  const id = pr ? formatReviewId(pr) : undefined;
+  if (id && found.url) {
+    const fetchedId = formatReviewId(parseReviewId(found.url));
+    if (fetchedId !== id) fail(`requested review ${id}, but GitHub returned ${fetchedId}`);
+  }
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
-  const cfg = { ...readConfig(dir), ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, target: dir === defaultDir ? target : undefined } as ReviewConfig;
+  const cfg = { ...saved, ...Object.fromEntries(Object.entries(found).filter(([, v]) => v !== undefined)), repoPath: repo, target: pr ? undefined : (arg ?? currentBranch(repo)), id: saved.id ?? id } as ReviewConfig;
   if (o.profile) profileSections(o.profile); // an unknown profile fails before anything is written
   cfg.profile = o.profile ?? cfg.profile ?? DEFAULT_PROFILE;
-  fs.writeFileSync(configPath(dir), JSON.stringify(cfg, null, 2));
+  writeAtomic(configPath(dir), JSON.stringify(cfg, null, 2));
   const fresh = scaffold(repo, dir, cfg, !!o.force);
   const prov = makeProvider(repo, cfg);
   if (fresh || o.force) {

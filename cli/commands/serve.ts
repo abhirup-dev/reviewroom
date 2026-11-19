@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { type Global, fail } from '../lib/args.ts';
-import { loadConfig, configPath } from '../lib/config.ts';
+import { loadConfig, readConfig, configPath } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { answers, takeLock, releaseLock } from '../lib/lock.ts';
 import { undelivered } from '../../src/kernel/state/ops.shared.ts';
@@ -14,7 +14,7 @@ import { branchPr } from '../lib/github.ts';
 
 export type StartOpts = Global & { port?: string; open: boolean; browser?: boolean; foreground?: boolean };
 
-async function runningServer(dir: string) {
+export async function runningServer(dir: string) {
   const rec = liveServer(dir);
   // A recorded process that is busy can time out. A different process on that port is stale.
   return rec && (await answers(rec.pid, rec.port)) !== false ? rec : null;
@@ -30,16 +30,24 @@ export async function ensureServer(repo: string | null, dir: string, o: StartOpt
   if (!o.open) args.push('--no-open');
   if (o.browser) args.push('--browser');
   const log = path.join(dir, 'server.log');
+  const deadline = performance.now() + 20_000; // branch PR discovery alone can take 10 s
   const out = fs.openSync(log, 'a');
+  let error: Error | undefined;
+  let child;
   try {
-    spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] }).unref();
+    child = spawn(process.execPath, args, { detached: true, stdio: ['ignore', out, out] });
+    child.once('error', (e) => { error = e; });
+    child.unref();
   } finally {
     fs.closeSync(out);
   }
-  for (let i = 0; i < 50; i++) {
-    await Bun.sleep(100);
+  while (performance.now() < deadline) {
     const rec = await runningServer(dir);
     if (rec) return rec;
+    if (error || child.exitCode !== null || child.signalCode !== null) {
+      fail(`server exited during startup${error ? `: ${error.message}` : ''} - see ${log}`);
+    }
+    await Bun.sleep(100);
   }
   fail(`server did not start - see ${log}`);
 }
@@ -50,11 +58,13 @@ export async function cmdStart(repo: string | null, dir: string, o: StartOpts) {
 }
 
 export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
+  const { id } = readConfig(dir);
   const { url } = await ensureServer(repo, dir, o);
   console.error(`reviewroom: waiting for feedback | ${dir} | ${url}`);
   for (;; await Bun.sleep(500)) {
     const [round] = undelivered(readState(dir, { repair: false }));
     if (!round) continue;
+    if (readConfig(dir).id !== id) fail(`review ID changed in ${dir} while waiting`);
     const file = path.join(dir, 'rounds', String(round.n), 'feedback.md');
     const md = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `(round ${round.n} was ${round.status} but ${file} is missing)`;
     // Record delivery only after stdout flushes. On interruption, a retry can print the round again.

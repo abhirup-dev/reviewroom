@@ -1,14 +1,14 @@
 # Review rounds: server, feedback and replies
 
-Read "Start the review server" before launching a review. After handover, follow the round loop
-below. When answering feedback on an existing review, begin with "Resume an existing review".
+This round loop is for external agents. The built-in assistant follows the conversation in its panel.
+For existing feedback, begin with "Resume an existing review".
 
 ## Start the review server
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
 ```bash
-reviewroom pr <target>
+reviewroom pr acme/api#31
 ```
 
 Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
@@ -16,15 +16,15 @@ otherwise in the browser. Use `--browser` to open the browser. The server stays 
 
 ## Resume an existing review
 
-Run `reviewroom wait <target>` in the background from the reviewed repo or pass `--repo <path>`.
-Use `--dir <dir>` for a custom folder. The command starts the server if needed and prints the next
+Run `reviewroom wait acme/api#31` in the background, using the PR's Review ID from any directory.
+For a local review, use its branch from the reviewed repo or use `--dir <dir>` for a custom folder. The command starts the server if needed and prints the next
 unread round as soon as it is available.
 
 ## Check status and stop
 
-Use `reviewroom status <target> --json` for the URL, review directory, base/head shas and status;
+Use `reviewroom status acme/api#31 --json` for the URL, review directory, base/head shas and status;
 add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
-for the round command's completion. To end the review when asked, run `reviewroom stop <target>`.
+for the round command's completion. To end the review when asked, run `reviewroom stop acme/api#31`.
 
 ## Wait for the reviewer
 
@@ -69,8 +69,8 @@ For each thread in the feedback:
 
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
-push is not in the diff the reviewer sees until you refresh the target with `reviewroom pr <target>`
-and restart its server with `stop` then `start`. Say so in the reply, and link the new code at your commit
+push is outside the diff the reviewer sees because a running server keeps the revision it opened.
+Say so in the reply, and link the new code at your commit
 (`rr:code/<path>@<sha>#L10-20`); `rr:sym` and plain `rr:code` links still resolve at the old head. For uncommitted work (`--head worktree`) your edits show up live.
 
 A thread anchored on a walkthrough slide (`rr:tour/<chapter>/<step>`; its anchor line quotes
@@ -95,10 +95,10 @@ cannot reply to them. When one matters to your answer, link or embed it with `rr
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run the command the feedback names **in the background**:
+Run the command the feedback names **in the background**. For a PR, use its Review ID:
 
 ```bash
-reviewroom wait <target>
+reviewroom wait acme/api#31
 ```
 
 Tell the reviewer: **"Replies are in. Review them in the browser and click Send feedback or Approve

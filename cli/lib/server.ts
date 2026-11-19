@@ -9,7 +9,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { makeProvider, type Provider } from './git.ts';
-import { reviewArgs, type ReviewConfig } from './config.ts';
+import { readConfig, reviewArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, validWalkthrough, walkthroughPath, writeState } from './state.ts';
 import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, reviewId } from './registry.ts';
@@ -139,6 +139,10 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     for (const c of clients) c.writeSSE({ event, data: JSON.stringify(data) }).catch(() => {});
   };
   const json = (c: Context, body: unknown, code = 200) => c.json(body, code as ContentfulStatusCode);
+  const checkIdentity = () => {
+    const actual = readConfig(dir).id;
+    if (actual !== cfg.id) throw new ReviewroomError(`review ID changed in ${dir}: expected ${cfg.id ?? 'no PR ID'}, found ${actual ?? 'no PR ID'}`, 409);
+  };
   // request bodies are untrusted: a bad one is a 400 shaped like an OpError's
   const body = <T extends z.ZodType>(schema: T) =>
     zValidator('json', schema, (r, c) => {
@@ -164,8 +168,15 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   let last = parts();
   let watcher: fs.FSWatcher | undefined;
   const watch = () => {
+    checkIdentity();
     checkNarrative();
     watcher = watchNarrative(dir, (files) => {
+      try {
+        checkIdentity();
+      } catch (e) {
+        console.error(`reviewroom: ${(e as Error).message}`);
+        return;
+      }
       const head = /^[a-f0-9]{40}$/.test(prov.head) ? { head: prov.head } : {};
       if (files.has(WALKTHROUGH_FILE)) recordArtifact(dir, 'walkthrough', 'written', head);
       if (files.has(REPORT_FILE)) recordArtifact(dir, 'report', 'written', head);
@@ -181,6 +192,10 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   const assistant = assistantEnabled() && !readOnly ? assistantRoutes({ repo, dir, cfg: { ...cfg, base: prov.base, head: prov.head } }) : undefined;
   const app = new Hono();
   app.use(localOnly);
+  app.use(async (c, next) => {
+    if (c.req.path !== '/favicon.ico') checkIdentity();
+    await next();
+  });
   app.use(compress()); // skips the event stream (text/event-stream) and small bodies
   if (readOnly) app.use(async (c, next) => (c.req.method === 'GET' || c.req.method === 'HEAD' ? next() : json(c, { error: 'read-only server' }, 403)));
   app.notFound((c) => json(c, { error: 'not found' }, 404));
@@ -199,8 +214,8 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   app.get('/index.html', page);
   serveClient(app);
   app.get('/favicon.ico', (c) => c.body(null, 204, { 'cache-control': 'max-age=86400' }));
-  // id: the same for direct and proxied access; the assistant only for direct access
-  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
+  // The directory hash is the same for direct and proxied access.
+  app.get('/api/meta', (c) => json(c, { ...prov.meta(), id: reviewId(dir), prReviewId: cfg.id, ...(assistant && !c.req.header(VIA_HUB) && { assistant: true }) }));
   if (assistant) app.route('/api/assistant', assistant.app);
   app.get('/api/commits', (c) => json(c, prov.commits()));
   app.get('/api/files', (c) => json(c, prov.files(c.req.query('base') || prov.base, c.req.query('head') || prov.head)));
@@ -224,7 +239,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const s = read();
     const open = s.threads.filter((t) => t.status === 'open');
     const round = currentRound(s);
-    return json(c, { round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
+    return json(c, { prReviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
   });
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {

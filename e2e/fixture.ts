@@ -88,8 +88,8 @@ export function setup(extraEnv: Record<string, string> = {}) {
     /** `pr` on a free port: the URL. */
     serve: async () => (await cli(['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo])).stdout.trim(),
     /** A foreground command (killed in afterAll). */
-    spawn: (args: string[]) => {
-      const p = Bun.spawn([bun, entry, ...args], { env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+    spawn: (args: string[], cwd?: string) => {
+      const p = Bun.spawn([bun, entry, ...args], { env, cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
       procs.push(p);
       return p;
     },

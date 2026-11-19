@@ -2,14 +2,14 @@
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
-// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch-or-pr-n>/. What the agent
+// Reviews live under ~/.reviewroom/reviews/. What the agent
 // writes there: docs/review-artifacts.md; reviewroom's own state: docs/review-state.md.
 import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import { cac } from 'cac';
 import { die, type Global } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
-import { readConfig, resolveDir } from './lib/config.ts';
+import { readConfig, resolveReview } from './lib/config.ts';
 import { cmdPr, type PrOpts } from './commands/pr.ts';
 import { cmdStart, cmdWait, type StartOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
@@ -41,11 +41,14 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
 };
 
 const forReview = <O extends Global>(command: string, fn: (repo: string | null, dir: string, o: O) => unknown) =>
-  (repo: string | null, o: O, [target]: string[]) => fn(repo, resolveDir(repo, o.dir, { existing: true, target, command, repoFlag: o.repo }), o);
+  (selected: string | null, o: O, [target]: string[]) => {
+    const { repo, dir } = resolveReview(selected, o, target, command);
+    return fn(repo, dir, o);
+  };
 
 cli
   .command('pr [target]', 'Set up a review and start its server in the background')
-  .usage('pr [number|URL|branch] [options]')
+  .usage('pr [id|number|URL|branch] [options]')
   .option('--base <ref>', 'Base: PR base or default branch')
   .option('--head <ref>', 'Head revision; worktree includes uncommitted changes')
   .option('--title <text>', 'Review title')
@@ -57,38 +60,38 @@ cli
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .example('  reviewroom pr 4821')
+  .example('  reviewroom pr acme/api#31')
   .example('  reviewroom pr --head worktree')
   .action(run<PrOpts>((repo, o, pos) => cmdPr(repo, o, pos[0])));
 
 cli
   .command('start [target]', 'Ensure a review server is running')
-  .usage('start [number|URL|branch] [options]')
+  .usage('start [id|number|URL|branch] [options]')
   .option('--foreground', 'Run the server in this process')
   .option('--port <n>', 'Port for a new server (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .example('  reviewroom start 31')
+  .example('  reviewroom start acme/api#31')
   .action(run(forReview('start', cmdStart)));
 
 cli
   .command('wait [target]', 'Wait for and print the next undelivered round')
-  .usage('wait [number|URL|branch] [options]')
+  .usage('wait [id|number|URL|branch] [options]')
   .alias('review')
   .option('--forever', 'Compatibility flag; ignored')
   .option('--port <n>', 'Port for a new server (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .example('  reviewroom wait 31')
+  .example('  reviewroom wait acme/api#31')
   .action(run(forReview<StartOpts>('wait', cmdWait)));
 
 cli
   .command('status [target]', 'Show review status and threads')
-  .usage('status [number|URL|branch] [options]')
+  .usage('status [id|number|URL|branch] [options]')
   .option('--threads', 'Include open threads and messages')
   .option('--all', 'Include resolved threads')
   .option('--json', 'Print JSON')
-  .example('  reviewroom status 31 --json')
+  .example('  reviewroom status acme/api#31 --json')
   .action(run(forReview<StatusOpts & { threads?: boolean }>('status', (repo, dir, o) => (o.threads ? cmdThreads(repo, { ...o, dir }) : cmdStatus(repo, dir, o)))));
 
 cli
@@ -150,8 +153,8 @@ cli
 
 cli
   .command('stop [target]', 'Stop a review server')
-  .usage('stop [number|URL|branch] [options]')
-  .example('  reviewroom stop 31')
+  .usage('stop [id|number|URL|branch] [options]')
+  .example('  reviewroom stop acme/api#31')
   .action(run(forReview('stop', cmdStop)));
 
 cli
@@ -196,7 +199,7 @@ const notes: Record<string, string> = {
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
   Newest author-owned or agent-owned walkthrough wins.
   Prints the directory (stderr) and URL (stdout). With --wait, both go to stderr.
-  Reuses a running server. Use stop then start to load a new PR revision.`,
+  Reuses a running server and keeps its revision. After stopping it, rerun pr to fetch updates.`,
   'start': `  Prints the review URL. Reuses a running server and its port.`,
   'wait': `  Starts a detached server if needed and leaves it running.
   Prints saved feedback or APPROVED to stdout and records delivery.
@@ -233,7 +236,7 @@ const notes: Record<string, string> = {
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
   // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
-  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
+  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/^ +--foreground.*\n/gm, '').replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
   if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
   return [
@@ -241,11 +244,11 @@ cli.help((sections) => {
     {
       title: 'A review',
       body: [
-        '  pr <n>: set up a review and start its server.',
-        '  wait <n>: await the next round in the background.',
+        '  pr acme/api#31: set up a review and start its server.',
+        '  wait acme/api#31: await the next round in the background.',
         '  shot [section]: inspect PNG output.',
         '  reply <thread> "...": answer feedback.',
-        '  stop <n>: stop the review server.',
+        '  stop acme/api#31: stop the review server.',
         '  The server stays up between rounds.',
       ].join('\n'),
     },
@@ -261,8 +264,8 @@ cli.help((sections) => {
     {
       title: 'The review dir',
       body: [
-        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch-or-pr-n>/; REVIEWROOM_HOME overrides the root.',
-        '  start, wait, status and stop accept a PR number, URL or branch in the repo.',
+        '  ~/.reviewroom/reviews/; REVIEWROOM_HOME overrides the root.',
+        '  Use a PR review ID (owner/repo#n) from any directory, or use a number, URL or branch in its repo.',
         "  With no target, they use the current branch or the repo's only review.",
         '  Use --dir for custom review directories.',
         `  Author ${REPORT_FILE}, ${WALKTHROUGH_FILE}, and adjacent assets.`,

@@ -20,7 +20,7 @@ export function cmdStatus(repo: string | null, dir: string, o: StatusOpts) {
       if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
     } catch {}
     const role = process.env.REVIEWROOM_ASSISTANT_DIR && path.resolve(process.env.REVIEWROOM_ASSISTANT_DIR) === dir ? 'assistant' : 'external';
-    console.log(JSON.stringify({ dir, role, review: path.join(dir, REPORT_FILE), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
+    console.log(JSON.stringify({ id: cfg.id, dir, role, review: path.join(dir, REPORT_FILE), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
     return;
   }
   console.log(`${dir}\nround ${s.round} (${currentRound(s)?.status}) | ${s.threads.length} threads | ${open.length} open | ${waiting.length} awaiting agent reply`);
