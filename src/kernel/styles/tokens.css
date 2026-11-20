@@ -82,6 +82,7 @@
   --rr-surface-nav-2: #e9e7e1; /* inputs and hovers inside navigation */
   --rr-surface-doc: #ffffff; /* the walkthrough: paper */
   --rr-surface-doc-2: #f6f5f1; /* figures, flows, snippets inside the walkthrough */
+  --rr-surface-stage: var(--rr-surface-doc-2); /* the loading screen's page */
   --rr-surface-code: #fdfdfc; /* code */
   --rr-surface-well: #eeede8; /* behind the file cards in the code panel */
   --rr-surface-bar: #ebe9e3; /* panel tab bars */
@@ -96,9 +97,9 @@
   --rr-faint: #8d897f;
   --rr-line: #dbd7cd;
   --rr-line-strong: #c7c2b6;
-  --rr-accent: #2557d6;
+  --rr-accent: #b4570f; /* one accent: Margin Orange, the same as --rr-comment */
   --rr-accent-ink: #ffffff;
-  --rr-accent-soft: #e8eefc;
+  --rr-accent-soft: #fdf0e1;
   --rr-comment: #b4570f;
   --rr-comment-soft: #fdf0e1;
   --rr-comment-ink: #ffffff; /* text on --rr-comment */
@@ -163,6 +164,7 @@
   --rr-surface-nav-2: #181b20;
   --rr-surface-doc: #16191e; /* close to the nav plane, so the reading pane does not glow */
   --rr-surface-doc-2: #22262d;
+  --rr-surface-stage: var(--rr-surface-doc); /* dark: the deeper plane */
   --rr-surface-code: #0e1013;
   --rr-surface-well: #0a0b0d;
   --rr-surface-bar: #121418;
@@ -175,16 +177,16 @@
   --rr-faint: #7b776f;
   --rr-line: #2f343b;
   --rr-line-strong: #40464f;
-  --rr-accent: #7aa2f7;
-  --rr-accent-ink: #0d1117;
-  --rr-accent-soft: #1b2638;
+  --rr-accent: #f0a35e;
+  --rr-accent-ink: #1c1206;
+  --rr-accent-soft: #33261a;
   --rr-comment: #f0a35e;
   --rr-comment-soft: #33261a;
   --rr-comment-ink: #1c1206;
   --rr-highlight: rgba(240, 163, 94, 0.22);
   --rr-highlight-hot: rgba(240, 163, 94, 0.42);
   --rr-add: #8fc9a3; /* pastel: diffs stay calm on dark */
-  --rr-del: #e49ab0;
+  --rr-del: #eea393; /* the light theme's red hue at the green's lightness and chroma: a pair, not pink beside mint */
   --rr-ok: #5fc77a;
   --rr-ok-soft: #17291d;
   --rr-sym-fn: #b9a3f0;

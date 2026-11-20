@@ -223,7 +223,6 @@
   clip-path: none;
   white-space: normal;
 }
-.is-phone .rr-gen-ind__dot {
-  width: 0.75em;
-  height: 0.75em;
+.is-phone .rr-gen-ind .rr-dots {
+  display: none;
 }

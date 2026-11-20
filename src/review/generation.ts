@@ -4,25 +4,27 @@
 // the bus's `generation` event.
 import { createActor, fromPromise } from 'xstate';
 import type { ReviewApp } from '../app';
-import { h, icon } from '../kernel/dom';
+import { avatarUrl, h, icon, relTime } from '../kernel/dom';
+import { CLAWD } from '../kernel/clawd';
 import { awaitingApproval, generateOffered, generationMachine, generationSteps, indicatorShown, remembered, screenShown, stageIn, statusText, type GenerationSnapshot, type GenStep, type Remembered } from './generation.machine';
 
-/** "1m 40s": how long ago `iso` was (elapsed only, never an estimate). */
-const ago = (iso: string | undefined) => {
-  if (!iso) return '';
-  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
-};
-const MARK = { done: '✓', current: '●', stopped: '✕' } as const;
-/** The steps as a list: numbered square markers joined by a line, a detail under each, pass rows under checking. */
+/** Clawd, the built-in assistant's mark; bobbing while it works. */
+export const clawdMark = (size: number, working = false) => h('img', { class: `rr-clawd${working ? ' is-working' : ''}`, src: CLAWD, width: size, height: size, alt: '' });
+/** The one busy signal: three dots in Margin Orange (controls.css). */
+export const busyDots = () => h('span', { class: 'rr-dots', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'));
+/** The steps as a list: numbered square markers joined by a line, each step's detail as its tooltip, pass rows under checking (the
+ *  last two; earlier ones fold into a count, so the column never outgrows the assistant's box). */
 function stepList(steps: GenStep[]) {
-  return h('ol', { class: 'rr-gen-steps' }, ...steps.map((st, i) =>
-    h('li', { class: `rr-gen-step is-${st.state}`, ...(st.state === 'current' && { 'aria-current': 'step' }) },
-      h('span', { class: 'rr-gen-step__mk', 'aria-hidden': 'true' }, st.state === 'done' ? icon('check', 14) : st.state === 'stopped' ? '!' : String(i + 1)),
+  return h('ol', { class: 'rr-gen-steps' }, ...steps.map((st, i) => {
+    const passes = st.passes ?? [], earlier = passes.length - 2;
+    return h('li', { class: `rr-gen-step is-${st.state}`, title: st.detail, ...(st.state === 'current' && { 'aria-current': 'step' }) },
+      h('span', { class: 'rr-gen-step__mk', 'aria-hidden': 'true' }, st.state === 'done' ? icon('check', 14) : st.state === 'stopped' ? '!' : st.state === 'current' ? h('span', { class: 'rr-gen-step__dot' }) : String(i + 1)),
       h('div', null,
         h('b', null, st.title),
-        h('small', null, st.detail),
-        st.passes ? h('ul', { class: 'rr-gen-step__passes' }, ...st.passes.map((p) => h('li', { class: `is-${p.state}` }, `${MARK[p.state]} ${p.text}`))) : null))));
+        passes.length ? h('ul', { class: 'rr-gen-step__passes' },
+          earlier > 0 ? h('li', { class: 'is-done' }, h('span', null, `${earlier} earlier ${earlier === 1 ? 'save' : 'saves'}`)) : null,
+          ...passes.slice(-2).map((p) => h('li', { class: `is-${p.state}`, title: p.text }, h('span', null, p.text)))) : null));
+  }));
 }
 
 /** api/generate's refusals, readable: never a raw code. */
@@ -42,7 +44,7 @@ function refused({ code, error }: { code?: string; error?: string }) {
 /** A read-only view of the page's conversation with the assistant in `host` (it follows the running turn); returns the
  *  unmount. The desktop supplies it (src/presentation.ts) where the server runs the assistant; without it the steps
  *  stand alone. */
-export type LiveChat = (host: HTMLElement) => () => void;
+export type LiveChat = (host: HTMLElement, extra?: HTMLElement) => () => void;
 const liveChats = new WeakMap<ReviewApp, { mount?: LiveChat; repaint?: () => void }>();
 const liveOf = (app: ReviewApp) => liveChats.get(app) ?? (liveChats.set(app, {}), liveChats.get(app)!);
 export function provideLiveChat(app: ReviewApp, mount: LiveChat) {
@@ -57,12 +59,13 @@ const header = new WeakMap<ReviewApp, { indicator: Partial<Record<Variant, HTMLB
 const headerOf = (app: ReviewApp) => header.get(app) ?? (header.set(app, { indicator: {}, generate: {} }), header.get(app)!);
 
 function paintIndicator(el: HTMLButtonElement, s: GenerationSnapshot) {
-  const stage = stageIn(s);
+  const stage = stageIn(s), stopped = stage === 'stopped' || stage === 'report-stopped';
   const label = stage === 'report-stopped' ? 'Report not finished' : stage === 'stopped' ? 'Generation stopped' : stage === 'playable' ? 'Writing the report' : 'Generating';
-  el.classList.toggle('is-stopped', stage === 'stopped' || stage === 'report-stopped');
+  el.classList.toggle('is-stopped', stopped);
+  el.querySelector('.rr-clawd')?.classList.toggle('is-working', !stopped);
   el.title = `${statusText(s)}. ${stage === 'playable' ? 'Play the walkthrough' : stage === 'report-stopped' ? 'Show the report' : 'Show the progress'}`;
   if (el.classList.contains('rr-hbtn--icon')) el.setAttribute('aria-label', label);
-  else el.lastElementChild!.textContent = label;
+  else el.querySelector('.rr-gen-ind__label')!.textContent = label;
 }
 
 export function mountGeneration(app: ReviewApp) {
@@ -90,43 +93,53 @@ export function mountGeneration(app: ReviewApp) {
   };
 
   // the screen's controls, made once and updated in place
-  const heading = h('h1');
+  const heading = h('h2', { class: 'rr-gen__label' });
   // the stepper says it on screen; this line is what a screen reader hears (and the phone's one line)
   const status = h('p', { class: 'rr-gen__status', role: 'status' });
-  const facts = h('p', { class: 'rr-gen__facts' });
+  const repo = h('p', { class: 'rr-gen__repo' });
+  const title = h('h1');
+  const byline = h('p', { class: 'rr-gen__by' });
   const steps = h('div', { class: 'rr-gen__steps' });
-  const external = h('p', { class: 'rr-gen__agent' });
+  const external = h('p', { class: 'rr-gen__agent' }, 'Your own agent is writing this review. Progress shows as it saves.');
   // the overlay is inert-making: close it before the assistant opens, or the panel opens behind it
   const openAssistant = h('button', { class: 'rr-link-btn', onclick: () => { dismiss(); app.commands.run('assistant.open'); } }, 'Open the assistant');
   const approval = h('p', { class: 'rr-gen__note' }, 'The assistant is waiting for your approval. ', openAssistant);
-  const error = h('p', { class: 'rr-gen__error', role: 'alert' });
+  const error = h('p', { class: 'rr-gen__error', role: 'status' });
   const btn = (label: string, onclick: () => void) => h('button', { class: 'rr-btn', onclick }, label);
   const retry = btn('Retry', generate);
   const takeOver = btn('Generate', generate);
   const soFar = btn('Peek at the walkthrough', () => { dismiss(); app.bus.emit('walkthrough-show', undefined); });
   const cont = btn('Continue to the review', dismiss);
-  const added = app.files.reduce((n, f) => n + f.additions, 0), deleted = app.files.reduce((n, f) => n + f.deletions, 0);
-  const stats = `${app.files.length} files changed · +${added} / -${deleted} · ${app.commits.length} commits`;
-  // the right column: the built-in assistant's live view goes in `live` (a slot for now); shown only where its stream is
-  const openFull = h('button', { class: 'rr-link-btn', title: 'Open the assistant panel', onclick: () => { dismiss(); app.commands.run('assistant.open'); } }, 'Open full');
+  // the right column: the built-in assistant's read-only transcript, in a box of fixed size; shown only where its stream is
   const live = h('div', { class: 'rr-gen__live' });
-  const side = h('section', { class: 'rr-gen__side', 'aria-label': 'Assistant', hidden: true },
-    h('header', null, h('span', null, 'Assistant'), openFull), live);
+  // no head: the transcript starts level with the steps' label; Claude's name, the busy dots and Stop sit at its foot
+  const side = h('section', { class: 'rr-gen__side', 'aria-label': 'What Claude is doing', hidden: true }, live);
+  // the actions fill the row under Claude's line; without the box, they sit under the steps. Never a bar of their own
+  const actions = h('div', { class: 'rr-gen__actions' }, retry, takeOver, soFar, cont);
+  const main = h('div', { class: 'rr-gen__main' }, heading, steps, external, status, approval, error, actions);
   const screen = h('div', { class: 'rr-gen', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Generation', tabindex: '-1', hidden: true },
     h('div', { class: 'rr-gen__body' },
-      h('div', { class: 'rr-gen__head' }, heading, h('p', { class: 'rr-gen__title' }, app.meta.title), facts),
-      h('div', { class: 'rr-gen__main' }, steps, external, status, approval, error, h('div', { class: 'rr-gen__actions' }, retry, takeOver, soFar, cont)),
+      h('header', { class: 'rr-gen__head' }, repo, title, byline),
+      main,
       side));
   app.root.append(screen);
-  // elapsed time while the screen is up: since the request, and since the last save
-  const tick = () => {
-    const w = snap().context.progress.walkthrough;
-    facts.textContent = w.since && stageIn(snap()) !== 'stopped' ? `${stats} · started ${ago(w.since)} ago` : stats;
-    const last = w.passes?.at(-1)?.at;
-    external.textContent = `Your own agent is writing this review. Progress shows as it saves.${last ? ` Last saved ${ago(last)} ago.` : ''}`;
+  // the change: its repository and branches, title, author (with GitHub's avatar once it loads) and size. No clock: the
+  // screen says what is happening, never how long it has taken
+  const paintHead = () => {
+    const m = app.meta, gh = app.github?.description, who = gh?.login ?? m.author;
+    const added = app.files.reduce((n, f) => n + f.additions, 0), deleted = app.files.reduce((n, f) => n + f.deletions, 0);
+    repo.replaceChildren(icon(m.url ? 'github' : 'book', 14), ...[m.repo, m.number ? `#${m.number}` : '', m.headLabel && m.baseLabel ? `${m.headLabel} → ${m.baseLabel}` : ''].filter(Boolean).map((t) => h('span', null, t)));
+    title.textContent = m.title;
+    // the author's GitHub avatar; without one (no GitHub, or not loaded yet) their initials in a tile of the same size
+    const initials = (who ?? '').split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+    const avatar = gh?.avatar ? h('img', { class: 'rr-gen__avatar', src: avatarUrl(gh.avatar, 40), alt: '' }) : h('span', { class: 'rr-gen__avatar', 'aria-hidden': 'true' }, initials);
+    const sep = () => h('span', { class: 'rr-gen__sep', 'aria-hidden': 'true' }, '·');
+    byline.replaceChildren(
+      ...(who ? [avatar, h('b', null, who), ...(gh?.at ? [h('span', null, `opened ${relTime(gh.at)}`)] : []), sep()] : []),
+      h('span', { class: 'rr-gen__size' }, h('span', { class: 'rr-add' }, `+${added}`), ' ', h('span', { class: 'rr-del' }, `\u2212${deleted}`)), sep(),
+      h('span', null, `${app.files.length} ${app.files.length === 1 ? 'file' : 'files'}`));
   };
-  let ticking: ReturnType<typeof setInterval> | undefined;
-  app.onDispose(() => clearInterval(ticking));
+  for (const e of ['state', 'meta', 'files'] as const) app.onDispose(app.bus.on(e, () => { if (!screen.hidden) paintHead(); }));
 
   // shown, the screen is modal: the review behind it can't be clicked, tabbed to or read out
   let back: HTMLElement | null = null;
@@ -149,15 +162,13 @@ export function mountGeneration(app: ReviewApp) {
     const stage = stageIn(s), stopped = stage === 'stopped', w = s.context.progress.walkthrough;
     // the assistant's stream: only where the built-in assistant writes it and this page reaches it (never through the hub)
     const stream = w.by === 'assistant' && !!app.meta.assistant && !!liveOf(app).mount;
-    heading.textContent = stopped ? 'Generation stopped' : 'Writing your walkthrough';
+    heading.textContent = stopped ? 'Generation stopped' : 'Writing the review';
     status.textContent = statusText(s);
     status.classList.toggle('is-busy', !stopped);
     steps.replaceChildren(stepList(generationSteps(s.context.progress)));
     side.hidden = !stream;
-    openFull.hidden = !app.commands.get('assistant.open');
     external.hidden = w.by !== 'agent';
     screen.classList.toggle('has-side', stream);
-    tick();
     approval.hidden = !awaitingApproval(s);
     openAssistant.hidden = !app.commands.get('assistant.open');
     error.textContent = s.context.error ?? '';
@@ -172,8 +183,7 @@ export function mountGeneration(app: ReviewApp) {
     for (const el of Object.values(headerOf(app).indicator)) paintIndicator(el, s);
     const on = screenShown(s);
     if (on === screen.hidden) {
-      clearInterval(ticking);
-      if (on) ticking = setInterval(tick, 1000);
+      if (on) paintHead();
       screen.hidden = !on;
       modal(on);
     }
@@ -183,7 +193,8 @@ export function mountGeneration(app: ReviewApp) {
   const paintLive = (shown: boolean) => {
     if (shown === !!unmountLive) return;
     unmountLive?.();
-    unmountLive = shown ? liveOf(app).mount?.(live) : undefined;
+    if (!shown) main.append(actions);
+    unmountLive = shown ? liveOf(app).mount?.(live, actions) : undefined;
   };
   let unmountLive: (() => void) | undefined;
   liveOf(app).repaint = () => paint(snap());
@@ -230,11 +241,10 @@ export function generationIndicator(app: ReviewApp, iconOnly = false): HTMLEleme
   const s = app.generation;
   if (!s || !indicatorShown(s)) return null;
   const all = headerOf(app).indicator, variant: Variant = iconOnly ? 'icon' : 'full';
-  const dot = () => h('span', { class: 'rr-gen-ind__dot', 'aria-hidden': 'true' });
   const run = () => app.commands.run('generation.show');
   const el = (all[variant] ??= (iconOnly
-    ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-gen-ind', onclick: run }, dot())
-    : h('button', { class: 'rr-hbtn rr-gen-ind', onclick: run }, dot(), h('span'))));
+    ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-gen-ind', onclick: run }, clawdMark(18, true))
+    : h('button', { class: 'rr-hbtn rr-gen-ind', onclick: run }, clawdMark(14, true), h('span', { class: 'rr-gen-ind__label' }), busyDots())));
   paintIndicator(el, s);
   return el;
 }

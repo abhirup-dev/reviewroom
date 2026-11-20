@@ -28,8 +28,8 @@ colors:
   faint: "#8d897f"
   line: "#dbd7cd"
   line-strong: "#c7c2b6"
-  accent: "#2557d6"
-  accent-soft: "#e8eefc"
+  accent: "#b4570f"
+  accent-soft: "#fdf0e1"
   comment: "#b4570f"
   comment-soft: "#fdf0e1"
   pin: "#b5179e"
@@ -56,11 +56,11 @@ colors:
   dark-muted: "#a09c93"
   dark-line: "#2f343b"
   dark-line-strong: "#40464f"
-  dark-accent: "#7aa2f7"
+  dark-accent: "#f0a35e"
   dark-comment: "#f0a35e"
   dark-pin: "#f07ad8"
   dark-add: "#8fc9a3"
-  dark-del: "#e49ab0"
+  dark-del: "#eea393"
   dark-risk: "#f58b80"
 typography:
   headline-lg:
@@ -265,7 +265,7 @@ A warm neutral palette with one conversational colour (orange) and a handful of 
   Threads; `surface-doc` for the report and thread windows; `surface-code` for code; `surface-bar` and
   `surface-bar-active` for tab bars and toolbars; `surface-overlay` for menus, dialogs and the palette.
 - **Hairlines** (`line`, `line-strong`): borders, dividers, guide lines; strong for control outlines and active guides.
-- **Blue** (`accent`): focus rings, the report's progress and the current position. Never links or highlights.
+- **The accent** (`accent`): focus rings, the report's progress and the current position. It is Margin Orange, the same as `comment`: one accent across the interface, everything else ink and grey. Never links or highlights.
 - **Magenta** (`pin`): what's pinned to Contents, and nothing else.
 - **Diff** (`add`, `del`): added and removed code, its washes and changed words.
 - **State** (`ok`, `warn`, `risk` with `-soft` fills): approved, caution, failure. `risk` also marks unread replies.
@@ -283,8 +283,8 @@ pushed `--rr-code-contrast` (0.3) of the way from the surface: darker in light, 
 Selected lines use a neutral grey band, not a third diff colour.
 
 ### Named rules
-**The Meaning Rule.** Orange is talk, magenta is pinned, blue is focus or progress, green and red are the diff or
-state. Nothing is coloured for decoration.
+**The Meaning Rule.** Orange is the one accent (talk, focus and progress), magenta is pinned, green and red are the
+diff or state. Nothing is coloured for decoration.
 
 **The Ink Link Rule.** A link is ink at medium weight over a faint 2px underline that firms up on hover. In a diagram
 the label is medium weight with a drawn faint underline (SVG text takes no underline colour).
@@ -336,10 +336,12 @@ Trees indent 14px per level.
 as the code's toolbar plus its file band (`--rr-bar-h + --rr-band-h`), so a slide's first line starts level with the
 code's first line, whether or not the chapter has an intro.
 
-**Generation loading** (`src/review/generation.ts`, `generation.css`) is a quiet full-page paper surface over the review, on desktop and phone: the review's facts and elapsed time (since the request; never an estimate), the **generation steps**, and Continue to the review. Once slides exist, Peek at the walkthrough opens them; after a stop it reads Generation stopped, with Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, a header indicator (a pulsing accent dot; `warn` once stopped) shows generation running and opens the screen again.
+**Generation loading** (`src/review/generation.ts`, `generation.css`) is a quiet full-page surface over the review, on desktop and phone, on the stage (`surface-stage`: cream paper; in dark, the deeper plane) with one accent, Margin Orange (`comment`); everything else is ink and grey, and nothing on it is red. Centred across and pinned from the top: Claude's box keeps a fixed size and the steps grow downwards, so nothing moves as the work goes on. The head runs across on a hairline: the repository, PR number and branches (`mono` `text-sm` `muted`), the PR's title (`text-2xl` display 600), then the author with GitHub's avatar (their initials in an `ink-2` tile without one) and when they opened it, the size (`+412 −88`, `mono`, in `add` and `del`) and the file count, `·` (`faint`) between them. No clock: it says what is happening, never how long it has taken. Under the head, the **generation steps** (no visible label: "Writing the review" is for screen readers), and beside them Claude's box with the actions in one row under it (under the steps where there is no box): Continue to the review (primary), Peek at the walkthrough once slides exist; after a stop, Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, the header's indicator (Clawd and the busy dots, still and without dots once stopped) shows generation running and opens the screen again.
 
-- **Generation steps** (`generationSteps()` in `src/review/generation.machine.ts` derives them from the progress): Reading the diff (until the agent records that it has read it, or the walkthrough's first save), Writing the walkthrough (until a draft passes), Walkthrough ready, Writing the report. Each step is a square marker `control` high (1.5px `line-strong` border, its number in `mono` 600) joined to the next by a 1px `line-strong` rule, a `text-lg` 600 title and a `text-md` `muted` detail. Done: an `ink` box with a `surface-doc` check. Current: `accent` border and number with a soft `accent-soft` ring that pulses (steady under reduced motion). Stopped: `risk` border and text on `risk-soft`, the detail its reason. Upcoming: `faint` number and title (500). Under Writing the walkthrough, one `mono` `text-sm` row per save, each a draft ("Draft 2 · 7 slides in 4 chapters · checking"), the last one "passes"; earlier ones `muted` (drafts revised), the current one `accent`, a stopped one `risk` (it did not pass). Steps never move backwards.
-- **The assistant's window**: with the built-in assistant (and only on this machine's own URL, never through the hub) the head (title, PR, facts) runs across, and under it two equal columns: the steps, and the assistant, edgeless on the same paper, as tall as the steps. Its label ("Assistant", `muted` caps, and Open full) sits level with the first step; under it, the page's one chat with the assistant, read-only (no composer, no approvals), following the running turn and scrolling like the panel. The generate prompt that opens a generation's turn shows folded, here and in the panel: one line, "Generate the walkthrough and report", opened on request. Below 960px it goes under the steps. Your own agent gets a `muted` note and the time since its last save instead.
+- **Generation steps** (`generationSteps()` in `src/review/generation.machine.ts` derives them from the progress): Reading the diff (until the agent records that it has read it, or the walkthrough's first save), Writing the walkthrough (until a draft passes), Walkthrough ready, Writing the report. Each step is a square marker `control-lg` high (1.5px `line-strong` border, its number in `mono` 600 `muted`) joined to the next by a 2px `line` rule (`ink` once done) and a `text-lg` 600 title, `space-24` apart: the screen's subject, larger than the transcript beside it. No detail line under it; the detail is the step's tooltip. Done: an `ink` box with a check. Current: a dashed `comment` outline that marches, a `comment` square at its centre (steady under reduced motion). Stopped: an `ink-2` border and "!". Upcoming: `ink-2` title (500). Under Writing the walkthrough, the last two saves as `mono` `text-sm` rows, one line each (cut with an ellipsis, never wrapped) ("Draft 2 · 7 slides in 4 chapters · checking"; "passes" on the last), earlier ones folded into a count; the current row `comment` with a square, the rest `muted`. Steps never move backwards.
+- **The assistant's box**: with the built-in assistant (and only on this machine's own URL, never through the hub) the steps and the assistant sit side by side in two equal columns 40px apart, in one 760px block centred on the stage (rows 28px apart). The steps start half their drafts' room lower than the transcript: an edgeless transcript reads as starting at its first line, so steps level with its top look taller; lowered, the four sit centred against it and, with every draft row, reach at most Claude's line. One measure ties them: the four steps with their most draft rows (4 markers + 3 × 24px + three draft rows) is the transcript's fixed height, so the steps never outgrow it; with the actions' row always reserved, nothing in the centred block moves as the work goes on. The assistant has no head: its transcript starts level with the first step and is exactly the steps' reserved height. Under it, 12px down, Claude's own line: Clawd, "Claude" and, while it works, Clawd's bob and the busy dots, the screen's one busy signal, with a quiet `muted` Stop at the line's end. The actions follow 12px below, sharing the column's width, so the column ends square. The transcript always follows its newest line. Under it, edgeless on the same page and of fixed height (it scrolls inside, so nothing moves), the page's one conversation with the assistant, read-only (no composer, no approvals): **the assistant's transcript**, below. Below 840px it goes under the steps. Your own agent gets a `muted` note instead.
+
+**The assistant** (`src/assistant/`) is something to watch, not a console: the same transcript on the loading screen and in its panel, edgeless on the surface it sits on, and calm. Its identity is Margin Orange and Clawd: Clawd on the header's "Claude" button and the loading screen's head, a robot (`bot`) on the panel's tab, Send (`rr-btn--agent`). **The busy signal** (`.rr-dots`, `.rr-clawd.is-working`, `controls.css`): Clawd bobs and three `comment` squares cycle; it replaces every "Working…". **The transcript**: what Claude says in `text-md` prose; each tool call in a hairline box (`line`, `radius`): its verb (500), its target (`mono`, `ink-2`, cut with an ellipsis: "Read  cli/lib/upload.ts", "Ran  bun test") and a `faint` `text-xs` state word (done, failed, denied; running and needs approval in `comment`). A failed call looks like any other and an error is a `muted` line: nothing red. Scrolled, what went past fades out at the top. What you sent sits on the right, as in a chat, on the well (`surface-well`, `radius`), its first lines only when long (fading out) with Show more / Show less (`muted`, never the accent). The generate prompt is instructions, not a question: one folded line, "Generate review artifacts", across the transcript on the well, opened on request. In the panel the transcript is edgeless on the panel's surface, the shared composer under it, and at the foot, beside Send, the model and its state; the busy dots run at the transcript's foot. The panel follows the transcript while you are at its foot, and stays put once you scroll up.
 
 **Contents** follows the reader: the section and headings down to the one being read are bold, that last one is
 underlined, and its guide lines firm up. Pinned entries sit at the top without a heading; the Report group has a

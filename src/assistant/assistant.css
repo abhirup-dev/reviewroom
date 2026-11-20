@@ -1,4 +1,6 @@
-/* The experimental assistant panel (src/assistant/). The composer, buttons, prose and empty state are the shared ones. */
+/* The assistant (src/assistant/): what Claude is doing, the same transcript on the loading screen and in its panel
+   (DESIGN.md, Assistant). Edgeless: it takes the surface it sits on. Calm: tool calls in hairline boxes with a faint
+   state word, nothing red. The composer, buttons, prose and empty state are the shared ones. */
 .rr-assistant__island {
   flex: 1;
   min-height: 0;
@@ -22,29 +24,90 @@
   height: 100%;
   min-height: 0;
 }
+.rr-assistant__box {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
 .rr-assistant__viewport {
   flex: 1;
   min-height: 0;
   padding: var(--rr-space-8) var(--rr-space-12);
 }
+/* the loading screen: edgeless, its text lined up with the "Claude" label above it */
+.rr-assistant__thread.is-readonly .rr-assistant__viewport {
+  padding-inline: 0;
+  scrollbar-width: none; /* it follows the newest line itself; a bar would only cut the edgeless column */
+}
+/* scrolled: what went past fades out at the top instead of being cut */
+.rr-assistant__viewport[data-scrolled] {
+  mask-image: linear-gradient(transparent, var(--rr-ink) var(--rr-space-32)); /* a mask: only its alpha counts */
+}
 .rr-assistant__msg {
   margin: var(--rr-space-8) 0;
   font-size: var(--rr-text-md);
 }
+.rr-assistant__msg .rr-prose {
+  font: var(--rr-text-md) / 1.5 var(--rr-font);
+}
+.rr-assistant__msg .rr-prose > * {
+  margin-block: var(--rr-space-6);
+}
+/* what you sent: on the right, on the well */
 .rr-assistant__msg.is-user {
-  margin-left: var(--rr-space-32);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: fit-content;
+  max-width: 85%;
+  margin: var(--rr-space-8) 0 var(--rr-space-8) auto;
   padding: var(--rr-space-6) var(--rr-space-10);
-  border-radius: var(--rr-radius-lg);
+  border-radius: var(--rr-radius);
+  background: var(--rr-surface-well);
+  white-space: pre-wrap;
+}
+/* a long message: its first lines, fading out, until Show more */
+.rr-assistant__cap {
+  max-height: 8em;
+  overflow: hidden;
+}
+.rr-assistant__cap.is-long {
+  mask-image: linear-gradient(var(--rr-ink) 60%, transparent); /* a mask: only its alpha counts */
+}
+.rr-assistant__cap.is-open {
+  max-height: none;
+}
+.rr-assistant__cap > :first-child {
+  margin-top: 0;
+}
+.rr-assistant__cap > :last-child {
+  margin-bottom: 0;
+}
+.rr-assistant__more {
+  margin-top: var(--rr-space-4);
+  color: var(--rr-muted); /* a quiet aside, not the accent */
+  font-size: var(--rr-text-sm);
+}
+.rr-assistant__more:hover {
+  color: var(--rr-ink);
+}
+/* the generate prompt: one folded line, edge to edge on the well */
+.rr-assistant__msg.is-prompt {
+  padding: var(--rr-space-6) var(--rr-space-10);
+  border-radius: var(--rr-radius);
   background: var(--rr-surface-well);
   white-space: pre-wrap;
 }
 .rr-assistant__prompt > summary {
+  color: var(--rr-ink-2);
   cursor: pointer;
   white-space: normal;
 }
 .rr-assistant__prompt[open] > summary {
   margin-bottom: var(--rr-space-6);
 }
+/* a tool call: a hairline box, its verb, target and a faint state. The one running says so in the accent */
 .rr-assistant__tool {
   display: flex;
   flex-wrap: wrap;
@@ -56,24 +119,30 @@
   border-radius: var(--rr-radius);
   font-size: var(--rr-text-sm);
 }
+.rr-assistant__tool-name {
+  flex: none;
+  font-weight: 500;
+}
 .rr-assistant__tool > code {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  color: var(--rr-ink-2);
+  font-family: var(--rr-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--rr-mono);
 }
-.rr-assistant__tool-name {
-  font-weight: 500;
+.rr-assistant__tool-state {
+  flex: none;
+  color: var(--rr-faint);
+  font-size: var(--rr-text-xs);
+}
+.rr-assistant__tool.is-running .rr-assistant__tool-state,
+.rr-assistant__tool.is-needs-approval .rr-assistant__tool-state {
+  color: var(--rr-comment);
 }
 .rr-assistant__tool.is-needs-approval {
-  border-color: var(--rr-warn);
-  background: var(--rr-warn-soft);
-}
-.rr-assistant__tool.is-failed,
-.rr-assistant__tool.is-denied {
-  border-color: var(--rr-risk);
+  border-color: var(--rr-comment);
 }
 .rr-assistant__approve {
   display: flex;
@@ -82,27 +151,61 @@
 .rr-assistant__approve > .rr-btn {
   height: var(--rr-control);
 }
+/* nothing red: a dropped stream or a failed turn is said quietly, and the assistant carries on */
 .rr-assistant__error {
-  margin: var(--rr-space-6) 0;
-  padding: var(--rr-space-6) var(--rr-space-10);
-  border-radius: var(--rr-radius);
-  background: var(--rr-risk-soft);
-  color: var(--rr-risk-ink);
+  margin: var(--rr-space-6) var(--rr-space-12);
+  color: var(--rr-muted);
   font-size: var(--rr-text-sm);
 }
+.rr-assistant__thread.is-readonly .rr-assistant__error {
+  margin-inline: 0;
+}
+/* the busy signal, at the transcript's foot */
 .rr-assistant__working {
-  margin: var(--rr-space-8) 0;
-  font-size: var(--rr-text-sm);
+  margin: var(--rr-space-8) 0 var(--rr-space-4);
 }
 .rr-assistant__actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--rr-space-8);
   padding: 0 var(--rr-space-10) var(--rr-space-8);
 }
-.rr-assistant__model {
-  padding: var(--rr-space-6) var(--rr-space-10) 0;
+.rr-assistant__thread.is-readonly .rr-assistant__actions {
+  padding: var(--rr-space-12) 0 0;
+}
+.rr-assistant__extra {
+  flex: 1; /* the host's controls take the row's whole width */
+}
+/* the read-only foot, its own line under the transcript: Clawd, "Claude" and the busy dots, Stop at its end */
+.rr-assistant__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--rr-control);
+  margin-top: var(--rr-space-12);
+}
+.rr-assistant__stop {
+  color: var(--rr-muted);
+  font-weight: 400;
+}
+.rr-assistant__who {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-8);
+  color: var(--rr-ink-2);
+  font-size: var(--rr-text);
+  font-weight: 600;
+}
+/* the panel's foot, beside Send: the model and what it is doing */
+.rr-assistant__status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--rr-muted);
   font-size: var(--rr-text-sm);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* the context attached to a question: Review Room's link chip, removable in the composer */
 .rr-assistant__quote {
