@@ -1,0 +1,3 @@
+# Install the locked dependencies before a new worktree is handed to an agent.
+[pre-start]
+dependencies = "bun install --frozen-lockfile"
