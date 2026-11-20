@@ -11,7 +11,7 @@ import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { isFullSha, makeProvider, remoteHost, type Provider } from './git.ts';
 import { readConfig, reviewArgs, type ReviewConfig } from './config.ts';
 import { readState, readWalkthrough, statePath, validWalkthrough, walkthroughPath, writeState } from './state.ts';
-import { PKG, defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
+import { defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, routeId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
 import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
@@ -29,7 +29,8 @@ import { errorText } from '../../src/kernel/errors.shared.ts';
 import { FinishRound, GitHubAction, issueText, type Anchor, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { getBunServer, serveStatic } from '@hono/bun';
-import { buildId, serveClient, withHead } from './pwa.ts';
+import { buildId, serveClient } from './pwa.ts';
+import { reportPage } from './report-page.ts';
 import { assistantEnabled, assistantRoutes, VIA_HUB } from './assistant.ts';
 
 function excerpt(prov: Provider, anchor: Anchor) {
@@ -146,6 +147,9 @@ export const guarded = (ok: (c: Context) => boolean): MiddlewareHandler => async
 };
 export const localOnly = guarded(allowed);
 
+/** A round's saved report, served as a page like the live one (the client reads its <rr-review>); 404 when there is none. */
+const roundPage = (c: Context, file: string) => (fs.existsSync(file) ? c.html(reportPage(fs.readFileSync(file, 'utf8'))) : c.notFound());
+
 /** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onClient?: () => void; readOnly?: boolean };
 export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) {
@@ -246,8 +250,8 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   });
 
   const page = (c: Context) => {
-    const html = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : fs.readFileSync(path.join(PKG, 'templates', REPORT_FILE), 'utf8');
-    return c.html(withHead(html), 200, { 'cache-control': 'no-cache' });
+    const report = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : '';
+    return c.html(reportPage(report), 200, { 'cache-control': 'no-cache' });
   };
   app.get('/', page);
   app.get('/index.html', page);
@@ -397,7 +401,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     send('state', s);
     return json(c, { ok: true, round: s.round, state: s });
   });
-  app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, serveStatic({ root: dir, rewriteRequestPath: (p) => p.replace(/^\/api/, '') }));
+  app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, (c) => roundPage(c, path.join(dir, 'rounds', c.req.param('n'), REPORT_FILE)));
   // anything else: static files next to report.html (images, extra css/js the agent wrote). serveStatic refuses
   // `..`, `//` and `\`; it decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F),
   // so `a%231.png` finds `a#1.png`. The review's own state files are never served: checked on the fully decoded path.

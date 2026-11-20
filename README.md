@@ -147,7 +147,7 @@ src/
   *.shared.ts         DOM-free contracts shared with the CLI (also within folders)
   *.machine.ts        DOM-free XState machines, beside their owning views
 cli/                  CLI (TypeScript, bundled for Bun): server + round commands
-templates/            the report's page shell
+templates/            the assistant's prompts
 schema/               JSON schemas (generated from the *.shared.ts contracts by `bun run schema`)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)
 ```
