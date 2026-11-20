@@ -1,23 +1,22 @@
 /* Generation (src/review/generation.ts): the loading screen over the review, and the header's indicator.
    One accent, Margin Orange, on the stage; everything else ink and grey (DESIGN.md, Generation loading).
 
-   The layout is the mock's (Loading C), from one set of measures on .rr-gen:
-     one block, 760px wide, centred on the stage; its rows 28px apart
+   The layout is the mock's (Loading C). Its measures are the --rr-gen-* tokens (tokens.css); the two derived here are
+   --_drafts and --_steps-h. In those terms:
+     one block, --rr-gen-width wide, centred on the stage; its rows --rr-gen-row-gap apart
      head, across both columns, on a hairline
-     two equal columns, 40px apart:
+     two equal columns, --rr-gen-col-gap apart:
        the steps, titles only, lowered by     | the transcript, exactly --_steps-h tall, scrolling inside
        half the drafts' room (--_drafts / 2)  |
-                                              | 12px, Claude's line: Clawd, "Claude", the busy dots, Stop
-                                              | 12px, the actions, sharing the row's width (always a row tall)
+                                              | --rr-assistant-gap, Claude's line: Clawd, "Claude", the busy dots, Stop
+                                              | --rr-assistant-gap, the actions, sharing the row's width (always a row tall)
    --_steps-h is the four steps with their most draft rows, so the steps never reach past Claude's line,
    and every part keeps its height: the centred block never moves as the work goes on. The steps are the screen's
    subject (larger type); the transcript is background, in the assistant's own smaller type. */
 .rr-gen {
-  --_mk: var(--rr-control-lg); /* a step's marker, and its title's line */
-  --_step-gap: var(--rr-space-24); /* between steps */
-  --_pass: calc(1.8 * var(--rr-text-sm)); /* a draft row */
-  --_drafts: calc(var(--rr-space-6) + 3 * var(--_pass)); /* the room the draft rows can take */
-  --_steps-h: calc(4 * var(--_mk) + 3 * var(--_step-gap) + var(--_drafts));
+  /* the room the draft rows can take: at most three (generation.ts shows the last two and a count) */
+  --_drafts: calc(var(--rr-space-6) + 3 * var(--rr-gen-draft));
+  --_steps-h: calc(4 * var(--rr-gen-mark) + 3 * var(--rr-gen-step-gap) + var(--_drafts));
   position: fixed;
   inset: 0;
   z-index: 49; /* under the player (50): "Show it anyway" closes this screen first */
@@ -35,8 +34,8 @@
 }
 .rr-gen__body {
   display: grid;
-  gap: calc(var(--rr-space-24) + var(--rr-space-4)) calc(var(--rr-space-32) + var(--rr-space-8));
-  width: min(100%, 760px);
+  gap: var(--rr-gen-row-gap) var(--rr-gen-col-gap);
+  width: min(100%, var(--rr-gen-width));
   font-size: var(--rr-text);
 }
 .rr-gen.has-side .rr-gen__body {
@@ -50,8 +49,8 @@
 .rr-gen__head {
   grid-column: 1 / -1;
   display: grid;
-  gap: var(--rr-space-10);
-  padding-bottom: calc(var(--rr-space-16) + var(--rr-space-4));
+  gap: var(--rr-gen-head-gap);
+  padding-bottom: var(--rr-gen-head-pad);
   border-bottom: 1px solid var(--rr-line);
 }
 .rr-gen__repo {
@@ -84,8 +83,8 @@
 .rr-gen__avatar {
   display: grid;
   place-items: center;
-  width: calc(var(--rr-space-16) + var(--rr-space-4));
-  height: calc(var(--rr-space-16) + var(--rr-space-4));
+  width: var(--rr-gen-avatar);
+  height: var(--rr-gen-avatar);
   border-radius: var(--rr-radius);
   background: var(--rr-ink-2);
   color: var(--rr-surface-stage);
@@ -104,7 +103,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr); /* an auto column would grow to the longest unwrapped tool line */
   align-content: start;
-  gap: var(--rr-space-12);
+  gap: var(--rr-gen-gap);
 }
 .rr-gen__side[hidden] {
   display: none;
@@ -138,9 +137,9 @@ p.rr-gen__agent,
 .rr-gen-step {
   position: relative;
   display: grid;
-  grid-template-columns: var(--_mk) minmax(0, 1fr);
-  column-gap: var(--rr-space-12);
-  padding-bottom: var(--_step-gap);
+  grid-template-columns: var(--rr-gen-mark) minmax(0, 1fr);
+  column-gap: var(--rr-gen-mark-gap);
+  padding-bottom: var(--rr-gen-step-gap);
 }
 .rr-gen-step:last-child {
   padding-bottom: 0;
@@ -148,9 +147,9 @@ p.rr-gen__agent,
 .rr-gen-step:not(:last-child)::before {
   content: '';
   position: absolute;
-  top: var(--_mk);
+  top: var(--rr-gen-mark);
   bottom: 0;
-  left: calc(var(--_mk) / 2 - 1px);
+  left: calc(var(--rr-gen-mark) / 2 - 1px);
   width: 2px;
   background: var(--rr-line);
 }
@@ -160,8 +159,8 @@ p.rr-gen__agent,
 .rr-gen-step__mk {
   display: grid;
   place-items: center;
-  width: var(--_mk);
-  height: var(--_mk);
+  width: var(--rr-gen-mark);
+  height: var(--rr-gen-mark);
   box-sizing: border-box;
   border: 1.5px solid var(--rr-line-strong);
   background: var(--rr-surface-stage);
@@ -200,7 +199,7 @@ p.rr-gen__agent,
   display: block;
   font-size: var(--rr-text-lg);
   font-weight: 600;
-  line-height: var(--_mk);
+  line-height: var(--rr-gen-mark);
 }
 .rr-gen-step.is-upcoming b {
   color: var(--rr-ink-2);
@@ -210,7 +209,7 @@ p.rr-gen__agent,
   margin: var(--rr-space-6) 0 0;
   padding: 0;
   color: var(--rr-muted);
-  font: var(--rr-text-sm) / 1.8 var(--rr-mono); /* --_pass */
+  font: var(--rr-text-sm) / var(--rr-gen-draft) var(--rr-mono);
   list-style: none;
 }
 .rr-gen-step__passes li {
@@ -259,9 +258,6 @@ p.rr-gen__agent,
   height: var(--_steps-h);
   padding-block: 0;
 }
-.rr-gen__live .rr-assistant__msg:first-child {
-  margin-top: 0; /* the transcript's first line level with the first step */
-}
 
 /* the actions: under Claude's foot (thread.tsx), or under the steps without Claude's column */
 .rr-gen__actions {
@@ -274,7 +270,7 @@ p.rr-gen__agent,
   flex: 1;
 }
 .rr-gen__main > .rr-gen__actions {
-  margin-top: var(--rr-space-12);
+  margin-top: var(--rr-gen-gap);
 }
 
 /* the header's indicator: Clawd and the dots while it works; still, without the dots, once stopped */

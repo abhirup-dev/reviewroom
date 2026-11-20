@@ -74,6 +74,27 @@
   --rr-indent: 14px; /* one level of a tree: files, contents */
   --rr-doc-width: 760px;
   --rr-rail-width: 232px;
+  /* the assistant (assistant.css): one look in its panel and on the loading screen, which only places it */
+  --rr-assistant-text: var(--rr-text-md); /* what Claude says, and what you sent */
+  --rr-assistant-small: var(--rr-text-sm); /* tool rows, Show more, the status line, errors */
+  --rr-assistant-inset: var(--rr-space-12); /* the transcript's sides, in the panel (edgeless on the loading screen: 0) */
+  --rr-assistant-msg-gap: var(--rr-space-8); /* between messages */
+  --rr-assistant-row-gap: var(--rr-space-4); /* between tool rows */
+  --rr-assistant-row-pad: var(--rr-space-4) var(--rr-space-8); /* inside a tool row */
+  --rr-assistant-bubble-pad: var(--rr-space-6) var(--rr-space-10); /* inside what you sent, and the folded prompt */
+  --rr-assistant-gap: var(--rr-space-12); /* the transcript to what sits under it: Claude's line, then the actions */
+  /* the loading screen (generation.css): one centred block, two columns; it derives the transcript's height from the steps' */
+  --rr-gen-width: var(--rr-doc-width); /* the block */
+  --rr-gen-row-gap: 28px; /* the head to the columns */
+  --rr-gen-col-gap: 40px; /* the steps to the transcript */
+  --rr-gen-gap: var(--rr-space-12); /* a column's parts: the steps, a note, the actions under them */
+  --rr-gen-head-gap: var(--rr-space-10); /* the head's lines */
+  --rr-gen-head-pad: 20px; /* the head to its hairline */
+  --rr-gen-avatar: 20px; /* the author's avatar or initials */
+  --rr-gen-mark: var(--rr-control-lg); /* a step's marker, and its title's line */
+  --rr-gen-mark-gap: var(--rr-space-12); /* a marker to its title */
+  --rr-gen-step-gap: var(--rr-space-24); /* between steps */
+  --rr-gen-draft: calc(1.8 * var(--rr-text-sm)); /* one draft row under a step */
 
   /* light — surfaces, from the ground up. Each dock panel picks its surface (see panels.css),
      so the reading pane, the code, the navigation and overlays are distinct planes. */

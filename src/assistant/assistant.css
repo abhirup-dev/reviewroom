@@ -33,9 +33,9 @@
 .rr-assistant__viewport {
   flex: 1;
   min-height: 0;
-  padding: var(--rr-space-8) var(--rr-space-12);
+  padding: var(--rr-assistant-msg-gap) var(--rr-assistant-inset);
 }
-/* the loading screen: edgeless, its text lined up with the "Claude" label above it */
+/* read-only (the loading screen): edgeless, its text flush with the column it sits in */
 .rr-assistant__thread.is-readonly .rr-assistant__viewport {
   padding-inline: 0;
   scrollbar-width: none; /* it follows the newest line itself; a bar would only cut the edgeless column */
@@ -45,11 +45,14 @@
   mask-image: linear-gradient(transparent, var(--rr-ink) var(--rr-space-32)); /* a mask: only its alpha counts */
 }
 .rr-assistant__msg {
-  margin: var(--rr-space-8) 0;
-  font-size: var(--rr-text-md);
+  margin: var(--rr-assistant-msg-gap) 0;
+  font-size: var(--rr-assistant-text);
+}
+.rr-assistant__msg:first-child {
+  margin-top: 0;
 }
 .rr-assistant__msg .rr-prose {
-  font: var(--rr-text-md) / 1.5 var(--rr-font);
+  font: var(--rr-assistant-text) / 1.5 var(--rr-font);
 }
 .rr-assistant__msg .rr-prose > * {
   margin-block: var(--rr-space-6);
@@ -61,8 +64,8 @@
   align-items: flex-end;
   width: fit-content;
   max-width: 85%;
-  margin: var(--rr-space-8) 0 var(--rr-space-8) auto;
-  padding: var(--rr-space-6) var(--rr-space-10);
+  margin: var(--rr-assistant-msg-gap) 0 var(--rr-assistant-msg-gap) auto;
+  padding: var(--rr-assistant-bubble-pad);
   border-radius: var(--rr-radius);
   background: var(--rr-surface-well);
   white-space: pre-wrap;
@@ -87,14 +90,14 @@
 .rr-assistant__more {
   margin-top: var(--rr-space-4);
   color: var(--rr-muted); /* a quiet aside, not the accent */
-  font-size: var(--rr-text-sm);
+  font-size: var(--rr-assistant-small);
 }
 .rr-assistant__more:hover {
   color: var(--rr-ink);
 }
 /* the generate prompt: one folded line, edge to edge on the well */
 .rr-assistant__msg.is-prompt {
-  padding: var(--rr-space-6) var(--rr-space-10);
+  padding: var(--rr-assistant-bubble-pad);
   border-radius: var(--rr-radius);
   background: var(--rr-surface-well);
   white-space: pre-wrap;
@@ -113,11 +116,11 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--rr-space-6);
-  margin: var(--rr-space-4) 0;
-  padding: var(--rr-space-4) var(--rr-space-8);
+  margin: var(--rr-assistant-row-gap) 0;
+  padding: var(--rr-assistant-row-pad);
   border: 1px solid var(--rr-line);
   border-radius: var(--rr-radius);
-  font-size: var(--rr-text-sm);
+  font-size: var(--rr-assistant-small);
 }
 .rr-assistant__tool-name {
   flex: none;
@@ -153,9 +156,9 @@
 }
 /* nothing red: a dropped stream or a failed turn is said quietly, and the assistant carries on */
 .rr-assistant__error {
-  margin: var(--rr-space-6) var(--rr-space-12);
+  margin: var(--rr-space-6) var(--rr-assistant-inset);
   color: var(--rr-muted);
-  font-size: var(--rr-text-sm);
+  font-size: var(--rr-assistant-small);
 }
 .rr-assistant__thread.is-readonly .rr-assistant__error {
   margin-inline: 0;
@@ -172,18 +175,18 @@
   padding: 0 var(--rr-space-10) var(--rr-space-8);
 }
 .rr-assistant__thread.is-readonly .rr-assistant__actions {
-  padding: var(--rr-space-12) 0 0;
+  padding: var(--rr-assistant-gap) 0 0;
 }
 .rr-assistant__extra {
   flex: 1; /* the host's controls take the row's whole width */
 }
-/* the read-only foot, its own line under the transcript: Clawd, "Claude" and the busy dots, Stop at its end */
+/* the read-only foot, its own line under the transcript: Clawd, "Claude" and the busy dots, Stop at its end  */
 .rr-assistant__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--rr-control);
-  margin-top: var(--rr-space-12);
+  margin-top: var(--rr-assistant-gap);
 }
 .rr-assistant__stop {
   color: var(--rr-muted);
@@ -203,7 +206,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--rr-muted);
-  font-size: var(--rr-text-sm);
+  font-size: var(--rr-assistant-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
