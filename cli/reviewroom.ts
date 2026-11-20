@@ -253,13 +253,7 @@ const notes: Record<string, string> = {
   Prints saved feedback or APPROVED to stdout and records delivery.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
-  Resolve threads only when the user requests it.
-  gh_<n> identifies GitHub threads; gh_conversation identifies PR conversation.
-  These belong to colleagues; agents cannot reply.
-  Link them with rr:thread/gh_<n>.`,
-  'status': `  gh_<n> identifies GitHub threads; gh_conversation identifies PR conversation.
-  These belong to colleagues; agents cannot reply.
-  Link them with rr:thread/gh_<n>.`,
+  Resolve threads only when the user requests it.`,
   'hub': `  One hub per machine; repeated starts print its URL.
   Lists reviewroom, Crit, and Plannotator sessions without thread text.
   Reviews are proxied at /r/<id>/.

@@ -20,9 +20,10 @@ export function summary(repo: string | null, dir: string) {
   try {
     if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
   } catch {}
+  const cfg = readConfig(dir);
   const role = process.env.REVIEWROOM_ASSISTANT_DIR && path.resolve(process.env.REVIEWROOM_ASSISTANT_DIR) === dir ? 'assistant' : 'external';
   return {
-    id: readConfig(dir).id, dir, role, review: path.join(dir, REPORT_FILE), url: liveServer(dir)?.url ?? null, base, head,
+    id: cfg.id, dir, role, review: path.join(dir, REPORT_FILE), profile: cfg.profile, url: liveServer(dir)?.url ?? null, base, head,
     round: s.round, roundStatus: currentRound(s)?.status, threads: s.threads.length,
     open: s.threads.filter((t) => t.status === 'open').length, awaitingAgent: awaitingAgent(s).map((t) => t.id),
   };
@@ -30,7 +31,7 @@ export function summary(repo: string | null, dir: string) {
 
 export function printSummary(x: ReturnType<typeof summary>) {
   console.log([
-    `review: ${shellArg(x.id ?? x.dir)}`, `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review}`,
+    `review: ${shellArg(x.id ?? x.dir)}`, `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review} (profile ${x.profile ?? 'explainer'})`,
     `base: ${x.base ?? '?'}  head: ${x.head ?? '?'}`, `round: ${x.round} (${x.roundStatus})  role: ${x.role}`,
     `threads: ${x.open} open, ${x.awaitingAgent.length} awaiting your reply`,
   ].join('\n'));

@@ -26,7 +26,7 @@ async function runCli(repo: string, dir: string, home: string, args: string[] = 
   const started = performance.now();
   const cli = await executeCli({ ...process.env, REVIEWROOM_HOME: home }, ['slide-lint', dir, '--repo', repo, '--json', ...args]);
   const ms = elapsed(started);
-  if (cli.code !== 0 && cli.code !== 1) throw new Error(cli.stderr);
+  if (cli.code !== 0 && cli.code !== 1) throw new Error(cli.stdout);
   return { ms, code: cli.code, result: Report.parse(JSON.parse(cli.stdout)) };
 }
 

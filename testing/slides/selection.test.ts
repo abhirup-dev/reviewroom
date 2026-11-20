@@ -18,7 +18,7 @@ test('a partial check still validates the entire schema, including unselected ch
   fs.writeFileSync(file, JSON.stringify(w));
   const r = await lint(['--slide', 'enforce/s2']);
   expect(r.code).toBe(1);
-  expect(r.stderr).toContain('duplicate step id');
+  expect(r.stdout).toContain('duplicate step id');
 });
 
 test.skipIf(!browser)('partial checks ignore unrelated links, focus and overflow; a full check still catches them', async () => {
