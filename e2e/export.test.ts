@@ -5,11 +5,12 @@ import { pathToFileURL } from 'node:url';
 import { withPage } from '../cli/lib/render.ts';
 import { until } from '../src/testing/wait.ts';
 import { slideCases, writeSlideCase } from '../testing/slides/cases.ts';
+import { browser } from '../testing/slides/fixture.ts';
 import { read, setup } from './fixture.ts';
 
 const { cli, dir, d, tmp, state, serve, spawn } = setup();
 
-test('the export plays from disk with bundled code and no network requests or private review text', async () => {
+test.skipIf(!browser)('the export plays from disk with bundled code and no network requests or private review text', async () => {
   const tour = structuredClone(slideCases.demo.tour);
   tour.chapters[0].steps[0].text += '<p><a href="rr:tour/bucket/s2">Plan</a></p><img src="https://example.com/hidden.png">';
   const privateReport = 'Private report marker';
@@ -28,8 +29,9 @@ test('the export plays from disk with bundled code and no network requests or pr
   const requests: string[] = [];
   const url = pathToFileURL(output).href;
   const stage = '.rr-export-stage';
+  let engine = '';
   await withPage(url, { width: 1280, height: 800 }, async (page) => {
-    expect(page.engine).toBe('chrome');
+    engine = page.engine;
     const click = async (selector: string) =>
       expect(await page.evaluate(`(() => {
         const target = document.querySelector(${JSON.stringify(selector)});
@@ -60,6 +62,7 @@ test('the export plays from disk with bundled code and no network requests or pr
     expect(await page.evaluate(`document.querySelector('${stage}').dataset.page`)).toBe('end');
     expect(page.errors()).toEqual([]);
   }, 1, { readySelector: `${stage}[data-page]`, animations: false, onRequest: (url) => requests.push(url) });
+  if (engine !== 'chrome') return; // only Chrome reports requests (WebKit runs the walk-through above)
   expect(requests).toContain(url);
   expect(requests.filter((url) => !/^(?:file:|data:|about:|blob:file:)/.test(url))).toEqual([]);
 });
