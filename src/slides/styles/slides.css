@@ -397,9 +397,13 @@
   z-index: 1;
   background: var(--rr-panel);
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.12s ease;
 }
 .rr-tour__layer.is-gone {
+  opacity: 0;
+}
+/* new code after the pane changed width: hidden until it has landed (player.ts) */
+.rr-tour__layer.is-entering {
   opacity: 0;
 }
 /* one chunk fills the pane; several share it, each by the height of its code (player.ts sets the flex) */

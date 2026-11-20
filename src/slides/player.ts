@@ -101,12 +101,13 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   let old: { el: HTMLElement; views: typeof views } | null = null;
   const drop = (o: NonNullable<typeof old>) => { o.views.forEach((v) => v.panel?.dispose?.()); o.el.remove(); };
   const dropOld = () => {
+    layer.classList.remove('is-entering');
     const o = old;
     if (!o) return;
     old = null;
     if (proseAudit) return drop(o);
     o.el.classList.add('is-gone');
-    setTimeout(() => drop(o), 250);
+    setTimeout(() => drop(o), 150);
   };
   // stacked chunks are named in their code panel's toolbar (one alone has only its file's band); clicking a name shows
   // only that one
@@ -182,9 +183,19 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     if (many) shareOf(el, slot, n);
     return el;
   };
+  let shapedAs = '';
   const mount = (s: PaneShown) => {
+    // the narration changed width since the last code (a new chapter's shape or code width): the code leaving would
+    // reflow and re-centre under it, so it goes at once and the new code shows once it has landed (a cut)
+    const width = `${player.dataset.shape} ${player.style.getPropertyValue('--_code')}`;
+    const moved = width !== shapedAs;
+    shapedAs = width;
+    if (moved && old) {
+      drop(old);
+      old = null;
+    }
     // what landed last stays over the new chunks; a layer replaced before it landed goes at once
-    if (old || !views.length) {
+    if (old || !views.length || moved) {
       dispose();
       layer.remove();
     } else {
@@ -193,7 +204,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     }
     views = [];
     dragged = false;
-    layer = pane.appendChild(h('div', { class: 'rr-tour__layer' }));
+    layer = pane.appendChild(h('div', { class: 'rr-tour__layer' + (moved ? ' is-entering' : '') }));
     if (s.kind === 'refs' && !proseAudit) layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length)));
     views.slice(0, -1).forEach((v, i) => v.el.append(grip(v.el, views[i + 1].el)));
     // no code: the narration takes the whole player, centred
@@ -466,8 +477,8 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     void planAll().then(() => {
       const shown = actor.getSnapshot().children.pane?.getSnapshot().context.shown;
       if (!ctx().doc || shown?.kind !== 'refs') return;
-      mount(shown);
       paintCodeWidth(current(ctx()).chapter);
+      mount(shown);
     });
   }));
   const paint = (prior: typeof last) => {
