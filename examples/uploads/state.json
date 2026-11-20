@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "rev": 6,
+  "rev": 5,
   "round": 2,
   "rounds": [
     {
@@ -153,11 +153,11 @@
     "rr:code/client/upload.go#L17-23": "2f97e0d8890d4978",
     "rr:code/internal/upload/types.go#L137-161": "b04eedebdcc0c0af",
     "rr:code/internal/upload/types.go#L1-6": "26117ff2c3d01372",
+    "rr:code/config/limits.json#L4": "abe4efd2c31f1f79",
+    "rr:code/client/upload.go#L20": "9d13f5f2c354804e",
     "rr:code/internal/upload/disk.go#L24": "ae3085139a1995ff",
     "rr:code/internal/upload/disk.go#L29-30": "9e061b42d670486b",
     "rr:code/internal/upload/errors.go#L6": "390405663253860b",
-    "rr:code/internal/upload/errors.go#L5-6": "35f968df8825df3c",
-    "rr:code/config/limits.json#L4": "abe4efd2c31f1f79",
-    "rr:code/client/upload.go#L20": "9d13f5f2c354804e"
+    "rr:code/internal/upload/errors.go#L5-6": "35f968df8825df3c"
   }
 }

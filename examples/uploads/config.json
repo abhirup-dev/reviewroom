@@ -1,6 +1,1 @@
-{
-  "base": "main",
-  "head": "feat/upload-rate-limit",
-  "repoPath": "/Users/abhirupdas/Codes/Personal/readingroom/.demo/uploads",
-  "profile": "explainer"
-}
+{ "base": "main", "head": "feat/upload-rate-limit" }
