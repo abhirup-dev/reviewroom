@@ -146,8 +146,6 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     plans = { doc, files: files0, view, done };
     return done;
   };
-  // the fit rule (fit.ts) under the reader's Auto / Split / Unified (each code panel's band)
-  const fit = (blocks: ChangeBlock[], width: number) => fitDiff(blocks, width, app.prefs.tourView);
   // stacked files: more than FOLD fold to their hunks, each in a share of the pane by the height it shows (fit.ts); up
   // to FOLD are shown whole. The line between two drags; a drag holds while the slides show the same files
   const FOLD = 3;
@@ -172,7 +170,10 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
     if (head) nameHead(head, slot.ref);
-    // the walkthrough draws each file by its fit rule (fit.ts) and centres what its slide is about
+    // the walkthrough draws each file by its fit rule (fit.ts), under Auto / Split / Unified as it was when built (a
+    // switch rebuilds the slide; the code leaving doesn't redraw itself first), and centres what its slide is about
+    const view = app.prefs.tourView;
+    const fit = (blocks: ChangeBlock[], width: number) => fitDiff(blocks, width, view);
     const plan = planned.get(slot.ref);
     const ahead = plan && { touched: plan.touched, fitted: fit(plan.touched, pane.clientWidth) };
     const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, fit, planned: ahead, centre: true, whole: n <= FOLD, ...form.codeLayout?.() }, id) : null;
@@ -478,7 +479,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       const shown = actor.getSnapshot().children.pane?.getSnapshot().context.shown;
       if (!ctx().doc || shown?.kind !== 'refs') return;
       paintCodeWidth(current(ctx()).chapter);
-      mount(shown);
+      actor.getSnapshot().children.pane?.send({ type: 'rebuild' });
     });
   }));
   const paint = (prior: typeof last) => {
