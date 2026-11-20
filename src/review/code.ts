@@ -3,7 +3,8 @@
 import { CodeView, parseDiffFromFile, parsePatchFiles, type CodeViewItem, type CodeViewOptions, type DiffLineAnnotation, type FileDiffMetadata, type SelectedLineRange } from '@pierre/diffs';
 import { copyText, diffstat, h, icon, onDrag, plural, seg, threadBadge, threadCounts } from '../kernel/dom';
 import { plainExcerpt } from '../kernel/markdown';
-import { oldToNewLine } from './hunks';
+import { changeBlocks, oldToNewLine, touchedBlocks, type ChangeBlock } from './hunks';
+import { place } from './placement';
 import type { ChangedFile, Thread } from '../kernel/state/model.shared';
 import { addPanelAt, definePanel, setPanelTitle, type PanelInstance, type DockPlacement } from '../kernel/dock';
 import { openCentered } from './focus';
@@ -94,8 +95,8 @@ const focusMenu = (app: ReviewApp) =>
     icon('chevronDown', 12),
   );
 
-/** How diffs are drawn (prefs: every code panel follows them). A code panel's toolbar has them; the walkthrough pane
- *  shows one set for all its files. */
+/** How diffs are drawn (prefs: every code panel follows them). A code panel's toolbar has them; the walkthrough's
+ *  fit rule decides them per slide instead. */
 export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): HTMLElement[] {
   const p = app.prefs;
   const sets = [
@@ -115,6 +116,9 @@ export function displayTools(app: ReviewApp, mode: 'diff' | 'file'): HTMLElement
   return sets.filter((x) => x !== null).map((x) => (x.classList.contains('rr-toolbar__set') ? x : set(x)));
 }
 
+/** How a fit rule draws a file: its view and whether its lines wrap. */
+export type Fit = { diffStyle: 'split' | 'unified'; wrap: boolean };
+
 /** Optional code-panel layout and navigation controls, supplied by its host. */
 export type CodePanelOptions = {
   /** Pixels of scroll room at the foot (default 16). */
@@ -124,7 +128,70 @@ export type CodePanelOptions = {
   cover?: { px: () => number; onChange: (fn: () => void) => () => void };
   /** Show the file scrubber and file-position menus in diff headers. */
   rail?: boolean;
+  /** How to draw a reveal's lines, from the change blocks they touch and the pane's width (the walkthrough's rule); the
+   *  user's Split/Unified and Wrap otherwise. Its blocks stay in full colour, the file's other changes take
+   *  --_unlit-change (diffs.css). */
+  fit?: (touched: ChangeBlock[], width: number) => Fit;
+  /** Revealed lines and the change blocks they touch land centred in the code (default: the lines, 30% down); code
+   *  that fits is centred whole (placement.ts). */
+  centre?: boolean;
+  /** Every line of the file, unchanged ones unfolded (default: the diff's hunks, the rest folded). */
+  whole?: boolean;
+  /** `fit` worked out ahead for the first reveal (litFor, then fit): the panel is built drawn that way. */
+  planned?: { fitted: Fit; touched: ChangeBlock[] };
 };
+
+const fitKeyOf = (t: CodeTarget) => `${t.path}@${t.side}#${t.start}-${t.end ?? t.start}`;
+
+/** The range's patch, fetched once per set of changed files (a new set: a new fetch), range and whitespace setting:
+ *  every panel and the walkthrough's plan read the same one. */
+const patches = new WeakMap<readonly ChangedFile[], Map<string, Promise<string | null>>>();
+function patchOf(app: ReviewApp, ws: boolean) {
+  const r = app.range, key = `${r.base}..${r.head}${ws ? ':ws' : ''}`;
+  const byKey = patches.get(app.files) ?? new Map<string, Promise<string | null>>();
+  patches.set(app.files, byKey);
+  if (!byKey.has(key)) byKey.set(key, app.provider.patch?.(r, ws).catch(() => null) ?? Promise.resolve(null));
+  return byKey.get(key)!;
+}
+
+/** The files' diffs as CodeView lays them out: from the range's patch where the provider has one (loadDiffFiles reads a
+ *  file when its context is expanded), else from both sides read up front. */
+export async function loadDiffs(app: ReviewApp, files: ChangedFile[]): Promise<(FileDiffMetadata | null)[]> {
+  const r = app.range;
+  const ws = app.prefs.ignoreWhitespace ? { ignoreWhitespace: true } : undefined;
+  const patch = await patchOf(app, !!ws);
+  const parsed = new Map((patch ? parsePatchFiles(patch, `${r.base}..${r.head}${ws ? ':ws' : ''}`) : []).flatMap((p) => p.files).map((d) => [d.name, d]));
+  return Promise.all(
+    files.map(async (f) => {
+      if (f.binary) return null;
+      const fromPatch = parsed.get(f.path);
+      if (fromPatch) return fromPatch;
+      const [oldText, newText] = await Promise.all([
+        f.status === 'added' ? null : app.services.code.read(f.prevPath ?? f.path, r.base),
+        f.status === 'deleted' ? null : app.services.code.read(f.path, r.head),
+      ]);
+      if (oldText === null && newText === null) return null;
+      return parseDiffFromFile(
+        oldText === null ? null : { name: f.prevPath ?? f.path, contents: oldText, cacheKey: `${r.base}:${f.prevPath ?? f.path}` },
+        newText === null ? null : { name: f.path, contents: newText, cacheKey: `${r.head}:${f.path}` },
+        ws,
+      );
+    }),
+  );
+}
+
+/** What a reveal lights: the change blocks its lines touch, whole. */
+export function litFor(diff: FileDiffMetadata, rev: 'base' | 'head', start: number, end: number) {
+  return touchedBlocks(changeBlocks(diff), sideOf(rev), start, end);
+}
+
+/** A reveal's blocks back in full colour where a surface fades a file's changes (CODE_CSS, --_unlit-change). Pierre marks
+ *  each row and number with its line and type. */
+function litCSS(touched: ChangeBlock[]) {
+  const rows = (type: string, r: [number, number] | null) => (r ? Array.from({ length: r[1] - r[0] + 1 }, (_, i) => `[data-line-type="change-${type}"]:is([data-line="${r[0] + i}"],[data-column-number="${r[0] + i}"])`) : []);
+  const lit = touched.flatMap((b) => [...rows('deletion', b.del), ...rows('addition', b.add)]);
+  return lit.length ? `:is(${lit.join()}){opacity:1}` : '';
+}
 
 class CodePanel implements PanelInstance {
   element: HTMLElement;
@@ -152,6 +219,8 @@ class CodePanel implements PanelInstance {
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
   private padBottom?: number;
+  /** Centred code: blank room above and below it, so its focus can reach the pane's middle near a file's ends. */
+  private room = { above: 0, below: 0 };
   private cover?: CodePanelOptions['cover'];
   private withRail: boolean;
   /** The cover's height when lines last landed (revealMachine's settle compares). */
@@ -162,6 +231,17 @@ class CodePanel implements PanelInstance {
   private revealer: Actor<typeof revealMachine>;
   /** A segment per file down the right edge (drag it to scrub) and where the view is on it. */
   private rail?: { el: HTMLElement; thumb: HTMLElement; sig: string };
+  private fit?: CodePanelOptions['fit'];
+  private centre: boolean;
+  private whole: boolean;
+  /** The last reveal's fit (over the prefs), the change blocks its lines touch and their CSS. */
+  private fitted?: Fit;
+  private touched: ChangeBlock[] = [];
+  private litCSS = '';
+  /** The lines it was last fitted to (or planned for): a reveal of the same lines lands again without refitting. */
+  private fitKey = '';
+  /** The next frame (CodeView draws on one). */
+  private frame = () => new Promise((r) => requestAnimationFrame(r));
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown> & CodePanelOptions) {
     this.isPrimary = panelId === 'code';
@@ -171,17 +251,27 @@ class CodePanel implements PanelInstance {
     this.cover = params.cover;
     this.withRail = !!params.rail;
     this.head = params.head as HTMLElement | undefined;
+    this.fit = params.fit;
+    this.centre = !!params.centre;
+    this.whole = !!params.whole;
+    // a plan made ahead (the walkthrough's): built drawn the right way, no second render once it lands
+    if (params.planned) {
+      this.fitKey = fitKeyOf(params as unknown as CodeTarget);
+      this.fitted = params.planned.fitted;
+      this.touched = params.planned.touched;
+      this.litCSS = litCSS(this.touched);
+    }
     this.toolbar = h('div', { class: 'rr-toolbar' });
     this.empty = h('div', { class: 'rr-empty', hidden: true });
     this.scroller = h('div', { class: 'rr-scroll rr-code-scroll', tabindex: '0', 'data-rr-scope': 'code' });
     this.element = h('div', { class: 'rr-code-panel' }, this.toolbar, this.empty, this.scroller);
+    if (this.fitted) this.element.dataset.diffStyle = this.fitted.diffStyle; // the fitted view, for its host (tests read it)
     this.scroller.addEventListener('pointerup', (e) => (this.lastPointer = { x: e.clientX, y: e.clientY }), true);
     this.cv = new CodeView<Meta>(this.options());
     this.cv.setup(this.scroller);
-    const frame = () => new Promise((r) => requestAnimationFrame(r));
     this.revealer = createActor(
       revealMachine.provide({
-        actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, frame)), settle: fromPromise(({ signal }) => this.settle(signal)) },
+        actors: { prepare: fromPromise(({ input, signal }) => this.prepare(input, signal)), unfold: fromPromise(({ input, signal }) => this.unfoldAround(input, signal, this.frame)), settle: fromPromise(({ signal }) => this.settle(signal)) },
         actions: {
           land: ({ context }) => this.land(context.target!),
           recentre: ({ context }) => this.land(context.target!, matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'),
@@ -295,14 +385,14 @@ class CodePanel implements PanelInstance {
     ];
   }
 
-  /** A file band's right side, the same on every surface: open threads, its size, a link to it, Viewed. */
-  private fileTrail(f: ChangedFile, cb: HTMLElement, extra: HTMLElement | null, viewedTitle: string) {
+  /** A file band's right side: open threads, its size, a link to it (`link`), Viewed. */
+  private fileTrail(f: ChangedFile, cb: HTMLElement, extra: HTMLElement | null, viewedTitle: string, link = true) {
     const threads = codeThreadsOn(this.app.services.threads.threads(), f.path).filter((t) => t.status === 'open');
     return [
       h('span', { class: 'rr-toolbar__spacer' }),
       ...threadCounts(threads, 'in this file'),
       diffstat([f]),
-      h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); this.app.toast(`Link to ${f.path.split('/').pop()} copied \u2014 paste it into any comment`); } }, icon('link', 14)),
+      link ? h('button', { class: 'rr-icon-btn', title: 'Copy a link to this file (paste it into any comment)', 'aria-label': 'Copy link to file', onclick: () => { void copyText(formatRef({ type: 'code', path: f.path, rev: 'head' })); this.app.toast(`Link to ${f.path.split('/').pop()} copied \u2014 paste it into any comment`); } }, icon('link', 14)) : null,
       extra,
       h('label', { class: 'rr-viewed', title: viewedTitle, 'data-keys': 'v' }, cb, 'Viewed'),
     ];
@@ -318,7 +408,8 @@ class CodePanel implements PanelInstance {
     const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.openFile(path, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
     return {
       left: [...lead, this.head ?? null, this.viewSeg(f, view)],
-      right: f ? this.fileTrail(f, cb, null, 'Mark this file as viewed') : [],
+      // quiet: the slide decides how the diff is drawn, so no display toggles; no link either (the slide's ref is one)
+      right: f ? this.fileTrail(f, cb, null, 'Mark this file as viewed', false) : [],
     };
   }
 
@@ -353,7 +444,6 @@ class CodePanel implements PanelInstance {
     const token = ++this.loadToken;
     const files = this.pin ? this.app.files.filter((f) => f.path === this.pin) : this.app.visibleFiles();
     const r = this.app.range;
-    const ws = this.app.prefs.ignoreWhitespace ? { ignoreWhitespace: true } : undefined;
     this.renderToolbar();
     this.showEmpty(files.length ? '' : this.app.files.length ? 'All files are hidden by the current filters.' : 'No changes in this range.');
     // a new range: drop the old one's lines rather than leave them clickable while the new one loads
@@ -363,28 +453,8 @@ class CodePanel implements PanelInstance {
       this.files = new Map();
       this.cv.setItems([]);
     }
-    // CodeView lays out every item from its diff: from the range's patch where the provider has one (loadDiffFiles reads
-    // a file when its context is expanded), else from both sides read up front
     return (this.ready = (async () => {
-      const patch = await this.app.provider.patch?.(r, !!ws).catch(() => null);
-      const parsed = new Map((patch ? parsePatchFiles(patch, `${key}${ws ? ':ws' : ''}`) : []).flatMap((p) => p.files).map((d) => [d.name, d]));
-      const diffs = await Promise.all(
-        files.map(async (f) => {
-          if (f.binary) return null;
-          const fromPatch = parsed.get(f.path);
-          if (fromPatch) return fromPatch;
-          const [oldText, newText] = await Promise.all([
-            f.status === 'added' ? null : this.app.services.code.read(f.prevPath ?? f.path, r.base),
-            f.status === 'deleted' ? null : this.app.services.code.read(f.path, r.head),
-          ]);
-          if (oldText === null && newText === null) return null;
-          return parseDiffFromFile(
-            oldText === null ? null : { name: f.prevPath ?? f.path, contents: oldText, cacheKey: `${r.base}:${f.prevPath ?? f.path}` },
-            newText === null ? null : { name: f.path, contents: newText, cacheKey: `${r.head}:${f.path}` },
-            ws,
-          );
-        }),
-      );
+      const diffs = await loadDiffs(this.app, files);
       if (token !== this.loadToken) return;
       this.files = new Map(files.map((f, i) => [f.path, { file: f, diff: diffs[i], collapsed: this.app.state.viewed[f.path] !== undefined }]));
       this.refreshItems();
@@ -466,21 +536,24 @@ class CodePanel implements PanelInstance {
     return {
       theme: { dark: 'pierre-dark', light: 'pierre-light' },
       themeType: this.app.resolvedTheme(),
-      diffStyle: p.diffStyle,
-      overflow: p.wrap ? 'wrap' : 'scroll',
+      diffStyle: this.fitted?.diffStyle ?? p.diffStyle,
+      overflow: (this.fitted?.wrap ?? p.wrap) ? 'wrap' : 'scroll',
       lineDiffType: p.lineDiff,
       hunkSeparators: 'line-info',
+      expandUnchanged: this.whole,
       expansionLineCount: 20,
       stickyHeaders: true,
       disableFileHeader: this.mode === 'file' || this.embedded, // the walkthrough names the file in its toolbar
-      itemMetrics: { diffHeaderHeight: HEADER_HEIGHT },
+      // diffs.css sets no gap around hunks or files (--diffs-gap-block): its layout counts none either, or its line
+      // positions (scrolls, the walkthrough's centring) run 8px a fold and a file low
+      itemMetrics: { diffHeaderHeight: HEADER_HEIGHT, spacing: 0 },
       // Extra scroll room lets the last lines rise above a covering element.
       // files run edge to edge and meet at a hairline (CodeView's documented layout option)
-      layout: { paddingTop: 0, paddingBottom: this.padBottom ?? 16, gap: 0 },
+      layout: { paddingTop: this.room.above, paddingBottom: (this.padBottom ?? 16) + this.room.below, gap: 0 },
       lineHoverHighlight: 'number',
       enableLineSelection: true,
       enableGutterUtility: !fv?.rev,
-      unsafeCSS: CODE_CSS + PULSE_CSS + focusCSS,
+      unsafeCSS: CODE_CSS + PULSE_CSS + focusCSS + this.litCSS,
       renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
       // Item callbacks run inside CodeView's render; its scroll and selection managers flush afterwards.
       onPostRender: (_node, _instance, phase) => { if (phase !== 'unmount' && this.drawWaiters.size) queueMicrotask(() => this.drawWaiters.forEach((check) => check())); },
@@ -513,7 +586,7 @@ class CodePanel implements PanelInstance {
   /** Split view: the new line drawn across from an old line, so threads on either side share one row's annotation instead of two half-width ones. */
   private pairedNewLine(path: string, oldLine: number): number | undefined {
     const d = this.files.get(path)?.diff;
-    if (!d || this.app.prefs.diffStyle !== 'split') return;
+    if (!d || (this.fitted?.diffStyle ?? this.app.prefs.diffStyle) !== 'split') return;
     for (const hunk of d.hunks)
       for (const c of hunk.hunkContent) {
         const i = oldLine - 1 - c.deletionLineIndex;
@@ -585,6 +658,13 @@ class CodePanel implements PanelInstance {
     const f = this.files.get(t.path);
     if (signal.aborted || !f) return 'nothing';
     if (f.collapsed) this.toggleCollapse(t.path, false);
+    // other lines (a glide) fit here; the lines it was planned or fitted for are drawn already
+    if (this.fit && f.diff && t.start && fitKeyOf(t) !== this.fitKey) this.fitTo(f.diff, t);
+    // a whole file from the patch knows only its hunks: load the rest before its lines land, or they land on the hunks
+    if (this.whole && f.diff?.isPartial) {
+      await this.draw(t.path, signal);
+      if (!signal.aborted) await this.loadPartial(t.path).then(this.frame).then(this.frame);
+    }
     if (!this.embedded) {
       this.app.activeFile = t.path;
       this.app.bus.emit('active-file', t.path);
@@ -594,26 +674,41 @@ class CodePanel implements PanelInstance {
     return 'nothing';
   }
 
+  /** A file the patch gave only hunks of: load the rest (CodeView then draws it in full on its next frame). */
+  private async loadPartial(path: string) {
+    const it = this.cv.getRenderedItems().find((x) => x.id === path);
+    if (it?.type === 'diff' && this.files.get(path)?.diff?.isPartial) await it.instance.prepareForEditing().catch(() => {});
+  }
+
+  /** Draw the file the way `fit` says for the change blocks the target touches, and light those blocks. */
+  private fitTo(diff: FileDiffMetadata, t: CodeTarget) {
+    this.touched = litFor(diff, t.side, t.start!, t.end ?? t.start!);
+    this.fitKey = fitKeyOf(t);
+    this.fitted = this.fit!(this.touched, this.scroller.clientWidth);
+    this.element.dataset.diffStyle = this.fitted.diffStyle;
+    this.litCSS = litCSS(this.touched);
+    this.cv.setOptions(this.options());
+  }
+
   /** revealMachine's `unfold`: lines the PR didn't touch sit in folded context; once the file is mounted, unfold around
    *  them. True: it did, and CodeView has applied it (land again). */
   private async unfoldAround(t: CodeTarget, signal: AbortSignal, frame: () => Promise<unknown>) {
     await this.draw(t.path, signal);
     if (signal.aborted) return false;
     const f = this.files.get(t.path);
-    if (this.mode !== 'diff' || !f?.diff) return false;
+    // centred code lands again once CodeView has drawn it (its first draw places lines by estimated heights, and a
+    // partial diff loaded below changes them): true, as an unfold
+    const again = async () => this.centre && !this.cover && (await frame(), await frame(), !signal.aborted);
+    if (this.mode !== 'diff' || !f?.diff) return again();
     await frame();
     if (signal.aborted) return false; // before loading a partial diff for a reveal that is over
-    const item = () => this.cv.getRenderedItems().find((x) => x.id === t.path);
-    let it = item();
     // a file from the patch knows only its hunks: load it, then look again (revealLine refuses partial diffs)
-    if (it?.type === 'diff' && f.diff.isPartial) {
-      await it.instance.prepareForEditing().catch(() => {});
-      await frame();
-      it = item();
-    }
-    if (signal.aborted || it?.type !== 'diff' || !f.diff) return false;
+    if (f.diff.isPartial) await this.loadPartial(t.path).then(frame);
+    const it = this.cv.getRenderedItems().find((x) => x.id === t.path);
+    if (signal.aborted) return false;
+    if (it?.type !== 'diff' || !f.diff) return again();
     const side = sideOf(t.side);
-    if (!unfold(it.instance, f.diff, side, t.start!, t.end ?? t.start!)) return false;
+    if (!unfold(it.instance, f.diff, side, t.start!, t.end ?? t.start!)) return again();
     // CodeView applies the unfold on its next frame
     await frame();
     await frame();
@@ -638,17 +733,49 @@ class CodePanel implements PanelInstance {
     });
   }
 
-  /** Highlight the target's lines and scroll them to 30% from the top (a covering element: centred above it). */
+  /** Highlight the target's lines and scroll them to 30% from the top (`centre`: placement.ts; a covering element:
+   *  centred above it). */
   private land(t: CodeTarget, behavior: 'instant' | 'smooth' = 'instant') {
     const side = sideOf(t.side);
     const lines = { start: t.start!, end: t.end ?? t.start! };
     const range = this.mode === 'file' ? lines : { ...lines, side, endSide: side };
     this.cv.setSelectedLines({ id: t.path, range }, { notify: false });
+    this.landedAt = this.cover?.px() ?? 0;
+    // centred: set directly, no scroll queued in CodeView that it could apply after this one
+    if (this.centre && !this.cover) return this.centreOn(t.path, lines, side);
     // Centre in the uncovered code, or 8px from the top when the lines do not fit there.
     const offset = this.cover ? this.centredAbove(t.path, lines, side, this.cover.px()) : this.scroller.clientHeight * 0.3;
     this.cv.scrollTo({ type: 'range', id: t.path, range, align: 'start', offset, behavior });
     this.cv.render(true); // `instant` scrolls are queued by CodeView too; land only after they are applied.
-    this.landedAt = this.cover?.px() ?? 0;
+  }
+
+  /** Centre the code (placement.ts) by CodeView's own layout: its height, its scroll (CodeView pages a long scroll)
+   *  and its padding (the blank room near a file's ends). */
+  private centreOn(path: string, lines: { start: number; end: number }, side: Side) {
+    const p = place(this.scroller.clientHeight, this.cv.getScrollHeight(), this.focusSpans(path, lines, side));
+    if (p.above !== this.room.above || p.below !== this.room.below) {
+      this.room = { above: p.above, below: p.below };
+      this.cv.setOptions(this.options());
+    }
+    if (p.scroll !== null) this.cv.scrollTo({ type: 'position', position: p.scroll });
+    this.cv.render(true);
+  }
+
+  /** What a slide is about, top and bottom in the code (px from its first line), from CodeView's own layout (measured
+   *  rows where drawn, its estimate elsewhere): its lines and the change blocks they touch, then its lines alone. */
+  private focusSpans(path: string, lines: { start: number; end: number }, side: Side): [number, number][] {
+    type At = { top: number; height: number } | undefined;
+    const it = this.cv.getRenderedItems().find((x) => x.id === path)?.instance as { getLinePosition(n: number, side?: Side): At } | undefined;
+    const top = this.cv.getTopForItem(path), first = this.cv.getTopForItem(this.mode === 'file' ? path : [...this.files.keys()][0]);
+    if (!it || top === undefined || first === undefined) return [];
+    const base = top - first; // past the layout's padding
+    const span = (ends: [number, Side][]): [number, number][] => {
+      const at = ends.map(([n, s]) => (this.mode === 'file' ? it.getLinePosition(n) : it.getLinePosition(n, s))).filter((x): x is NonNullable<At> => !!x);
+      return at.length ? [[base + Math.min(...at.map((x) => x.top)), base + Math.max(...at.map((x) => x.top + x.height))]] : [];
+    };
+    const own: [number, Side][] = [[lines.start, side], [lines.end, side]];
+    const blocks = this.touched.flatMap((b): [number, Side][] => [...(b.del ? b.del.map((n): [number, Side] => [n, 'deletions']) : []), ...(b.add ? b.add.map((n): [number, Side] => [n, 'additions']) : [])]);
+    return [...(blocks.length ? span([...own, ...blocks]) : []), ...span(own)];
   }
 
   /** The cover may still be sizing when lines land: true once it has changed from what they landed against (the
@@ -675,10 +802,10 @@ class CodePanel implements PanelInstance {
   /** The offset from the top that centres these lines between the pane's top and the cover, `cover` px up from the
    *  viewport's foot (the pane may run on under it). */
   private centredAbove(path: string, lines: { start: number; end: number }, side: Side, cover: number) {
+    const open = innerHeight - cover - this.scroller.getBoundingClientRect().top;
     type Lines = { getLinePosition(n: number, side?: Side): { top: number; height: number } | undefined };
     const it = this.cv.getRenderedItems().find((x) => x.id === path)?.instance as Lines | undefined;
     const [a, b] = [it?.getLinePosition(lines.start, side), it?.getLinePosition(lines.end, side)];
-    const open = innerHeight - cover - this.scroller.getBoundingClientRect().top;
     // lines not rendered yet (off screen): Pierre's own estimate, 20px a line (wrapped lines run taller)
     const tall = a && b ? b.top + b.height - a.top : (lines.end - lines.start + 1) * 20;
     return Math.max(8, (open - tall) / 2);

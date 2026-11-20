@@ -17,7 +17,9 @@ import type { ReviewApp } from '../app';
 import { desktopPlayer } from './player.desktop';
 import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
-import { displayTools, type CodePanelOptions } from '../review/code';
+import { litFor, loadDiffs, type CodePanelOptions } from '../review/code';
+import type { ChangeBlock } from '../review/hunks';
+import { codeWidth, fitDiff, foldedHeight, shapeOf, stackSize, viewOf } from './fit';
 import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type SlideAuditOptions, type StepAudit, type Walkthrough } from './model.shared';
 import { measure, settle } from './audit';
 import { parseRef, type Ref } from '../kernel/refs/refs.shared';
@@ -86,13 +88,8 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
   const split = h('div', { class: 'rr-tour__body' });
-  // the display toggles, once for every chunk (prefs: each panel follows them); hidden when no code is shown
-  const tools = h('div', { class: 'rr-toolbar rr-tour__tools', hidden: true });
-  let toolsMode: 'diff' | 'file' = 'diff';
-  const paintTools = () => tools.replaceChildren(h('div', { class: 'rr-toolbar__spacer' }), h('div', { class: 'rr-toolbar__group' }, ...displayTools(app, toolsMode)));
-  app.bus.on('prefs', paintTools);
   /** per chunk on screen: its code panel (null: a preview) and its header (stacked only) */
-  let views: { panel: PanelInstance | null; id: string; head: HTMLElement | null }[] = [];
+  let views: { panel: PanelInstance | null; id: string; head: HTMLElement | null; el: HTMLElement }[] = [];
   const dispose = () => {
     views.forEach((v) => v.panel?.dispose?.());
     views = [];
@@ -118,15 +115,51 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     head.replaceChildren(...(r ? [refIcon(r)] : []), h('span', null, app.label(ref)));
     head.onclick = () => focus(ref);
   };
+  // each link's drawing, planned once per walkthrough and set of files (one diff load for all of them), so a slide's
+  // code is built drawn the right way: no render with the prefs, then another with the plan
+  let plans: { doc: Walkthrough | null; files: unknown; done: Promise<void> } | null = null;
+  // the change blocks each link's lines touch, and how tall its file stands folded
+  type Plan = { touched: ChangeBlock[]; tall: number };
+  let planned = new Map<string, Plan>();
+  const planAll = () => {
+    const doc = ctx().doc;
+    const files0 = app.files;
+    if (plans?.doc === doc && plans.files === files0) return plans.done;
+    const done = (async () => {
+      if (!doc || proseAudit) return;
+      const refs = [...new Set(doc.chapters.flatMap((c) => c.steps.flatMap(stepRefs)))];
+      const lines = (await Promise.all(refs.map(async (ref) => [ref, await codeAt(app, ref)] as const))).flatMap(([ref, c]) => (c?.view === 'diff' && c.start ? [{ ref, c, start: c.start }] : []));
+      const files = app.files.filter((f) => lines.some((l) => l.c.path === f.path));
+      const diffs = new Map((await loadDiffs(app, files)).map((d, i) => [files[i].path, d]));
+      const out = new Map<string, Plan>();
+      for (const { ref, c, start } of lines) {
+        const diff = diffs.get(c.path);
+        if (!diff) continue;
+        const touched = litFor(diff, c.side, start, c.end ?? start);
+        out.set(ref, { touched, tall: foldedHeight(diff.hunks, viewOf(touched)) });
+      }
+      if (plans?.doc === doc && plans.files === files0) planned = out; // still this walkthrough and these files
+    })().catch(() => {});
+    plans = { doc, files: files0, done };
+    return done;
+  };
+  // a stacked chunk's share of the pane: the height of the code it shows (fit.ts)
+  const shareOf = (el: HTMLElement, slot: Slot) => Object.assign(el.style, stackSize(planned.get(slot.ref)?.tall, slot.code?.start ? (slot.code.end ?? slot.code.start) - slot.code.start + 1 : 1));
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
     if (head) nameHead(head, slot.ref);
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, ...form.codeLayout?.() }, id) : null;
+    // the walkthrough draws each file by its fit rule (fit.ts), centres what its slide is about, and shows a file alone
+    // whole (several: their hunks, each in a share of the pane by the height of what it shows)
+    const plan = planned.get(slot.ref);
+    const ahead = plan && { touched: plan.touched, fitted: fitDiff(plan.touched, pane.clientWidth) };
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, fit: fitDiff, planned: ahead, centre: true, whole: !many, ...form.codeLayout?.() }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
-    views.push({ panel, id, head });
-    return h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
+    const el = h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
+    views.push({ panel, id, head, el });
+    if (many) shareOf(el, slot);
+    return el;
   };
   const mount = (s: PaneShown) => {
     // what landed last stays over the new chunks; a layer replaced before it landed goes at once
@@ -139,10 +172,6 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     }
     views = [];
     layer = pane.appendChild(h('div', { class: 'rr-tour__layer' }));
-    const code = s.kind === 'refs' ? s.slots.flatMap((x) => (x.code ? [x.code] : [])) : [];
-    tools.hidden = !code.length;
-    toolsMode = code.some((c) => c.view === 'diff') ? 'diff' : 'file';
-    paintTools();
     if (s.kind === 'refs' && !proseAudit) layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
     // no code: the narration takes the whole player, centred
     split.classList.toggle('is-solo', s.kind === 'empty');
@@ -151,23 +180,27 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     // Parallel pages can queue code reads behind other startup requests. Audits wait for the real render;
     // interactive playback retains its quicker fallback. This is a deadline, not an added delay.
     delays: { land: () => audits ? 10_000 : 4000 },
-    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: proseAudit ? null : await codeAt(app, ref) }))) } : input)) },
+    // the first slide waits for the walkthrough's plan (it loads the diffs its panels would); the rest find it made
+    actors: { resolve: fromPromise(async ({ input }) => (input.kind === 'refs' ? (await planAll(), { kind: 'refs', slots: await Promise.all(input.refs.map(async (ref) => ({ ref, code: proseAudit ? null : await codeAt(app, ref) }))) }) : input)) },
     actions: {
       mount: ({ context }) => mount(context.next!),
       // same files: each view's highlight moves to its new lines
-      glide: ({ context }) =>
-        context.next!.kind === 'refs' &&
-        context.next!.slots.forEach((s, i) => {
+      glide: ({ context }) => {
+        if (context.next!.kind !== 'refs') return;
+        const slots = context.next!.slots;
+        // the new lines' shares first: every chunk lands in its final size
+        if (slots.length > 1) slots.forEach((s, i) => views[i] && shareOf(views[i].el, s));
+        slots.forEach((s, i) => {
           if (views[i]?.head) nameHead(views[i].head, s.ref);
           if (s.code) app.bus.emit('reveal-code', { ...s.code, panel: views[i].id });
-        }),
+        });
+      },
       settle: dropOld,
       unmount: () => {
         if (old) drop(old);
         old = null;
         dispose();
         layer.replaceChildren();
-        tools.hidden = true;
       },
     },
   });
@@ -250,7 +283,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     move: (_dx, _dy, e) => splitAt((share = (e.clientX - box.left) / box.width)),
     end: (dx) => dx && saveLocal(SPLIT, share),
   });
-  const right = h('div', { class: 'rr-tour__right' }, resize, tools, pane);
+  const right = h('div', { class: 'rr-tour__right' }, resize, pane);
   const prev = btn('chevron', 'Previous slide', () => actor.send({ type: 'prev' }), '←');
   prev.classList.add('rr-tour__flip');
   const next = h('button', { class: 'rr-btn rr-btn--primary rr-tour__next', 'data-keys': '→', onclick: () => (current(ctx()).isLast ? actor.send({ type: 'close' }) : actor.send({ type: 'next' })) });
@@ -400,17 +433,23 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     const { chapter, step, doc: d } = ctx();
     if (!d) return;
     const cur = current(ctx());
-    const ch = cur.chapter, n = ch.steps.length;
+    const ch = cur.chapter;
     if (chapter !== prior.chapter || d !== prior.doc) {
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
       prose(lead, `lead/${chapter}`, ch.lead ?? '');
+      player.dataset.shape = shapeOf(ch);
+      void planAll().then(() => {
+        if (current(ctx()).chapter !== ch) return;
+        const ws = ch.steps.flatMap(stepRefs).flatMap((r) => { const p = planned.get(r); return p ? [codeWidth(p.touched)] : []; });
+        if (ws.length) player.style.setProperty('--_code', `${Math.max(...ws)}px`);
+        else player.style.removeProperty('--_code');
+      });
     }
     paintLead();
     form.foldLead?.();
     position.textContent = `Chapter ${chapter + 1} of ${d.chapters.length}`;
     chapterPrev.toggleAttribute('disabled', chapter === 0);
     chapterNext.toggleAttribute('disabled', chapter === d.chapters.length - 1);
-    divider.textContent = `Slide ${step + 1} of ${n}`;
     prose(stepText, `${chapter}/${step}`, cur.step.text);
     paintFocus();
     const refs = stepRefs(cur.step);
@@ -425,7 +464,6 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
         h(
           'div',
           { class: 'rr-tour__seg' + (ci === chapter ? ' is-on' : ''), style: `--rr-steps:${c.steps.length}` },
-          h('span', { class: 'rr-tour__seg-title', title: c.title }, c.title),
           h(
             'div',
             { class: 'rr-tour__ticks' },

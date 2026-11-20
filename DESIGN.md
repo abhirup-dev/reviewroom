@@ -153,6 +153,7 @@ spacing:
   header: 52px
   indent: 14px
   doc-width: 760px
+  tour-width: 1600px
   rail-width: 232px
   gen-width: 760px
   gen-row-gap: 28px
@@ -325,7 +326,7 @@ from the network.
 
 ### Named rules
 **The Sentence Case Rule.** Labels and group headings are sentence case at 600 in `ink-2`. No tracked capitals in the
-desktop interface (the walkthrough's "SLIDE 1 OF 4" divider is the one small-caps label).
+desktop interface.
 
 **The Type Scale Rule.** Every font size is a `--rr-text-*` step (10, 11, 12, 13, 14, 16, 19, 23, 32px) or relative
 to its context (em, %). Weights are 400, 500 and 600.
@@ -346,10 +347,28 @@ sets, so it fits any panel. The report column is capped at 760px, and the thread
 Spacing is a fixed scale: 2px steps up to 12 for dense controls (2, 4, 6, 8, 10, 12), then 16, 24, 32, 48 for layout.
 Trees indent 14px per level.
 
-**The walkthrough** is a two-column player: narration on `surface-doc` at about a third of the width
-(draggable), code the rest, full height. The chapter heading belongs to the narration column and is exactly as tall
-as the code's toolbar plus its file band (`--rr-bar-h + --rr-band-h`), so a slide's first line starts level with the
-code's first line, whether or not the chapter has an intro.
+**The walkthrough** is a two-column player on one sheet: narration and code both on `surface-doc` (no well, card
+edges or band fill), the code full height under one white file band (path, Diff/Before/After, size, Viewed: the slide
+decides how its diff is drawn, so no display toggles). Each chapter takes
+a shape from its longest slide (`src/slides/fit.ts`), so nothing moves between its slides: short slides with no intro
+read at the lede size (`text-xl`) a third of the way down beside a 28% narration, long ones (over 150 words) get 50%,
+the rest 36%. Narrow code widens it, up to half: the code keeps only the room the chapter's longest changed line needs
+(`codeWidth`, never less than the file band). A dragged width wins. The chapter title wraps under its arrows and position, ref chips wrap, and the
+bottom bar is ticks only: nothing on the reading side is cut. The player stops growing at `tour-width` and sits centred,
+so a wide screen keeps a laptop's proportions. The code is centred, whatever the narration does (`placement.ts`): the
+slide's change (its lines and the change blocks they touch, or its lines alone when that is taller than the pane) sits
+in the middle of the pane, near a file's ends too (blank room above its first line or below its last). The boundary
+between the two sides drags; only the pointer says so (no line, no colour). One file
+is shown whole, nothing folded; several share the pane by the height of what each shows (never less than its slide's
+lines), folded to their hunks, each centred and scrolling on its own. Each demo slide is one of these cases, named and
+checked in `testing/slides/layout.test.ts`.
+
+Its diff is quiet (`diffs.css`, scoped to `.rr-tour`; the rest of the review keeps its look): no hairline beside the line
+numbers, no change bars or selection band; its red, green and changed words (knocked out in the paper colour in light)
+are the review's own, unchanged. Focus is two things only: the slide's lines get a rule at their numbers (in ink, semibold;
+a split view's left column), and the file's changes outside the slide's change blocks fade. Split or unified, and wrap, are chosen per slide and file from
+the change blocks the slide touches, whole (`fitDiff`): split when they remove 5 lines or more, or more than
+they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
 
 **Generation loading** (`src/review/generation.ts`, `generation.css`; its measures are the `--rr-gen-*` tokens, its own group in `tokens.css`, from which it derives the transcript's height) is a quiet full-page surface over the review, on desktop and phone, on the stage (`surface-stage`: cream paper; in dark, the deeper plane) with one accent, Margin Orange (`comment`); everything else is ink and grey, and nothing on it is red. Centred across and pinned from the top: Claude's box keeps a fixed size and the steps grow downwards, so nothing moves as the work goes on. The head runs across on a hairline: the repository, PR number and branches (`mono` `text-sm` `muted`), the PR's title (`text-2xl` display 600), then the author with GitHub's avatar (their initials in an `ink-2` tile without one) and when they opened it, the size (`+412 −88`, `mono`, in `add` and `del`) and the file count, `·` (`faint`) between them. No clock: it says what is happening, never how long it has taken. Under the head, the **generation steps** (no visible label: "Writing the review" is for screen readers), and beside them Claude's box with the actions in one row under it (under the steps where there is no box): Continue to the review (primary), Peek at the walkthrough once slides exist; after a stop, Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, the header's indicator (Clawd and the busy dots, still and without dots once stopped) shows generation running and opens the screen again.
 
@@ -467,8 +486,8 @@ re-styles a core selector is a layer too: keep it only where the phone genuinely
   properties, unknown properties and units); no phone selectors in core CSS.
 - **`scripts/css-usage.ts`**: an `rr-` class nothing writes, a `--rr-*` token set outside `tokens.css` (but the
   `--rr-panel` pair), a variable read but never set or set but never read.
-- **e2e** (`e2e/slides.test.ts`): the walkthrough's narration starts level with the code, with or without a
-  chapter intro.
+- **Layout cases** (`testing/slides/layout.test.ts`): every demo slide is a named case (view, wrap, whole or folded,
+  where it sits), checked in a browser.
 - **Snapshots** for refactors meant to change nothing: `bun scripts/snapshot.ts` diffs computed styles on a phone and a
   computer, light and dark.
 

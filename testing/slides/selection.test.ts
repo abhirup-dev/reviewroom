@@ -5,9 +5,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { read } from '../../e2e/fixture.ts';
 import { browser, setupSlides } from './fixture.ts';
+import { slideCases } from './cases.ts';
 import type { Walkthrough } from '../../src/slides/model.shared.ts';
 
 const { dir, d, cli, file } = setupSlides();
+const totalSlides = slideCases.demo.tour.chapters.reduce((n, c) => n + c.steps.length, 0);
 const lint = (args: string[]) => cli(['slide-lint', ...d, '--json', ...args]);
 
 test('a partial check still validates the entire schema, including unselected chapters', async () => {
@@ -29,10 +31,10 @@ test.skipIf(!browser)('partial checks ignore unrelated links, focus and overflow
   const before = listing();
   const single = await lint(['--slide', 'enforce/s2']);
   expect(single.code).toBe(0);
-  expect(JSON.parse(single.stdout)).toMatchObject({ selection: { kind: 'slide', chapter: 'enforce', step: 's2' }, coverage: { partial: true, totalSlides: 8, measured: ['enforce/s2'] }, links: [], findings: [] });
+  expect(JSON.parse(single.stdout)).toMatchObject({ selection: { kind: 'slide', chapter: 'enforce', step: 's2' }, coverage: { partial: true, totalSlides, measured: ['enforce/s2'] }, links: [], findings: [] });
   const chapter = await lint(['--chapter', 'enforce']);
   expect(chapter.code).toBe(0);
-  expect(JSON.parse(chapter.stdout)).toMatchObject({ selection: { kind: 'chapter', chapter: 'enforce' }, coverage: { partial: true, totalSlides: 8, measured: ['enforce/s1', 'enforce/s2'] }, findings: [] });
+  expect(JSON.parse(chapter.stdout)).toMatchObject({ selection: { kind: 'chapter', chapter: 'enforce' }, coverage: { partial: true, totalSlides, measured: ['enforce/s1', 'enforce/s2'] }, findings: [] });
   expect(listing()).toEqual(before); // partial checks touch nothing
   // a script of the agent's that throws, and a diagram Pele can't parse: the reviewer would hit both, so a full lint reports them
   fs.writeFileSync(path.join(dir, REPORT_FILE), read(dir, REPORT_FILE).replace('</rr-review>', '<script>throw new Error("author boom")</script><rr-mermaid id="bad">flowchart TD\n  A --&gt;\n  ((( x</rr-mermaid></rr-review>'));
@@ -41,7 +43,7 @@ test.skipIf(!browser)('partial checks ignore unrelated links, focus and overflow
   expect(full.code).toBe(1);
   const out = JSON.parse(full.stdout);
   expect(out).toMatchObject({ viewports: ['1280x720'], coverage: { partial: false } });
-  expect(out.coverage.measured).toHaveLength(8);
+  expect(out.coverage.measured).toHaveLength(totalSlides);
   expect(out.links).toContainEqual(expect.objectContaining({ ref: 'rr:code/pkg/gone.go#L1' }));
   expect(out.findings).toContainEqual(expect.objectContaining({ check: 'overflow', where: 'bucket/s1', fix: expect.stringContaining('Shorten or split the slide') }));
   expect(out.findings).toContainEqual(expect.objectContaining({ check: 'unknown-focus', where: 'bucket/s1' }));
