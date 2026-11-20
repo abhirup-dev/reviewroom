@@ -633,7 +633,7 @@
   inset: auto;
   translate: none;
 }
-[data-form='phone'][data-orient='landscape'] .rr-tour__resize {
+[data-form='phone'][data-orient='landscape'] .rr-tour__resize:not(.rr-tour__resize--row) {
   display: block;
 }
 [data-form='phone'][data-orient='landscape'] .rr-tour__bottom {

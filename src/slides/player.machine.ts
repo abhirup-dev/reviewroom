@@ -26,7 +26,7 @@ export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'empty' };
 
 /** `pending`: code chunks whose panel has not landed yet; `late`: landing timed out (what is on screen may still move) */
 type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean };
-type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' } | { type: 'landed' };
+type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' } | { type: 'landed' } | { type: 'rebuild' };
 
 /** Every code chunk's panel lands once per step (its reveal, or a glide's). */
 const toLand = (s: PaneShown | null) => (s?.kind === 'refs' ? s.slots.filter((x) => x.code).length : 0);
@@ -37,6 +37,8 @@ const sameLayout = (a: PaneShown | null, b: PaneShown | null) =>
 
 // a show from any state starts over at resolving; from resolving itself it re-enters, which stops the stale lookup
 const show = { show: { target: '#pane.resolving', actions: 'want' } } as const;
+// what is on screen, built anew (the reader changed how code is drawn); it lands and settles like any mount
+const rebuild = { rebuild: { target: '#pane.entering', actions: 'reshow' } } as const;
 
 export const paneMachine = setup({
   types: { context: {} as PaneCtx, events: {} as PaneEvent, input: {} as PaneWant | null },
@@ -56,6 +58,7 @@ export const paneMachine = setup({
     want: assign({ want: ({ event }) => (event.type === 'show' ? event.want : null) }),
     /** what is in `next` is now on screen; its chunks are to land */
     shown: assign(({ context }) => ({ shown: context.next, pending: toLand(context.next), late: false })),
+    reshow: assign({ next: ({ context }) => context.shown }),
   },
   guards: { sameLayout: ({ context }) => sameLayout(context.shown, context.next), wanted: ({ context }) => context.want !== null, landed: ({ context }) => context.pending <= 0 },
   delays: { land: 4000 },
@@ -88,9 +91,9 @@ export const paneMachine = setup({
     landing: {
       always: { guard: 'landed', target: 'showing' },
       after: { land: { target: 'showing', actions: assign({ late: true }) } },
-      on: { ...show, landed: { actions: assign({ pending: ({ context }) => context.pending - 1 }) } },
+      on: { ...show, ...rebuild, landed: { actions: assign({ pending: ({ context }) => context.pending - 1 }) } },
     },
-    showing: { entry: 'settle', on: show },
+    showing: { entry: 'settle', on: { ...show, ...rebuild } },
   },
 });
 

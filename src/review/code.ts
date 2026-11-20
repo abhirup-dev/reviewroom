@@ -408,9 +408,19 @@ class CodePanel implements PanelInstance {
     const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.openFile(path, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
     return {
       left: [...lead, this.head ?? null, this.viewSeg(f, view)],
-      // quiet: the slide decides how the diff is drawn, so no display toggles; no link either (the slide's ref is one)
-      right: f ? this.fileTrail(f, cb, null, 'Mark this file as viewed', false) : [],
+      // quiet: the slide decides how the diff is drawn unless the reader picks a view; no link (the slide's ref is one)
+      right: f ? this.fileTrail(f, cb, view === 'diff' ? this.tourViewSeg() : null, 'Mark this file as viewed', false) : [],
     };
+  }
+
+  /** The walkthrough's Auto / Split / Unified: one pref for every slide (Auto: the slide's fit rule decides). */
+  private tourViewSeg() {
+    const v = this.app.prefs.tourView;
+    return seg([
+      { label: 'Auto', title: 'Each slide picks split or unified for its change', on: v === 'auto', onclick: () => this.app.setPref('tourView', 'auto') },
+      { label: 'Split', title: 'Side-by-side on every slide: old on the left, new on the right', on: v === 'split', onclick: () => this.app.setPref('tourView', 'split') },
+      { label: 'Unified', title: 'One column on every slide: removed lines above the lines that replace them', on: v === 'unified', onclick: () => this.app.setPref('tourView', 'unified') },
+    ], { class: 'rr-seg rr-tour__view' });
   }
 
   private viewSeg(f: ChangedFile | undefined, view: string | undefined) {

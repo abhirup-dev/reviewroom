@@ -32,9 +32,9 @@ test.skipIf(!browser)('partial checks ignore unrelated links, focus and overflow
   const single = await lint(['--slide', 'enforce/s2']);
   expect(single.code).toBe(0);
   expect(JSON.parse(single.stdout)).toMatchObject({ selection: { kind: 'slide', chapter: 'enforce', step: 's2' }, coverage: { partial: true, totalSlides, measured: ['enforce/s2'] }, links: [], findings: [] });
-  const chapter = await lint(['--chapter', 'enforce']);
+  const chapter = await lint(['--chapter', 'disk']); // not enforce: its four-file slide warns short-chunk by design
   expect(chapter.code).toBe(0);
-  expect(JSON.parse(chapter.stdout)).toMatchObject({ selection: { kind: 'chapter', chapter: 'enforce' }, coverage: { partial: true, totalSlides, measured: ['enforce/s1', 'enforce/s2'] }, findings: [] });
+  expect(JSON.parse(chapter.stdout)).toMatchObject({ selection: { kind: 'chapter', chapter: 'disk' }, coverage: { partial: true, totalSlides, measured: ['disk/s1', 'disk/s2'] }, findings: [] });
   expect(listing()).toEqual(before); // partial checks touch nothing
   // a script of the agent's that throws, and a diagram Pele can't parse: the reviewer would hit both, so a full lint reports them
   fs.writeFileSync(path.join(dir, REPORT_FILE), read(dir, REPORT_FILE).replace('</rr-review>', '<script>throw new Error("author boom")</script><rr-mermaid id="bad">flowchart TD\n  A --&gt;\n  ((( x</rr-mermaid></rr-review>'));

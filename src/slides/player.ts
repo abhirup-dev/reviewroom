@@ -17,7 +17,7 @@ import type { ReviewApp } from '../app';
 import { desktopPlayer } from './player.desktop';
 import { loadJSON, saveLocal } from '../kernel/store';
 import { panelDefs, type PanelInstance } from '../kernel/dock';
-import { litFor, loadDiffs, type CodePanelOptions } from '../review/code';
+import { litFor, loadDiffs, type CodePanelOptions, type Fit } from '../review/code';
 import type { ChangeBlock } from '../review/hunks';
 import { codeWidth, fitDiff, foldedHeight, shapeOf, stackSize, viewOf } from './fit';
 import { current, deepLink, target, decodeWalkthrough, edgeBetween, inFocus, stepRefs, type SlideAuditOptions, type StepAudit, type Walkthrough } from './model.shared';
@@ -101,12 +101,13 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   let old: { el: HTMLElement; views: typeof views } | null = null;
   const drop = (o: NonNullable<typeof old>) => { o.views.forEach((v) => v.panel?.dispose?.()); o.el.remove(); };
   const dropOld = () => {
+    layer.classList.remove('is-entering');
     const o = old;
     if (!o) return;
     old = null;
     if (proseAudit) return drop(o);
     o.el.classList.add('is-gone');
-    setTimeout(() => drop(o), 250);
+    setTimeout(() => drop(o), 150);
   };
   // stacked chunks are named in their code panel's toolbar (one alone has only its file's band); clicking a name shows
   // only that one
@@ -117,14 +118,15 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   };
   // each link's drawing, planned once per walkthrough and set of files (one diff load for all of them), so a slide's
   // code is built drawn the right way: no render with the prefs, then another with the plan
-  let plans: { doc: Walkthrough | null; files: unknown; done: Promise<void> } | null = null;
-  // the change blocks each link's lines touch, and how tall its file stands folded
-  type Plan = { touched: ChangeBlock[]; tall: number };
+  let plans: { doc: Walkthrough | null; files: unknown; view: string; done: Promise<void> } | null = null;
+  // the change blocks each link's lines touch, the view they are drawn in, and how tall its file stands folded in it
+  type Plan = { touched: ChangeBlock[]; diffStyle: Fit['diffStyle']; tall: number };
   let planned = new Map<string, Plan>();
   const planAll = () => {
     const doc = ctx().doc;
     const files0 = app.files;
-    if (plans?.doc === doc && plans.files === files0) return plans.done;
+    const view = app.prefs.tourView;
+    if (plans?.doc === doc && plans.files === files0 && plans.view === view) return plans.done;
     const done = (async () => {
       if (!doc || proseAudit) return;
       const refs = [...new Set(doc.chapters.flatMap((c) => c.steps.flatMap(stepRefs)))];
@@ -136,34 +138,65 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
         const diff = diffs.get(c.path);
         if (!diff) continue;
         const touched = litFor(diff, c.side, start, c.end ?? start);
-        out.set(ref, { touched, tall: foldedHeight(diff.hunks, viewOf(touched)) });
+        const diffStyle = viewOf(touched, view);
+        out.set(ref, { touched, diffStyle, tall: foldedHeight(diff.hunks, diffStyle) });
       }
-      if (plans?.doc === doc && plans.files === files0) planned = out; // still this walkthrough and these files
+      if (plans?.doc === doc && plans.files === files0 && plans.view === view) planned = out; // still this walkthrough, these files and this view
     })().catch(() => {});
-    plans = { doc, files: files0, done };
+    plans = { doc, files: files0, view, done };
     return done;
   };
-  // a stacked chunk's share of the pane: the height of the code it shows (fit.ts)
-  const shareOf = (el: HTMLElement, slot: Slot) => Object.assign(el.style, stackSize(planned.get(slot.ref)?.tall, slot.code?.start ? (slot.code.end ?? slot.code.start) - slot.code.start + 1 : 1));
-  const chunk = (slot: Slot, many: boolean): HTMLElement => {
+  // stacked files: more than FOLD fold to their hunks, each in a share of the pane by the height it shows (fit.ts); up
+  // to FOLD are shown whole. The line between two drags; a drag holds while the slides show the same files
+  const FOLD = 3;
+  let dragged = false;
+  const shareOf = (el: HTMLElement, slot: Slot, n: number) => Object.assign(el.style, stackSize(n > FOLD ? planned.get(slot.ref)?.tall : undefined, slot.code?.start ? (slot.code.end ?? slot.code.start) - slot.code.start + 1 : 1));
+  const grip = (el: HTMLElement, next: HTMLElement) => {
+    const g = h('div', { class: 'rr-tour__resize rr-tour__resize--row', title: 'Drag to resize', 'aria-hidden': 'true' });
+    let a = 0, b = 0;
+    onDrag(g, {
+      start: () => ([a, b] = [el.offsetHeight, next.offsetHeight]),
+      move: (_dx, dy) => {
+        const d = Math.max(64 - a, Math.min(b - 64, dy)); // each keeps its band and a couple of rows
+        dragged = true;
+        Object.assign(el.style, { flex: `0 0 ${a + d}px`, minHeight: '0' });
+        Object.assign(next.style, { flex: `0 0 ${b - d}px`, minHeight: '0' });
+      },
+    });
+    return g;
+  };
+  const chunk = (slot: Slot, n: number): HTMLElement => {
+    const many = n > 1;
     const id = `code:tour-${++panes}`;
     const head = many ? h('button', { class: 'rr-tour__chunk-head', title: 'Show only this in the pane' }) : null;
     if (head) nameHead(head, slot.ref);
-    // the walkthrough draws each file by its fit rule (fit.ts), centres what its slide is about, and shows a file alone
-    // whole (several: their hunks, each in a share of the pane by the height of what it shows)
+    // the walkthrough draws each file by its fit rule (fit.ts), under Auto / Split / Unified as it was when built (a
+    // switch rebuilds the slide; the code leaving doesn't redraw itself first), and centres what its slide is about
+    const view = app.prefs.tourView;
+    const fit = (blocks: ChangeBlock[], width: number) => fitDiff(blocks, width, view);
     const plan = planned.get(slot.ref);
-    const ahead = plan && { touched: plan.touched, fitted: fitDiff(plan.touched, pane.clientWidth) };
-    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, fit: fitDiff, planned: ahead, centre: true, whole: !many, ...form.codeLayout?.() }, id) : null;
+    const ahead = plan && { touched: plan.touched, fitted: fit(plan.touched, pane.clientWidth) };
+    const panel = slot.code ? panelDefs().find((d) => d.id === 'code')!.create(app, { ...slot.code, pin: slot.code.path, embedded: true, head, fit, planned: ahead, centre: true, whole: n <= FOLD, ...form.codeLayout?.() }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     const el = h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
     views.push({ panel, id, head, el });
-    if (many) shareOf(el, slot);
+    if (many) shareOf(el, slot, n);
     return el;
   };
+  let shapedAs = '';
   const mount = (s: PaneShown) => {
+    // the narration changed width since the last code (a new chapter's shape or code width): the code leaving would
+    // reflow and re-centre under it, so it goes at once and the new code shows once it has landed (a cut)
+    const width = `${player.dataset.shape} ${player.style.getPropertyValue('--_code')}`;
+    const moved = width !== shapedAs;
+    shapedAs = width;
+    if (moved && old) {
+      drop(old);
+      old = null;
+    }
     // what landed last stays over the new chunks; a layer replaced before it landed goes at once
-    if (old || !views.length) {
+    if (old || !views.length || moved) {
       dispose();
       layer.remove();
     } else {
@@ -171,8 +204,10 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       layer.classList.add('is-leaving');
     }
     views = [];
-    layer = pane.appendChild(h('div', { class: 'rr-tour__layer' }));
-    if (s.kind === 'refs' && !proseAudit) layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
+    dragged = false;
+    layer = pane.appendChild(h('div', { class: 'rr-tour__layer' + (moved ? ' is-entering' : '') }));
+    if (s.kind === 'refs' && !proseAudit) layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length)));
+    views.slice(0, -1).forEach((v, i) => v.el.append(grip(v.el, views[i + 1].el)));
     // no code: the narration takes the whole player, centred
     split.classList.toggle('is-solo', s.kind === 'empty');
   };
@@ -189,7 +224,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
         if (context.next!.kind !== 'refs') return;
         const slots = context.next!.slots;
         // the new lines' shares first: every chunk lands in its final size
-        if (slots.length > 1) slots.forEach((s, i) => views[i] && shareOf(views[i].el, s));
+        if (slots.length > 1 && !dragged) slots.forEach((s, i) => views[i] && shareOf(views[i].el, s, slots.length));
         slots.forEach((s, i) => {
           if (views[i]?.head) nameHead(views[i].head, s.ref);
           if (s.code) app.bus.emit('reveal-code', { ...s.code, panel: views[i].id });
@@ -429,6 +464,24 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     paint(prior);
     preload();
   });
+  // how far the narration may widen: the chapter's widest code (fit.ts)
+  const paintCodeWidth = (ch: Walkthrough['chapters'][number]) => {
+    const ws = ch.steps.flatMap(stepRefs).flatMap((r) => { const p = planned.get(r); return p ? [codeWidth(p.touched, p.diffStyle)] : []; });
+    if (ws.length) player.style.setProperty('--_code', `${Math.max(...ws)}px`);
+    else player.style.removeProperty('--_code');
+  };
+  // Auto / Split / Unified changed: plan again and build the slide on screen anew, as any slide is built
+  let viewWas = app.prefs.tourView;
+  app.onDispose(app.bus.on('prefs', () => {
+    if (app.prefs.tourView === viewWas) return;
+    viewWas = app.prefs.tourView;
+    void planAll().then(() => {
+      const shown = actor.getSnapshot().children.pane?.getSnapshot().context.shown;
+      if (!ctx().doc || shown?.kind !== 'refs') return;
+      paintCodeWidth(current(ctx()).chapter);
+      actor.getSnapshot().children.pane?.send({ type: 'rebuild' });
+    });
+  }));
   const paint = (prior: typeof last) => {
     const { chapter, step, doc: d } = ctx();
     if (!d) return;
@@ -438,12 +491,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
       prose(lead, `lead/${chapter}`, ch.lead ?? '');
       player.dataset.shape = shapeOf(ch);
-      void planAll().then(() => {
-        if (current(ctx()).chapter !== ch) return;
-        const ws = ch.steps.flatMap(stepRefs).flatMap((r) => { const p = planned.get(r); return p ? [codeWidth(p.touched)] : []; });
-        if (ws.length) player.style.setProperty('--_code', `${Math.max(...ws)}px`);
-        else player.style.removeProperty('--_code');
-      });
+      void planAll().then(() => current(ctx()).chapter === ch && paintCodeWidth(ch));
     }
     paintLead();
     form.foldLead?.();
