@@ -323,7 +323,7 @@ interface, JetBrains Mono for code, no heading rules. Inter, Mona Sans and the c
 from the network.
 
 ### Hierarchy
-- **Headline** (Mona Sans 600): h1 32px, h2 23px, h3 19px. The walkthrough's chapter title is an h3.
+- **Headline** (Mona Sans 600): h1 32px, h2 23px, h3 19px. The walkthrough's chapter title is an h2 (desktop; the phone keeps its own).
 - **Lede** (19px, `ink-2`): a report's opening paragraph.
 - **Body** (16px / 1.5): the report. **Comments** 14px. **Interface** 13px: controls, rows, lists.
 - **Label** (12px): tabs, group headings and toolbar titles at 600, in sentence case. Segments and chips at 500.
@@ -366,15 +366,18 @@ so a wide screen keeps a laptop's proportions. The code is centred, whatever the
 slide's change (its lines and the change blocks they touch, or its lines alone when that is taller than the pane) sits
 in the middle of the pane, near a file's ends too (blank room above its first line or below its last). The boundary
 between the two sides drags; only the pointer says so (no line, no colour). One file
-is shown whole, nothing folded; several share the pane by the height of what each shows (never less than its slide's
-lines), folded to their hunks, each centred and scrolling on its own. Each demo slide is one of these cases, named and
+is shown whole, nothing folded, and so are up to three stacked ones, sharing the pane by their slide's lines; more than
+three fold to their hunks and share it by the height of what each shows (never less than its slide's lines). Each is
+centred and scrolls on its own; the line between two drags like the boundary (held while the slides show the same
+files). Each demo slide is one of these cases, named and
 checked in `testing/slides/layout.test.ts`.
 
 Its diff is quiet (`diffs.css`, scoped to `.rr-tour`; the rest of the review keeps its look): no hairline beside the line
 numbers, no change bars or selection band; its red, green and changed words (knocked out in the paper colour in light)
 are the review's own, unchanged. Focus is two things only: the slide's lines get a rule at their numbers (in ink, semibold;
 a split view's left column), and the file's changes outside the slide's change blocks fade. Split or unified, and wrap, are chosen per slide and file from
-the change blocks the slide touches, whole (`fitDiff`): split when they remove 5 lines or more, or more than
+the change blocks the slide touches, whole (`fitDiff`), unless the reader picks Split or Unified in the file band's
+Auto / Split / Unified switch (the `tourView` pref, Auto by default): split when they remove 5 lines or more, or more than
 they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
 
 **The portable walkthrough deck** places the shared player inside a paper card with a persistent toolbar and progress

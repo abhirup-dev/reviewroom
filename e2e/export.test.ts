@@ -87,6 +87,9 @@ test('the exported demo plays from disk with bundled code and zero network reque
     await click('.rr-tour__right button[title="Whole file after the change"]');
     await until(() => renderedCode('[data-file]'));
     await click('.rr-tour__right button[title="Diff of this file"]');
+    await until(() => renderedCode('[data-diff-type]'));
+    await click('.rr-tour__view button[title^="One column"]');
+    await until(() => renderedCode('[data-diff-type="single"]'));
     await press('ArrowRight');
     await until(async () => (await evalAt(filePath, 'textContent'))?.includes('account.go'));
     expect(await evalAt(active, 'dataset.step')).toBe('s2');

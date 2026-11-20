@@ -47,7 +47,7 @@ test('wrap only a compact change whose lines overflow a column', () => {
 });
 
 test('code needs the room of its longest changed line, both columns when split, never less than the file band', () => {
-  expect(codeWidth([block(0, 3, 20)])).toBe(560);
-  expect(codeWidth([block(0, 3, 100)])).toBe(100 * 7.5 + 50);
-  expect(codeWidth([block(6, 1, 60)])).toBe((60 * 7.5 + 50) * 2);
+  expect(codeWidth([block(0, 3, 20)], 'unified')).toBe(560);
+  expect(codeWidth([block(0, 3, 100)], 'unified')).toBe(100 * 7.5 + 50);
+  expect(codeWidth([block(6, 1, 60)], 'split')).toBe((60 * 7.5 + 50) * 2);
 });

@@ -25,6 +25,8 @@ import type { Anchor, Op } from './kernel/state/schema.shared';
 export interface Prefs {
   theme: 'system' | 'light' | 'dark';
   diffStyle: 'split' | 'unified';
+  /** The walkthrough's view: auto picks split or unified per slide (slides/fit.ts); the others force one. */
+  tourView: 'auto' | 'split' | 'unified';
   ignoreWhitespace: boolean;
   wrap: boolean;
   focus: 'all' | 'additions' | 'deletions';
@@ -43,6 +45,7 @@ export interface Prefs {
 const defaultPrefs: Prefs = {
   theme: 'system',
   diffStyle: 'split',
+  tourView: 'auto',
   ignoreWhitespace: false,
   wrap: false,
   focus: 'all',
