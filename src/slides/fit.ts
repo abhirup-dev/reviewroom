@@ -24,16 +24,17 @@ const GUTTER = 50;
 const count = (r: [number, number] | null) => (r ? r[1] - r[0] + 1 : 0);
 const longestOf = (blocks: ChangeBlock[]) => Math.max(0, ...blocks.flatMap((b) => b.lines.map((l) => l.trimEnd().replace(/\t/g, '    ').length)));
 
-/** The view for these blocks. */
-export function viewOf(blocks: ChangeBlock[]): Fit['diffStyle'] {
+/** The view for these blocks; `view` other than auto is the reader's choice and wins. */
+export function viewOf(blocks: ChangeBlock[], view: Fit['diffStyle'] | 'auto' = 'auto'): Fit['diffStyle'] {
+  if (view !== 'auto') return view;
   const dels = blocks.reduce((n, b) => n + count(b.del), 0);
   const adds = blocks.reduce((n, b) => n + count(b.add), 0);
   return dels >= SPLIT_REMOVED || dels > adds ? 'split' : 'unified';
 }
 
 /** The view and wrapping for these blocks in a pane `width` px wide (a split view's column: half of it). */
-export function fitDiff(blocks: ChangeBlock[], width: number): Fit {
-  const diffStyle = viewOf(blocks);
+export function fitDiff(blocks: ChangeBlock[], width: number, view: Fit['diffStyle'] | 'auto' = 'auto'): Fit {
+  const diffStyle = viewOf(blocks, view);
   const changed = blocks.reduce((n, b) => n + count(b.del) + count(b.add), 0);
   return { diffStyle, wrap: changed <= WRAP_CHANGED && longestOf(blocks) * CHAR > (diffStyle === 'split' ? width / 2 : width) - GUTTER };
 }
@@ -43,7 +44,7 @@ const BAND = 560; // the file band's path, views, size and Viewed
 /** The width code needs to show these blocks unclipped, in px (a chapter's widest sets how far its narration may
  *  widen, player.ts): the longest changed line with its line numbers, in each column of a split view, and never less
  *  than the file band. */
-export const codeWidth = (blocks: ChangeBlock[]) => Math.max(BAND, (longestOf(blocks) * CHAR + GUTTER) * (viewOf(blocks) === 'split' ? 2 : 1));
+export const codeWidth = (blocks: ChangeBlock[], view: Fit['diffStyle'] | 'auto' = 'auto') => Math.max(BAND, (longestOf(blocks) * CHAR + GUTTER) * (viewOf(blocks, view) === 'split' ? 2 : 1));
 
 const ROW = 20; // a code row
 const FOLD = 32; // a fold: its "N unmodified lines" row

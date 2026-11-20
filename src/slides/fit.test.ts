@@ -51,3 +51,10 @@ test('code needs the room of its longest changed line, both columns when split, 
   expect(codeWidth([block(0, 3, 100)])).toBe(100 * 7.5 + 50);
   expect(codeWidth([block(6, 1, 60)])).toBe((60 * 7.5 + 50) * 2);
 });
+
+test("the reader's Split or Unified wins over the rule; Auto keeps it", () => {
+  expect(fitDiff([block(0, 7)], 900, 'split').diffStyle).toBe('split');
+  expect(fitDiff([block(6, 0)], 900, 'unified').diffStyle).toBe('unified');
+  expect(fitDiff([block(6, 0)], 900, 'auto').diffStyle).toBe('split');
+  expect(codeWidth([block(0, 1, 80)], 'split')).toBe(2 * codeWidth([block(0, 1, 80)], 'unified'));
+});

@@ -316,7 +316,7 @@ interface, JetBrains Mono for code, no heading rules. Inter, Mona Sans and the c
 from the network.
 
 ### Hierarchy
-- **Headline** (Mona Sans 600): h1 32px, h2 23px, h3 19px. The walkthrough's chapter title is an h3.
+- **Headline** (Mona Sans 600): h1 32px, h2 23px, h3 19px. The walkthrough's chapter title is an h2 (desktop; the phone keeps its own).
 - **Lede** (19px, `ink-2`): a report's opening paragraph.
 - **Body** (16px / 1.5): the report. **Comments** 14px. **Interface** 13px: controls, rows, lists.
 - **Label** (12px): tabs, group headings and toolbar titles at 600, in sentence case. Segments and chips at 500.
@@ -367,7 +367,8 @@ Its diff is quiet (`diffs.css`, scoped to `.rr-tour`; the rest of the review kee
 numbers, no change bars or selection band; its red, green and changed words (knocked out in the paper colour in light)
 are the review's own, unchanged. Focus is two things only: the slide's lines get a rule at their numbers (in ink, semibold;
 a split view's left column), and the file's changes outside the slide's change blocks fade. Split or unified, and wrap, are chosen per slide and file from
-the change blocks the slide touches, whole (`fitDiff`): split when they remove 5 lines or more, or more than
+the change blocks the slide touches, whole (`fitDiff`), unless the reader picks Split or Unified in the file band's
+Auto / Split / Unified switch (the `tourView` pref, Auto by default): split when they remove 5 lines or more, or more than
 they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
 
 **Generation loading** (`src/review/generation.ts`, `generation.css`; its measures are the `--rr-gen-*` tokens, its own group in `tokens.css`, from which it derives the transcript's height) is a quiet full-page surface over the review, on desktop and phone, on the stage (`surface-stage`: cream paper; in dark, the deeper plane) with one accent, Margin Orange (`comment`); everything else is ink and grey, and nothing on it is red. Centred across and pinned from the top: Claude's box keeps a fixed size and the steps grow downwards, so nothing moves as the work goes on. The head runs across on a hairline: the repository, PR number and branches (`mono` `text-sm` `muted`), the PR's title (`text-2xl` display 600), then the author with GitHub's avatar (their initials in an `ink-2` tile without one) and when they opened it, the size (`+412 −88`, `mono`, in `add` and `del`) and the file count, `·` (`faint`) between them. No clock: it says what is happening, never how long it has taken. Under the head, the **generation steps** (no visible label: "Writing the review" is for screen readers), and beside them Claude's box with the actions in one row under it (under the steps where there is no box): Continue to the review (primary), Peek at the walkthrough once slides exist; after a stop, Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, the header's indicator (Clawd and the busy dots, still and without dots once stopped) shows generation running and opens the screen again.

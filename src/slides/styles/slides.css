@@ -157,7 +157,11 @@
   height: auto;
   min-height: var(--rr-control-lg);
   text-align: left;
-  font: 600 var(--rr-text-xl) / 1.3 var(--rr-font-display); /* the prose's h3 */
+  font: 600 var(--rr-text-2xl) / 1.25 var(--rr-font-display); /* the prose's h2 */
+}
+/* Auto / Split / Unified is one pref for every file: stacked files show it once, in the first band */
+.rr-tour__chunk + .rr-tour__chunk .rr-tour__view {
+  display: none;
 }
 .rr-tour[data-form='desktop'] .rr-tour__chapter span {
   white-space: normal;
