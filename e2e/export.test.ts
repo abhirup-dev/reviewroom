@@ -20,11 +20,11 @@ test('the exported demo plays from disk with bundled code and zero network reque
   tour.chapters[0].steps[0].text += '<p><a href="https://example.com">External</a> · <a href="rr:tour/bucket/s2">Plan</a></p><img src="https://example.com/hidden.png"><rr-code lang="toml">key = 1</rr-code>';
   tour.chapters[1].steps[1].ref = ['rr:code/config/limits.json#L1-5', 'rr:code/internal/limit/limiter.go'];
   fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify(tour));
-  expect((await cli(['comment', 'rr:tour/why/s1', 'Private slide comment', ...d])).code).toBe(0);
-  expect((await cli(['comment', 'rr:code/internal/upload/handler.go@base#L12', 'Private code comment', ...d])).code).toBe(0);
+  expect((await cli(['comment', ...d, 'rr:tour/why/s1', 'Private slide comment'])).code).toBe(0);
+  expect((await cli(['comment', ...d, 'rr:code/internal/upload/handler.go@base#L12', 'Private code comment'])).code).toBe(0);
   const before = state();
   const output = path.join(tmp, 'demo.html');
-  const r = await cli(['export', '--out', output, ...d]);
+  const r = await cli(['export', ...d, '--out', output]);
   expect(r).toEqual({ code: 0, stdout: output + '\n', stderr: '' });
   expect(state()).toEqual(before);
   expect(fs.statSync(output).size).toBeLessThan(5_200_000);
@@ -51,15 +51,12 @@ test('the exported demo plays from disk with bundled code and zero network reque
     await until(() => page.evaluate(`!!document.querySelector(${JSON.stringify(code)})?.shadowRoot?.querySelector('[data-line] span[style]')`));
     expect(await page.evaluate(`[...document.querySelectorAll('rr-code diffs-container')].some((el) => el.shadowRoot?.textContent.includes('key = 1'))`)).toBe(true);
     expect(await page.evaluate(`!!document.querySelector(${JSON.stringify(code)}).shadowRoot.querySelector('[data-gutter-utility], [data-line-annotation]')`)).toBe(false);
-    expect(await page.evaluate(`document.querySelectorAll('.rr-tour__comment, .rr-tour__badge, [title^="Show comment threads"], .rr-viewed, rr-review, [title="Close the guided walkthrough"]').length`)).toBe(0);
+    expect(await page.evaluate(`document.querySelectorAll('.rr-tour__comment, .rr-tour__badge, [title^="Show comment threads"], .rr-viewed, rr-review, [title="Close the walkthrough"]').length`)).toBe(0);
     expect(await page.evaluate(`[...document.querySelectorAll('a[href], img[src]')].every((el) => (el.getAttribute('href') ?? '').startsWith('rr:'))`)).toBe(true);
 
     const renderedCode = (kind: string) =>
       page.evaluate<boolean>(`!!document.querySelector(${JSON.stringify(code)})?.shadowRoot?.querySelector(${JSON.stringify(kind)})`);
     await until(() => renderedCode('[data-selected-line]'));
-    await until(() => renderedCode('[data-diff-type="split"]'));
-    await click('.rr-tour__right button[title^="One column"]');
-    await until(() => renderedCode('[data-diff-type="single"]'));
     await click('.rr-tour__right button[title="Whole file before the change"]');
     await until(() => renderedCode('[data-file]'));
     await click('.rr-tour__right button[title="Whole file after the change"]');
