@@ -6,7 +6,7 @@ import { type Global, hint } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
 import { loadConfig, readConfig, reviewArgs, shellArg } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
-import { awaitingAgent, currentRound } from '../../src/kernel/state/ops.shared.ts';
+import { awaitingAgent, currentRound, undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { readReviewroom } from '../hub/sources.ts';
 import { runningServer } from './serve.ts';
@@ -26,6 +26,7 @@ export function summary(repo: string | null, dir: string) {
     id: cfg.id, dir, role, review: path.join(dir, REPORT_FILE), profile: cfg.profile, url: liveServer(dir)?.url ?? null, base, head,
     round: s.round, roundStatus: currentRound(s)?.status, threads: s.threads.length,
     open: s.threads.filter((t) => t.status === 'open').length, awaitingAgent: awaitingAgent(s).map((t) => t.id),
+    unread: undelivered(s).map((r) => r.n),
   };
 }
 
@@ -34,6 +35,7 @@ export function printSummary(x: ReturnType<typeof summary>) {
     `review: ${shellArg(x.id ?? x.dir)}`, `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review} (profile ${x.profile ?? 'explainer'})`,
     `base: ${x.base ?? '?'}  head: ${x.head ?? '?'}`, `round: ${x.round} (${x.roundStatus})  role: ${x.role}`,
     `threads: ${x.open} open, ${x.awaitingAgent.length} awaiting your reply`,
+    ...(x.unread.length ? [`feedback: round ${x.unread.join(', ')} sent and not read yet`] : []),
   ].join('\n'));
 }
 
@@ -43,6 +45,7 @@ export function cmdStatus(repo: string | null, dir: string, o: StatusOpts) {
   printSummary(x);
   const args = reviewArgs(repo ?? '', dir);
   hint(
+    x.unread.length && `Run \`reviewroom wait ${args}\`: it prints the unread feedback now`,
     !x.url && x.role === 'external' && `Run \`reviewroom start ${args}\` to serve it`,
     x.open && `Run \`reviewroom status ${args} --threads\` to read the open threads`,
     x.awaitingAgent.length && `Answer with \`reviewroom reply ${args} <thread> --file <reply.md>\``,

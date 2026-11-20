@@ -348,7 +348,7 @@ try {
     }
     await cli.runMatchedCommand();
   }
-  else if (cli.args.length) die(`unknown command \`${cli.args[0]}\`\nhelp: commands: ${cli.commands.map((x) => x.name).join(', ')}`, 2);
+  else if (cli.args.length && !cli.options.help) die(`unknown command \`${cli.args[0]}\`\nhelp: commands: ${cli.commands.map((x) => x.name).join(', ')}`, 2);
   else if (!cli.options.help) await cmdHome();
 } catch (e) {
   const c = cli.matchedCommand;

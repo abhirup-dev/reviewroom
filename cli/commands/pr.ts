@@ -104,7 +104,7 @@ function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) 
 }
 
 export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
-  const { repo, dir, cfg: saved, pr } = resolveReview(selected, o, arg, 'pr');
+  const { repo, dir, cfg: saved, pr, isPath } = resolveReview(selected, o, arg, 'pr');
   if (!repo) fail('review checkout is unavailable (use --repo <path>)');
   const live = await runningServer(dir);
   if (live) {
@@ -114,7 +114,6 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
     return hint(`Run \`reviewroom wait ${args}\` in the background: it exits with the reviewer's next round`, `To pick up new commits: \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\``);
   }
   const remote = o.remote ?? saved.remote ?? 'origin';
-  const isPath = arg?.startsWith('/') || arg?.startsWith('./');
   const found = pr ? prNumberConfig(repo, o, remote, pr, saved) : isPath ? loadConfig(dir, repo, o) : branchConfig(repo, o, arg!, remote);
   const id = pr ? formatReviewId(pr) : undefined;
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
@@ -146,7 +145,7 @@ function nextSteps(args: string, dir: string, serving: boolean) {
   hint(
     serving && `Run \`reviewroom wait ${args}\` in the background now: it exits with the reviewer's feedback`,
     serving && 'Tell the reviewer the url above, verbatim',
-    pendingArtifact(walkthrough) && `After reading the diff: \`reviewroom progress ${args} read\`; then write ${WALKTHROUGH_FILE} and run \`reviewroom slide-lint ${args}\` until it passes`,
+    pendingArtifact(walkthrough) && `Once you have read the changed files (not only the stat): \`reviewroom progress ${args} read\`; then write ${WALKTHROUGH_FILE} and run \`reviewroom slide-lint ${args}\` until it passes`,
     pendingArtifact(report) && `Then fill ${REPORT_FILE} and run \`reviewroom check ${args} --fix\` until it passes`,
   );
 }
