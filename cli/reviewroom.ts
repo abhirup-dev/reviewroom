@@ -14,7 +14,8 @@ import { resolveReview } from './lib/config.ts';
 import { cmdPr, type PrOpts } from './commands/pr.ts';
 import { cmdStart, cmdWait, type StartOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
-import { cmdList, cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
+import { cmdHome, cmdList, cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
+import { version } from '../package.json';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
 import { cmdExport } from './commands/export.ts';
 import { cmdPublishSlides } from './commands/walkthrough.ts';
@@ -23,6 +24,11 @@ import { cmdShot } from './commands/shot.ts';
 import { cmdSlideLint } from './commands/slides.ts';
 import { ReviewroomError } from '../src/kernel/state/ops.shared.ts';
 import { recordRead } from './lib/progress.ts';
+
+if (process.argv.length === 3 && ['-v', '-V', '--version'].includes(process.argv[2] ?? '')) {
+  console.log(version);
+  process.exit(0);
+}
 
 const cli = cac('reviewroom');
 cli
@@ -92,7 +98,9 @@ cli
   .option('--threads', 'Include open threads and messages')
   .option('--all', 'Include resolved threads')
   .option('--json', 'Print JSON')
-  .example('  reviewroom status \'acme/api#31\' --json')
+  .option('--full', 'With --threads --json: GitHub text uncut (default: 1000 characters)')
+  .example('  reviewroom status \'acme/api#31\'')
+  .example('  reviewroom status \'acme/api#31\' --threads')
   .action(run(forReview<StatusOpts & { threads?: boolean }>('status', (repo, dir, o) => (o.threads ? cmdThreads(repo, dir, o) : cmdStatus(repo, dir, o)))));
 
 cli
@@ -125,7 +133,7 @@ cli
   .example('  reviewroom progress \'acme/api#31\' read')
   .action(run(forReview('progress', (_repo, dir, _o, [event]) => {
     if (event !== 'read') die(`unknown progress event \`${event}\`; see \`reviewroom progress --help\``, 2);
-    if (!recordRead(dir)) console.error('nothing recorded: no walkthrough is requested');
+    console.log(recordRead(dir) ? 'recorded: you have read the diff' : 'nothing recorded: no walkthrough is requested (no-op)');
   })));
 
 cli
@@ -233,14 +241,14 @@ const notes: Record<string, string> = {
   Nothing is written to the review.`,
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
   Newest author-owned or agent-owned walkthrough wins.
-  Prints the directory (stderr) and URL (stdout).
+  Prints the review's url, directory, report, revisions and next steps.
   Reuses a running server and keeps its revision. After stopping it, rerun pr to fetch updates.
   A new or --force review asks the calling agent for both documents; the page waits for them.
   --no-agent sets the review up without asking anyone: the built-in assistant can generate later.
   --assistant turns the built-in assistant on for this review only (the hub's Play does the same); a plain pr never turns it off.
   --no-serve stops after setup: the hub's Add a PR runs pr <url> --no-agent --no-serve, and its Play starts the server.`,
   'start': `  Prints the review URL. Reuses a running server and its port.`,
-  'list': `  Lists running reviews across repositories. The hub can be stopped.`,
+  'list': `  Lists running reviews across repositories, as \`reviewroom\` does. The hub can be stopped.`,
   'wait': `  Starts a detached server if needed and leaves it running.
   Prints saved feedback or APPROVED to stdout and records delivery.`,
   'reply': `  Thread IDs accept unique prefixes.
@@ -284,6 +292,7 @@ cli.help((sections) => {
     {
       title: 'A review',
       body: [
+        '  reviewroom (no command): running reviews and where to start.',
         '  pr \'acme/api#31\': set up a review and start its server.',
         '  wait \'acme/api#31\': await the next round in the background.',
         '  list: show running reviews and their URLs.',
@@ -337,17 +346,23 @@ cli.help((sections) => {
 
 try {
   cli.parse(process.argv, { run: false });
-  if (cli.matchedCommand) {
-    if (!['hub', 'list'].includes(cli.matchedCommand.name) && !cli.args.length && !cli.options.help) {
-      resolveReview(repoRoot(path.resolve(cli.options.repo ?? process.cwd())), cli.options, undefined, cli.matchedCommand.name);
+  const c = cli.matchedCommand;
+  if (c) {
+    if (!cli.options.help) c.checkUnknownOptions(); // a typo'd flag is reported before anything else
+    if (!['hub', 'list'].includes(c.name) && !cli.args.length && !cli.options.help) {
+      resolveReview(repoRoot(path.resolve(cli.options.repo ?? process.cwd())), cli.options, undefined, c.name);
     }
     await cli.runMatchedCommand();
   }
-  else if (cli.args.length) die(`unknown command \`${cli.args[0]}\`; see \`reviewroom --help\``, 2);
-  else if (!cli.options.help) cli.outputHelp();
+  else if (cli.args.length) die(`unknown command \`${cli.args[0]}\`\nhelp: commands: ${cli.commands.map((x) => x.name).join(', ')}`, 2);
+  else if (!cli.options.help) await cmdHome();
 } catch (e) {
+  const c = cli.matchedCommand;
   if ((e as Error).name === 'CACError' && (e as Error).message.includes('Unknown option `--dir`')) die('--dir was removed; use reviewroom <command> <review-folder> instead', 2);
-  if ((e as Error).name === 'CACError') die(`${(e as Error).message}; see \`reviewroom ${cli.matchedCommandName ?? ''} --help\``.replace('  ', ' '), 2);
+  if ((e as Error).name === 'CACError') {
+    const flags = c ? [...c.options, ...cli.globalCommand.options].map((x) => x.rawName).join(', ') : '';
+    die(`${(e as Error).message.replace(/^Unknown option/, 'unknown flag')}${c ? `\nhelp: reviewroom ${c.rawName}; flags: ${flags}` : ''}`, 2);
+  }
   if (!(e instanceof ReviewroomError)) throw e;
-  die(e.message);
+  die(e.message, e.status === 2 ? 2 : 1);
 }

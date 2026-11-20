@@ -9,6 +9,9 @@ import { config, readJson, hubClient, runCli, spawnCli } from './transport.ts';
 import { until } from '../src/testing/wait.ts';
 import { alive } from '../cli/lib/lock.ts';
 
+/** A `key: value` line of the CLI's output (`url`, `dir`, ...). */
+export const field = (out: string, key: string) => out.match(new RegExp(`^${key}: (\\S+)`, 'm'))?.[1] ?? '';
+
 const root = path.resolve(import.meta.dir, '..');
 // each test file evaluates this module once; a run that was killed leaves its templates, swept here by dead pid
 for (const name of fs.readdirSync(os.tmpdir())) {
@@ -21,7 +24,7 @@ await $`bash ${path.join(root, 'examples', 'make-demo-repo.sh')} ${path.join(tem
 // --no-agent: the fixture review asks nobody for its documents, so generation stays idle
 for (const args of [['pr', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--no-agent'], ['stop', 'feat/upload-rate-limit']]) {
   const r = await runCli({ ...process.env, REVIEWROOM_HOME: path.join(template, 'home') }, [...args, '--repo', path.join(template, 'repo')]);
-  if (r.code) throw new Error(r.stderr);
+  if (r.code) throw new Error(r.stdout);
 }
 
 const tiny = path.join(template, 'tiny');
@@ -124,7 +127,7 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
       return { clones, bare };
     },
     /** `pr` on a free port: the URL. */
-    serve: async () => (await cli(['pr', branch, '--no-open', '--port', '0', '--repo', repo, ...(assistant ? ['--assistant'] : [])])).stdout.trim(),
+    serve: async () => field((await cli(['pr', branch, '--no-open', '--port', '0', '--repo', repo, ...(assistant ? ['--assistant'] : [])])).stdout, 'url'),
     /** A foreground command (killed in afterAll). */
     spawn: (args: string[], cwd?: string) => {
       const p = spawnCli(env, args, cwd);

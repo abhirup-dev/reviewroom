@@ -88,9 +88,9 @@ const cloneSource = (owner: string, repo: string) => (process.env.REVIEWROOM_TES
 
 /** What went wrong, readable: the command's last line, without git's or the CLI's prefixes. */
 const why = (e: unknown) => {
-  const err = e as { stderr?: string; message?: string; code?: string };
+  const err = e as { stdout?: string; stderr?: string; message?: string; code?: string };
   if (err.code === 'ENOENT') return null;
-  const line = (err.stderr ?? err.message ?? String(e)).trim().split('\n').filter(Boolean).at(-1) ?? '';
+  const line = (err.stdout || err.stderr || err.message || String(e)).trim().split('\n').filter(Boolean).at(-1) ?? '';
   return line.replace(/^(fatal|error|reviewroom):\s*/i, '');
 };
 

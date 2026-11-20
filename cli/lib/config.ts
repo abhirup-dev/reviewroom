@@ -56,10 +56,10 @@ function requiredTarget(repo: string | null, target: string | undefined, command
   if (!target) {
     const reviews = repo ? reviewFoldersForRepository(remoteName(repo)) : allReviewFolders();
     const calls = reviews.filter((dir) => fs.existsSync(configPath(dir))).map((dir) => `  reviewroom ${command} ${shellArg(readConfig(dir).id ?? dir)}`);
-    throw new ReviewroomError(`missing review; use reviewroom ${command} <review>${calls.length ? `\n${calls.join('\n')}` : ''}`);
+    throw new ReviewroomError(`missing review: reviewroom ${command} <review>, where <review> is 'owner/repo#n', a PR URL, a branch or a review folder${calls.length ? `\nhelp: reviews here:\n${calls.join('\n')}` : ''}`, 2);
   }
   if (/^#\d+$/.test(target) || (command !== 'pr' && /^\d+$/.test(target))) {
-    throw new ReviewroomError('use a full PR review ID (owner/repo#n), URL, branch, or review-folder path; bare numbers are only accepted by pr');
+    throw new ReviewroomError('use a full PR review ID (owner/repo#n), URL, branch, or review-folder path; bare numbers are only accepted by pr', 2);
   }
   if (/^\d+$/.test(target) && (!repo || !remoteHost(repo, remote))) {
     throw new ReviewroomError("A bare PR number needs a GitHub remote. Use the 'owner/repo#n' form.");

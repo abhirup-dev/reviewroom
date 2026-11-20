@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
 import { slideCases, writeSlideCase } from '../testing/slides/cases.ts';
-import { op, post, read, setup } from './fixture.ts';
+import { field, op, post, read, setup } from './fixture.ts';
 import { shellArg } from '../cli/lib/config.ts';
 
 describe('a round finished while no agent waits', () => {
@@ -30,8 +30,8 @@ describe('the external agent round loop', () => {
   test('wait delivers feedback and approval on the same PR server', async () => {
     const { id, dir } = await addPullRemote();
     const start = await cli(['pr', id, '--repo', repo, '--no-open', '--port', '0']);
-    const url = start.stdout.trim();
-    expect(await cli(['pr', id, '--force'])).toMatchObject({ code: 1, stderr: expect.stringContaining(`stop it first: reviewroom stop '${id}'`) });
+    const url = field(start.stdout, 'url');
+    expect(await cli(['pr', id, '--force'])).toMatchObject({ code: 1, stdout: expect.stringContaining(`stop it first: reviewroom stop '${id}'`) });
     expect(start.code).toBe(0);
     try {
       const pid = (await fetch(url + 'api/meta')).headers.get('x-reviewroom-pid');

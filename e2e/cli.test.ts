@@ -20,10 +20,10 @@ describe('cli', () => {
   });
   test('pr with an unknown report profile fails and names the profiles', async () => {
     const r = await cli(['pr', 'feat/upload-rate-limit', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo]);
-    expect([r.code, r.stderr]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: explainer')]);
+    expect([r.code, r.stdout]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: explainer')]);
   });
   test.each(['pr', 'start', 'wait', 'status', 'stop', 'reply', 'comment', 'check', 'slide-lint', 'shot', 'publish-slides'])('%s requires a review', async (command) => {
-    expect(await cli([command, '--repo', repo])).toMatchObject({ code: 1, stderr: expect.stringContaining('missing review') });
+    expect(await cli([command, '--repo', repo])).toMatchObject({ code: 2, stdout: expect.stringContaining('missing review') });
   });
   test.each([
     ['check', dir, '--dir', dir],

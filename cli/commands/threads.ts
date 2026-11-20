@@ -1,14 +1,15 @@
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
-import { type Global, fail } from '../lib/args.ts';
-import { readConfig } from '../lib/config.ts';
+import { type Global, fail, hint } from '../lib/args.ts';
+import { readConfig, reviewArgs } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
 import { anchorOf, anchorRef } from '../../src/kernel/refs/refs.shared.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/kernel/state/model.shared.ts';
 import { issueText, type Op } from '../../src/kernel/state/schema.shared.ts';
+import { awaitingAgent } from '../../src/kernel/state/ops.shared.ts';
 import { z } from 'zod';
 
 function findThread(s: ReviewState, id: string) {
@@ -25,14 +26,15 @@ function readBody(file: string | undefined, arg: string | undefined) {
   return b.trim();
 }
 
-export function cmdThreads(_repo: string | null, dir: string, o: Global & { all?: boolean; json?: boolean }) {
+const LIMIT = 1000;
+/** Colleagues' GitHub text (bot reviews run to many KB) is cut at LIMIT unless --full. */
+const clip = (_k: string, v: unknown) => typeof v === 'string' && v.length > LIMIT ? `${v.slice(0, LIMIT)}... (truncated, ${v.length} chars; --full for all)` : v;
+
+export function cmdThreads(_repo: string | null, dir: string, o: Global & { all?: boolean; json?: boolean; full?: boolean }) {
   const s = readState(dir);
   const list = s.threads.filter((t) => o.all || t.status === 'open');
   const github = cachedThreads(dir).filter((t) => o.all || t.status === 'open');
-  if (o.json) {
-    console.log(JSON.stringify({ id: readConfig(dir).id, round: s.round, threads: list, github }, null, 2));
-    return;
-  }
+  if (o.json) return console.log(JSON.stringify({ id: readConfig(dir).id, round: s.round, threads: list, github: JSON.parse(JSON.stringify(github, o.full ? undefined : clip)) }));
   const walkthrough = validWalkthrough(dir);
   console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
   for (const t of list) {
@@ -78,6 +80,8 @@ export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & 
   await commitOps(dir, ops);
   if (o.json) console.log(`replied to ${ops.filter((x) => x.op === 'addMessage').length} thread(s)`);
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
+  const left = awaitingAgent(readState(dir)).length;
+  hint(left ? `${left} thread(s) still await your reply` : `All answered: run \`reviewroom wait ${reviewArgs('', dir)}\` in the background and tell the reviewer the replies are in`);
 }
 
 export async function cmdComment(_repo: string | null, dir: string, o: BodyOpts, [ref, body]: string[]) {
