@@ -6,12 +6,9 @@ import { createCodeService } from './review/code-service';
 import { defineElements, provideApp } from './review/elements';
 import { StaticProvider } from './review/providers/static';
 import { WalkthroughBundle } from './slides/bundle.shared';
-import { deepLink } from './slides/model.shared';
 import { mountWalkthrough } from './slides/player';
 import type { CodeAt } from './slides/player.machine';
 import { standalonePlayer } from './slides/player.standalone';
-
-const readPosition = () => deepLink('?walkthrough=' + location.hash.slice(1)) ?? {};
 
 async function boot(root: HTMLElement, bundle: WalkthroughBundle) {
   const { source, files, contents, walkthrough } = bundle;
@@ -37,6 +34,15 @@ async function boot(root: HTMLElement, bundle: WalkthroughBundle) {
     if (app.prefs.theme === 'system') app.applyTheme();
   }
   const renames = new Map(files.flatMap((file) => file.prevPath ? [[file.prevPath, file.path] as const] : []));
+  const label = app.label.bind(app);
+  app.label = (href) => {
+    const ref = parseRef(href);
+    if (ref?.type === 'code' || ref?.type === 'file') {
+      if (ref.rev === base) return label(formatRef({ ...ref, rev: 'base' }));
+      if (ref.rev === head) return label(formatRef({ ...ref, rev: 'head' }));
+    }
+    return label(href);
+  };
   const resolve = (ref: Ref | null): CodeAt | null => {
     if (ref?.type !== 'code' && ref?.type !== 'file') return null;
     const side = ref.rev === base ? 'base' : 'head';
@@ -57,21 +63,13 @@ async function boot(root: HTMLElement, bundle: WalkthroughBundle) {
   defineElements();
   mountTooltips(app);
   const tour = mountWalkthrough(app, {
-    formFactory: standalonePlayer,
+    formFactory: standalonePlayer(bundle),
     resolveCode: async (ref) => resolve(parseRef(ref)),
     codeOptions: { readOnly: true },
     openLink: (ref) => void open(ref),
     splitKey: key + ':split',
-    position: {
-      read: readPosition,
-      write(at) {
-        if (!at) return;
-        const hash = `#${at.chapter}/${at.step}`;
-        if (location.hash !== hash) history.replaceState(null, '', hash);
-      },
-    },
+    position: null,
   });
-  app.listen(window, 'hashchange', () => tour.actor.send({ type: 'open', ...readPosition() }));
 }
 
 const root = document.querySelector<HTMLElement>('rr-app')!;

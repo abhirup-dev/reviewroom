@@ -5,6 +5,7 @@ import { type Global, fail } from '../lib/args.ts';
 import { git, isRev } from '../lib/git.ts';
 import { report } from '../lib/links.ts';
 import { DIST } from '../lib/paths.ts';
+import { formatReviewRepository, idFromFolder } from '../lib/review-id.ts';
 import { buildWalkthroughBundle, bundleJson } from '../lib/walkthrough-bundle.ts';
 import { runCheck, schemaReport } from './check.ts';
 
@@ -17,8 +18,13 @@ export async function cmdExport(repo: string | null, dir: string, options: Expor
   if (checked.bad.length && !options.allowStale) fail(`${checked.bad.length} link(s) need attention (fix them, or export anyway with --allow-stale):\n${report(checked.bad)}`);
   const walkthrough = checked.tour ?? fail(`no ${WALKTHROUGH_FILE} in ${dir}`);
   const commit = (rev: string) => isRev(rev) ? git(['rev-parse', '--verify', '--end-of-options', rev + '^{commit}'], checkout, { soft: true })?.trim() ?? null : null;
+  const pr = idFromFolder(dir);
   const provider = {
     ...checked.provider,
+    meta: () => ({
+      ...checked.provider.meta(),
+      ...(pr && { repo: formatReviewRepository(pr), number: pr.number }),
+    }),
     // A Git tree can also resolve at sha:path. Only its file blobs belong in the export.
     read: (sha: string, file: string) => git(['cat-file', 'blob', `${sha}:${file}`], checkout, { soft: true }),
   };

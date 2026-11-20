@@ -63,6 +63,12 @@ colors:
   dark-del: "#eea393"
   dark-risk: "#f58b80"
 typography:
+  export-display:
+    fontFamily: Mona Sans
+    fontSize: 48px
+    fontWeight: 600
+    lineHeight: 1.08
+    letterSpacing: -0.01em
   headline-lg:
     fontFamily: Mona Sans
     fontSize: 32px
@@ -132,6 +138,7 @@ typography:
     fontWeight: 400
     lineHeight: 1.5
 rounded:
+  export-card: 16px
   none: 0px
   sm: 2px
   lg: 4px
@@ -369,6 +376,18 @@ are the review's own, unchanged. Focus is two things only: the slide's lines get
 a split view's left column), and the file's changes outside the slide's change blocks fade. Split or unified, and wrap, are chosen per slide and file from
 the change blocks the slide touches, whole (`fitDiff`): split when they remove 5 lines or more, or more than
 they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
+
+**The portable walkthrough deck** places the shared player inside a paper card with a persistent toolbar and progress
+footer. Cover, chapter dividers and the end page use the 48px Mona Sans `--rr-export-display-size` (32px on phones).
+The 16px `--rr-export-radius` and modal shadow frame the floating card on desktop. The stage is the export's exception
+to the Meaning Rule: a fixed dot grid and two washes of the orange accent sit behind the opaque card. Gaps tighten
+on laptops. At phone widths the stage is plain, the card fills it, the presentation pages stack, and the navigation
+buttons keep 48px targets. The deck reuses the player’s code, narration and fit rules.
+
+The backdrop drifts with `--rr-export-drift-motion` (48s per leg). Page changes lift the card by 4px and settle with
+`--rr-export-card-motion` (280ms) and `--rr-export-settle-ease` (`cubic-bezier(0.2, 0.75, 0.25, 1)`).
+`--rr-export-fade-motion` (180ms) times the solo page entrance and the player's narration crossfade in the deck.
+Reduced motion leaves the stage still and swaps pages immediately.
 
 **Generation loading** (`src/review/generation.ts`, `generation.css`; its measures are the `--rr-gen-*` tokens, its own group in `tokens.css`, from which it derives the transcript's height) is a quiet full-page surface over the review, on desktop and phone, on the stage (`surface-stage`: cream paper; in dark, the deeper plane) with one accent, Margin Orange (`comment`); everything else is ink and grey, and nothing on it is red. Centred across and pinned from the top: Claude's box keeps a fixed size and the steps grow downwards, so nothing moves as the work goes on. The head runs across on a hairline: the repository, PR number and branches (`mono` `text-sm` `muted`), the PR's title (`text-2xl` display 600), then the author with GitHub's avatar (their initials in an `ink-2` tile without one) and when they opened it, the size (`+412 −88`, `mono`, in `add` and `del`) and the file count, `·` (`faint`) between them. No clock: it says what is happening, never how long it has taken. Under the head, the **generation steps** (no visible label: "Writing the review" is for screen readers), and beside them Claude's box with the actions in one row under it (under the steps where there is no box): Continue to the review (primary), Peek at the walkthrough once slides exist; after a stop, Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, the header's indicator (Clawd and the busy dots, still and without dots once stopped) shows generation running and opens the screen again.
 

@@ -32,6 +32,8 @@ let panes = 0;
 export type PlayerForm = {
   contents(): void;
   dismissible?: boolean;
+  /** Step keys may move through pages owned by the surrounding presentation. */
+  move?(direction: -1 | 1): void;
   paintNav(cur: ReturnType<typeof current>): void;
   /** each slide: fold the chapter intro its own way */
   foldLead?(): void;
@@ -94,7 +96,8 @@ type PlayerOptions = {
   holdCommands?: (playing: () => boolean) => void;
   openLink?: (ref: string) => void;
   codeOptions?: CodePanelOptions;
-  position?: { read: () => Position | null; write: (at: Position | null) => void };
+  /** null leaves location and initial navigation to the embedding form. */
+  position?: { read: () => Position | null; write: (at: Position | null) => void } | null;
   splitKey?: string;
 };
 
@@ -511,13 +514,14 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   app.listen(window, 
     'keydown',
     (e) => {
-      if (!playing() || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open], [popover=auto]:popover-open')) return;
+      if ((!playing() && !form.move) || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open], [popover=auto]:popover-open')) return;
       const keys = { ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'pause' } as const;
       const type = keys[e.key as keyof typeof keys];
       if (type && (type !== 'pause' || form.dismissible !== false)) {
         e.preventDefault();
         e.stopPropagation();
-        actor.send({ type });
+        if (form.move && type !== 'pause') form.move(type === 'next' ? 1 : -1);
+        else actor.send({ type });
       }
     },
     true,
@@ -566,7 +570,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
       const w = decodeWalkthrough(input);
       app.walkthrough = w && 'version' in w ? w : null;
       app.walkthroughIssues = w && 'issues' in w ? w.issues : null;
-      const link = opts.position ? opts.position.read() : deepLink(location.search); // first: once loaded, the URL follows the player
+      const link = opts.position === undefined ? deepLink(location.search) : opts.position?.read(); // first: once loaded, the URL follows the player
       actor.send({ type: 'load', doc: app.walkthrough });
       app.bus.emit('walkthrough', app.walkthrough);
       if (link && app.walkthrough && !pendingArtifact(app.progress.walkthrough)) bootOpen(link);
@@ -583,7 +587,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
       const { chapter, step } = current(s.context);
       const at = s.matches('open') ? { chapter: chapter.id, step: step.id } : null;
       if (opts.position) opts.position.write(at);
-      else {
+      else if (opts.position === undefined) {
         const u = new URL(location.href);
         if (at) u.searchParams.set('walkthrough', `${at.chapter}/${at.step}`);
         else u.searchParams.delete('walkthrough');
