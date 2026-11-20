@@ -148,6 +148,29 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
   // the fit rule (fit.ts) under the reader's Auto / Split / Unified (each code panel's band)
   const fit = (blocks: ChangeBlock[], width: number) => fitDiff(blocks, width, app.prefs.tourView);
   // a stacked chunk's share of the pane: the height of the code it shows (fit.ts)
+  // the line under a stacked chunk drags to share the height with the next one; dragged shares hold while the slides
+  // show the same files (a new set of files is shared by its code again)
+  let dragged = false;
+  const stackResize = (el: HTMLElement) => {
+    const grip = h('div', { class: 'rr-tour__stack-resize', title: 'Drag to resize', 'aria-hidden': 'true' });
+    let a = 0, b = 0, next: HTMLElement | null = null;
+    const MIN = 64; // a file's band and a couple of rows
+    onDrag(grip, {
+      start: () => {
+        next = el.nextElementSibling as HTMLElement | null;
+        a = el.getBoundingClientRect().height;
+        b = next?.getBoundingClientRect().height ?? 0;
+      },
+      move: (_dx, dy) => {
+        if (!next) return;
+        const d = Math.max(MIN - a, Math.min(b - MIN, dy));
+        dragged = true;
+        Object.assign(el.style, { flex: `0 0 ${a + d}px`, minHeight: '0' });
+        Object.assign(next.style, { flex: `0 0 ${b - d}px`, minHeight: '0' });
+      },
+    });
+    return grip;
+  };
   const shareOf = (el: HTMLElement, slot: Slot) => Object.assign(el.style, stackSize(planned.get(slot.ref)?.tall, slot.code?.start ? (slot.code.end ?? slot.code.start) - slot.code.start + 1 : 1));
   const chunk = (slot: Slot, many: boolean): HTMLElement => {
     const id = `code:tour-${++panes}`;
@@ -162,7 +185,10 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     const el = h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
     views.push({ panel, id, head, el });
-    if (many) shareOf(el, slot);
+    if (many) {
+      shareOf(el, slot);
+      el.append(stackResize(el));
+    }
     return el;
   };
   const mount = (s: PaneShown) => {
@@ -175,6 +201,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
       layer.classList.add('is-leaving');
     }
     views = [];
+    dragged = false;
     layer = pane.appendChild(h('div', { class: 'rr-tour__layer' }));
     if (s.kind === 'refs' && !proseAudit) layer.append(...s.slots.map((slot) => chunk(slot, s.slots.length > 1)));
     // no code: the narration takes the whole player, centred
@@ -193,7 +220,7 @@ export function mountWalkthrough(app: ReviewApp, { phoneForm }: { phoneForm?: Ph
         if (context.next!.kind !== 'refs') return;
         const slots = context.next!.slots;
         // the new lines' shares first: every chunk lands in its final size
-        if (slots.length > 1) slots.forEach((s, i) => views[i] && shareOf(views[i].el, s));
+        if (slots.length > 1 && !dragged) slots.forEach((s, i) => views[i] && shareOf(views[i].el, s));
         slots.forEach((s, i) => {
           if (views[i]?.head) nameHead(views[i].head, s.ref);
           if (s.code) app.bus.emit('reveal-code', { ...s.code, panel: views[i].id });

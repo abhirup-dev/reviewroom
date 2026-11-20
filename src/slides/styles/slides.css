@@ -403,7 +403,21 @@
   flex-direction: column;
 }
 .rr-tour__chunk.is-stacked {
+  position: relative;
   border-bottom: 1px solid var(--rr-line-strong);
+}
+/* the line between stacked files drags (player.ts); desktop only, the phone shows one file at a time */
+.rr-tour__stack-resize {
+  display: none;
+}
+.rr-tour[data-form='desktop'] .rr-tour__chunk.is-stacked:not(:last-child) > .rr-tour__stack-resize {
+  display: block;
+  position: absolute;
+  inset: auto 0 calc(-1 * var(--rr-space-6)) 0;
+  z-index: 2;
+  height: var(--rr-space-12);
+  cursor: row-resize;
+  touch-action: none;
 }
 .rr-tour__chunk > .rr-code-panel {
   flex: 1;
