@@ -125,7 +125,7 @@ fn fill(app: &AppHandle, menu: &Submenu<tauri::Wry>) -> tauri::Result<()> {
         &MenuItem::with_id(app, "prev", "Previous Review", true, Some("CmdOrCtrl+Shift+BracketLeft"))?,
         &PredefinedMenuItem::separator(app)?,
         // the shown review's guided walkthrough, as its page reports it (walkthrough_state)
-        &MenuItem::with_id(app, "wt:play", if tour == "paused" { "Resume Guided Walkthrough" } else { "Play Guided Walkthrough" }, matches!(tour, "closed" | "paused"), Some("CmdOrCtrl+Alt+P"))?,
+        &MenuItem::with_id(app, "wt:play", if tour == "paused" { "Resume Walkthrough" } else { "Play Walkthrough" }, matches!(tour, "closed" | "paused"), Some("CmdOrCtrl+Alt+P"))?,
         &MenuItem::with_id(app, "wt:next", "Next Slide", tour == "playing", Some("CmdOrCtrl+Alt+Right"))?,
         &MenuItem::with_id(app, "wt:prev", "Previous Slide", tour == "playing", Some("CmdOrCtrl+Alt+Left"))?,
         &PredefinedMenuItem::separator(app)?,

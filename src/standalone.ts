@@ -19,7 +19,7 @@ async function boot(root: HTMLElement, bundle: WalkthroughBundle) {
   const presentation = { ...presentationFor('desktop'), canArrange: false, prefs: { key, defaults: { inlineThreads: false } } };
   const app = new ReviewApp(root, ({ code }) => ({ code: createCodeService(code) }), presentation);
   const { repo, title, author, pr, base, head, baseLabel, headLabel } = source;
-  app.meta = { id: key, repo, title, author, number: pr, base, head, baseLabel, headLabel };
+  app.meta = { routeId: key, repo, title, author, number: pr, base, head, baseLabel, headLabel };
   app.provider = new StaticProvider({ meta: app.meta, files, contents });
   app.backend = {
     kind: 'browser',

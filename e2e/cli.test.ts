@@ -1,31 +1,43 @@
-import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
-// CLI surface: resolve without a body, --dir alone, pr without a target.
+// Required targets and command argument parsing.
 import { beforeAll, describe, expect, test } from 'bun:test';
-import fs from 'node:fs';
-import path from 'node:path';
 import type { StoredThread } from '../src/kernel/state/schema.shared.ts';
-import { read, setup } from './fixture.ts';
+import { setup } from './fixture.ts';
 
 describe('cli', () => {
-  const { tmp, repo, dir, d, cli, state, spawn, url } = setup();
+  const { repo, dir, d, cli, state } = setup();
   let thread = '';
-  beforeAll(async () => (thread = (await cli(['comment', 'general', 'why?', ...d])).stdout.trim()));
+  beforeAll(async () => (thread = (await cli(['comment', ...d, 'general', 'why?'])).stdout.trim()));
 
   test('reply --resolve without a body resolves the thread', async () => {
-    expect((await cli(['reply', thread, '--resolve', ...d])).code).toBe(0);
+    expect((await cli(['reply', ...d, thread, '--resolve'])).code).toBe(0);
     expect(state().threads.find((t: StoredThread) => t.id === thread).status).toBe('resolved');
   });
-  // the cwd is reviewroom's own repo: the review's repo must come from the dir
-  test('--dir alone finds the repo the review dir is in', async () => expect(await cli(['check', '--dir', dir])).toMatchObject({ code: 0, stderr: '' }));
-  test('pr without a target scaffolds from --base/--head and serves', async () => {
-    const local = path.join(tmp, 'local-review');
-    spawn(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo, '--dir', local]);
-    expect((await fetch((await url(local)) + 'api/meta')).ok && fs.existsSync(path.join(local, REPORT_FILE))).toBe(true);
-    expect(JSON.parse(read(local, 'config.json'))).toMatchObject({ head: 'feat/upload-rate-limit', profile: 'explainer' });
-    expect(read(local, REPORT_FILE)).toContain('<section id="findings">'); // the explainer profile's sections
+  test('a path target finds its saved repository', async () => expect(await cli(['check', dir])).toMatchObject({ code: 0, stderr: '' }));
+  test('help never shows a negated flag as "(default: true)"', async () => {
+    const help = (await cli(['pr', '--help'])).stdout;
+    expect(help).toContain('--no-serve');
+    expect(help).not.toContain('(default: true)');
   });
   test('pr with an unknown report profile fails and names the profiles', async () => {
-    const r = await cli(['pr', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo, '--dir', path.join(tmp, 'no-profile')]);
+    const r = await cli(['pr', 'feat/upload-rate-limit', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo]);
     expect([r.code, r.stderr]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: explainer')]);
   });
+  test.each(['pr', 'start', 'wait', 'status', 'stop', 'reply', 'comment', 'check', 'slide-lint', 'shot', 'publish-slides'])('%s requires a review', async (command) => {
+    expect(await cli([command, '--repo', repo])).toMatchObject({ code: 1, stderr: expect.stringContaining('missing review') });
+  });
+  test.each([
+    ['check', dir, '--dir', dir],
+    ['pr', dir, '--detach'],
+    ['pr', dir, '--wait'],
+    ['wait', dir, '--forever'],
+    ['hub', '--stop'],
+    ['review', dir],
+    ['status', dir, 'extra'],
+    ['list', dir],
+    ['hub', 'stop', 'extra'],
+    ['shot', '3'],
+  ].map((args) => ({ args })))('rejects removed flags or extra arguments: %j', async ({ args }) => {
+    expect((await cli(args)).code).not.toBe(0);
+  });
+
 });

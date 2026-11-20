@@ -13,7 +13,7 @@ import cssText from './bundle.css' with { type: 'text' };
 import { canInstall, install } from './kernel/install'; // first: it listens for Chrome's install prompt
 import { h } from './kernel/dom';
 import { loadRaw, rekeyStorage } from './kernel/store';
-import { anchorOf, parseRef, formatRef } from './kernel/refs/refs.shared';
+import { anchorOf, parseRef, formatRef, PR_DESCRIPTION } from './kernel/refs/refs.shared';
 import { renderMarkdown } from './kernel/markdown';
 import { emptyState, type ReviewMeta, type ReviewState, type Rev } from './kernel/state/model.shared';
 import { ReviewApp } from './app';
@@ -22,7 +22,8 @@ import { definePanel, ensurePanel, type PanelDef } from './kernel/dock';
 import type { LastLayout } from './kernel/layouts/layout.shared';
 import { hubHref, saveLayoutDialog } from './kernel/header';
 import type { PresentationModule } from './presentation';
-import { currentForm, restoreShell, watchShell } from './kernel/device';
+import { restoreShell, watchShell } from './kernel/device';
+import { currentForm } from './kernel/form';
 import { presentationFor } from './kernel/presentation';
 import { keepScroll, reloadOnChunkError, restoreScroll, startUpdates, wantReload } from './kernel/pwa';
 import { sendDialog, submitReviewDialog, onGitHub } from './threads/controls';
@@ -34,6 +35,7 @@ import { LocalProvider } from './review/providers/local';
 import { StaticProvider, type Fixture } from './review/providers/static';
 import { defineElements, provideApp } from './review/elements';
 import { loadEditor, mountThreadPopup } from './threads/view';
+import { errorText } from './kernel/errors.shared';
 import { mountHoverCards, mountPalette, mountSelectionRelease } from './review/overlays';
 import { mountToasts } from './kernel/toasts';
 import { mountTooltips, tip } from './kernel/tooltip';
@@ -41,7 +43,8 @@ import { codeAt, mountWalkthrough, renderWalkthroughPreview } from './slides/pla
 import { renderPreview, registerPreviewExtensions } from './review/previews';
 import { provideFocusCode } from './review/focus';
 import { openInNewPanel } from './review/code';
-import { registerWalkthroughExtension } from './review/walkthrough';
+import { registerWalkthroughExtension, takeReport } from './review/walkthrough';
+import { mountGeneration } from './review/generation';
 import './review/code';
 import './review/files';
 import './review/contents';
@@ -99,10 +102,28 @@ function applyThemeOverrides(t: ThemeOverrides) {
       .filter(([k, v]) => /^[\w-]+$/.test(k) && !/[;{}<]/.test(v))
       .map(([k, v]) => `${k.startsWith('--') ? k : '--rr-' + k}:${v};`)
       .join('');
-  const s = document.createElement('style');
-  s.dataset.reviewroomTheme = '';
+  const s = document.head.querySelector<HTMLStyleElement>('style[data-reviewroom-theme]') ?? document.head.appendChild(h('style', { 'data-reviewroom-theme': '' }));
   s.textContent = `:root{${decl(t.light)}}:root[data-rr-theme='dark']{${decl(t.dark)}}`;
-  document.head.append(s);
+}
+
+/** What the page says of the review: its #rr-meta, under its <rr-app>'s own attributes. */
+function authoredMeta(root: Element): Partial<ReviewMeta> & { theme?: ThemeOverrides } {
+  const authored = (readJSON('#rr-meta', root) as (Partial<ReviewMeta> & { theme?: ThemeOverrides }) | null) ?? {};
+  for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
+  return authored;
+}
+
+/** A report taken in place (takeReport) brings its page's #rr-meta: the header and the tab show it, as a reload would.
+ *  The review's identity (route, range) and what the server may do here stay as they are. */
+function takeMeta(app: ReviewApp, page: Document) {
+  const root = page.querySelector('rr-app');
+  if (!root) return;
+  // shortcut: a field the new #rr-meta drops keeps its old value until a reload; refetch provider.meta() if that matters
+  const { theme, assistant: _a, generate: _g, routeId: _r, base: _b, head: _h, ...fromReport } = authoredMeta(root);
+  applyThemeOverrides(theme ?? {});
+  Object.assign(app.meta, fromReport);
+  document.title = page.title || app.meta.title;
+  app.bus.emit('meta', app.meta);
 }
 
 export interface BootOptions {
@@ -129,14 +150,13 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   themeQuery.addEventListener('change', onTheme);
   app.onDispose(() => themeQuery.removeEventListener('change', onTheme));
 
-  const authored = (readJSON('#rr-meta', root) as (Partial<ReviewMeta> & { theme?: ThemeOverrides }) | null) ?? {};
+  const authored = authoredMeta(root);
   if (authored.theme) applyThemeOverrides(authored.theme);
-  for (const k of ['repo', 'base', 'head', 'title'] as const) if (root.getAttribute(k)) authored[k] = root.getAttribute(k)!;
   const fixture = readJSON('#rr-fixture') as Fixture | null;
   const seedState = readJSON('#rr-state') as ReviewState | null;
   const seedTour = document.querySelector('#rr-walkthrough')?.textContent ?? undefined;
   const review = root.querySelector('rr-review') as HTMLElement | null;
-  const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No <rr-review> content yet.'));
+  const doc = review ?? h('rr-review', null, h('p', { class: 'rr-muted' }, 'No report yet.'));
   doc.remove();
   doc.classList.add('rr-prose', 'rr-doc');
   app.doc = doc;
@@ -148,16 +168,18 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
     const { provider, backend } = options.provider ? { provider: options.provider, backend: 'browser' as const } : await pickProvider(root, authored, fixture);
     app.provider = provider;
     const pm = await provider.meta();
-    const meta = { ...pm, ...authored, ...(provider.name === 'local' ? { base: pm.base, head: pm.head } : {}) } as ReviewMeta;
+    // what the server may do here (run the assistant, generate) is the server's to say, never the report's own #rr-meta
+    const { assistant: _assistant, generate: _generate, ...fromReport } = authored;
+    const meta = { ...pm, ...fromReport, ...(provider.name === 'local' ? { base: pm.base, head: pm.head, assistant: pm.assistant, generate: pm.generate } : { assistant: undefined, generate: undefined }) } as ReviewMeta;
     meta.title ||= document.title || 'Code review';
     meta.base ||= 'base';
     meta.head ||= 'head';
     const titleId = [meta.repo, meta.number, meta.title].filter(Boolean).join('#').replace(/\s+/g, '-').slice(0, 80);
-    meta.id ||= titleId; // the server sends its review id: titles collide once every review shares the hub's origin
-    rekeyStorage(titleId, meta.id);
+    meta.routeId ||= titleId; // the server sends the directory hash: titles collide once every review shares the hub's origin
+    rekeyStorage(titleId, meta.routeId);
     app.meta = meta;
     if (!document.title) document.title = meta.title;
-    app.backend = options.backend ?? (backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.id, seedState ?? undefined, seedTour));
+    app.backend = options.backend ?? (backend === 'server' ? new ServerState(root.getAttribute('api') || 'api') : new BrowserState(meta.routeId, seedState ?? undefined, seedTour));
     app.state = { ...emptyState(), ...(await app.backend.load()) };
     app.progress = await app.backend.progress?.() ?? app.progress;
     const layouts = app.backend.layouts;
@@ -169,7 +191,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   } catch (e) {
     app.dispose();
     // a chunk that won't load (a build replaced since this page loaded, or offline): the update flow reloads instead
-    if (!reloadOnChunkError(e)) root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, e instanceof Error ? e.message : String(e))));
+    if (!reloadOnChunkError(e)) root.replaceChildren(h('div', { class: 'rr-fatal' }, h('strong', null, 'Could not load the review'), h('pre', null, errorText(e))));
     throw e;
   }
 
@@ -200,6 +222,7 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   ui.selection?.(app);
   mountHoverCards(app);
   mountThreadPopup(app);
+  mountGeneration(app); // first: the headers, the player and the report read where it stands
   const tour = mountWalkthrough(app, {
     formFactory: ui.player,
     resolveCode: (ref) => codeAt(app, ref),
@@ -217,31 +240,36 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   app.commands.scopeOf = (t) => ((t as Element | null)?.closest?.('[data-rr-scope]')?.getAttribute('data-rr-scope') as 'code' | 'narrative' | null) ?? 'global';
   app.onDispose(app.commands.attach(document));
 
+  const reloadReview = () => {
+    if (!options.reload) return wantReload('review', 'the review changed');
+    keepScroll();
+    options.reload();
+  };
   app.backend.subscribe?.({
+    // generation (review/generation.ts) decides what it means
     progress: (p) => {
-      const before = app.progress.walkthrough.state;
       app.progress = p;
-      if (p.walkthrough.state === 'validated' && (before === 'requested' || before === 'written')) {
-        const u = new URL(location.href);
-        u.searchParams.set('walkthrough', '/');
-        history.replaceState(history.state, '', u);
-      }
       app.bus.emit('progress', p);
     },
+    assistant: () => app.bus.emit('assistant-turn', undefined),
     state: (s) => {
       app.state = s;
       app.bus.emit('state', s);
     },
     error: (text) => app.toast(text, 'error'),
     unsaved: (on) => app.root.classList.toggle('is-unsaved', on),
-    status: (s) => (['waiting', 'approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
-    ready: (round) => app.toast(`Round ${round} is ready.`),
+    status: (s) => (['approved', 'offline'] as const).forEach((k) => app.root.classList.toggle('is-' + k, s === k)),
+    connection: (c) => app.bus.emit('connection', c),
     github: (s) => app.services.github.set(s),
-    // the backend has let a save in flight finish first
-    review: () => {
-      if (app.meta.assistant && !options.reload) return wantReload('review', 'the walkthrough changed');
-      keepScroll();
-      (options.reload ?? (() => location.reload()))();
+    // the backend has let a save in flight finish first; held while the reader is busy (pwa.ts busy(): the loading
+    // screen and the playing walkthrough among it)
+    review: reloadReview,
+    // a document in place: the walkthrough as the player's data, the report swapped in, unless threads are anchored in it
+    changed: (docs) => {
+      if (docs.includes('walkthrough')) app.bus.emit('walkthrough-load', undefined);
+      if (!docs.includes('report')) return;
+      if (app.state.threads.some((t) => t.anchor.kind === 'doc' && t.anchor.target !== PR_DESCRIPTION)) return reloadReview();
+      void takeReport(app).then((page) => (page ? takeMeta(app, page) : reloadReview()));
     },
   });
   restoreScroll();
@@ -321,12 +349,12 @@ function registerCommands(app: ReviewApp) {
     { id: 'palette.symbols', title: 'Find symbol', group: 'Navigate', keys: ['mod+shift+o', '#'], run: pal('#') },
     { id: 'palette.search', title: 'Search code', group: 'Navigate', keys: ['mod+shift+f', '/'], run: pal('/') },
     { id: 'hub', title: 'All reviews', group: 'Navigate', hint: 'Every review running on this machine', when: () => app.backend.kind === 'server', run: () => window.open(hubHref(), '_blank') },
-    { id: 'focus.narrative', title: 'Focus narrative', group: 'Panels', keys: ['g n'], run: () => { ensurePanel(app, 'narrative'); (document.querySelector('.rr-narrative-scroll') as HTMLElement)?.focus(); } },
+    { id: 'focus.narrative', title: 'Focus the report', group: 'Panels', keys: ['g n'], run: () => { ensurePanel(app, 'narrative'); (document.querySelector('.rr-narrative-scroll') as HTMLElement)?.focus(); } },
     { id: 'focus.code', title: 'Focus code', group: 'Panels', keys: ['g c'], run: () => { ensurePanel(app, 'code'); (document.querySelector('.rr-code-scroll') as HTMLElement)?.focus(); } },
     { id: 'focus.files', title: 'Show files', group: 'Panels', keys: ['g f'], run: () => ensurePanel(app, 'files') },
     { id: 'focus.threads', title: 'Show threads', group: 'Panels', keys: ['g t'], run: () => ensurePanel(app, 'threads') },
     { id: 'focus.toc', title: 'Show contents', group: 'Panels', keys: ['g o'], run: () => ensurePanel(app, 'toc') },
-    { id: 'walkthrough.play', title: 'Play guided walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
+    { id: 'walkthrough.play', title: 'Play the walkthrough', group: 'Navigate', keys: ['g w'], run: () => app.bus.emit('walkthrough-open', {}) },
     { id: 'layout.saveDefault', title: 'Save layout as default…', group: 'Layout', hint: 'Reviews without a layout of their own open like this', when: () => app.presentation.canArrange, run: () => saveLayoutDialog(app, true) },
     { id: 'layout.undo', title: 'Undo layout change', group: 'Layout', hint: 'Back to the layout before the last change', when: () => app.layout.canUndo(), run: () => app.layout.undo() },
     { id: 'layout.reset', title: 'Reset layout', group: 'Layout', hint: 'Every panel back where it started', when: () => app.presentation.canArrange, run: () => app.layout.reset() },
@@ -347,8 +375,8 @@ function registerCommands(app: ReviewApp) {
     { id: 'diff.prevFile', title: 'Previous file', group: 'Code', keys: ['[ f', 'shift+k'], scope: 'code', run: codeCmd('prevFile') },
     { id: 'diff.viewed', title: 'Mark current file viewed', group: 'Code', keys: ['v'], scope: 'code', run: () => app.activeFile && app.setViewed(app.activeFile, app.state.viewed[app.activeFile] === undefined) },
     { id: 'files.tests', title: 'Toggle test files', group: 'Files', run: () => app.setPref('hideTests', !app.prefs.hideTests) },
-    { id: 'doc.next', title: 'Next section', group: 'Narrative', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
-    { id: 'doc.prev', title: 'Previous section', group: 'Narrative', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },
+    { id: 'doc.next', title: 'Next section', group: 'Report', keys: [']', 'n'], scope: 'narrative', run: () => stepSection(app, 1) },
+    { id: 'doc.prev', title: 'Previous section', group: 'Report', keys: ['[', 'p'], scope: 'narrative', run: () => stepSection(app, -1) },
     { id: 'pick', title: 'Pick an element to comment on', group: 'Comments', keys: ['x'], run: () => app.bus.emit('picker', !app.picking) },
     { id: 'comment.selection', title: 'Comment on selection', group: 'Comments', keys: ['c'], when: () => !!app.selection, run: () => {
       const s = app.selection!;

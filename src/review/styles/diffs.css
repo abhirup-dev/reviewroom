@@ -33,3 +33,20 @@ diffs-container {
   --diffs-light-bg: var(--rr-panel-2);
   --diffs-dark-bg: var(--rr-panel-2);
 }
+/* The walkthrough's quiet diff: the review's own red, green and changed-word colours (above), with less around them. No
+   hairline beside the line numbers, no selection band or change bars, filler cells on the paper, the file's other
+   changes faded (--_unlit-change), and the slide's lines marked at their numbers: a rule, in ink, semibold
+   (--_lit-rule, --_lit-num, --_lit-weight; the code panel's lit-line CSS). */
+.rr-tour diffs-container {
+  --diffs-gap-style: none;
+  --diffs-bg-selection-override: var(--rr-panel);
+  --diffs-bg-selection-number-override: var(--rr-panel);
+  --diffs-bg-buffer-override: var(--rr-panel);
+  --diffs-bg-separator-override: var(--rr-panel);
+  --diffs-bg-context-gutter-override: var(--rr-panel);
+  --_change-bar: 0;
+  --_unlit-change: 0.7;
+  --_lit-rule: inset 2px 0 0 var(--rr-ink);
+  --_lit-num: var(--rr-ink);
+  --_lit-weight: 600;
+}

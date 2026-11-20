@@ -7,7 +7,7 @@ import type { SearchHit } from '../src/kernel/state/model.shared.ts';
 import { expectClientHeaders, setup } from './fixture.ts';
 
 describe('api', () => {
-  const { tmp, repo, dir, serve, sessions } = setup({ REVIEWROOM_ASSISTANT: '' });
+  const { tmp, repo, dir, serve, sessions } = setup();
   const marker = path.join(tmp, 'pwned');
   const status = (p: string, init?: RequestInit) => fetch(url + p, init).then((r) => r.status);
   let url = '';
@@ -25,9 +25,9 @@ describe('api', () => {
     expect(hits.some((h) => h.kind === 'definition')).toBe(true);
   });
   test('a running server is listed in the per-user session registry', () =>
-    expect(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir.endsWith('feat-upload-rate-limit'))).toBe(true));
+    expect(sessions().some((s) => s.url === url && s.repo === fs.realpathSync(repo) && s.dir === dir)).toBe(true));
   test('summary gives round and counts without thread text', async () =>
-    expect(await (await fetch(url + 'api/summary')).json()).toMatchObject({ round: 1, threads: 0, browserClients: expect.any(Number), walkthrough: expect.any(Boolean) }));
+    expect(await (await fetch(url + 'api/summary')).json()).toMatchObject({ round: 1, threads: 0, browserClients: expect.any(Number), walkthrough: expect.any(Boolean), additions: expect.any(Number), files: expect.any(Number) }));
 
   test('walkthrough: 404 when absent, the file when valid, 422 with issues when not', async () => {
     const file = path.join(dir, WALKTHROUGH_FILE);

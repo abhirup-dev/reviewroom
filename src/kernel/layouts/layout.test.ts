@@ -100,8 +100,17 @@ test('a saved dock comes back as it was, with its layout; a broken one falls bac
   const first = mount().app;
   first.layout.apply('code-focus');
   dock.closePanel(first, 'toc');
-  const saved: LastLayout = { dock: first.dock!.toJSON(), offered: [], layout: 'code-focus' };
+  const unregister = stub('assistant', { onDemand: true });
+  const saved = (() => {
+    try {
+      first.layout.ensurePanel('assistant');
+      return { dock: first.dock!.toJSON(), offered: [], layout: 'code-focus' };
+    } finally {
+      unregister();
+    }
+  })();
   const { app } = mount({ saved });
+  expect(app.dock!.getPanel('assistant')).toBeUndefined();
   expect(docked(app)).toEqual(['files', 'code', ['description', 'narrative,agent-chart', 'threads,ci']]);
   dock.closePanel(app, 'code');
   app.layout.ensurePanel('code'); // where the restored layout puts it

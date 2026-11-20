@@ -96,16 +96,12 @@
 }
 /* one sheet of code to the bottom edge: no file card on a darker well that ends where the diff does */
 [data-form='phone'] .rr-tour__right .rr-code-scroll {
-  background: var(--rr-surface-code);
+  background: var(--rr-panel);
 }
 [data-form='phone'] .rr-tour__right .rr-code-scroll diffs-container {
   margin-inline: 0;
   border-radius: 0;
   box-shadow: none;
-}
-/* room to scroll the last lines above the card: the code panel's own bottom padding (review/code.ts) */
-[data-form='phone'] .rr-tour__tools {
-  display: none;
 }
 /* one chunk at a time, the file tab picks it (player.phone.ts): stacked in place, the others hidden but laid out, so
    their lines are where they landed. The tab replaces the card's chips */
@@ -378,9 +374,6 @@
 }
 [data-form='phone'] .rr-tour__seg {
   flex: 1; /* every chapter the same width, whatever its slide count */
-}
-[data-form='phone'] .rr-tour__seg-title {
-  display: none;
 }
 /* the phone's ticks: thinner and rounded (M3 shapes) */
 [data-form='phone'] .rr-tour__tick {
@@ -802,11 +795,4 @@
   [data-form='phone'] :is(.rr-tour__top, .rr-tour__bottom, .rr-tour__right, .rr-tour__left) {
     transition: opacity 150ms ease-out !important; /* the chrome fades, nothing moves */
   }
-}
-
-.rr-tour__writing {
-  padding: var(--rr-space-24);
-}
-.rr-tour__writing button {
-  min-height: var(--rr-touch);
 }

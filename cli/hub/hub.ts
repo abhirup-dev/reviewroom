@@ -1,4 +1,5 @@
-// The hub's poll: read the three registries, drop dead sessions, then fill in git, agent, counts and health.
+// The hub's poll: read the three registries, drop dead sessions, then fill in git, agent, counts and health; then the
+// review folders on disk, so stopped reviews show too (cli/hub/reviews.ts).
 // reviewroom sessions are first-party: a record counts only while its server answers with its own pid
 // (x-reviewroom-pid), a record whose server is gone is deleted, and counts come from GET /api/summary.
 // Crit and Plannotator sessions are checked with kill -0 and only hidden when dead; their files stay.
@@ -8,10 +9,11 @@ import { classifySession, sessionOpenUrl } from './classify.ts';
 import { GitMetaCache } from './gitmeta.ts';
 import { critLoopbackUrl, sanitizeLoopbackUrl } from './loopback.ts';
 import { type Agent, agentAncestor, lsofCwd, processCommand, runCapture } from './proc.ts';
+import { diskReviews, generationOf, serialized } from './reviews.ts';
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/hub/model.shared.ts';
 import { alive } from '../lib/lock.ts';
-import { reviewId, stopServer, unregister } from '../lib/registry.ts';
+import { routeId, stopServer, unregister } from '../lib/registry.ts';
 import { registryDir } from '../lib/paths.ts';
 
 export interface HubOptions {
@@ -22,6 +24,8 @@ export interface HubOptions {
   plannotatorDataDir?: string;
   healthTimeoutMs?: number;
   gitTtlMs?: number;
+  /** The reviewroom entry Add a PR and Play run (the running one: the source or the bundle). */
+  entry?: string;
 }
 
 const CRIT_MODES = new Set(['review', 'live', 'preview', 'plan']);
@@ -35,7 +39,7 @@ function session(id: string, tool: ToolName, now: string, fields: Partial<Sessio
     category: 'other', kind: 'unknown', target: null, classificationSource: '', origin: null, originSource: null, parentAgentPid: null,
     parentAgentGroup: null, author: null, mode: null, label: null, project: null, reviewPath: null, startedAt: null, updatedAt: null, commentCount: null,
     resolvedCommentCount: null, unresolvedCommentCount: null, reviewRound: null, browserClients: null, interacted: null,
-    firstSeenAt: now, lastSeenAt: now, health: 'unknown', notes: [], ...fields,
+    additions: null, deletions: null, changedFiles: null, firstSeenAt: now, lastSeenAt: now, health: 'unknown', notes: [], ...fields,
   };
 }
 
@@ -54,12 +58,11 @@ const getJson = async (url: string, timeout: number) => {
   return { res, body: res.ok ? ((await res.json()) as Record<string, unknown>) : null };
 };
 
-export { reviewId };
-
 export class Hub {
   readonly pollIntervalMs: number;
   readonly critHome: string;
   readonly plannotatorDataDir: string;
+  readonly entry: string;
   lastPollAtMs = 0;
 
   private readonly healthTimeoutMs: number;
@@ -77,6 +80,7 @@ export class Hub {
     this.critHome = opts.critHome ?? defaultCritHome();
     this.plannotatorDataDir = opts.plannotatorDataDir ?? resolvePlannotatorDataDir();
     this.healthTimeoutMs = opts.healthTimeoutMs ?? 800;
+    this.entry = opts.entry ?? process.argv[1];
     this.git = new GitMetaCache(opts.gitTtlMs ?? 10_000);
   }
 
@@ -207,10 +211,10 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, mode: r.mode, label: r.title, project: basename(r.repo), reviewPath: r.dir, reviewId: reviewId(r.dir),
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, label: r.title, project: basename(r.repo), reviewPath: r.dir, routeId: routeId(r.dir), reviewId: r.reviewId, generation: generationOf(r.dir),
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
-      withClassification(info, classifySession({ tool: 'reviewroom', mode: r.mode, label: r.title, pr: r.number, head: r.head }));
+      withClassification(info, classifySession({ tool: 'reviewroom', reviewId: r.reviewId, head: r.head }));
       next.set(info.id, info);
       // nothing answers as this server: it died without cleaning up (SIGKILL, crash)
       const gone = () => {
@@ -236,6 +240,11 @@ export class Hub {
           info.resolvedCommentCount = info.commentCount !== null && info.unresolvedCommentCount !== null ? info.commentCount - info.unresolvedCommentCount : null;
           info.browserClients = num(body?.browserClients);
           info.walkthrough = body?.walkthrough === true;
+          info.additions = num(body?.additions);
+          info.deletions = num(body?.deletions);
+          info.changedFiles = num(body?.files);
+          // the registry file is written once at start; state.json changes with every thread and round
+          if (typeof body?.updated === 'string') info.updatedAt = body.updated;
           info.interacted = (info.commentCount ?? 0) > 0 || (info.reviewRound ?? 1) > 1 || (info.browserClients ?? 0) > 0;
         }
         await this.withGit(info, r.repo);
@@ -244,6 +253,16 @@ export class Hub {
     }
 
     await Promise.allSettled(enrich);
+    // reviews on disk not running show as stopped (Play starts them); a running one is listed above already
+    for (const d of read('reviews on disk', diskReviews)) {
+      if ([...next.values()].some((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir)) continue;
+      const info = session(`review:${d.routeId}`, 'reviewroom', now, {
+        cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, routeId: d.routeId, reviewId: d.reviewId, branch: d.branch,
+        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, hasWork: d.hasWork,
+      });
+      withClassification(info, classifySession({ tool: 'reviewroom', reviewId: d.reviewId, head: d.branch }));
+      next.set(info.id, info);
+    }
     for (const info of next.values()) info.firstSeenAt = this.sessions.get(info.id)?.firstSeenAt ?? info.firstSeenAt;
     this.sessions = next;
     this.lastError = errors.join('; ') || null;
@@ -251,15 +270,20 @@ export class Hub {
     return [...next.values()];
   }
 
-  /** The live review server for /r/<id>/ (the proxy): from the last poll, polling again only when a server came or
+  /** The live review server for /r/<routeId>/ (the proxy): from the last poll, polling again only when a server came or
    *  went (its sessions/<pid>.json) or the poll is a minute old, so neither each request nor an unknown id polls. */
-  async review(id: string): Promise<SessionInfo | null> {
+  async review(route: string): Promise<SessionInfo | null> {
     const m = mtime(registryDir());
     if (m !== this.polledRegistry || Date.now() - this.lastPollAtMs > 60_000) {
       await this.poll();
       this.polledRegistry = m;
     }
-    return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.reviewId === id && s.port && s.pid) ?? null;
+    return [...this.sessions.values()].find((s) => s.tool === 'reviewroom' && s.routeId === route && s.port && s.pid) ?? null;
+  }
+
+  /** The next look polls again (a review was added or started). */
+  invalidate() {
+    this.lastPollAtMs = 0;
   }
 
   /** SIGTERM one session that a fresh poll still finds; the client names a session, never a pid. A reviewroom
@@ -271,7 +295,9 @@ export class Hub {
     if (!s?.pid) return { ok: false, reason: 'not-found' };
     if (s.pid === process.pid || s.pid <= 1) return { ok: false, reason: 'refused' };
     if (s.tool === 'reviewroom') {
-      const stopped = s.reviewPath && fs.existsSync(s.reviewPath) ? await stopServer(s.reviewPath, s.pid) : null;
+      // one at a time with a Play or re-add of the same review (reviews.ts): a Play never reuses a server this is stopping
+      const dir = s.reviewPath, pid = s.pid;
+      const stopped = dir && fs.existsSync(dir) ? await serialized(dir, () => stopServer(dir, pid)) : null;
       return stopped ? { ok: true, session: s } : { ok: false, reason: 'refused' };
     }
     // the pid may have been reused since the tool wrote its registry: signal it only if it still runs that tool

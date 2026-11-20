@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { WALKTHROUGH_EXPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 import { type Global, fail } from '../lib/args.ts';
-import { dirForEdit } from '../lib/config.ts';
 import { git, isRev } from '../lib/git.ts';
 import { report } from '../lib/links.ts';
 import { DIST } from '../lib/paths.ts';
@@ -11,8 +10,7 @@ import { runCheck, schemaReport } from './check.ts';
 
 type ExportOptions = Global & { out?: string; allowStale?: boolean };
 
-export async function cmdExport(repo: string | null, options: ExportOptions) {
-  const dir = dirForEdit(repo, options.dir, WALKTHROUGH_FILE);
+export async function cmdExport(repo: string | null, dir: string, options: ExportOptions) {
   const checkout = repo ?? fail('not inside a git repository (use --repo)');
   const checked = await runCheck(checkout, dir, { store: false, notes: false });
   if ('issues' in checked) fail(schemaReport(checked.issues));

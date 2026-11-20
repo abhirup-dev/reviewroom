@@ -10,7 +10,7 @@ describe('lock', () => {
 
   test('concurrent CLI writes both land (stale lock taken over, then released)', async () => {
     fs.writeFileSync(path.join(dir, 'state.lock'), JSON.stringify({ pid: 999999, port: null }));
-    const rs = await Promise.all([cli(['comment', 'general', 'one', ...d]), cli(['comment', 'general', 'two', ...d])]);
+    const rs = await Promise.all([cli(['comment', ...d, 'general', 'one']), cli(['comment', ...d, 'general', 'two'])]);
     expect([rs.map((r) => r.code), state().threads.map((t: StoredThread) => t.messages[0].body).sort(), fs.existsSync(path.join(dir, 'state.lock'))]).toEqual([[0, 0], ['one', 'two'], false]);
   });
 });

@@ -1,10 +1,10 @@
 # Phone design: Material 3 Expressive on the Reading Desk
 
 The phone shell (`src/phone.ts` its presentation, `src/kernel/phone.ts`, `src/kernel/styles/phone.css`; each feature's phone rules in its own
-`*.phone.css`, the guided review's player in `src/slides/player.phone.ts`) follows Material 3 Expressive (M3E) for shape,
+`*.phone.css`, the walkthrough's player in `src/slides/player.phone.ts`) follows Material 3 Expressive (M3E) for shape,
 touch, and motion, and keeps reviewroom's own colour, type, and restraint (`DESIGN.md`). Desktop and the tablet dock
 are unchanged; everything here is scoped to `.is-phone` (the root), `.rr-phone` (the shell) and `:root:has(.is-phone)`
-(dialogs, outside the root), the guided review's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
+(dialogs, outside the root), the walkthrough's player to its own `data-form="phone"`. Mock: `docs/design/phone-mock.html`.
 Shared shape, motion and phone bar tokens live in `src/kernel/styles/tokens.phone.css`, loaded after the base tokens
 and before component rules.
 
@@ -72,7 +72,16 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   DESIGN.md uppercase label style. Opens with a container transform from the search icon (standard spatial spring).
 - **Drawer** (modal navigation drawer): 300px max, large trailing corners, header with title and facts, 56px items,
   selected item would use a full-pill accent-soft indicator, theme as a segmented button (full pill outer, 3 segments).
-- **Guided review**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
+- **Hub** (All reviews, `src/hub/styles/hub.phone.css`): an M3 list, not cards or a table. The page scrolls as one:
+  app bar, a 56px full-pill search bar, the Add PR field at touch height, the snapshot counts as 48px tabs in one
+  sideways row (the chosen one underlined in accent), filters folded to a 48px row that opens to chips. The "N
+  reviews" line shows only while a filter narrows the list. Groups are sticky 48px subheaders (14/500, name and open
+  threads). Each review is a list item with no dividers: a 40px leading avatar (the PR author, else the tool's mark)
+  with the live dot as its badge; the title as headline (16/400, wraps, never cut); one wrapping supporting line of
+  plain 14px text (PR, branch, round, state, +/−, open/total threads, agent, last active); play as the one trailing
+  action, level with the leading (a stopped review's Play starts it). The whole item opens the review. Close, Remove,
+  Use my own agent, selection and bulk Open/Close stay on the computer. A phone on its side gets the table.
+- **Walkthrough**: the code fills the screen; the slide is a large-radius card over it; controls are an M3E floating
   toolbar (full pill, 52px, surface-container-high, the only surface): Back, Contents, Comment, Full screen and Next are plain 44px
   icon buttons on it, no fills of their own; pressed or hovered, a round 12% / 8% state layer. Back and Next are
   `--rr-ink`; Contents and Full screen `--rr-ink-2`; Comment is marked only by its `chat` icon's `--rr-comment` stroke. On the first
@@ -85,11 +94,11 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   slide, 3px apart within a chapter and 10px between chapters, so the chapters read; a tap anywhere on it (a taller
   target than it looks) opens Contents. Immersive, a new chapter lifts the rail into a band of the card's raised
   surface ("CHAPTER 2" in accent, then its title) for 2.5 s, the card stepping up out of its way (upright only): swipes, slide changes, card drags,
-  scrolling and taps keep it immersive. Only the guided review is full screen: the installed app is
+  scrolling and taps keep it immersive. Only the walkthrough is full screen: the installed app is
   `display: standalone` (status bar kept, nothing under a cutout; no manifest `theme_color`, which Chrome paints the
   navigation bar with in one colour for both themes: without it the phone's own light or dark bar shows, and the
   `theme-color` metas still colour the status bar; `background_color`, the launch splash, is the dark background,
-  since Chrome may paint the navigation bar with it too), and the guided review asks for full screen
+  since Chrome may paint the navigation bar with it too), and the walkthrough asks for full screen
   (the Fullscreen API) on the opening tap and any later one, in the app and in a browser tab; after Back leaves full screen, only reopening asks again. The Show controls icon has an edge and a shadow so it reads over code or prose. Full screen (`maximize`) goes
   immersive at once. The coach (coachMachine), on going immersive (once a page load for each orientation) and on every Full screen tap: a one-line
   note at the top (15px; "Full screen · swipe the slide below to move", "on the left" on its side) while the rest of
@@ -106,7 +115,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   chapter intro opens its first slide; on the others it folds to its first line with More, and a swipe up (or a tall
   card) opens it. The code is one sheet on the code surface to the bottom edge. The walkthrough's progress (chapters ×
   slides) is a thin row at the screen's foot, always shown.
-- **Guided review's files**: the code shows one of the slide's chunks at a time (the others stay mounted, hidden). The
+- **Walkthrough's files**: the code shows one of the slide's chunks at a time (the others stay mounted, hidden). The
   card is a raised sheet (a step lighter than the code, `--rr-surface-overlay-2`, with a hairline rim lit along the top:
   `--rr-rim`, `--rr-rim-top`), and a file tab rises from its top edge on the same surface and rim (mono 12): one or two
   file names, the shown one in accent and underlined; three or more, the shown one with `▾ +N`, opening a bottom sheet
@@ -118,7 +127,7 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   show the link, with an undo icon on the tab back to the slide's own code. A new jump cancels the last; a slide change
   cancels a pending one. Lines land centred in the code left showing above the card (its file tab's top edge), re-centred once the card has finished sizing to the new slide (revealMachine's settle; instantly under reduced motion) unless the reader scrolled or selected lines meanwhile; too tall to fit, they land at the top. The desktop keeps its stacked chunks
   and chips.
-- **Guided review on its side**: the phone player goes by the device (the `player` of `phone` and `turned` in `src/phone.ts`:
+- **Walkthrough on its side**: the phone player goes by the device (the `player` of `phone` and `turned` in `src/phone.ts`:
   a phone either way up, or `?phone`), not the shell, so a turned phone keeps it under the dock; tablets and computers get
   the desktop player. It marks itself `data-form="phone"` and `data-orient` (the viewport's, live), and its styles key
   off those. Landscape: the slide is a column on the left, the code on the right edge to edge, the desktop's draggable
@@ -127,10 +136,13 @@ Desktop keeps 2px. The phone breaks the square rule on purpose: thumbs need soft
   swipes, Contents) is the same; the card's detents are portrait only.
 - **Rotation**: a phone on its side gets the dock (from the Tablet layout, never saved over the reviewer's last
   layout); upright, the phone shell. It reloads into the other shell on rotation, keeping the panel in front, the open
-  file and the slide (`src/kernel/device.ts`); the guided review comes back in the other orientation's variant.
+  file and the slide (`src/kernel/device.ts`); the walkthrough comes back in the other orientation's variant.
 - **Composer**: extra-large top corners, sits on `--rr-kb`; text field medium radius with accent focus outline.
 - **Toast** (snackbar): medium radius, inverse surface (`--rr-ink` fill, `--rr-bg` text), action in
   `--rr-accent-soft`; sits above the navigation bar.
+- **Generation loading**: the desktop's generation steps alone (the assistant has no panel on the phone, so reading
+  and writing are one step), then one plain line of where it stands (the status, with its pulsing dot) and the
+  touch-size buttons. No assistant window (`review.phone.css`).
 
 ## Icons
 

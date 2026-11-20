@@ -1,9 +1,71 @@
-/* The hub's page (src/hub/): the header on the desk chrome, a filter bar, one dense table on the notebook surface.
-   Built only into dist/hub.css with tokens, shell and overlays (scripts/build.ts). */
+/* The hub's page (src/hub/): the header on the desk chrome, a snapshot strip of counts, a facet rail on the navigation
+   plane, and one table on paper, grouped by repository. Built only into dist/hub.css with tokens, shell and overlays
+   (scripts/build.ts). */
 .rr-hub {
-  --rr-panel: var(--rr-surface-nav);
-  --rr-panel-2: var(--rr-surface-nav-2);
+  /* the checkbox column (the review column sticks right after it), the tool and avatar icons, the live dot */
+  --sel-w: 36px;
+  --icon: 18px;
+  --dot: 8px;
+  --rr-panel: var(--rr-surface-doc);
+  --rr-panel-2: var(--rr-surface-doc-2);
+  font-variant-numeric: tabular-nums;
 }
+.rr-hub .rr-header__title {
+  margin: 0;
+}
+.rr-hub__meta {
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+  font-weight: 500;
+}
+.rr-hub__spacer {
+  flex: 1;
+}
+.rr-hub__dim {
+  color: var(--rr-muted);
+}
+.rr-hub__mono {
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-sm);
+}
+.rr-hub__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* search, in the header */
+.rr-hub__find {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-6);
+  width: min(360px, 40vw);
+  height: var(--rr-control);
+  padding: 0 var(--rr-space-8);
+  background: var(--rr-surface-doc);
+  border: 1px solid var(--rr-line-strong);
+  border-radius: var(--rr-radius);
+  color: var(--rr-muted);
+}
+.rr-hub__find:focus-within {
+  outline: 2px solid var(--rr-accent);
+  outline-offset: -1px;
+}
+.rr-hub__search.rr-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* warnings and failures */
 .rr-hub__banners:empty {
   display: none;
 }
@@ -13,7 +75,6 @@
   gap: 1px;
   border-top: 1px solid var(--rr-line-strong);
 }
-/* state: a soft fill and coloured text */
 .rr-hub__banner {
   padding: var(--rr-space-6) var(--rr-space-16);
   background: var(--rr-warn-soft);
@@ -25,47 +86,221 @@
   background: var(--rr-risk-soft);
   color: var(--rr-risk);
 }
+.rr-hub__banner a {
+  color: inherit;
+  font-weight: 600;
+}
 
-/* filters and bulk actions */
+/* starting reviews: Add a PR (src/hub/index.ts) */
+.rr-hub__adder {
+  flex: none;
+  display: flex;
+  padding: var(--rr-space-6) var(--rr-space-16);
+  border-top: 1px solid var(--rr-line-strong);
+}
+.rr-hub__addform {
+  display: flex;
+  flex: 1 1 24em;
+  gap: var(--rr-space-6);
+  max-width: 40em;
+}
+.rr-hub__add {
+  flex: 1;
+  min-width: 0;
+}
+.rr-hub__prompt {
+  margin: var(--rr-space-8) 0 0;
+  padding: var(--rr-space-8);
+  border-radius: var(--rr-radius);
+  background: var(--rr-surface-bar);
+  font-family: var(--rr-mono);
+  font-size: var(--rr-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* the snapshot: five counts, each a filter */
+.rr-hub__strip {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--rr-surface-nav);
+  border-top: 1px solid var(--rr-line-strong);
+  border-bottom: 1px solid var(--rr-line-strong);
+}
+.rr-hub__tile {
+  flex: 1 1 10em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--rr-space-2);
+  padding: var(--rr-space-10) var(--rr-space-16);
+  border: 0;
+  border-right: 1px solid var(--rr-line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease-out;
+}
+.rr-hub__tile:hover {
+  background: var(--rr-hover);
+}
+.rr-hub__tile.is-on {
+  background: var(--rr-surface-doc);
+  box-shadow: inset 0 -2px 0 var(--rr-ink);
+}
+.rr-hub__tile:focus-visible {
+  outline: 2px solid var(--rr-accent);
+  outline-offset: -2px;
+}
+.rr-hub__tile-label {
+  color: var(--rr-ink-2);
+  font-size: var(--rr-text-sm);
+  font-weight: 600;
+}
+.rr-hub__tile-num {
+  display: flex;
+  align-items: baseline;
+  gap: var(--rr-space-6);
+}
+.rr-hub__tile-value {
+  font-family: var(--rr-font-display);
+  font-size: var(--rr-text-2xl);
+  font-weight: 600;
+  letter-spacing: var(--rr-tracking-tight);
+}
+.rr-hub__tile-value.is-comment {
+  color: var(--rr-comment);
+}
+.rr-hub__tile-value.is-risk {
+  color: var(--rr-risk);
+}
+.rr-hub__tile-value.is-zero {
+  color: var(--rr-muted);
+}
+.rr-hub__tile-sub {
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+  font-weight: 500;
+}
+
+/* the rail beside the table; above it, folded, on a narrow window */
+.rr-hub__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.rr-hub__rail {
+  flex: none;
+  width: var(--rr-rail-width);
+  overflow-y: auto;
+  padding: var(--rr-space-16) var(--rr-space-12);
+  background: var(--rr-surface-nav);
+  border-right: 1px solid var(--rr-line);
+}
+.rr-hub__rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-24);
+}
+.rr-hub__rail-toggle {
+  display: none;
+}
+.rr-hub__facet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-2);
+}
+.rr-hub__facet-label {
+  padding: 0 var(--rr-space-6) var(--rr-space-4);
+  color: var(--rr-ink-2);
+  font-size: var(--rr-text-sm);
+  font-weight: 600;
+}
+.rr-hub__group-by {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.rr-hub__facet-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-2);
+}
+.rr-hub__facet-item {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-8);
+  height: var(--rr-control-sm);
+  padding: 0 var(--rr-space-6);
+  border: 0;
+  border-radius: var(--rr-radius);
+  background: none;
+  color: var(--rr-ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rr-hub__facet-item:hover {
+  background: var(--rr-hover);
+}
+.rr-hub__facet-item.is-on {
+  background: var(--rr-active);
+  color: var(--rr-ink);
+  font-weight: 600;
+}
+.rr-hub__facet-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-hub__facet-n {
+  color: var(--rr-muted);
+  font-size: var(--rr-text-xs);
+  font-weight: 500;
+}
+
+/* the list: its bar, then the table */
+.rr-hub__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--rr-surface-doc);
+}
 .rr-hub__bar {
   flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--rr-space-6);
+  gap: var(--rr-bar-gap);
   min-height: var(--rr-bar-h);
   padding: var(--rr-space-4) var(--rr-space-12);
-  background: var(--rr-surface-bar);
-  border-top: 1px solid var(--rr-line-strong);
-  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface-bar-active);
+  border-bottom: 1px solid var(--rr-line-strong);
 }
-.rr-hub__bar .rr-select {
-  max-width: 160px;
-}
-.rr-hub__search {
-  width: 260px;
-}
-.rr-hub__num {
-  width: 124px;
-}
-.rr-hub__spacer {
-  flex: 1;
+.rr-hub__shown {
+  font-weight: 500;
 }
 .rr-hub__count {
   color: var(--rr-muted);
   font-size: var(--rr-text-sm);
 }
+.rr-hub__count:not(:empty) {
+  animation: rr-fade 0.12s ease-out;
+}
 .rr-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
-
-/* the table */
 .rr-hub__scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--rr-surface-nav);
   scrollbar-width: thin;
   scrollbar-color: var(--rr-line-strong) transparent;
 }
@@ -85,29 +320,32 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-variant-numeric: tabular-nums;
 }
-.rr-hub__table th {
+.rr-hub__table :is(th, td) {
+  box-sizing: border-box;
+  height: var(--rr-bar-h);
+  padding: 0 var(--rr-space-8);
+  border-bottom: 1px solid var(--rr-line);
+  background: var(--rr-surface-doc);
+  white-space: nowrap;
+  text-align: left;
+  transition: background-color 0.12s ease-out;
+}
+.rr-hub__table thead th {
   position: sticky;
   top: 0;
-  z-index: 1;
-  height: 30px;
-  padding: 0 var(--rr-space-8);
-  background: var(--rr-surface-nav);
-  border-bottom: 1px solid var(--rr-line-strong);
-  color: var(--rr-faint);
-  font-size: var(--rr-text-xs);
+  z-index: 2;
+  height: var(--rr-control);
+  background: var(--rr-surface-doc-2);
+  border-bottom-color: var(--rr-line-strong);
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
   font-weight: 600;
-  letter-spacing: var(--rr-tracking-caps);
-  text-transform: uppercase;
-  text-align: left;
-  white-space: nowrap;
   user-select: none;
   -webkit-user-select: none;
 }
 .rr-hub__table th[data-sort] {
   cursor: pointer;
-  transition: color 0.12s ease-out;
 }
 .rr-hub__table th[data-sort]:hover,
 .rr-hub__table th[aria-sort] {
@@ -119,25 +357,192 @@
 .rr-hub__table th[aria-sort='descending']::after {
   content: ' ▼';
 }
-.rr-hub__table td {
-  transition: background-color 0.12s ease-out, color 0.12s ease-out;
-  height: 32px;
-  padding: 0 var(--rr-space-8);
-  border-bottom: 1px solid var(--rr-line);
-  white-space: nowrap;
+
+/* the checkbox and the review's name stay in view when the table scrolls sideways */
+.rr-hub__table .rr-hub__sel {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--sel-w);
+  min-width: var(--sel-w);
+  padding: 0 0 0 var(--rr-space-12);
 }
-.rr-hub__table tbody tr {
-  transition: background-color 0.12s ease-out;
+.rr-hub__table .c-review {
+  position: sticky;
+  left: var(--sel-w);
+  z-index: 1;
+  width: 100%; /* takes what the other columns leave, never pushes them out */
+  max-width: 0;
+  min-width: 18em;
+  box-shadow: 1px 0 0 var(--rr-line);
 }
-.rr-hub__table tbody tr:hover {
-  background: var(--rr-hover);
+.rr-hub__table thead :is(.rr-hub__sel, .c-review, .c-actions) {
+  z-index: 3;
 }
-/* a hairline marks the row under the pointer or focus */
-.rr-hub__table tbody tr:is(:hover, :focus-within) td:first-child {
-  box-shadow: inset 2px 0 0 var(--rr-line-strong);
+.rr-hub__check {
+  display: block;
+  margin: 0;
+  accent-color: var(--rr-ink);
 }
-.rr-hub__table tbody tr.is-selected td:first-child {
-  box-shadow: inset 2px 0 0 var(--rr-ink-2);
+.rr-hub__review {
+  display: flex;
+  align-items: baseline;
+  gap: var(--rr-space-8);
+  min-width: 0;
+  overflow: hidden;
+}
+.rr-hub__review > :is(.rr-hub__dot, .rr-hub__tool) {
+  align-self: center;
+}
+.rr-hub__name {
+  flex-shrink: 0; /* the branch and repository give way first */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--rr-ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+a.rr-hub__name:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-decoration-color: color-mix(in srgb, var(--rr-ink) var(--rr-mix-md), transparent);
+}
+.rr-hub__branch {
+  flex: 0 100 auto; /* gives way before the name does */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-hub__review > .rr-hub__mono:not(.rr-hub__branch) {
+  flex: none;
+}
+
+/* status: green while a tab is open, a ring while idle, red when the server doesn't answer */
+.rr-hub__dot {
+  flex: none;
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--rr-line-strong);
+}
+.rr-hub__dot.is-stopped {
+  background: var(--rr-line-strong);
+  box-shadow: none;
+}
+.rr-hub__dot.is-tab {
+  background: var(--rr-ok);
+  box-shadow: none;
+}
+.rr-hub__dot.is-down {
+  background: var(--rr-risk);
+  box-shadow: none;
+}
+.rr-hub__table tr.is-down :is(.rr-hub__name, td) {
+  color: var(--rr-muted);
+}
+
+.rr-hub__tool {
+  flex: none;
+  display: inline-flex;
+}
+.rr-hub__tool > img,
+.rr-hub__tool > .rr-mark {
+  width: var(--icon);
+  height: var(--icon);
+}
+.rr-hub__tool > .rr-mark {
+  font-size: 8.5px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its --icon tile */
+}
+.rr-hub__author {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-6);
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--rr-ink-2);
+}
+.rr-hub__avatar {
+  flex: none;
+  width: var(--icon);
+  height: var(--icon);
+}
+.rr-hub__table .c-round {
+  color: var(--rr-ink-2);
+  font-size: var(--rr-text-xs);
+  font-weight: 500;
+}
+
+/* the diff's size: fixed tracks (five mono characters each), so the counts and squares line up down the column even
+   when one count is left out; + hugs - from the left, - from the right, so each pair reads as one value */
+.rr-hub .c-diff .rr-delta {
+  display: inline-grid;
+  grid-template-columns: 5ch 5ch auto;
+  align-items: center;
+  column-gap: var(--rr-space-4);
+}
+.rr-hub .c-diff .rr-delta > * {
+  grid-row: 1;
+}
+.rr-hub .c-diff .rr-add {
+  grid-column: 1;
+  justify-self: end;
+}
+.rr-hub .c-diff .rr-del {
+  grid-column: 2;
+  justify-self: start;
+}
+.rr-hub .c-diff .rr-diffstat {
+  grid-column: 3;
+}
+
+.rr-hub__threads {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-8);
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-hub__threads .is-open {
+  color: var(--rr-comment);
+  font-weight: 600;
+}
+.rr-hub__bar-track {
+  display: flex;
+  width: 3em;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--rr-radius);
+  background: var(--rr-line);
+}
+.rr-hub__bar-track > span {
+  background: var(--rr-muted);
+}
+.rr-hub__agent {
+  display: inline-flex;
+  align-items: center;
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+.rr-hub__mark {
+  display: inline-flex;
+  font-size: var(--rr-text-lg); /* the marks are 1em */
+}
+.rr-hub__table .c-active {
+  color: var(--rr-muted);
+  font-size: var(--rr-text-sm);
+}
+
+/* rows: hover and selection; the sticky cells repaint opaquely */
+.rr-hub__table tbody tr:not(.rr-hub__group):hover > td {
+  background: color-mix(in srgb, var(--rr-surface-doc), var(--rr-ink) var(--rr-mix-xs));
+}
+.rr-hub__table tbody tr.is-selected > td {
+  background: color-mix(in srgb, var(--rr-surface-doc), var(--rr-ink) var(--rr-mix-sm));
+}
+.rr-hub__table tbody tr.is-selected > .rr-hub__sel {
+  box-shadow: inset 2px 0 0 var(--rr-ink);
 }
 .rr-hub__table tbody tr.is-new {
   animation: rr-hub-in 0.24s ease-out;
@@ -148,128 +553,78 @@
     transform: translateY(-3px);
   }
 }
-.rr-hub__table tbody tr.is-selected {
-  background: var(--rr-active);
-}
-/* short columns (marks, counts) centre their heading over their contents */
-.rr-hub__table :is(.num, .c-tool, .c-agent) {
-  text-align: center;
-}
-.rr-hub__table .rr-hub__sel {
-  width: 32px;
-  padding-left: var(--rr-space-16);
-}
-.rr-hub__check {
-  display: block;
-  margin: 0;
-  accent-color: var(--rr-accent);
-}
-.rr-hub__subject {
-  max-width: 260px;
-}
-.rr-hub__name,
-.rr-hub__sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rr-hub__name {
-  font-weight: 500;
-}
-.rr-hub__sub {
-  display: none;
-  align-items: center;
-  gap: var(--rr-space-6);
-  margin-top: 1px;
-  color: var(--rr-muted);
-  font-size: var(--rr-text-xs);
-}
-.rr-hub__sub-tool {
-  display: none;
-}
-.rr-hub__sub-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rr-hub__sub .rr-hub__mark {
-  font-size: var(--rr-text);
-}
-.rr-hub__trunc {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rr-hub__cwd {
-  max-width: 220px;
-}
-/* the actions stay in view when the table scrolls sideways */
-.rr-hub__table th:last-child,
-.rr-hub__table td:last-child {
+
+/* group headers: the name and totals; the button folds the group */
+.rr-hub__table .rr-hub__group > th {
   position: sticky;
-  right: 0;
+  left: 0;
+  height: var(--rr-control-lg);
+  padding: 0;
   background: var(--rr-surface-nav);
-  box-shadow: -1px 0 0 var(--rr-line);
 }
-.rr-hub__table tbody tr:hover td:last-child {
-  background: color-mix(in srgb, var(--rr-surface-nav), var(--rr-ink) var(--rr-mix-xs));
-}
-.rr-hub__table tbody tr.is-selected td:last-child {
-  background: color-mix(in srgb, var(--rr-surface-nav), var(--rr-ink) var(--rr-mix-sm));
-}
-.rr-hub__mono {
-  font-family: var(--rr-mono);
-  font-size: var(--rr-text-sm);
-}
-.rr-hub__tool {
-  display: inline-flex;
-  vertical-align: middle;
-}
-.rr-hub__tool > img,
-.rr-hub__tool > .rr-mark {
-  width: 18px;
-  height: 18px;
-}
-.rr-hub__tool > .rr-mark {
-  font-size: 8.5px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its 18px tile */
-}
-.rr-hub__author {
-  display: inline-flex;
+.rr-hub__group-btn {
+  display: flex;
   align-items: center;
-  vertical-align: middle;
-  gap: var(--rr-space-6);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: var(--rr-space-8);
+  width: 100%;
+  height: 100%;
+  padding: 0 var(--rr-space-12);
+  border: 0;
+  background: none;
+  color: var(--rr-ink);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
 }
-.rr-hub__avatar {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%; /* GitHub avatars are round everywhere in reviewroom */
+.rr-hub__group-btn:hover {
   background: var(--rr-hover);
 }
-.rr-hub__agent {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
+.rr-hub__group-btn:focus-visible {
+  outline: 2px solid var(--rr-accent);
+  outline-offset: -2px;
 }
-.rr-hub__mark {
-  display: inline-flex;
-  font-size: var(--rr-text-lg); /* the marks are 1em */
+.rr-hub__group-btn > svg {
+  flex: none;
+  color: var(--rr-muted);
 }
-.rr-hub__dim {
-  color: var(--rr-faint);
+.rr-hub__group-btn > .rr-hub__dim {
+  font-size: var(--rr-text-xs);
+  font-weight: 500;
+}
+.rr-hub__group-name {
+  font-weight: 600;
+}
+.rr-hub__group-open,
+.rr-hub__group-down {
+  font-size: var(--rr-text-xs);
+  font-weight: 600;
+}
+.rr-hub__group-open {
+  color: var(--rr-comment);
+}
+.rr-hub__group-down {
+  color: var(--rr-risk);
+}
+
+/* actions: the walkthrough, open, close */
+.rr-hub__table .c-actions {
+  width: 1%;
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  box-shadow: -1px 0 0 var(--rr-line);
 }
 .rr-hub__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--rr-space-2);
-  padding-right: var(--rr-space-12);
 }
 .rr-hub__actions a.rr-icon-btn {
   text-decoration: none;
 }
-/* the row's actions recede until the row is in play */
+/* the row's actions recede until the row is in play; a touch screen has no hover, so they stay */
 .rr-hub__actions .rr-icon-btn {
   opacity: 0.55;
   transition: opacity 0.12s ease-out, background-color 0.12s ease-out, color 0.12s ease-out;
@@ -277,72 +632,100 @@
 tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
   opacity: 1;
 }
+@media (hover: none) {
+  .rr-hub__actions .rr-icon-btn {
+    opacity: 1;
+  }
+}
 .rr-hub__actions .rr-icon-btn:hover {
   color: var(--rr-ink);
 }
-.rr-hub__count:not(:empty) {
-  animation: rr-fade 0.12s ease-out;
-}
-.rr-hub__bar .rr-btn {
-  transition: opacity 0.12s ease-out, background-color 0.12s ease-out;
-}
-/* narrower screens: drop the least needed columns; repository, branch, kind (and the tool, narrowest) move under the title */
-@media (max-width: 1279px) {
-  .rr-hub .c-directory,
-  .rr-hub .c-pid {
-    display: none;
-  }
-  /* the title takes what the other columns leave, and truncates */
-  .rr-hub__subject {
-    width: 100%;
-    min-width: 160px;
-    max-width: 0;
-  }
-  .rr-hub__trunc {
-    max-width: 150px;
-  }
-}
-@media (max-width: 1023px) {
-  .rr-hub .c-kind,
-  .rr-hub .c-repository,
-  .rr-hub .c-branch,
-  .rr-hub .c-agent {
-    display: none;
-  }
-  .rr-hub__sub {
-    display: flex;
-  }
-  .rr-hub__table td {
-    height: 44px;
-  }
-}
-@media (max-width: 639px) {
-  .rr-hub .c-tool,
-  .rr-hub .c-comments,
-  .rr-hub .c-started {
-    display: none;
-  }
-  .rr-hub__sub-tool {
-    display: inline-flex;
-  }
-  .rr-hub__subject {
-    min-width: 120px;
-  }
 
-  .rr-hub__search {
-    flex: 1 1 100%;
+.rr-hub__empty {
+  padding: var(--rr-space-32) var(--rr-space-16);
+}
+
+/* a narrow window: the rail folds above the list; the table scrolls sideways, the review's name stays */
+@media (max-width: 1099px) {
+  /* scrolled sideways, a group's name and totals stay in view */
+  .rr-hub__group-btn {
+    position: sticky;
+    left: 0;
+    max-width: 100vw;
   }
-  .rr-hub__bar .rr-select,
-  .rr-hub__num {
-    flex: 1 1 40%;
+  .rr-hub__body {
+    flex-direction: column;
+  }
+  .rr-hub__rail {
     width: auto;
-    max-width: none;
+    max-height: 50vh;
+    padding: var(--rr-space-8) var(--rr-space-12);
+    border-right: 0;
+    border-bottom: 1px solid var(--rr-line);
   }
-  .rr-hub__spacer {
+  .rr-hub__rail-body {
+    gap: var(--rr-space-16);
+    padding: var(--rr-space-8) 0;
+  }
+  .rr-hub__rail-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--rr-space-6);
+    height: var(--rr-control-sm);
+    color: var(--rr-ink-2);
+    font-size: var(--rr-text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .rr-hub__find {
+    width: auto;
+    flex: 1;
+  }
+  .rr-hub__tile {
+    flex-basis: 8em;
+    padding: var(--rr-space-6) var(--rr-space-12);
+  }
+  .rr-hub__table .c-review {
+    min-width: 14em;
+  }
+}
+/* a phone: drop who ran it; everything else stays, scrolled to */
+@media (max-width: 639px) {
+  .rr-hub__table :is(.c-agent, .c-state) {
     display: none;
   }
-  .rr-hub .rr-header__title {
-    max-width: none;
+  .rr-hub__table .c-review {
+    min-width: 58vw;
+  }
+  /* on a phone the actions scroll with the row: pinned, they would cover it */
+  .rr-hub__table .c-actions {
+    position: static;
+    box-shadow: none;
+  }
+  .rr-hub__tile-value {
+    font-size: var(--rr-text-xl);
+  }
+  /* the counts stay one row, scrolled sideways */
+  .rr-hub__strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .rr-hub__tile {
+    flex: none;
+  }
+  .rr-hub .rr-header__id {
+    flex: none;
+  }
+  .rr-hub__find {
+    min-width: 0;
+  }
+  /* the install button keeps its icon and aria-label; its words make room for the search */
+  .rr-hub .rr-install-btn > span {
+    display: none;
+  }
+  .rr-hub .rr-header__meta {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -352,9 +735,6 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
     transition: none !important;
   }
 }
-.rr-hub__empty {
-  padding: var(--rr-space-32) var(--rr-space-16);
-}
 
 /* close dialog */
 .rr-hub__p {
@@ -363,10 +743,4 @@ tr:is(:hover, :focus-within, .is-selected) .rr-hub__actions .rr-icon-btn {
 .rr-hub__foot {
   justify-content: flex-end;
   padding: var(--rr-space-10) var(--rr-space-16) var(--rr-space-12);
-}
-.rr-hub__sub .rr-hub__tool > img,
-.rr-hub__sub .rr-hub__tool > .rr-mark {
-  width: 14px;
-  height: 14px;
-  font-size: 7px; /* stylelint-disable-line declaration-property-value-disallowed-list -- the logo mark, sized to its 14px tile */
 }

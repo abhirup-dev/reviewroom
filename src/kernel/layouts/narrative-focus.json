@@ -1,6 +1,6 @@
 {
-  "title": "Narrative focus",
-  "hint": "Just the narrative; code opens on demand",
+  "title": "Report focus",
+  "hint": "Just the report; code opens on demand",
   "root": {
     "row": [
       { "size": 264, "tabs": ["toc", "threads", "files", "ci"], "active": "toc" },

@@ -3,6 +3,7 @@
 // bun testing/slides/benchmark.ts --diff .demo/slides-before.json .demo/slides-after.json
 // The demo is representative; the single adversarial fixture exercises known audit failures.
 import { $ } from 'bun';
+import { runCli as executeCli } from '../../e2e/transport.ts';
 import fs from 'node:fs';
 import os from 'node:os';
 import { isDeepStrictEqual } from 'node:util';
@@ -23,10 +24,10 @@ const median = (ns: number[]) => [...ns].sort((a, b) => a - b)[Math.floor(ns.len
 
 async function runCli(repo: string, dir: string, home: string, args: string[] = []): Promise<CliRun> {
   const started = performance.now();
-  const cli = await $`${process.execPath} ${entry} slide-lint --repo ${repo} --dir ${dir} --json ${args}`.env({ ...process.env, REVIEWROOM_HOME: home }).quiet().nothrow();
+  const cli = await executeCli({ ...process.env, REVIEWROOM_HOME: home }, ['slide-lint', dir, '--repo', repo, '--json', ...args]);
   const ms = elapsed(started);
-  if (cli.exitCode !== 0 && cli.exitCode !== 1) throw new Error(cli.stderr.toString());
-  return { ms, code: cli.exitCode, result: Report.parse(JSON.parse(cli.stdout.toString())) };
+  if (cli.code !== 0 && cli.code !== 1) throw new Error(cli.stderr);
+  return { ms, code: cli.code, result: Report.parse(JSON.parse(cli.stdout)) };
 }
 
 async function sample(repo: string, dir: string, tour: Walkthrough, home: string): Promise<Sample> {

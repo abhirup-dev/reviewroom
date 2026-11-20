@@ -72,6 +72,7 @@ const styles = [
   panelsStyles,
   overlaysStyles,
   ['src/slides/styles/slides.css'],
+  ['src/review/styles/generation.css'],
   ['src/review/styles/content.css'],
   ['src/review/styles/diagrams.css'],
   ['src/kernel/styles/dockview.css'],
@@ -86,10 +87,10 @@ const styles = [
 
 // Hub cascade: tokens, shell controls, overlays, then hub-specific rules.
 const hubStyles = [
-  ['src/kernel/styles/tokens.css'],
+  ['src/kernel/styles/tokens.css', 'src/kernel/styles/tokens.phone.css'],
   shellStyles,
   overlaysStyles,
-  ['src/hub/styles/hub.css'],
+  ['src/hub/styles/hub.css', 'src/hub/styles/hub.phone.css'],
 ];
 
 const dockviewCss = () => readFileSync(at('node_modules/dockview/dist/styles/dockview.css'), 'utf8');

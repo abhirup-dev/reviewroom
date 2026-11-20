@@ -449,7 +449,7 @@ export function threadView(app: ReviewApp, o: ThreadViewOpts): { el: HTMLElement
       buttons,
       autofocus: true,
       // drafts keep today's keys: the review mode still picks the GitHub one
-      draftKey: `reviewroom:draft:${app.meta.id}:${t ? t.id : (app.services.threads.commentsToGitHub(anchor) ? 'gh:' : '') + JSON.stringify(anchor)}`,
+      draftKey: `reviewroom:draft:${app.meta.routeId}:${t ? t.id : (app.services.threads.commentsToGitHub(anchor) ? 'gh:' : '') + JSON.stringify(anchor)}`,
       onCancel: o.onClose,
     });
     const msgs = t ? messages(t) : null;

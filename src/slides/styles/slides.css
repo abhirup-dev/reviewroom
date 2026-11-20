@@ -101,8 +101,33 @@
    chapter bar tops only the narration and the code runs the full height beside it. --rr-tour-split: the narration's
    width, dragged (player.ts) */
 .rr-tour[data-form='desktop'] .rr-tour__player {
-  grid-template-columns: var(--rr-tour-split, minmax(320px, 34%)) minmax(0, 1fr);
+  /* a slide keeps a laptop's proportions on a wide screen: the player stops growing and sits centred */
+  max-width: var(--rr-tour-width);
+  margin-inline: auto;
+  --_least: 320px;
+  --_share: 36%;
+  /* the narration: its shape's share, wider while the chapter's code (--_code, player.ts and fit.ts: what its longest
+     changed line needs) keeps its room, up to half */
+  --_narration: minmax(var(--_least), max(var(--_share), min(50%, 100% - var(--_code, 100%))));
+  grid-template-columns: var(--rr-tour-split, var(--_narration)) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) 52px;
+}
+/* the chapter's shape (player.ts, fit.ts): the narration's width stop, unless the reader dragged one. Short slides read
+   at the lede size, their first line a third of the way down (the code lands level with it) */
+.rr-tour[data-form='desktop'] .rr-tour__player[data-shape='short'] {
+  --_least: 280px;
+  --_share: 28%;
+}
+.rr-tour[data-form='desktop'] .rr-tour__player[data-shape='long'] {
+  --_least: 360px;
+  --_share: 50%;
+}
+.rr-tour[data-form='desktop'] .rr-tour__player[data-shape='short'] .rr-tour__left::before {
+  content: '';
+  flex: 0 0 30%;
+}
+.rr-tour__player[data-shape='short'] .rr-tour__text.rr-prose {
+  font-size: var(--rr-text-xl);
 }
 .rr-tour[data-form='desktop'] .rr-tour__body {
   display: contents;
@@ -111,19 +136,31 @@
   grid-area: 2 / 1;
   padding-top: 0;
 }
-/* on the desktop the chapter is the narration's own heading: on its surface, no band or rule, in line with its text.
-   It is exactly as tall as the code's toolbar and file band beside it, so the narration starts level with the code
-   whatever those tokens become (e2e/slides.test.ts holds it). Close is the phone's (Esc pauses, Finish ends) */
+/* on the desktop the chapter is the narration's own heading: on its surface, no band or rule, in line with its text,
+   at least as tall as the code's file band beside it. Its title wraps, never cut (the code lands level with the slide's
+   first line, wherever the heading leaves it: e2e/slides.test.ts holds it). Close is the phone's (Esc pauses, Finish
+   ends) */
 .rr-tour[data-form='desktop'] .rr-tour__top {
   grid-area: 1 / 1;
-  min-height: calc(var(--rr-bar-h) + var(--rr-band-h));
-  padding: 0 var(--rr-space-24) 0 calc(var(--rr-space-24) - var(--rr-space-8));
+  flex-wrap: wrap;
+  row-gap: 0;
+  min-height: var(--rr-band-h);
+  padding: var(--rr-space-8) var(--rr-space-24) var(--rr-space-8) calc(var(--rr-space-24) - var(--rr-space-8));
   border: 0;
   border-right: 1px solid var(--rr-line);
   background: var(--rr-surface-doc);
 }
+/* the chapter arrows and its position on a line of their own (.rr-tour__top wraps), the title the full width under them */
 .rr-tour[data-form='desktop'] .rr-tour__chapter {
-  font: 600 var(--rr-text-xl) var(--rr-font-display); /* the prose's h3 */
+  order: 1;
+  flex: 1 0 100%;
+  height: auto;
+  min-height: var(--rr-control-lg);
+  text-align: left;
+  font: 600 var(--rr-text-xl) / 1.3 var(--rr-font-display); /* the prose's h3 */
+}
+.rr-tour[data-form='desktop'] .rr-tour__chapter span {
+  white-space: normal;
 }
 .rr-tour[data-form='desktop'] .rr-tour__top > .rr-icon-btn:last-child {
   display: none;
@@ -140,7 +177,7 @@
 .rr-tour[data-form='desktop'] .rr-tour__player:has(.is-solo) :is(.rr-tour__top, .rr-tour__left) {
   grid-column: 1 / -1;
 }
-/* the boundary's handle: a 48px strip over it, a line on hover and while dragged */
+/* the boundary's handle: a 48px strip over it; only the pointer changes (no line, no colour) */
 .rr-tour__resize {
   position: absolute;
   inset: 0 auto 0 -24px;
@@ -148,19 +185,6 @@
   width: 48px;
   cursor: col-resize;
   touch-action: none;
-}
-.rr-tour__resize::after {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 23px;
-  width: 2px;
-  background: var(--rr-accent);
-  opacity: 0;
-  transition: opacity 150ms ease-out;
-}
-.rr-tour__resize:hover::after,
-.rr-tour__resize:active::after {
-  opacity: 1;
 }
 .rr-tour__body.is-solo .rr-tour__right {
   display: none;
@@ -183,6 +207,16 @@
 .rr-tour__lead,
 .rr-tour__text {
   position: relative;
+}
+/* the rule between the chapter intro and the slide (no label: the bottom bar's ticks say where you are); with no
+   intro above it, nothing to separate */
+.rr-tour__lead[hidden] + .rr-tour__divider-row .rr-tour__divider {
+  visibility: hidden;
+}
+/* a diagram sits centred in the narration */
+.rr-tour__left .rr-mermaid__diagram {
+  display: flex;
+  justify-content: center;
 }
 .rr-tour__prose.is-in {
   animation: rr-tour-in 0.2s ease;
@@ -276,12 +310,7 @@
 .rr-tour__divider {
   display: flex;
   align-items: center;
-  gap: var(--rr-space-8);
   margin: var(--rr-space-12) 0 var(--rr-space-12);
-  font: 600 var(--rr-text-xs) var(--rr-font);
-  letter-spacing: var(--rr-tracking-caps);
-  text-transform: uppercase;
-  color: var(--rr-faint);
 }
 .rr-tour__divider::after {
   content: '';
@@ -312,10 +341,10 @@
   color: var(--rr-ink);
   border-color: var(--rr-line-strong);
 }
+/* a long path wraps, never cut */
 .rr-tour__ref span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 .rr-tour__right {
   position: relative;
@@ -323,13 +352,18 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--rr-surface-code);
+  /* one sheet: the code on the narration's paper, in both themes; no well, card edges or band fill */
+  --rr-panel: var(--rr-surface-doc);
+  --rr-panel-2: var(--rr-surface-doc);
+  background: var(--rr-panel);
 }
-/* dark: the code on the code panel's own near-black surfaces (as in the dock), not the overlay's grey the narration
-   and the phone's slide card sit on */
-:root[data-rr-theme='dark'] .rr-tour__right {
-  --rr-panel: var(--rr-surface-code);
-  --rr-panel-2: var(--rr-surface-well);
+.rr-tour__right .rr-code-scroll diffs-container {
+  box-shadow: none;
+}
+.rr-tour__right .rr-file__head {
+  --rr-panel: var(--rr-surface-doc); /* a toolbar's own surface is the bar's: the band stays on the sheet */
+  background: var(--rr-panel);
+  border-bottom-color: transparent;
 }
 .rr-tour__pane {
   position: relative;
@@ -343,21 +377,21 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden; /* each file scrolls on its own: one scrollbar per file, none for the pane */
 }
 /* the chunks a slide change replaced (player.ts): over the new ones until they land, then fading away */
 .rr-tour__layer.is-leaving {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: var(--rr-surface-code);
+  background: var(--rr-panel);
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
 .rr-tour__layer.is-gone {
   opacity: 0;
 }
-/* one chunk fills the pane; several stack, each tall enough to read, the pane scrolls */
+/* one chunk fills the pane; several share it, each by the height of its code (player.ts sets the flex) */
 .rr-tour__chunk {
   flex: 1;
   min-height: 0;
@@ -365,7 +399,6 @@
   flex-direction: column;
 }
 .rr-tour__chunk.is-stacked {
-  flex: 1 0 280px;
   border-bottom: 1px solid var(--rr-line-strong);
 }
 .rr-tour__chunk > .rr-code-panel {
@@ -430,17 +463,6 @@ button.rr-tour__chunk-head:hover {
   gap: var(--rr-space-4);
   min-width: 0;
 }
-.rr-tour__seg-title {
-  font-size: var(--rr-text-2xs);
-  color: var(--rr-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rr-tour__seg.is-on .rr-tour__seg-title {
-  color: var(--rr-ink-2);
-  font-weight: 600;
-}
 .rr-tour__ticks {
   display: flex;
   gap: var(--rr-space-4);
@@ -482,10 +504,10 @@ button.rr-tour__chunk-head:hover {
   height: 14px;
 }
 
-/* paused: a pill bottom-right */
+/* paused: a pill bottom-left, clear of the side panels on the right */
 .rr-tour__pill {
   position: absolute;
-  right: 18px;
+  left: 18px;
   bottom: 18px;
   display: flex;
   align-items: center;
@@ -513,11 +535,11 @@ button.rr-tour__chunk-head:hover {
 .rr-tour__pill-play {
   display: grid;
   place-items: center;
-  width: 26px;
+  width: var(--rr-control);
   height: var(--rr-control);
   border-radius: 50%;
-  background: var(--rr-accent);
-  color: var(--rr-accent-ink);
+  background: var(--rr-ink); /* the primary button's ink, not the accent: the bar under it shows the progress */
+  color: var(--rr-surface-overlay);
 }
 .rr-tour__pill-bar {
   position: absolute;
@@ -627,34 +649,4 @@ button.rr-tour__chunk-head:hover {
   font-family: var(--rr-mono);
   font-size: var(--rr-text-xs);
   color: var(--rr-muted);
-}
-
-/* Generation uses the same player root, without showing incomplete slide content. */
-.rr-tour__writing {
-  display: none;
-  position: absolute;
-  inset: 0;
-  padding: var(--rr-space-48);
-  background: var(--rr-surface-doc);
-  color: var(--rr-ink);
-  pointer-events: auto;
-  align-content: center;
-  justify-items: center;
-  text-align: center;
-  gap: var(--rr-space-16);
-}
-.rr-tour__writing h1 {
-  font-family: var(--rr-font-display);
-  font-size: var(--rr-text-3xl);
-}
-.rr-tour__writing p {
-  margin: 0;
-  color: var(--rr-ink-2);
-}
-.rr-tour[data-mode='writing'] .rr-tour__writing {
-  display: grid;
-}
-.rr-tour[data-mode='writing'] .rr-tour__player,
-.rr-tour[data-mode='writing'] .rr-tour__scrim {
-  display: none;
 }

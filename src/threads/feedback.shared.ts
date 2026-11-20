@@ -24,7 +24,7 @@ const describeAnchor = (a: Anchor, walkthrough?: Walkthrough | null) => {
     case 'doc':
       if (a.target === PR_DESCRIPTION)
         return `PR description (the author's text on GitHub; you cannot edit it, answer in the thread)${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
-      return `walkthrough ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
+      return `report ${a.target ? '#' + a.target : '(top)'}${a.path ? ' > ' + a.path : ''}${a.quote ? ` - quote: "${a.quote.exact}"` : ''}`;
     case 'code':
       return `${a.path}:${a.start}${a.end !== a.start ? '-' + a.end : ''} (${a.rev === 'base' ? 'old/base side' : 'new/head side'})`;
     case 'symbol':
@@ -61,8 +61,8 @@ export function githubContext(threads: Thread[] = []) {
 export interface FeedbackOpts {
   kind: 'feedback' | 'approve';
   note?: string;
-  /** The review dir; when known, the commands to run name it (agents run from anywhere). */
-  dir?: string;
+  /** Shell-quoted review target, shared by every printed command. */
+  target?: string;
   codeExcerpt?: (a: Anchor) => string | null;
   /** The PR's GitHub threads, listed as context (colleagues' comments, not this reviewer's feedback). */
   github?: Thread[];
@@ -72,7 +72,7 @@ export interface FeedbackOpts {
 
 export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   const round = state.round;
-  const at = opts.dir ? ` --dir '${opts.dir.replace(/'/g, `'\\''`)}'` : '';
+  const target = ` ${opts.target ?? '<review>'}`;
   // walkthrough threads last, in tour order, so the agent reads them like the reviewer played them
   const order = (t: Thread) => {
     if (t.anchor.kind !== 'tour') return 0;
@@ -85,15 +85,15 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   if (opts.kind === 'approve') {
     lines.push(`# Review round ${round}: APPROVED`, '');
     if (opts.note) lines.push(opts.note, '');
-    if (open.length) lines.push(`(${open.length} thread(s) still open - list them with \`reviewroom status --threads${at}\`)`);
+    if (open.length) lines.push(`(${open.length} thread(s) still open - list them with \`reviewroom status${target} --threads\`)`);
     return lines.join('\n');
   }
   lines.push(`# Review feedback - round ${round}`, '');
   if (opts.note) lines.push('## Overall', '', opts.note, '');
   lines.push(
-    `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply <thread-id> "<markdown>"${at}\``,
-    `(leave resolving to the reviewer), change code and/or the walkthrough (${REPORT_FILE}) as needed,`,
-    `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom review${at}\` again to start round ${round + 1}.`,
+    `${touched.length} thread(s) need your attention. For each one: answer with \`reviewroom reply${target} <thread-id> "<markdown>"\``,
+    `(leave resolving to the reviewer), change code and/or the report (${REPORT_FILE}) as needed,`,
+    `mark new or changed sections with data-round="${round + 1}", then run \`reviewroom wait${target}\` for round ${round + 1}.`,
     `Link to things instead of repeating them: rr:doc/<section-id>, rr:code/<path>#L<a>-<b>, rr:sym/<name>, rr:thread/<id>;`,
     `![](rr:...) on its own line embeds a live preview in the thread.`,
     '',
@@ -111,7 +111,7 @@ export function feedbackMarkdown(state: ReviewState, opts: FeedbackOpts) {
   lines.push(...githubContext(opts.github));
   const viewed = Object.keys(state.viewed || {}).length;
   const checks = Object.entries(state.checks || {});
-  if (checks.length) lines.push('## Open questions', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
+  if (checks.length) lines.push('## Flagged questions', '', ...checks.map(([k, v]) => `- [${v === 'pass' ? 'x' : ' '}] ${k}${v === 'fail' ? ' - NEEDS WORK' : ''}`), '');
   lines.push(`_Files marked viewed: ${viewed}. Open threads overall: ${open.length}._`);
   return lines.join('\n');
 }

@@ -113,7 +113,7 @@ function aboutChange(app: ReviewApp, anchor: HTMLElement) {
 
 /** Every header repaints on these, and on what its features subscribe it to. */
 export function repaintOn(app: ReviewApp, paint: () => void, subscribe?: (paint: () => void) => void) {
-  for (const e of ['state', 'prefs', 'theme', 'files'] as const) app.bus.on(e, paint);
+  for (const e of ['state', 'prefs', 'theme', 'files', 'meta'] as const) app.bus.on(e, paint);
   subscribe?.(paint);
   paint();
 }

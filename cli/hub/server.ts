@@ -3,9 +3,12 @@
 //   GET  /api/sessions              HubSnapshot; polls when the last poll is older than half the interval
 //   GET  /api/health                counters and the Crit/Plannotator versions against the verified ones
 //   POST /api/sessions/:id/close    SIGTERM a session a fresh poll still finds (needs x-reviewroom-action: close-session)
-//   ALL  /r/<review id>/*           the review whose dir hashes to the id, proxied to its server (ADR 0001)
+//   POST /api/reviews               { url }: Add a PR (needs x-reviewroom-action: add-review)
+//   POST /api/reviews/:routeId/play      start a stopped review, or find the running one (play-review)
+//   POST /api/reviews/:routeId/remove    delete a stopped review's folder; a running one is refused (remove-review)
+//   ALL  /r/<hash>/*                the review whose directory has this hash, proxied to its server (ADR 0001)
 // Behind hubAccess: loopback, or the configured public origin.
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { compress } from 'hono/compress';
 import { hubAccess } from './access.ts';
 import { assessCompatibility } from './compat.ts';
@@ -13,6 +16,7 @@ import type { Hub } from './hub.ts';
 import { guarded } from '../lib/server.ts';
 import { PWA_HEAD, serveClient } from '../lib/pwa.ts';
 import { serveProxy } from './proxy.ts';
+import { addPr, play, remove } from './reviews.ts';
 
 const PAGE = `<!doctype html>
 <html lang="en">
@@ -65,6 +69,29 @@ export function hubApp(hub: Hub, publicOrigin: string | null = null) {
     const result = await hub.closeSession(c.req.param('id'));
     if (!result.ok) return c.json({ error: result.reason }, result.reason === 'not-found' ? 404 : 409);
     return c.json({ ok: true, id: result.session.id, pid: result.session.pid, signal: 'SIGTERM' }, 202);
+  });
+  // a header a cross-site form cannot send, as for close
+  const action = (c: Context, name: string) => c.req.header('x-reviewroom-action') === name;
+  const refused = (c: Context) => c.json({ error: 'missing action confirmation header' }, 403);
+  app.post('/api/reviews', async (c) => {
+    if (!action(c, 'add-review')) return refused(c);
+    const body = (await c.req.json().catch(() => ({}))) as { url?: unknown };
+    const r = await addPr(typeof body.url === 'string' ? body.url : '', hub.entry);
+    hub.invalidate();
+    return r.ok ? c.json({ ok: true, routeId: r.routeId, running: r.running }, 201) : c.json({ error: r.error }, 422);
+  });
+  app.post('/api/reviews/:routeId/play', async (c) => {
+    if (!action(c, 'play-review')) return refused(c);
+    const r = await play(c.req.param('routeId'), hub.entry);
+    hub.invalidate();
+    return r.ok ? c.json(r) : c.json({ error: r.error }, 409);
+  });
+  app.post('/api/reviews/:routeId/remove', async (c) => {
+    if (!action(c, 'remove-review')) return refused(c);
+    const body = (await c.req.json().catch(() => null)) as { confirmed?: unknown } | null;
+    const r = await remove(c.req.param('routeId'), body?.confirmed === true);
+    hub.invalidate();
+    return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   });
   return app;
 }

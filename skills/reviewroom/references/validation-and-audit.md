@@ -1,16 +1,16 @@
 # Validation and audit
 
-Pass `--dir <dir>` to every command below. Use command-specific `--help` for other flags.
+Pass the review target as `<review>` in each command below. Use command-specific `--help` for other flags.
 
 ## Write and validate in order
 
 If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
 Use it as is and go straight to filling the report; do not regenerate it.
 
-Otherwise write the walkthrough (the order is in SKILL.md, Step 4), then:
+Otherwise record that you have read the diff, then write the walkthrough (the order is in SKILL.md, Step 4), then:
 
 ```bash
-reviewroom slide-lint --dir <dir>
+reviewroom slide-lint <review>
 ```
 
 Fix issues and repeat the **full** run until it passes, before filling the report. It includes
@@ -21,7 +21,7 @@ reviewer's loading screen. Scoped runs do not count.
 Then fill the report and run:
 
 ```bash
-reviewroom check --fix --dir <dir>
+reviewroom check <review> --fix
 ```
 
 `check --fix` validates links and schema, updating links moved within five lines. Inspect remaining
@@ -36,15 +36,17 @@ the loading screen returns until it passes. Finish edits to the report with `che
 
 | Command | Use |
 | --- | --- |
-| `reviewroom check` | Static validation without rendering. |
-| `reviewroom slide-lint --chapter services` | Recheck one chapter. |
-| `reviewroom slide-lint --slide services/s1` | Recheck one slide. |
-| `reviewroom slide-lint --jobs 2` | Parallel full audit; gains vary and can be modest. |
+| `reviewroom check <review>` | Static validation without rendering. |
+| `reviewroom slide-lint <review> --chapter services` | Recheck one chapter. |
+| `reviewroom slide-lint <review> --slide services/s1` | Recheck one slide. |
+| `reviewroom slide-lint <review> --jobs 2` | Parallel full audit; gains vary and can be modest. |
 
 Selectors use chapter and step **IDs**, not titles or positions. `--slide` also accepts
 `rr:tour/services/s1`; do not combine it with `--chapter`. Scoped checks retain chapter leads
 and inherited code, but skip whole-walkthrough coverage and pacing. The entire schema is still
 validated. Startup still costs time. Finish with an unscoped run.
+
+In a full audit, each chapter needs at least two slides. The final chapter may have one.
 
 `--jobs` accepts 1–8; default 1. More workers can add contention, so do not assume they are faster.
 `--json` gives structured findings and, for slide audits, the selection and coverage.
@@ -53,9 +55,9 @@ validated. Startup still costs time. Finish with an unscoped run.
 
 | Command | Use |
 | --- | --- |
-| `reviewroom shot [section]` | Report screenshots. |
-| `reviewroom shot services/s1` | One walkthrough slide. |
-| `reviewroom shot services/s1 --prose-only` | Exact left-pane crop; skips right-hand code. |
+| `reviewroom shot <review> [section]` | Report screenshots. |
+| `reviewroom shot <review> services/s1` | One walkthrough slide. |
+| `reviewroom shot <review> services/s1 --prose-only` | Exact left-pane crop; skips right-hand code. |
 
 Screenshots default to a 480-pixel height cap; add `--native` when text is blurry or detail matters.
 Neither changes the CSS layout. `--prose-only` preserves pane proportions and renders embedded

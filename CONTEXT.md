@@ -33,6 +33,9 @@ _Avoid_: change, changeset, PR (when no PR is involved)
 One reviewer's review of one diff, with its walkthrough, report, threads and rounds.
 _Avoid_: session, workspace
 
+**Review ID**:
+The stable identity of a PR review, `owner/repo#n`, using the base repository.
+
 **Walkthrough**:
 The story of the diff, played over the workbench: chapters of slides, narration beside the code each slide shows.
 The reviewer sees it first; the report is where they dig in.
@@ -41,6 +44,10 @@ _Avoid_: guided walkthrough, tour, slideshow, presentation
 **Slide**:
 One step of a walkthrough: its narration and the code it shows.
 _Avoid_: page, card
+
+**Draft**:
+One save of the walkthrough while it is being written. Each is checked; the loading screen lists them until one passes
+`slide-lint`. The agent says it has read the diff (`reviewroom progress <review> read`) before the first.
 
 **Report**:
 The agent's detailed record of the review: findings, evidence, questions and later answers. It need not mirror
@@ -108,7 +115,8 @@ _Avoid_: GitHub comment
 ### Serving
 
 **Hub**:
-The one page per machine that lists every running review (reviewroom, Crit, Plannotator).
+The one page per machine that lists every running review (reviewroom, Crit, Plannotator), and the stopped reviewroom
+reviews too, so the reviewer can add a PR there and start a stopped review again.
 _Avoid_: dashboard, index
 
 **Hub proxy**:

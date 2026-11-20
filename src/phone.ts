@@ -4,6 +4,7 @@ import { h, icon } from './kernel/dom';
 import { buildPhoneBar, type PhoneBarContributions } from './kernel/header.phone';
 import { mountPhone } from './kernel/phone';
 import { githubPanelAvailability, recapAvailable } from './threads/docking';
+import { generateButton, generationIndicator, onGenerationHeader } from './review/generation';
 import { feedbackButton, onGitHub, reviewModeSwitch, roundMenu, roundStatusControls, subscribeThreadHeader } from './threads/controls';
 import { contentsButton } from './review/walkthrough.phone';
 import { phonePalette } from './review/overlays.phone';
@@ -33,14 +34,14 @@ function openThreadCount(app: ReviewApp) {
   return app.services.threads.threads().filter((t) => !t.gh?.conversation && t.status === 'open' && (mode === 'all' || (mode === 'team') === !!t.gh)).length;
 }
 
-/** The phone's status bar and menu drawer: the review's rounds, guided review, send, GitHub and the picker. */
+/** The phone's status bar and menu drawer: the review's rounds, walkthrough, send, GitHub and the picker. */
 function phoneBar(app: ReviewApp): PhoneBarContributions {
   const team = () => app.services.threads.teamMode;
   return {
     sub: () => (team() ? 'Team review' : `Round ${app.viewRound && app.viewRound !== app.state.round ? app.viewRound + ' of ' + app.state.round : app.state.round}`),
     titleMenu: () => (team() ? null : (anchor) => roundMenu(app, anchor)),
     status: roundStatusControls,
-    actions: () => [app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play guided review', title: 'Play the guided walkthrough: the main story of this diff, slide by slide', onclick: () => app.commands.run('walkthrough.play') }, icon('play', 24)) : null],
+    actions: () => [generationIndicator(app, true), generateButton(app, true), app.walkthrough ? h('button', { class: 'rr-hbtn rr-hbtn--icon rr-tour-btn', 'aria-label': 'Play the walkthrough', title: 'Play the walkthrough: the main story of this diff, slide by slide', onclick: () => app.commands.run('walkthrough.play') }, icon('play', 24)) : null],
     // a round ink icon button, its count a badge on the corner (kernel/styles/phone.css)
     send: () => {
       const b = feedbackButton(app);
@@ -57,7 +58,7 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
       const g = app.github;
       const chapters = app.walkthrough?.chapters.length ?? 0;
       return {
-        top: [app.walkthrough ? item('Play guided review', 'play', 'walkthrough.play', { hint: `${chapters} chapter${chapters === 1 ? '' : 's'}` }) : null],
+        top: [app.walkthrough ? item('Play the walkthrough', 'play', 'walkthrough.play', { hint: `${chapters} chapter${chapters === 1 ? '' : 's'}` }) : null],
         review: [
           ...(onGitHub(app)
             ? [
@@ -73,6 +74,7 @@ function phoneBar(app: ReviewApp): PhoneBarContributions {
     subscribe: (paint) => {
       app.onDispose(subscribeThreadHeader(app, paint));
       app.bus.on('walkthrough', paint);
+      app.onDispose(onGenerationHeader(app, paint));
     },
   };
 }

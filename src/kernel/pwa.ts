@@ -16,9 +16,10 @@ import type { StateBackend } from './providers/contracts';
 /** What the update flow reads of the review page: its backend's unsent ops and server start (a `ReviewApp` fits). */
 type UpdatesHost = { backend?: Pick<StateBackend, 'pending'> };
 
-/** What makes reloading now lose something: unsaved work, an open dialog or a running assistant turn. */
-export type Busy = { unsent: boolean; composing: boolean; dialog: boolean; assistant?: boolean };
-export const shouldHoldReload = (b: Busy) => b.unsent || b.composing || b.dialog || !!b.assistant;
+/** What makes reloading now lose something: unsaved work, an open dialog, a running assistant turn, or the reader on the
+ *  loading screen or in the playing walkthrough. */
+export type Busy = { unsent: boolean; composing: boolean; dialog: boolean; assistant?: boolean; watching?: boolean };
+export const shouldHoldReload = (b: Busy) => b.unsent || b.composing || b.dialog || !!b.assistant || !!b.watching;
 
 /** The worker lives at the hub root (ADR 0001): strip `_rr/<entry>` and, under the hub proxy, `r/<id>/`. */
 export const workerScope = (entry: string) => new URL(entry.replace(/(\/r\/[^/]+)?\/_rr\/[^/]*$/, '/'));
@@ -83,6 +84,7 @@ export function busy(app?: UpdatesHost): Busy {
     // a task dialog (send feedback, save layout); the thread popup holds only through its composer, so saving a comment releases it
     dialog: !!document.querySelector('dialog[open].rr-modal--narrow'),
     assistant: !!document.querySelector('[data-rr-assistant-running]'),
+    watching: !!document.querySelector('.rr-gen:not([hidden]), .rr-tour[data-mode="playing"]'),
   };
 }
 
@@ -92,7 +94,7 @@ let host: UpdatesHost | undefined;
 let reg: ServiceWorkerRegistration | undefined;
 const before = new Map<string, () => void>();
 const OFFERS: Record<string, [text: string, label: string, title: string]> = {
-  review: ['Review updated. Waiting for your current work to finish.', 'Reload', 'Reload the review now; this interrupts the assistant'],
+  review: ['Review updated. Waiting for your current work to finish.', 'Reload', 'Reload into the updated review now; an assistant turn keeps working, and the page follows it again'],
   update: ['Update ready', 'Reload', 'Reload into the new version of reviewroom'],
   layout: ['This screen suits a different layout.', 'Switch layout', 'Reload into the layout for this screen'],
 };

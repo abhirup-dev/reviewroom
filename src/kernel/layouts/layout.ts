@@ -7,7 +7,7 @@ import { layoutSaveMachine } from './save.machine';
 import { builtinLayouts, fromDockview, layoutId, placement, toDockview, type DockJSON, type LastLayout, type Layout } from './layout.shared';
 import { ownPanels, panelDef, panelDefs } from '../dock';
 import type * as Dockview from '../dockview';
-import { isTablet } from '../device';
+import { isTablet } from '../form';
 
 /** Conditional panels are offered once, when their provider first has content. */
 export interface PanelAvailability {
@@ -180,6 +180,8 @@ export class Layouts {
     if (saved) {
       try {
         api.fromJSON(saved.dock as SerializedDockview);
+        // Use dockview's removal so it also fixes active tabs and removes empty groups.
+        for (const panel of api.panels) if (!panelDef(panel.view.contentComponent)) api.removePanel(panel);
         restored = api.panels.length > 0;
       } catch (e) {
         console.warn('[reviewroom] stale layout, starting over', e);
@@ -187,6 +189,9 @@ export class Layouts {
       }
     }
     if (restored) {
+      // a saved dock keeps the tab titles it was saved with: a renamed panel ("Review", now "Report") takes its current one
+      const report = panelDef('narrative');
+      if (report) api.getPanel('narrative')?.api.setTitle(report.title);
       this.setCurrent(saved!.layout && this.all()[saved!.layout] ? saved!.layout : this.startId());
       this.offered = new Set(saved!.offered);
     } else this.reset();

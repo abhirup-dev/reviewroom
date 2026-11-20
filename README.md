@@ -37,7 +37,7 @@ Contributing to reviewroom itself: [AGENTS.md](AGENTS.md).
 3. The agent gets structured feedback, replies per thread, adds `data-round="2"` sections for bigger
    answers, changes code, and waits again. Your open tab reconnects and shows round 2.
 
-Everything is kept outside the repo, in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`:
+Everything is kept outside the repo, in `~/.reviewroom/reviews/`:
 what the agent writes ([review artifacts](docs/review-artifacts.md)) and [reviewroom's own state](docs/review-state.md):
 threads, rounds, viewed files and the panels as you left them. Browse old rounds from the **Round** menu. Layouts you save from the layout menu go to `~/.reviewroom/layouts/`, for every review.
 
@@ -53,7 +53,7 @@ bun run setup-phone   # tailscale serve --bg --https=4847 → the hub; portless 
 ```
 
 The phone address is then fixed (the Mac's tailnet name and port 4847), and on this Mac the hub is also
-`https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub --public-origin <https origin>`, saved
+`https://reviewroom.localhost:1355`. Any other front works too: `reviewroom hub serve --public-origin <https origin>`, saved
 in your settings ([review state](docs/review-state.md); restart the hub to apply).
 
 Open the public URL on the phone: the hub lists your reviews, and each opens in a phone layout (bottom tabs,
@@ -147,7 +147,7 @@ src/
   *.shared.ts         DOM-free contracts shared with the CLI (also within folders)
   *.machine.ts        DOM-free XState machines, beside their owning views
 cli/                  CLI (TypeScript, bundled for Bun): server + round commands
-templates/            the report's page shell
+templates/            the assistant's prompts
 schema/               JSON schemas (generated from the *.shared.ts contracts by `bun run schema`)
 skills/reviewroom/   the skill agents use (SKILL.md + references/)
 ```

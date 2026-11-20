@@ -4,7 +4,7 @@
 //
 // New comments go into the viewer's pending review (GitHub's own drafts, also visible on github.com)
 // until submitted; replies and PR conversation comments post at once.
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Octokit } from '@octokit/core';
 import { paginateGraphQL } from '@octokit/plugin-paginate-graphql';
@@ -13,17 +13,16 @@ import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestRe
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorOf, githubThread, parseRef } from '../../src/kernel/refs/refs.shared.ts';
-import type { Provider } from './git.ts';
-import type { ReviewConfig } from './config.ts';
+import { isFullSha, type Provider } from './git.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/kernel/state/model.shared.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import type { GitHubAction } from '../../src/kernel/state/schema.shared.ts';
 import { fail } from './args.ts';
+import { formatReviewId, formatReviewRepository, pullUrl, type ReviewId } from './review-id.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.
 type Connection<T> = { nodes?: Maybe<Maybe<T>[]> } | null | undefined;
 const list = <T>(c: Connection<T>) => (c?.nodes ?? []).filter((x): x is T => x != null);
-export type PrTarget = { host: string; owner: string; name: string; number: number };
 /** What the server keeps and serves: the snapshot plus the PR's node id for mutations. */
 export type Snapshot = GitHubSnapshot & { pr?: string };
 type GitHubThread = Thread & { gh: NonNullable<Thread['gh']>; messages: (Message & { gh: GitHubComment })[] };
@@ -34,32 +33,6 @@ export function cachedThreads(dir: string): Thread[] {
     return JSON.parse(fs.readFileSync(path.join(dir, 'github.json'), 'utf8')).threads ?? [];
   } catch {
     return [];
-  }
-}
-
-/** Which PR a review is about: from config.url (any GitHub host), else repo + number. */
-export function prTarget(cfg: Partial<ReviewConfig>): PrTarget | null {
-  // config.json is hand-editable: a non-string url/repo must mean "no PR", not a crash
-  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
-  const m = String(cfg.url || '').match(/^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-  if (m) return { host: m[1], owner: m[2], name: m[3], number: +m[4] };
-  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
-  const r = String(cfg.repo || '').match(/^([\w.-]+)\/([\w.-]+)$/);
-  return r && cfg.number ? { host: 'github.com', owner: r[1], name: r[2], number: +cfg.number } : null;
-}
-
-/** The open PR whose head is the branch a branch review compares (one opened after `pr <branch>` too), as config
- *  fields; null without one, for a commit or a fetched PR ref, or when gh can't tell. Base and head stay as they are. */
-export function branchPr(repo: string, cfg: Partial<ReviewConfig>): Partial<ReviewConfig> | null {
-  const head = cfg.head ?? '';
-  if (prTarget(cfg) || head.startsWith('refs/reviewroom/') || /^[0-9a-f]{7,40}$/.test(head)) return null;
-  const branch = head === 'HEAD' ? [] : [cfg.headLabel ?? head.replace(/^(refs\/heads\/|refs\/remotes\/[^/]+\/|origin\/)/, '')];
-  try {
-    const out = execFileSync('gh', ['pr', 'view', ...branch, '--json', 'number,title,author,url,state'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 });
-    const pr = JSON.parse(out) as { number: number; title: string; author?: { login: string }; url: string; state: string };
-    return pr.state === 'OPEN' ? { number: pr.number, url: pr.url, author: pr.author?.login, title: cfg.title ?? pr.title } : null;
-  } catch {
-    return null; // no PR for the branch, gh missing or offline
   }
 }
 
@@ -108,7 +81,7 @@ const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor:
   viewer { login }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      id url headRefOid body createdAt ${AUTHOR}
+      id headRefOid body createdAt ${AUTHOR}
       reviewThreads(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -135,18 +108,18 @@ const COMMENTS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $c
 }`;
 
 /** Fetch everything and normalize. shortcut: reviews stop at the last 100, page them if a PR ever has more. */
-export async function fetchPr(cwd: string, t: PrTarget, localHead: string | null) {
-  const vars = { owner: t.owner, name: t.name, number: t.number };
-  const [data, conv] = await Promise.all([gql<Pick<Query, 'viewer' | 'repository'>>(cwd, t.host, PR_QUERY, vars, { paginate: true }), gql<Pick<Query, 'repository'>>(cwd, t.host, COMMENTS_QUERY, vars, { paginate: true })]);
+export async function fetchPr(cwd: string, id: ReviewId, localHead: string | null, host = 'github.com') {
+  const vars = { owner: id.owner, name: id.repo, number: id.number };
+  const [data, conv] = await Promise.all([gql<Pick<Query, 'viewer' | 'repository'>>(cwd, host, PR_QUERY, vars, { paginate: true }), gql<Pick<Query, 'repository'>>(cwd, host, COMMENTS_QUERY, vars, { paginate: true })]);
   const pr = data.repository?.pullRequest;
-  if (!pr) throw new Error(`PR #${t.number} not found in ${t.owner}/${t.name}`);
-  return normalize({ ...pr, comments: conv.repository?.pullRequest?.comments ?? pr.comments }, data.viewer.login, localHead);
+  if (!pr) throw new Error(`PR ${formatReviewId(id)} not found`);
+  return normalize({ ...pr, comments: conv.repository?.pullRequest?.comments ?? pr.comments }, data.viewer.login, localHead, pullUrl(id, host));
 }
 
 const VERDICT: Record<string, string | undefined> = { APPROVED: '**Approved**', CHANGES_REQUESTED: '**Requested changes**', DISMISSED: '_Review dismissed_' };
 
 /** GitHub's GraphQL shape -> reviewroom threads (ids `gh_<databaseId>`, never stored in state.json). Pure, for tests. */
-export function normalize(pr: PullRequest, viewer: string, localHead: string | null) {
+export function normalize(pr: PullRequest, viewer: string, localHead: string | null, url: string) {
   const msg = (c: IssueComment | PullRequestReviewComment | PullRequestReview, kind: GitHubComment['kind']): Message & { gh: GitHubComment } => ({
     id: `gh_${c.databaseId}`,
     author: 'github',
@@ -176,10 +149,10 @@ export function normalize(pr: PullRequest, viewer: string, localHead: string | n
     ...reviews.filter((r) => r.body?.trim() || VERDICT[r.state]).map((r) => ({ ...msg(r, 'review-body'), body: [VERDICT[r.state], r.body?.trim()].filter(Boolean).join('\n\n') })),
   ].sort((a, b) => a.at.localeCompare(b.at));
   if (conversation.length)
-    threads.push({ id: 'gh_conversation', title: 'PR conversation', anchor: { kind: 'general' }, status: 'open', createdRound: 0, messages: conversation, gh: { node: pr.id, url: pr.url, conversation: true, canReply: true } });
+    threads.push({ id: 'gh_conversation', title: 'PR conversation', anchor: { kind: 'general' }, status: 'open', createdRound: 0, messages: conversation, gh: { node: pr.id, url, conversation: true, canReply: true } });
   const pending = list(pr.reviews).find((r) => r.state === 'PENDING');
   const drafts = threads.flatMap((t) => t.messages).filter((m) => m.gh.pending).length;
-  return { ok: true as const, viewer, url: pr.url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, description: { body: pr.body ?? '', login: pr.author?.login ?? 'ghost', avatar: pr.author?.avatarUrl, at: pr.createdAt }, threads, ci: ciOf(list(pr.commits)) };
+  return { ok: true as const, viewer, url, pr: pr.id, headSha: pr.headRefOid, localHead, stale: !!localHead && pr.headRefOid !== localHead, pending: pending ? { id: pending.id, drafts } : null, description: { body: pr.body ?? '', login: pr.author?.login ?? 'ghost', avatar: pr.author?.avatarUrl, at: pr.createdAt }, threads, ci: ciOf(list(pr.commits)) };
 }
 
 const CHECK: Record<string, CiState | undefined> = { SUCCESS: 'success', NEUTRAL: 'success', SKIPPED: 'success', PENDING: 'pending', EXPECTED: 'pending' };
@@ -201,8 +174,8 @@ export function ciOf(commits: PullRequestCommit[]): CiCommit[] {
 }
 
 /** rr: links mean nothing on github.com: code links become blob links at the reviewed commit, the rest plain text. */
-export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string; head: string }) {
-  const pr = `https://${t.host}/${t.owner}/${t.name}/pull/${t.number}`;
+export function toGitHubMarkdown(body: string, id: ReviewId, shas: { base: string; head: string }, host = 'github.com') {
+  const pr = pullUrl(id, host);
   return body.replace(/(!?)\[([^\]]*)\]\((rr:[^)\s]+)\)/g, (_m, _bang, label: string, ref: string) => {
     // a link to a GitHub thread keeps pointing at it there
     const r = parseRef(ref);
@@ -211,7 +184,7 @@ export function toGitHubMarkdown(body: string, t: PrTarget, shas: { base: string
     const a = anchorOf(ref);
     if (a.kind !== 'code') return label;
     const sha = a.rev === 'base' ? shas.base : shas.head;
-    return `[${label || a.path}](https://${t.host}/${t.owner}/${t.name}/blob/${sha}/${a.path.split('/').map(encodeURIComponent).join('/')}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
+    return `[${label || a.path}](https://${host}/${formatReviewRepository(id)}/blob/${sha}/${a.path.split('/').map(encodeURIComponent).join('/')}#L${a.start}${a.end !== a.start ? `-L${a.end}` : ''})`;
   });
 }
 
@@ -237,9 +210,8 @@ type Live = Snapshot & { ok: true; pr: string; headSha: string };
 const live = (s: Snapshot | null): s is Live => !!s?.ok && !!s.pr && !!s.headSha;
 
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
-export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; dir: string; cfg: ReviewConfig; prov: Provider; onChange?: (snap: Snapshot) => void }) {
-  const target = prTarget(cfg);
-  const localHead = /^[0-9a-f]{40}$/.test(prov.head) ? prov.head : null;
+export function makeGitHub({ repo, dir, id, host, prov, onChange }: { repo: string; dir: string; id: ReviewId | null; host: string; prov: Provider; onChange?: (snap: Snapshot) => void }) {
+  const localHead = isFullSha(prov.head) ? prov.head : null;
   const file = path.join(dir, 'github.json');
   let snap: Snapshot | null = null;
   let inflight: Promise<Snapshot> | null = null;
@@ -250,8 +222,8 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
   const refresh = (): Promise<Snapshot> =>
     (inflight ??= (async () => {
       try {
-        if (!target) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
-        snap = { ...(await fetchPr(repo, target, localHead)), at: new Date().toISOString() };
+        if (!id) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
+        snap = { ...(await fetchPr(repo, id, localHead, host)), at: new Date().toISOString() };
         fs.writeFileSync(file, JSON.stringify(snap, null, 2));
       } catch (e) {
         // keep showing the last good threads; say why they may be old
@@ -266,11 +238,11 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
   // a failed action may still have changed something (a half-made review): refetch either way
   const act = (a: GitHubAction) => perform(a).then(refresh, async (e) => { await refresh(); throw e; });
   async function perform(a: GitHubAction) {
-    if (!target) throw new ReviewroomError('this review is not about a GitHub pull request', 400);
+    if (!id) throw new ReviewroomError('this review is not about a GitHub pull request', 400);
     const s = live(snap) ? snap : await refresh();
     if (!live(s)) throw new ReviewroomError(s.error || 'GitHub is not reachable', 502);
-    const run = (query: string, vars: Record<string, unknown>) => gql<Mutation>(repo, target.host, query, vars);
-    const md = (body: string) => toGitHubMarkdown(body, target, { base: prov.base, head: localHead || s.headSha });
+    const run = (query: string, vars: Record<string, unknown>) => gql<Mutation>(repo, host, query, vars);
+    const md = (body: string) => toGitHubMarkdown(body, id, { base: prov.base, head: localHead || s.headSha }, host);
     const thread = (id: string) => s.threads.find((t) => t.id === id)?.gh?.node ?? fail(`no GitHub thread ${id}`, 404);
     const comment = (id: string) => s.threads.flatMap((t) => t.messages).find((m) => m.id === id)?.gh ?? fail(`no GitHub comment ${id}`, 404);
     switch (a.action) {
@@ -313,7 +285,7 @@ export function makeGitHub({ repo, dir, cfg, prov, onChange }: { repo: string; d
     }
   }
 
-  return { target, cached: () => snap, snapshot: () => snap ?? refresh(), refresh, act };
+  return { cached: () => snap, snapshot: () => snap ?? refresh(), refresh, act };
 }
 
 /** The viewer's own newest PR conversation comment containing `marker` (someone else's is never theirs to update). */
@@ -322,13 +294,13 @@ export const ownMarked = (s: Pick<GitHubSnapshot, 'threads'>, marker: string) =>
 
 /** Post `body` to the PR conversation, or update the viewer's comment carrying `marker` in place; the comment's URL.
  */
-export async function upsertComment(cwd: string, t: PrTarget, marker: string, body: string) {
-  const s = await fetchPr(cwd, t, null);
+export async function upsertComment(cwd: string, id: ReviewId, marker: string, body: string, host = 'github.com') {
+  const s = await fetchPr(cwd, id, null, host);
   const mine = ownMarked(s, marker);
   if (mine?.gh) {
-    const r = await gql<Mutation>(cwd, t.host, 'mutation($id: ID!, $body: String!) { updateIssueComment(input: {id: $id, body: $body}) { issueComment { url } } }', { id: mine.gh.node, body });
+    const r = await gql<Mutation>(cwd, host, 'mutation($id: ID!, $body: String!) { updateIssueComment(input: {id: $id, body: $body}) { issueComment { url } } }', { id: mine.gh.node, body });
     return r.updateIssueComment?.issueComment?.url ?? mine.gh.url;
   }
-  const r = await gql<Mutation>(cwd, t.host, 'mutation($pr: ID!, $body: String!) { addComment(input: {subjectId: $pr, body: $body}) { commentEdge { node { url } } } }', { pr: s.pr, body });
+  const r = await gql<Mutation>(cwd, host, 'mutation($pr: ID!, $body: String!) { addComment(input: {subjectId: $pr, body: $body}) { commentEdge { node { url } } } }', { pr: s.pr, body });
   return r.addComment?.commentEdge?.node?.url ?? s.url;
 }

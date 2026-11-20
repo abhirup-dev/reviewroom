@@ -23,7 +23,7 @@ first and played first; the report follows as the detailed record. Other modes a
    `reviewroom check`. Scoped slide checks do not clear the loading screen. Small diffs use fewer slides. If the
    PR ships a walkthrough, use it as is.
 3. **Generation is visible.** The CLI and server, never the agent, record each document's generation:
-   requested, written and validated, with the content hash. The reviewer sees a loading screen
+   requested, read (when the agent says it has read the diff), written and validated, with the content hash. The reviewer sees a loading screen
    until the walkthrough is validated; `validated` holds only while the file still has that hash.
 4. **The report's shape comes from a report profile.** A profile gives the report its starting sections and a
    guide to what to look for and what each section holds. A review has one, chosen when it is created; the

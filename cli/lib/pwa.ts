@@ -29,18 +29,6 @@ export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#07080a" media="(prefers-color-scheme: dark)">
 `;
 
-/** Adds what a page's <head> lacks (older report.html files): viewport-fit=cover, the PWA tags, the client entry. */
-export function withHead(html: string) {
-  const end = html.indexOf('</head>');
-  if (end < 0) return html;
-  let head = html.slice(0, end).replace(/(<meta name="viewport" content="(?![^"]*viewport-fit)[^"]*)"/, '$1, viewport-fit=cover"');
-  if (!head.includes('rel="manifest"')) head += PWA_HEAD;
-  // the client build loads relatively, so under the hub's /r/<id>/ the page gets this server's build, not the hub's
-  head = head.replace(/(src=["'])\/_rr\/reviewroom\.js/, '$1_rr/reviewroom.js');
-  if (!head.includes('_rr/reviewroom.js')) head += '<script type="module" src="_rr/reviewroom.js"></script>\n';
-  return head + html.slice(end);
-}
-
 /**
  * The client build (/_rr/*), its service worker (/sw.js) and the web app manifest, on the review server and the hub. Chunks are
  * content-hashed, so immutable; fonts keep their file names across package upgrades, so a day; the rest (the entries,

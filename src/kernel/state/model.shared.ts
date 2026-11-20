@@ -5,7 +5,9 @@ export type Rev = string; // 'base' | 'head' | a git sha / ref
 
 export interface ReviewMeta {
   /** Stable id for local persistence (layout, viewed files). */
-  id: string;
+  routeId: string;
+  /** Stable PR identity in owner/repo#n form. */
+  reviewId?: string;
   title: string;
   repo?: string; // owner/name; without a GitHub remote, the checkout's folder name
   /** The checkout the diff is read from (its worktree path). */
@@ -18,8 +20,10 @@ export interface ReviewMeta {
   head: Rev;
   baseLabel?: string;
   headLabel?: string;
-  /** The server runs the experimental assistant (REVIEWROOM_ASSISTANT=1) and this page reached it directly, not through the hub. */
+  /** The server runs the experimental assistant (on for this review: `assistant` in its config.json) and this page reached it directly, not through the hub. */
   assistant?: boolean;
+  /** POST api/generate can run here (the assistant runs and this page reached the server directly). */
+  generate?: boolean;
 }
 
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed';

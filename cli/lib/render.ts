@@ -116,7 +116,7 @@ export async function openPage(url: string, vp: Viewport, scale = 1, options: Re
     await Promise.race([view.navigate(url), new Promise((r) => setTimeout(r, 20_000).unref())]); // unref: the timer must not keep the process up
     const ready = options.readySelector ? `document.querySelector(${JSON.stringify(options.readySelector)})` : 'window.rr?.auditWalkthrough';
     const started = await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => ${ready} ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`), 25_000, 'waiting for the page');
-    if (!started) fail(`the review page did not start in 20 s ${options.readySelector ? '' : ` (${REPORT_FILE} must wrap <rr-review> in <rr-app>, as its scaffold does)`}${errors.length ? `; page errors:\n  ${errors.join('\n  ')}` : ''}`);
+    if (!started) fail(`the review page did not start in 20 s${errors.length ? `; page errors (a script in ${REPORT_FILE}?):\n  ${errors.join('\n  ')}` : ''}`);
     // Applied once, before any slide audit. CSS also covers SVGs inserted later by Pele's lazy renderer.
     if (options.animations === false) await within(view.evaluate(NO_MOTION), 10_000, 'disabling render animations');
     // diagrams render after the app starts (Pele loads each type lazily): wait, so their errors count as the page's, not the first slide's

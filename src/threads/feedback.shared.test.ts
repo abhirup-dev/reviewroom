@@ -15,7 +15,9 @@ test('tour threads come last, in tour order, with their slide; a removed step is
   const state = build.state({
     threads: [build.thread('t_gone', { anchor: build.anchor.tour('why', 'old') }), build.thread('t_s2', { anchor: build.anchor.tour('why', 's2') }), build.thread('t_gen')],
   });
-  const md = feedbackMarkdown(state, { kind: 'feedback', walkthrough });
+  const md = feedbackMarkdown(state, { kind: 'feedback', walkthrough, target: "'acme/api#31'" });
+  expect(md).toContain("reviewroom reply 'acme/api#31' <thread-id>");
+  expect(md).toContain("reviewroom wait 'acme/api#31'");
   const anchors = md.split('\n').filter((l) => l.startsWith('Anchor: '));
   expect(anchors).toEqual([
     'Anchor: general',

@@ -20,7 +20,7 @@ for flags and notes. Read it before your first command. If `reviewroom` is not o
 ## The review directory
 
 `reviewroom pr` creates the review directory and, in it, the report from the review's report profile.
-`reviewroom status --json --dir <dir>` gives the directory and the report's path. You write only:
+`reviewroom status 'acme/api#31' --json` gives the directory and the report's path. You write only:
 
 - The report (`report.html`): the long-form review, starting with the profile's sections.
 - The walkthrough (`walkthrough.json`): the chaptered slides.
@@ -31,9 +31,9 @@ Everything else in it belongs to reviewroom: don't edit it.
 ## Built-in or external agent
 
 If `REVIEWROOM_ASSISTANT_DIR` is set, you are the assistant inside an already running review.
-Run `reviewroom status --json --dir "$REVIEWROOM_ASSISTANT_DIR"` to confirm `role: "assistant"`,
-the review directory, URL and frozen revisions. Use that directory for every review command.
-Do not start, stop or restart this review's server, run `pr` or `review`, or wait for feedback rounds:
+Run `reviewroom status "$REVIEWROOM_ASSISTANT_DIR" --json` to confirm `role: "assistant"`,
+the review directory, URL and frozen revisions. Pass that directory as the target for every review command.
+Do not start, stop or restart this review's server, run `pr`, or wait for feedback rounds:
 your conversation in the assistant panel is the feedback channel. Answer the current question; when
 asked to author, follow Steps 3–4b and their references, then report the result in the conversation.
 Read `status` again if the review advances. Learn authoring through this skill, its references and
@@ -46,30 +46,35 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 | The reviewer wants                                        | Run                                                                  |
 | ---                                                       | ---                                                                  |
-| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr <n \| url \| branch> --repo <path> --wait` → Step 1   |
-| A review of uncommitted work                              | `reviewroom pr --head worktree --repo <path> --wait` → Step 1        |
+| A review of a GitHub PR (number or URL) or a local branch | `reviewroom pr 'acme/api#31'` (or `pr <branch>`) → Step 1                                    |
+| A review of uncommitted work                              | `reviewroom pr <branch> --head worktree` → Step 1                             |
 | You to answer feedback they already sent                  | Read `references/review-rounds.md`, "Resume an existing review"      |
-| To see where a review stands                              | `reviewroom status --json --dir <dir>` (`--threads` for the threads) |
-| To end the review                                         | `reviewroom stop --dir <dir>`                                        |
+| To see where a review stands                              | `reviewroom status 'acme/api#31' --json` (`--threads` for the threads)    |
+| To end the review                                         | `reviewroom stop 'acme/api#31'`                                           |
 
-## Step 1: Start the review in the background
+Pass a target immediately after each review command. Use the PR's quoted Review ID (`'owner/repo#n'`,
+with the base repository for forks) or its URL. An existing PR review can be reached from any directory.
+To create one, run `pr` from its checkout or pass `--repo <path>`. Only `pr` accepts a bare PR number.
+For a local review, use its branch from the checkout (or pass `--repo <path>`) or pass an existing
+review folder as an absolute or `./`-relative path. Stop a review only when the reviewer explicitly asks.
 
-Read "Start the review server" in `references/review-rounds.md` and launch the review as it
-instructs. Keep the command running in the background while writing the walkthrough and the report.
+## Step 1: Start the review
+
+Run `pr`, then run the printed command (for example, `reviewroom wait 'acme/api#31'`) in the background while writing the walkthrough and the report.
+The detached server stays up between rounds. See `references/review-rounds.md`.
 `--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 
 ## Step 2: Relay the URL
 
-The command's first lines name the review directory (`~/.reviewroom/reviews/<owner>-<repo>/<branch>`,
-outside the repo) and the URL.
-`reviewroom status --json --dir <dir>` gives both again, plus the base/head shas. Relay the URL
+`pr` prints the review directory outside the repo and the URL.
+`reviewroom status 'acme/api#31' --json` gives both again, plus the base/head shas. Relay the URL
 verbatim:
 
 > **"reviewroom is open at http://127.0.0.1:<port>/. I'm writing the walkthrough first."**
 
 ## Step 3: Understand the diff
 
-Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status --json`,
+Read `git diff <base>...<head> --stat`, then the files. Use the shas from `reviewroom status 'acme/api#31' --json`,
 not your checkout: every line number you link is the head sha's, so read files with
 `git show <head>:<path>`. For uncommitted work (`--head worktree`) the head is the literal `worktree`:
 run `git diff <base> --stat`, read files from disk, and add untracked files
@@ -104,12 +109,13 @@ The report already has its sections, from the profile.
 Always provide a walkthrough. If `reviewroom pr` pulled one shipped with the PR, use it as is;
 it was validated before publication. Go to Step 4b without replacing it. Otherwise:
 
-1. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
+1. Once you have read the diff, record it: `reviewroom progress <review> read`.
+2. Outline the intro, the story and a final **Risks** chapter. Use fewer slides for small diffs.
    Each main risk is one line with a severity and an `rr:doc/<section id>` link to its finding in
    the report; keep detailed findings out of the slides. For each risk, add a heading-only finding
    section under Findings in the report, with a stable id for the link.
-2. Write the walkthrough in the review directory.
-3. Run a full `reviewroom slide-lint --dir <dir>`, fix issues and repeat until it passes.
+3. Write the walkthrough.
+4. Run a full `reviewroom slide-lint <review>`, fix issues and repeat until it passes.
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).
 
@@ -126,7 +132,7 @@ The walkthrough tells the story; the report keeps the detailed review and later 
 They need not mirror each other. Both are read in a narrow panel (about 400px) or on a phone:
 design every diagram, table and widget for that width. Prefer Mermaid for diagrams.
 
-Run `reviewroom check --fix --dir <dir>`, fix remaining issues and repeat until it passes.
+Run `reviewroom check <review> --fix`, fix remaining issues and repeat until it passes.
 
 ## Step 4c: Hand over
 
@@ -139,6 +145,7 @@ Once both documents are done and clean, tell the reviewer:
 
 ## Step 5: Continue across review rounds
 
+Use `reviewroom list` to find running reviews.
 Read `references/review-rounds.md` for waiting on feedback, checking status, answering comments,
 and starting the next round. Follow that loop until the reviewer approves or asks to stop.
 

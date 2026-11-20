@@ -2,7 +2,7 @@
 // The server is the only writer of state.json. The browser applies ops optimistically and sends them
 // in order; what it shows is the last state the server broadcast plus the ops not yet in it.
 import { assign, emit, enqueueActions, fromCallback, fromPromise, raise, setup, type EventObject } from 'xstate';
-import { applyOp, currentRound } from '../state/ops.shared';
+import { applyOp } from '../state/ops.shared';
 import type { GitHubSnapshot, ReviewState } from '../state/model.shared';
 import type { Op } from '../state/schema.shared';
 
@@ -10,8 +10,11 @@ import type { Op } from '../state/schema.shared';
  *  Throws when the server can't take them now: an Error says why, a TypeError (fetch failed) that it's not answering. */
 export type PostResult = { rev: number } | { rejected: number; error: string };
 /** What the live stream says. */
-/** hello: the walkthrough's hash and when this run of the server started. */
-export type StreamEvent = { type: 'hello'; hash: string; started: string } | { type: 'state'; state: ReviewState } | { type: 'review' } | { type: 'github'; snapshot: GitHubSnapshot } | { type: 'down' };
+/** What a `review` says changed: a document (taken in place), or the report's assets (a reload). */
+export type ReviewChange = 'report' | 'walkthrough' | 'assets';
+/** hello: the walkthrough's hash and when this run of the server started. review: the new hash and what changed (an
+ *  older server says neither: a reload). */
+export type StreamEvent = { type: 'hello'; hash: string; started: string } | { type: 'state'; state: ReviewState } | { type: 'review'; hash?: string; changed?: ReviewChange[] } | { type: 'github'; snapshot: GitHubSnapshot } | { type: 'down' };
 
 /** queue: applied locally, not yet in `base`; ackRev: stored by the server at that rev. sent: how many unsent ops are in flight.
  *  failures: sends in a row the server didn't answer; failed: all failed sends, and reloadAt what that was when a reload became due.
@@ -32,20 +35,12 @@ export const view = ({ base, queue }: Pick<Ctx, 'base' | 'queue'>) =>
     }
   }, base);
 
-/** Where the round is, from the state alone (so a reload or another tab agrees). Finishing a round ends that run of
- *  the server; the agent works, then serves the next round: a server started after the feedback means it's back. */
-export function roundStatus({ base, started }: Pick<Ctx, 'base' | 'started'>): 'waiting' | 'approved' | null {
-  if (currentRound(base)?.status === 'approved') return 'approved';
-  const last = base.rounds.find((r) => r.n === base.round - 1);
-  return last?.status === 'sent' && last.sentAt && started && last.sentAt >= started ? 'waiting' : null; // both server-clock ISO times
-}
-
 export const syncMachine = setup({
   types: {
     context: {} as Ctx,
     events: {} as { type: 'op'; op: Op } | { type: 'connect' } | { type: 'flush' } | StreamEvent,
     input: {} as { base: ReviewState },
-    emitted: {} as { type: 'state'; state: ReviewState } | { type: 'error'; text: string } | { type: 'github'; snapshot: GitHubSnapshot } | { type: 'reload' },
+    emitted: {} as { type: 'state'; state: ReviewState } | { type: 'error'; text: string } | { type: 'github'; snapshot: GitHubSnapshot } | { type: 'reload' } | { type: 'changed'; changed: ReviewChange[] },
   },
   actors: {
     post: fromPromise<PostResult, { ops: Op[] }>(async () => ({ rev: 0 })),
@@ -120,7 +115,14 @@ export const syncMachine = setup({
           on: {
             down: 'reconnecting',
             github: { actions: emit(({ event }) => ({ type: 'github' as const, snapshot: event.snapshot })) },
-            review: 'newRun',
+            review: [
+              // only the documents: the page takes them in place, the stream stays up, and a reconnect compares the new hash
+              {
+                guard: ({ event }) => !!event.hash && !!event.changed?.length && !event.changed.includes('assets'),
+                actions: [assign({ hash: ({ event }) => event.hash! }), emit(({ event }) => ({ type: 'changed' as const, changed: event.changed! }))],
+              },
+              { target: 'newRun' },
+            ],
           },
           states: {
             hello: {
@@ -128,14 +130,13 @@ export const syncMachine = setup({
                 hello: [
                   // first contact also catches up: something may have changed between loading the page and now
                   { guard: ({ context }) => context.hash === null, target: 'refetch', actions: assign({ hash: ({ event }) => event.hash, started: ({ event }) => event.started }) },
-                  // reconnected to a new `reviewroom review` run: pick up whatever the agent changed meanwhile
+                  // After reconnect, reload if the artifacts or Git range changed.
                   { guard: ({ context, event }) => event.hash !== context.hash, target: '#sync.stream.newRun' },
                   { target: 'refetch', actions: assign({ started: ({ event }) => event.started }) },
                 ],
               },
             },
-            // back after a drop: catch up on what was broadcast meanwhile. Counts as live (no "Disconnected" flash),
-            // but the round status waits for it: `started` is already the new server's, `base` not yet
+            // Catch up on what was broadcast while disconnected before showing the current round status.
             refetch: { tags: ['live', 'catchingUp'], invoke: { src: 'fetchState', onDone: { target: 'live', actions: [{ type: 'receive', params: ({ event }) => event.output }, 'emitView'] }, onError: 'live' } },
             live: { tags: 'live' },
           },

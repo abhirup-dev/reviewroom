@@ -1,6 +1,7 @@
 // ReviewApp: the shared context every panel, overlay and author element talks to.
 // It owns data (meta, files, threads), preferences, navigation and the panel surface (dock or phone shell).
 import type { Progress } from './kernel/state/progress.shared';
+import type { GenerationSnapshot } from './review/generation.machine';
 import type { Layouts } from './kernel/layouts/layout';
 import type { DockviewApi } from 'dockview';
 import type { Commands } from './kernel/commands';
@@ -12,7 +13,7 @@ import { renderMarkdown } from './kernel/markdown';
 import { describeElement, findDocElement } from './kernel/refs/describe';
 import { emptyState, type ChangedFile, type Commit, type DiffRange, type GitHubSnapshot, type ReviewMeta, type ReviewState, type SearchHit } from './kernel/state/model.shared';
 import { applyOp } from './kernel/state/ops.shared';
-import type { CodeProvider, StateBackend } from './kernel/providers/contracts';
+import type { CodeProvider, Connection, StateBackend } from './kernel/providers/contracts';
 import type { createReviewServices, ReviewServices } from './services';
 import type { Walkthrough } from './slides/model.shared';
 import type { Presentation } from './kernel/presentation';
@@ -73,13 +74,26 @@ export interface AppEvents extends Record<string, unknown> {
   /** ask the assistant (when the server runs one) about a code range or walkthrough block, with its text if known */
   'ask-assistant': { anchor: Extract<Anchor, { kind: 'code' | 'doc' }>; quote?: string };
   selection: Selection;
+  /** the report came again in place (takeReport, src/review/walkthrough.ts): what reads it reads it again */
   'doc-ready': HTMLElement;
+  /** app.meta changed in place: a report taken in place brought a new #rr-meta (main.ts) */
+  meta: ReviewMeta;
   /** What the reader is in: the deepest section or h3/h4 heading (by id) whose top has passed the reading line. */
   'active-section': string;
   'active-file': string;
   'round-view': number;
   /** generation progress changed (progress.jsonl) */
   progress: Progress;
+  /** where generation stands changed (src/review/generation.ts; `app.generation`) */
+  generation: GenerationSnapshot;
+  /** fetch the walkthrough and play it from slide 1, written or not (generation: playable, or "Show it anyway") */
+  'walkthrough-show': void;
+  /** the walkthrough changed on the server: fetch it again, open or not (the player keeps its slide where it still exists) */
+  'walkthrough-load': void;
+  /** the assistant's conversation changed on the server (a turn started, ended or paused) */
+  'assistant-turn': void;
+  /** the page's live event stream to its server went up or down (ServerState's own, not the round's badge) */
+  connection: Connection;
   /** play the walkthrough at a step (ids; missing: the first) */
   'walkthrough-open': { chapter?: string; step?: string };
   /** walkthrough.json loaded (null: none, or invalid) */
@@ -116,7 +130,9 @@ export class ReviewApp {
   files: ChangedFile[] = [];
   commits: Commit[] = [];
   /** generation progress of the walkthrough and the report */
-  progress: Progress = { walkthrough: { state: 'none' }, report: { state: 'none' } };
+  progress: Progress = { walkthrough: { state: 'idle' }, report: { state: 'idle' } };
+  /** where generation stands (src/review/generation.ts), once mounted */
+  generation: GenerationSnapshot | null = null;
   /** walkthrough.json, once loaded and valid; `walkthroughIssues` when it breaks the schema */
   walkthrough: Walkthrough | null = null;
   walkthroughIssues: string[] | null = null;
@@ -327,7 +343,7 @@ export class ReviewApp {
   describeDoc(id: string, path?: string): string {
     const el = this.docElement(id, path);
     if (id === PR_DESCRIPTION) return path && el ? describeElement(el) + ' in the PR description' : 'PR description';
-    return el ? describeElement(el) : id ? id.replace(/[-_]+/g, ' ') : 'Review';
+    return el ? describeElement(el) : id ? id.replace(/[-_]+/g, ' ') : 'Report';
   }
   docTitle = (id: string): string | undefined => {
     const el = this.doc?.querySelector(`#${CSS.escape(id)}`);
@@ -347,7 +363,7 @@ export class ReviewApp {
     if (r.type === 'tour') {
       const ch = this.walkthrough?.chapters.find((c) => c.id === r.chapter);
       const n = ch ? ch.steps.findIndex((s) => s.id === r.step) + 1 : 0;
-      return ch && n ? `Guided walkthrough · ${ch.title} · slide ${n}` : 'Guided walkthrough slide';
+      return ch && n ? `Walkthrough · ${ch.title} · slide ${n}` : 'Walkthrough slide';
     }
     return refLabel(r, this.docTitle);
   }

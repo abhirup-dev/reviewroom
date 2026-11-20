@@ -6,7 +6,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 - `cli/` (Bun, built to `dist/cli/`): reads git, serves the page and its API, stores threads and rounds, runs the
   round loop. `reviewroom.ts` dispatches to `commands/`; `lib/` holds git, server, PWA, state, GitHub (Octokit, as the `gh` user); `hub/proxy.ts` serves reviews through the hub.
-- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in the report.
+- `src/` (browser, framework-free, built by `scripts/build.ts`): boots from `<rr-app>` in the page the server builds around the report.
   `main.ts`, `app.ts` and `services.ts` compose the app. `kernel/` owns infrastructure; `review/`, `threads/`,
   `slides/` and `hub/` own features, including their CSS and XState machines.
   `*.shared.ts` contracts and `*.machine.ts` are checked without DOM or Node types; the CLI consumes only shared contracts.
@@ -20,7 +20,7 @@ For changing reviewroom itself. To review a PR with it, read `skills/reviewroom/
 
 ## Where reviews live
 
-By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the reviewed repo. What the agent writes there:
+By default in `~/.reviewroom/reviews/`, never inside the reviewed repo. What the agent writes there:
 `docs/review-artifacts.md`; everything else: `docs/review-state.md`.
 
 ## Contracts (change deliberately, update the skill when you do)
@@ -29,6 +29,9 @@ By default in `~/.reviewroom/reviews/<owner>-<repo>/<branch>/`, never inside the
   Code uses the constants, never the file names.
 - **The report is the agent's.** The client never rewrites `<rr-review>` content; it only layers tools around it
   (CSS Highlight API, overlays, data attributes).
+- **The page around it is reviewroom's.** `report.html` holds only the report; `reportPage()` (`cli/lib/report-page.ts`)
+  serves it inside the shell (head, client entry, `<rr-app>`, `<rr-review>`). Never ask agents to write the shell;
+  keep older reports that carry one working.
 - **`rr:` links** (`src/kernel/refs/refs.shared.ts`) address everything in HTML, threads, the CLI and agent replies. Keep old forms
   parsing.
 - **The walkthrough** follows `schema/walkthrough.schema.json`, generated from

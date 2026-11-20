@@ -2,18 +2,19 @@
 // reviewroom CLI: local server + review rounds. `reviewroom --help` lists the commands; every command
 // takes --help. Parsing and help come from cac (bundled into dist/cli/ by scripts/build.ts).
 //
-// The review dir defaults to ~/.reviewroom/reviews/<owner>-<repo>/<branch>/ (a PR's head branch). What the agent
+// Reviews live under ~/.reviewroom/reviews/. What the agent
 // writes there: docs/review-artifacts.md; reviewroom's own state: docs/review-state.md.
 import { REPORT_FILE, WALKTHROUGH_EXPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
+import fs from 'node:fs';
 import { cac } from 'cac';
-import { die } from './lib/args.ts';
+import { die, type Global } from './lib/args.ts';
 import { repoRoot } from './lib/git.ts';
-import { readConfig } from './lib/config.ts';
+import { resolveReview } from './lib/config.ts';
 import { cmdPr, type PrOpts } from './commands/pr.ts';
-import { cmdServe, type ServeOpts } from './commands/serve.ts';
+import { cmdStart, cmdWait, type StartOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
-import { cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
+import { cmdList, cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
 import { cmdExport } from './commands/export.ts';
 import { cmdPublishSlides } from './commands/walkthrough.ts';
@@ -21,11 +22,11 @@ import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { cmdShot } from './commands/shot.ts';
 import { cmdSlideLint } from './commands/slides.ts';
 import { ReviewroomError } from '../src/kernel/state/ops.shared.ts';
+import { recordRead } from './lib/progress.ts';
 
 const cli = cac('reviewroom');
 cli
-  .option('--repo <path>', 'Git repository; defaults to current repository')
-  .option('--dir <path>', 'Review directory; see status --json');
+  .option('--repo <path>', 'Git repository; defaults to current repository');
 
 // cac's options, except that text stays text (cac turns '42' into 42) and a repeated flag keeps its last value
 const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => async (...args: unknown[]) => {
@@ -36,118 +37,169 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
     o[k] = typeof last === 'number' ? String(last) : last;
   }
   const pos = args.filter((a) => a !== undefined) as string[];
-  // the repo: --repo, else the one a --dir review was made from (none if it is gone: never the cwd's instead), else the cwd's
-  const made = typeof o.dir === 'string' ? readConfig(path.resolve(o.dir)).repoPath : undefined;
-  await fn(typeof o.repo === 'string' ? repoRoot(path.resolve(o.repo)) : repoRoot(made || process.cwd()), o as O, pos);
+  await fn(typeof o.repo === 'string' ? repoRoot(path.resolve(o.repo)) : repoRoot(process.cwd()), o as O, pos);
 };
 
+const forReview = <O extends Global>(command: string, fn: (repo: string | null, dir: string, o: O, pos: string[]) => unknown) =>
+  (selected: string | null, o: O, [target, ...pos]: string[]) => {
+    const { repo, dir } = resolveReview(selected, o, target, command);
+    const needs = ['check', 'shot'].includes(command) ? REPORT_FILE : ['slide-lint', 'publish-slides', 'export'].includes(command) ? WALKTHROUGH_FILE : undefined;
+    if (needs && !fs.existsSync(path.join(dir, needs))) throw new ReviewroomError(`no ${needs} in ${dir}`);
+    return fn(repo, dir, o, pos);
+  };
+
 cli
-  .command('pr [target]', 'Create and serve a review')
-  .usage('pr [number|URL|branch] [options]')
+  .command('pr <review>', 'Set up a review and start its server in the background')
+  .usage('pr <review> [options]')
   .option('--base <ref>', 'Base: PR base or default branch')
   .option('--head <ref>', 'Head revision; worktree includes uncommitted changes')
   .option('--title <text>', 'Review title')
-  .option('--remote <name>', 'Git remote', { default: 'origin' })
+  .option('--remote <name>', 'Git remote (default: the saved PR remote or origin)')
   .option('--force', `Replace ${REPORT_FILE} and PR walkthrough`)
   .option('--profile <name>', 'Report profile: the report\'s sections and guide (default: explainer)')
-  .option('--detach', 'Serve in background; print URL')
-  .option('--wait', 'Wait for the first feedback round')
+  .option('--no-agent', 'Request no walkthrough or report; generation stays idle')
+  .option('--no-serve', 'Set up the review only; start no server, print its dir')
+  .option('--assistant', 'Run the built-in assistant for this review (its Ask panel, Generate)')
   .option('--port <n>', 'Port (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .example('  reviewroom pr 4821 --wait')
-  .example('  reviewroom pr --head worktree --wait')
+  .example('  reviewroom pr \'acme/api#31\'')
+  .example('  reviewroom pr feature --head worktree')
   .action(run<PrOpts>((repo, o, pos) => cmdPr(repo, o, pos[0])));
 
 cli
-  .command('review', 'Serve until feedback arrives')
-  .option('--forever', 'Serve continuously without waiting for feedback')
-  .option('--port <n>', 'Port (default: the previous one, else 4848)')
+  .command('start <review>', 'Ensure a review server is running')
+  .usage('start <review> [options]')
+  .option('--foreground', 'Run the server in this process')
+  .option('--port <n>', 'Port for a new server (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
-  .action(run<ServeOpts>((repo, o) => cmdServe(repo, o, !o.forever)));
+  .example('  reviewroom start \'acme/api#31\'')
+  .action(run(forReview('start', cmdStart)));
 
 cli
-  .command('status', 'Show review status and threads')
+  .command('wait <review>', 'Wait for and print the next undelivered round')
+  .usage('wait <review> [options]')
+  .option('--port <n>', 'Port for a new server (default: 4848)')
+  .option('--no-open', 'Do not open the browser')
+  .option('--browser', 'Open browser instead of macOS app')
+  .example('  reviewroom wait \'acme/api#31\'')
+  .action(run(forReview<StartOpts>('wait', cmdWait)));
+
+cli
+  .command('status <review>', 'Show review status and threads')
+  .usage('status <review> [options]')
   .option('--threads', 'Include open threads and messages')
   .option('--all', 'Include resolved threads')
   .option('--json', 'Print JSON')
-  .action(run<StatusOpts & { threads?: boolean }>((repo, o) => (o.threads ? cmdThreads(repo, o) : cmdStatus(repo, o))));
+  .example('  reviewroom status \'acme/api#31\' --json')
+  .action(run(forReview<StatusOpts & { threads?: boolean }>('status', (repo, dir, o) => (o.threads ? cmdThreads(repo, dir, o) : cmdStatus(repo, dir, o)))));
 
 cli
-  .command('reply [thread] [body]', 'Reply to a thread')
+  .command('reply <review> [thread] [body]', 'Reply to a thread')
+  .usage('reply <review> [thread] [body] [options]')
   .option('--resolve', 'Resolve only when the user requests it')
   .option('--file <path>', 'Read input from a file')
   .option('--json [file]', 'Reply atomically from JSON file or stdin')
-  .example('  reviewroom reply t_ab12 "Fixed in 3f2c1e"')
-  .example('  reviewroom reply --json replies.json')
-  .action(run(cmdReply));
+  .example('  reviewroom reply \'acme/api#31\' t_ab12 "Fixed in 3f2c1e"')
+  .example('  reviewroom reply \'acme/api#31\' --json replies.json')
+  .action(run(forReview('reply', cmdReply)));
 
 cli
-  .command('comment <ref> [body]', 'Start a thread on a reference')
+  .command('comment <review> <ref> [body]', 'Start a thread on a reference')
+  .usage('comment <review> <ref> [body] [options]')
   .option('--file <path>', 'Read input from a file')
-  .action(run(cmdComment));
+  .action(run(forReview('comment', cmdComment)));
 
 cli
-  .command('check', 'Validate references and walkthrough schema')
+  .command('check <review>', 'Validate references and walkthrough schema')
+  .usage('check <review> [options]')
   .option('--fix', 'Update links moved within five lines')
   .option('--accept', 'Refresh link fingerprints')
   .option('--json', 'Print JSON')
-  .action(run(cmdCheck));
+  .action(run(forReview('check', cmdCheck)));
 
 cli
-  .command('slide-lint', 'Audit all or selected walkthrough slides')
+  .command('progress <review> <event>', 'Record generation progress for the loading screen')
+  .usage('progress <review> read')
+  .example('  reviewroom progress \'acme/api#31\' read')
+  .action(run(forReview('progress', (_repo, dir, _o, [event]) => {
+    if (event !== 'read') die(`unknown progress event \`${event}\`; see \`reviewroom progress --help\``, 2);
+    if (!recordRead(dir)) console.error('nothing recorded: no walkthrough is requested');
+  })));
+
+cli
+  .command('slide-lint <review>', 'Audit all or selected walkthrough slides')
+  .usage('slide-lint <review> [options]')
   .option('--jobs <n>', 'Concurrent pages: 1-8, default 1')
   .option('--chapter <id>', 'Chapter ID; excludes --slide')
   .option('--slide <chapter/step>', 'Slide IDs; excludes --chapter')
   .option('--viewport <WxH,...>', 'CSS viewports; default 1280x800,1440x900')
   .option('--native', 'Use native pixels instead of the 480-height cap')
   .option('--json', 'Print JSON')
-  .example('  reviewroom slide-lint')
-  .example('  reviewroom slide-lint --jobs 2')
-  .example('  reviewroom slide-lint --chapter latency')
-  .example('  reviewroom slide-lint --slide latency/s2')
-  .action(run(cmdSlideLint));
+  .example('  reviewroom slide-lint \'acme/api#31\'')
+  .example('  reviewroom slide-lint \'acme/api#31\' --jobs 2')
+  .example('  reviewroom slide-lint \'acme/api#31\' --chapter latency')
+  .example('  reviewroom slide-lint \'acme/api#31\' --slide latency/s2')
+  .action(run(forReview('slide-lint', cmdSlideLint)));
 
 cli
-  .command('publish-slides', 'Publish walkthrough slides to the PR')
+  .command('publish-slides <review>', 'Publish walkthrough slides to the PR')
+  .usage('publish-slides <review> [options]')
   .option('--dry-run', 'Print without posting')
   .option('--allow-stale', 'Allow stale links; schema must pass')
-  .example('  reviewroom publish-slides')
-  .action(run(cmdPublishSlides));
+  .example('  reviewroom publish-slides \'acme/api#31\'')
+  .action(run(forReview('publish-slides', cmdPublishSlides)));
 
 cli
-  .command('export', 'Export a self-contained walkthrough including the source of the files it shows')
+  .command('export <review>', 'Export a self-contained walkthrough including the source of the files it shows')
+  .usage('export <review> [options]')
   .option('--out <path>', `Output HTML file; defaults to ${WALKTHROUGH_EXPORT_FILE}`)
   .option('--allow-stale', 'Allow stale links; schema must pass')
-  .example('  reviewroom export --out walkthrough.html')
-  .action(run(cmdExport));
+  .example('  reviewroom export \'acme/api#31\' --out walkthrough.html')
+  .action(run(forReview('export', cmdExport)));
 
 cli
-  .command('shot [section]', 'Capture report sections or chapter/step slides')
+  .command('shot <review> [section]', 'Capture report sections or chapter/step slides')
+  .usage('shot <review> [section] [options]')
   .option('--theme <light|dark>', 'Theme; default light')
   .option('--mobile', 'Review panel width: 390 CSS pixels')
   .option('--viewport <WxH>', 'Slide viewport; default 1280x800')
   .option('--native', 'Use native pixels instead of the 480-height cap')
   .option('--prose-only', 'Crop narration unchanged; skip right-hand code')
   .option('--out <dir>', 'PNG directory; defaults to temporary storage')
-  .example('  reviewroom shot')
-  .example('  reviewroom shot request-path --theme dark')
-  .example('  reviewroom shot --mobile')
-  .example('  reviewroom shot latency/s3 --theme dark')
-  .example('  reviewroom shot latency/s3 --prose-only --native')
-  .action(run(cmdShot));
-
-cli.command('stop', 'Stop a detached review server').action(run(cmdStop));
+  .example('  reviewroom shot \'acme/api#31\'')
+  .example('  reviewroom shot \'acme/api#31\' request-path --theme dark')
+  .example('  reviewroom shot \'acme/api#31\' --mobile')
+  .example('  reviewroom shot \'acme/api#31\' latency/s3 --theme dark')
+  .example('  reviewroom shot \'acme/api#31\' latency/s3 --prose-only --native')
+  .action(run(forReview('shot', cmdShot)));
 
 cli
-  .command('hub', 'List local review sessions')
+  .command('list', 'List running review servers')
+  .option('--json', 'Print a JSON array of running reviews')
+  .example('  reviewroom list --json')
+  .action(run<{ json?: boolean }>((_repo, o) => cmdList(o)));
+
+cli
+  .command('stop <review>', 'Stop a review server')
+  .usage('stop <review> [options]')
+  .example('  reviewroom stop \'acme/api#31\'')
+  .action(run(forReview('stop', cmdStop)));
+
+cli
+  .command('hub [action]', 'Serve or stop the local review hub')
+  .usage('hub <serve|stop> [options]')
   .option('--detach', 'Serve in background; print URL')
-  .option('--stop', 'Stop the running hub')
   .option('--port <n>', 'Port (default: 4847)')
   .option('--public-origin <url>', 'Save public HTTPS origin; none clears it')
   .option('--no-open', 'Do not open the browser')
-  .action(run<HubOpts>((_repo, o) => cmdHub(o)));
+  .example('  reviewroom hub serve --detach')
+  .example('  reviewroom hub stop')
+  .action(run<HubOpts>((_repo, o, [action = 'serve']) => {
+    if (action !== 'serve' && action !== 'stop') die(`unknown hub action \`${action}\`; see \`reviewroom hub --help\``, 2);
+    return cmdHub({ ...o, stop: action === 'stop' });
+  }));
 
 // What an agent needs beyond the flags, shown under the command's --help.
 const notes: Record<string, string> = {
@@ -161,6 +213,9 @@ const notes: Record<string, string> = {
   JSON: engine, jobs, viewports, rasterHeight, selection, coverage, links, findings.
   Chrome caps raster scale; WebKit scales screenshot output.
   CSS geometry stays unchanged.`,
+  'progress': `  read: you have read the diff; the reviewer's loading screen moves on to writing the walkthrough.
+  Applies to the walkthrough requested now; recording it twice is harmless.
+  The walkthrough's saves and a passing full slide-lint are recorded without it.`,
   'publish-slides': `  Validates first; updates its existing PR comment.
   Uses GitHub authentication from gh.
   Rejects schema errors and comments exceeding 65,536 characters.`,
@@ -176,7 +231,17 @@ const notes: Record<string, string> = {
   Prose-only findings exclude right-hand code.
   Nothing is written to the review.`,
   'pr': `  Loads available PR walkthroughs into missing ${WALKTHROUGH_FILE} files.
-  Newest author-owned or agent-owned walkthrough wins.`,
+  Newest author-owned or agent-owned walkthrough wins.
+  Prints the directory (stderr) and URL (stdout).
+  Reuses a running server and keeps its revision. After stopping it, rerun pr to fetch updates.
+  A new or --force review asks the calling agent for both documents; the page waits for them.
+  --no-agent sets the review up without asking anyone: the built-in assistant can generate later.
+  --assistant turns the built-in assistant on for this review only (the hub's Play does the same); a plain pr never turns it off.
+  --no-serve stops after setup: the hub's Add a PR runs pr <url> --no-agent --no-serve, and its Play starts the server.`,
+  'start': `  Prints the review URL. Reuses a running server and its port.`,
+  'list': `  Lists running reviews across repositories. The hub can be stopped.`,
+  'wait': `  Starts a detached server if needed and leaves it running.
+  Prints saved feedback or APPROVED to stdout and records delivery.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.
@@ -207,37 +272,44 @@ const notes: Record<string, string> = {
 };
 // top level: one line instead of a --help line per command, the round loop and the review dir
 cli.help((sections) => {
-  // cac shows negated flags as '(default: true)', which reads as the opposite of what --no-open does
-  const rows = sections.map((x) => (x.body ? { ...x, body: x.body.replace(/(Do not open the browser) \(default: true\)/g, '$1') } : x));
   const c = cli.matchedCommand?.name;
+  // cac shows each negated flag (--no-open, --no-serve, ...) as "(default: true)", which reads as the opposite of what it does
+  const rows = sections.map((x) => x.title === 'Options'
+    ? { ...x, body: x.body.split('\n').filter((line) => !/^--foreground\b/.test(line.trimStart())).join('\n').replace(/^(\s*--no-\S.*?) \(default: true\)$/gm, '$1') }
+    : x);
   if (c) return notes[c] ? [...rows, { title: 'Notes', body: notes[c] }] : rows;
   return [
     ...rows.map((x) => (x.title?.startsWith('For more info') ? { ...x, body: '  $ reviewroom <command> --help' } : x)),
     {
       title: 'A review',
       body: [
-        '  pr <n> --wait: create, serve, await feedback.',
-        '  shot [section]: inspect PNG output.',
-        '  reply <thread> "...": answer feedback.',
-        '  review --dir <dir>: await the next round.',
-        '  Run waiting commands in background; rounds may take hours.',
-        '  Threads and rounds survive server restarts.',
+        '  pr \'acme/api#31\': set up a review and start its server.',
+        '  wait \'acme/api#31\': await the next round in the background.',
+        '  list: show running reviews and their URLs.',
+        '  shot <review> [section]: inspect PNG output.',
+        '  reply <review> <thread> "...": answer feedback.',
+        '  stop \'acme/api#31\': stop the review server.',
+        '  The server stays up between rounds.',
       ].join('\n'),
     },
     {
       title: 'A walkthrough (when wanted)',
       body: [
         `  ${WALKTHROUGH_FILE} sits beside ${REPORT_FILE}.`,
-        '  slide-lint: validate walkthrough slides.',
-        '  export: share a standalone walkthrough and the source it shows.',
-        '  shot <chapter>/<step>: inspect one slide.',
-        '  publish-slides: publish to the PR.',
+        '  progress <review> read: say you have read the diff.',
+        '  slide-lint <review>: validate walkthrough slides.',
+        '  export <review>: share a standalone walkthrough and the source it shows.',
+        '  shot <review> <chapter>/<step>: inspect one slide.',
+        '  publish-slides <review>: publish to the PR.',
       ].join('\n'),
     },
     {
       title: 'The review dir',
       body: [
-        '  ~/.reviewroom/reviews/<owner>-<repo>/<branch>/; REVIEWROOM_HOME overrides the root.',
+        '  ~/.reviewroom/reviews/; REVIEWROOM_HOME overrides the root.',
+        "  Every review command requires a target: 'owner/repo#n', PR URL, branch, or existing /absolute or ./relative review folder.",
+        '  IDs and URLs work anywhere. Branches require their repository or --repo.',
+        '  Only pr accepts a bare PR number, from its repository. Quote targets containing #.',
         `  Author ${REPORT_FILE}, ${WALKTHROUGH_FILE}, and adjacent assets.`,
         '  Change state, config, layouts, and rounds through CLI commands.',
       ].join('\n'),
@@ -245,12 +317,14 @@ cli.help((sections) => {
     {
       title: 'Experimental',
       body: [
-        '  REVIEWROOM_ASSISTANT=1: an Assistant panel, a Claude Code chat on this machine (native login, Bun only).',
+        '  Per review: `pr --assistant`, or Play in the hub, sets "assistant": true in the review\'s config.json: an Assistant panel,',
+        '  a Claude Code chat on this machine (native login, Bun only), which can also generate both documents.',
+        '  Every assistant turn, generation (POST api/generate) or a question, approves every tool it asks for.',
         '  Requires Git and a Claude login. First use downloads the pinned agent runtime; no global plugin, Node or pnpm needed.',
         '  Agent runtime/cache: ~/.reviewroom/assistant/ (under REVIEWROOM_HOME); Claude login/settings stay native.',
         '  claudeExecutable: optional executable name or path (relative to config.json). Restart after changing it.',
         '  Selection: config override, CLAUDE_CODE_EXECUTABLE, claude on PATH, then the bundled binary.',
-        '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet).',
+        '  ~/.reviewroom/config.json: defaultAgentHarness (claude), defaultReviewModel (sonnet), defaultReviewEffort (low..max).',
         '  reviewAgentPromptFile: custom Markdown prompt; relative paths resolve beside config.json.',
         '  Model changes apply to the next new question; restart for harness or prompt changes.',
         '  Conversation and transcript are saved in the review dir and restored when it reopens.',
@@ -262,10 +336,16 @@ cli.help((sections) => {
 
 try {
   cli.parse(process.argv, { run: false });
-  if (cli.matchedCommand) await cli.runMatchedCommand();
+  if (cli.matchedCommand) {
+    if (!['hub', 'list'].includes(cli.matchedCommand.name) && !cli.args.length && !cli.options.help) {
+      resolveReview(repoRoot(path.resolve(cli.options.repo ?? process.cwd())), cli.options, undefined, cli.matchedCommand.name);
+    }
+    await cli.runMatchedCommand();
+  }
   else if (cli.args.length) die(`unknown command \`${cli.args[0]}\`; see \`reviewroom --help\``, 2);
   else if (!cli.options.help) cli.outputHelp();
 } catch (e) {
+  if ((e as Error).name === 'CACError' && (e as Error).message.includes('Unknown option `--dir`')) die('--dir was removed; use reviewroom <command> <review-folder> instead', 2);
   if ((e as Error).name === 'CACError') die(`${(e as Error).message}; see \`reviewroom ${cli.matchedCommandName ?? ''} --help\``.replace('  ', ' '), 2);
   if (!(e instanceof ReviewroomError)) throw e;
   die(e.message);

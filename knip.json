@@ -7,7 +7,8 @@
     "src/sw.ts",
     "cli/reviewroom.ts",
     "scripts/*.ts",
-    "testing/slides/benchmark.ts"
+    "testing/slides/benchmark.ts",
+    "e2e/fake-assistant.ts"
   ],
   "project": [
     "src/**/*.ts",
