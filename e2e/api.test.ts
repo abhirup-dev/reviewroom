@@ -33,6 +33,8 @@ describe('api', () => {
     const file = path.join(dir, WALKTHROUGH_FILE);
     fs.rmSync(file, { force: true });
     expect(await status('api/walkthrough')).toBe(404);
+    const missing = await fetch(url + 'api/export');
+    expect([missing.status, (await missing.json()).error]).toEqual([404, expect.stringContaining(WALKTHROUGH_FILE)]);
     const w = { version: 1, title: 'T', chapters: [{ id: 'a', title: 'A', steps: [{ id: 's1', text: '<p>x</p>', ref: 'rr:code/x.go#L1' }] }] };
     fs.writeFileSync(file, JSON.stringify(w));
     const ok = await fetch(url + 'api/walkthrough');
@@ -40,7 +42,8 @@ describe('api', () => {
     fs.writeFileSync(file, JSON.stringify({ ...w, version: 2 }));
     const bad = await fetch(url + 'api/walkthrough');
     expect([bad.status, (await bad.json()).issues]).toEqual([422, [expect.stringContaining('version')]]);
-    expect(await status('api/walkthrough', { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403);
+    const invalid = await fetch(url + 'api/export');
+    expect([invalid.status, (await invalid.json()).error]).toEqual([422, expect.stringContaining('does not match')]);
     fs.rmSync(file);
   });
   test('saved layouts: shipped and taken names are refused, deleting the default clears it', async () => {
@@ -63,7 +66,8 @@ describe('api', () => {
     expect(fs.existsSync(marker)).toBe(false);
   });
   // Bun's fetch sends these headers as given
-  test('cross-site API request is refused', async () => expect(await status('api/state', { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403));
+  test.each(['api/state', 'api/walkthrough', 'api/export'])('cross-site request to %s is refused', async (route) =>
+    expect(await status(route, { headers: { 'sec-fetch-site': 'cross-site' } })).toBe(403));
   test('write from a foreign origin is refused', async () =>
     expect(await status('api/ops', { method: 'POST', body: '{}', headers: { origin: 'https://evil.example', 'content-type': 'application/json' } })).toBe(403));
   test('foreign Host header is refused', async () => expect(await status('api/meta', { headers: { host: `evil.example:${new URL(url).port}` } })).toBe(403));

@@ -63,6 +63,12 @@ colors:
   dark-del: "#eea393"
   dark-risk: "#f58b80"
 typography:
+  export-display:
+    fontFamily: Mona Sans
+    fontSize: 48px
+    fontWeight: 600
+    lineHeight: 1.08
+    letterSpacing: -0.01em
   headline-lg:
     fontFamily: Mona Sans
     fontSize: 32px
@@ -132,6 +138,7 @@ typography:
     fontWeight: 400
     lineHeight: 1.5
 rounded:
+  export-card: 16px
   none: 0px
   sm: 2px
   lg: 4px
@@ -348,13 +355,14 @@ Spacing is a fixed scale: 2px steps up to 12 for dense controls (2, 4, 6, 8, 10,
 Trees indent 14px per level.
 
 **The walkthrough** is a two-column player on one sheet: narration and code both on `surface-doc` (no well, card
-edges or band fill), the code full height under one white file band (path, Diff/Before/After, size, Viewed: the slide
-decides how its diff is drawn, so no display toggles). Each chapter takes
+edges or band fill), the code full height under one white file band (path, Diff/Before/After, size, Auto/Split/Unified and Viewed).
+Each chapter takes
 a shape from its longest slide (`src/slides/fit.ts`), so nothing moves between its slides: short slides with no intro
 read at the lede size (`text-xl`) a third of the way down beside a 28% narration, long ones (over 150 words) get 50%,
 the rest 36%. Narrow code widens it, up to half: the code keeps only the room the chapter's longest changed line needs
-(`codeWidth`, never less than the file band). A dragged width wins. The chapter title wraps under its arrows and position, ref chips wrap, and the
-bottom bar is ticks only: nothing on the reading side is cut. The player stops growing at `tour-width` and sits centred,
+(`codeWidth`, never less than the file band). A dragged width wins. The chapter title wraps under its arrows and
+position. Long titles use the 19px headline and wrap in balanced lines. Ref chips wrap and the bottom bar is ticks only.
+The player stops growing at `tour-width` and sits centred,
 so a wide screen keeps a laptop's proportions. The code is centred, whatever the narration does (`placement.ts`): the
 slide's change (its lines and the change blocks they touch, or its lines alone when that is taller than the pane) sits
 in the middle of the pane, near a file's ends too (blank room above its first line or below its last). The boundary
@@ -372,6 +380,25 @@ a split view's left column), and the file's changes outside the slide's change b
 the change blocks the slide touches, whole (`fitDiff`), unless the reader picks Split or Unified in the file band's
 Auto / Split / Unified switch (the `tourView` pref, Auto by default): split when they remove 5 lines or more, or more than
 they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
+The desktop review player has a full-width toolbar above both columns, with Close at the right.
+When a link, chip or file view changes what the slide shows, Reset code appears beside Close. It restores the slide's
+refs, views and centred highlights. On a phone it sits alongside the file tabs.
+
+**The portable walkthrough deck** places the shared player inside a paper card with a persistent toolbar and progress
+footer. Cover, chapter dividers and the end page use balanced Mona Sans titles. Titles start at 48px (32px on phones)
+and step down through the headline sizes at 55 and 85 characters. Wide title columns use 32px for long titles.
+Dividers centre the chapter number and title in one column. The toolbar's Skip chapter intro toggle keeps the cover,
+slides and end in the page sequence. Reset code appears in the same toolbar group, before the theme toggle,
+with an undo icon at phone widths.
+The 16px `--rr-export-radius` and modal shadow frame the floating card on desktop. The stage is the export's exception
+to the Meaning Rule: a fixed dot grid and two washes of the orange accent sit behind the opaque card. Gaps tighten
+on laptops. At phone widths the stage is plain, the card fills it, the presentation pages stack, and the navigation
+buttons keep 48px targets. The deck reuses the player’s code, narration and fit rules.
+
+The backdrop drifts with `--rr-export-drift-motion` (48s per leg). Page changes lift the card by 4px and settle with
+`--rr-export-card-motion` (280ms) and `--rr-export-settle-ease` (`cubic-bezier(0.2, 0.75, 0.25, 1)`).
+`--rr-export-fade-motion` (180ms) times the solo page entrance and the player's narration crossfade in the deck.
+Reduced motion leaves the stage still and swaps pages immediately.
 
 **Generation loading** (`src/review/generation.ts`, `generation.css`; its measures are the `--rr-gen-*` tokens, its own group in `tokens.css`, from which it derives the transcript's height) is a quiet full-page surface over the review, on desktop and phone, on the stage (`surface-stage`: cream paper; in dark, the deeper plane) with one accent, Margin Orange (`comment`); everything else is ink and grey, and nothing on it is red. Centred across and pinned from the top: Claude's box keeps a fixed size and the steps grow downwards, so nothing moves as the work goes on. The head runs across on a hairline: the repository, PR number and branches (`mono` `text-sm` `muted`), the PR's title (`text-2xl` display 600), then the author with GitHub's avatar (their initials in an `ink-2` tile without one) and when they opened it, the size (`+412 −88`, `mono`, in `add` and `del`) and the file count, `·` (`faint`) between them. No clock: it says what is happening, never how long it has taken. Under the head, the **generation steps** (no visible label: "Writing the review" is for screen readers), and beside them Claude's box with the actions in one row under it (under the steps where there is no box): Continue to the review (primary), Peek at the walkthrough once slides exist; after a stop, Retry and the walkthrough so far. It closes when the walkthrough passes (the player opens). Closed, the header's indicator (Clawd and the busy dots, still and without dots once stopped) shows generation running and opens the screen again.
 
@@ -412,7 +439,8 @@ desktop. The phone takes Material 3 Expressive shapes on the same palette (Phone
   translucent hover fill. Disabled: 50% opacity.
 - **Primary:** ink fill with chrome-coloured text; hover lightens to `ink-2`.
 - **Ghost:** no border or fill until hover. **Small:** 24px.
-- **Icon button:** 28px square (24px in a bar), muted icon, hover fill; pressed uses the active fill.
+- **Icon button:** 28px square (24px in a bar), muted icon, hover fill; pressed uses the active fill. Labelled toolbar
+  actions use the same muted treatment and size to their labels.
 - **Send:** one button wherever a comment can go. Agent is a flat `comment` fill; PR is a plain button. When the review
   mode leaves one out it stays visible at 45% opacity, its tooltip saying why.
 

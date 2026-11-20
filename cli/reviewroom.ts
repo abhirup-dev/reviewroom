@@ -16,6 +16,7 @@ import { cmdStart, cmdWait, type StartOpts } from './commands/serve.ts';
 import { cmdThreads, cmdReply, cmdComment } from './commands/threads.ts';
 import { cmdList, cmdStatus, cmdStop, type StatusOpts } from './commands/status.ts';
 import { cmdCheck, WALKTHROUGH_SCHEMA } from './commands/check.ts';
+import { cmdExport } from './commands/export.ts';
 import { cmdPublishSlides } from './commands/walkthrough.ts';
 import { cmdHub, type HubOpts } from './commands/hub.ts';
 import { cmdShot } from './commands/shot.ts';
@@ -42,7 +43,7 @@ const run = <O>(fn: (repo: string | null, o: O, pos: string[]) => unknown) => as
 const forReview = <O extends Global>(command: string, fn: (repo: string | null, dir: string, o: O, pos: string[]) => unknown) =>
   (selected: string | null, o: O, [target, ...pos]: string[]) => {
     const { repo, dir } = resolveReview(selected, o, target, command);
-    const needs = ['check', 'shot'].includes(command) ? REPORT_FILE : ['slide-lint', 'publish-slides'].includes(command) ? WALKTHROUGH_FILE : undefined;
+    const needs = ['check', 'shot'].includes(command) ? REPORT_FILE : ['slide-lint', 'publish-slides', 'export'].includes(command) ? WALKTHROUGH_FILE : undefined;
     if (needs && !fs.existsSync(path.join(dir, needs))) throw new ReviewroomError(`no ${needs} in ${dir}`);
     return fn(repo, dir, o, pos);
   };
@@ -151,6 +152,14 @@ cli
   .action(run(forReview('publish-slides', cmdPublishSlides)));
 
 cli
+  .command('export <review>', 'Export a self-contained walkthrough with its source files (also available via Download in the desktop player)')
+  .usage('export <review> [options]')
+  .option('--out <path>', 'Override the output path (default: slugged <review-id>-<title>.html in the current directory)')
+  .option('--allow-stale', 'Allow stale links; schema must pass')
+  .example('  reviewroom export \'acme/api#31\' --out walkthrough.html')
+  .action(run(forReview('export', cmdExport)));
+
+cli
   .command('shot <review> [section]', 'Capture report sections or chapter/step slides')
   .usage('shot <review> [section] [options]')
   .option('--theme <light|dark>', 'Theme; default light')
@@ -210,6 +219,9 @@ const notes: Record<string, string> = {
   'publish-slides': `  Validates first; updates its existing PR comment.
   Uses GitHub authentication from gh.
   Rejects schema errors and comments exceeding 65,536 characters.`,
+  'export': `  Validates first. Open the HTML directly in a browser.
+  The file includes the source of the files shown in the walkthrough.
+  Download in the live desktop player exports even if links are stale.`,
   'shot': `  Default: review panel width; phone width is 390 CSS pixels.
   Long sections split at 1400 CSS pixels.
   Slide targets use <chapter>/<step>; findings follow PNG paths.
@@ -287,6 +299,7 @@ cli.help((sections) => {
         `  ${WALKTHROUGH_FILE} sits beside ${REPORT_FILE}.`,
         '  progress <review> read: say you have read the diff.',
         '  slide-lint <review>: validate walkthrough slides.',
+        '  export <review>: share a standalone walkthrough and the source it shows.',
         '  shot <review> <chapter>/<step>: inspect one slide.',
         '  publish-slides <review>: publish to the PR.',
       ].join('\n'),

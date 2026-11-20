@@ -121,6 +121,10 @@ export type Fit = { diffStyle: 'split' | 'unified'; wrap: boolean };
 
 /** Optional code-panel layout and navigation controls, supplied by its host. */
 export type CodePanelOptions = {
+  /** Keep navigation and highlights, without selection actions or review state controls. */
+  readOnly?: boolean;
+  /** A reader used the file band's controls to browse away from its reveal. */
+  onBrowse?: () => void;
   /** Pixels of scroll room at the foot (default 16). */
   padBottom?: number;
   /** What covers the pane's foot (a phone's slide card): its height, and a way to hear that it changed. Lines land
@@ -218,6 +222,8 @@ class CodePanel implements PanelInstance {
   private optionsInit = false;
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
+  private readOnly: boolean;
+  private onBrowse?: () => void;
   private padBottom?: number;
   /** Centred code: blank room above and below it, so its focus can reach the pane's middle near a file's ends. */
   private room = { above: 0, below: 0 };
@@ -244,9 +250,11 @@ class CodePanel implements PanelInstance {
   private frame = () => new Promise((r) => requestAnimationFrame(r));
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown> & CodePanelOptions) {
+    this.onBrowse = params.onBrowse;
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
+    this.readOnly = !!params.readOnly;
     this.padBottom = params.padBottom;
     this.cover = params.cover;
     this.withRail = !!params.rail;
@@ -325,7 +333,7 @@ class CodePanel implements PanelInstance {
     let right: (HTMLElement | null)[] = this.embedded ? [] : [...displayTools(this.app, this.mode), ...(this.mode === 'diff' ? [this.changeNav()] : [])];
     if (this.pin) {
       const f = this.app.files.find((x) => x.path === this.pin);
-      const view = this.mode === 'diff' ? 'diff' : this.fileView?.side;
+      const view = this.mode === 'diff' ? 'diff' : this.fileView?.rev ? undefined : this.fileView?.side;
       if (band) {
         const b = this.walkthroughBand(this.pin, view);
         left.push(...b.left);
@@ -403,13 +411,18 @@ class CodePanel implements PanelInstance {
    *  it viewed leaves it open (the workbench folds it). */
   private walkthroughBand(path: string, view: string | undefined) {
     const f = this.app.files.find((x) => x.path === path);
-    const cb = h('input', { type: 'checkbox', checked: this.app.state.viewed[path] !== undefined, 'aria-label': 'Mark file as viewed' });
-    cb.addEventListener('change', () => this.app.setViewed(path, cb.checked));
-    const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.openFile(path, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
+    const trail = () => {
+      if (!f) return [];
+      if (this.readOnly) return [h('span', { class: 'rr-toolbar__spacer' }), diffstat([f]), view === 'diff' ? this.tourViewSeg() : null];
+      const cb = h('input', { type: 'checkbox', checked: this.app.state.viewed[path] !== undefined, 'aria-label': 'Mark file as viewed' });
+      cb.addEventListener('change', () => this.app.setViewed(path, cb.checked));
+      return this.fileTrail(f, cb, view === 'diff' ? this.tourViewSeg() : null, 'Mark this file as viewed', false);
+    };
+    const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.browseView(view, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
     return {
       left: [...lead, this.head ?? null, this.viewSeg(f, view)],
       // quiet: the slide decides how the diff is drawn unless the reader picks a view; no link (the slide's ref is one)
-      right: f ? this.fileTrail(f, cb, view === 'diff' ? this.tourViewSeg() : null, 'Mark this file as viewed', false) : [],
+      right: trail(),
     };
   }
 
@@ -423,12 +436,19 @@ class CodePanel implements PanelInstance {
     ], { class: 'rr-seg rr-tour__view' });
   }
 
+  private browseView(current: string | undefined, view: 'diff' | 'base' | 'head') {
+    if (this.onBrowse && current === view) return;
+    this.onBrowse?.();
+    if (view === 'diff') this.setMode('diff');
+    else void this.openFile(this.pin!, view);
+  }
+
   private viewSeg(f: ChangedFile | undefined, view: string | undefined) {
     return seg(
       [
-        { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.setMode('diff') },
-        { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.openFile(this.pin!, 'base') },
-        { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.openFile(this.pin!, 'head') },
+        { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.browseView(view, 'diff') },
+        { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.browseView(view, 'base') },
+        { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.browseView(view, 'head') },
       ],
       { 'aria-label': 'View' },
     );
@@ -485,8 +505,8 @@ class CodePanel implements PanelInstance {
 
   /** A new version only when what the item draws changed, so a state update elsewhere doesn't repaint every diff. */
   private versionOf(path: string, ...extra: unknown[]) {
-    const s = this.app.services.threads;
-    const threads = codeThreadsOn(s.threads(), path).map((t) => [t, s.unreadAgent(t)]);
+    const s = this.readOnly ? null : this.app.services.threads;
+    const threads = s ? codeThreadsOn(s.threads(), path).map((t) => [t, s.unreadAgent(t)]) : [];
     const sig = JSON.stringify([this.loadToken, this.mode, this.app.prefs, this.app.state.viewed[path], threads, ...extra]);
     const was = this.versions.get(path);
     if (was?.sig === sig) return was.v;
@@ -562,7 +582,7 @@ class CodePanel implements PanelInstance {
       layout: { paddingTop: this.room.above, paddingBottom: (this.padBottom ?? 16) + this.room.below, gap: 0 },
       lineHoverHighlight: 'number',
       enableLineSelection: true,
-      enableGutterUtility: !fv?.rev,
+      enableGutterUtility: !this.readOnly && !fv?.rev,
       unsafeCSS: CODE_CSS + PULSE_CSS + focusCSS + this.litCSS,
       renderCustomHeader: (_: unknown, ctx: Ctx) => this.fileHeader(ctx.item.id),
       // Item callbacks run inside CodeView's render; its scroll and selection managers flush afterwards.
@@ -571,8 +591,8 @@ class CodePanel implements PanelInstance {
         const t = this.app.services.threads.thread(a.metadata.threadId);
         return t ? inlineThread(this.app, t) : undefined;
       },
-      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => !fv?.rev && (r ? this.onSelect(ctx.item.id, side(r)) : this.onDeselect(ctx.item.id)),
-      onGutterUtilityClick: (r: SelectedLineRange, ctx: Ctx) => !fv?.rev && this.onGutter(ctx.item.id, side(r)),
+      onLineSelected: (r: SelectedLineRange | null, ctx: Ctx) => !this.readOnly && !fv?.rev && (r ? this.onSelect(ctx.item.id, side(r)) : this.onDeselect(ctx.item.id)),
+      onGutterUtilityClick: (r: SelectedLineRange, ctx: Ctx) => !this.readOnly && !fv?.rev && this.onGutter(ctx.item.id, side(r)),
       loadDiffFiles: async (d: FileDiffMetadata) => {
         const { base, head } = this.app.range;
         const old = this.files.get(d.name)?.file.prevPath ?? d.name; // our file list knows renames GitHub's hunks don't say
@@ -583,7 +603,7 @@ class CodePanel implements PanelInstance {
   }
 
   private annotations(path: string): DiffLineAnnotation<Meta>[] {
-    if (!this.app.prefs.inlineThreads) return [];
+    if (this.readOnly || !this.app.prefs.inlineThreads) return [];
     return codeThreadsOn(this.app.services.threads.threads(), path)
       .filter(onLine)
       .map((t) => {
@@ -619,6 +639,7 @@ class CodePanel implements PanelInstance {
 
   // ------------------------------------------------------------ full file view
   private fileAnnotations(path: string, side: 'base' | 'head') {
+    if (this.readOnly) return [];
     return codeThreadsOn(this.app.services.threads.threads(), path)
       .filter((t) => t.anchor.rev === side && onLine(t))
       .map((t) => ({ lineNumber: t.anchor.end, metadata: { threadId: t.id } }));
@@ -633,7 +654,8 @@ class CodePanel implements PanelInstance {
     this.showEmpty();
     this.cv.setOptions(this.options());
     this.cv.setItems([]);
-    const text = await this.app.services.code.read(path, rev ?? this.app.services.code.revFor(side));
+    const sourcePath = !rev && side === 'base' ? this.app.files.find((f) => f.path === path)?.prevPath ?? path : path;
+    const text = await this.app.services.code.read(sourcePath, rev ?? this.app.services.code.revFor(side));
     if (this.fileView !== fv) return false;
     if (text === null) return (this.showEmpty(`${path} does not exist at ${rev ?? side}.`), false);
     fv.text = text;
@@ -1013,4 +1035,6 @@ function popoutButton(app: ReviewApp, f: ChangedFile, panelId: string) {
   return b;
 }
 
-definePanel({ id: 'code', title: 'Code', icon: 'code', create: (app, params, id) => new CodePanel(app, id, params) });
+export const createCodePanel = (app: ReviewApp, params: Record<string, unknown> & CodePanelOptions, id: string): PanelInstance => new CodePanel(app, id, params);
+
+definePanel({ id: 'code', title: 'Code', icon: 'code', create: createCodePanel });

@@ -74,6 +74,13 @@
   --rr-indent: 14px; /* one level of a tree: files, contents */
   --rr-doc-width: 760px;
   --rr-tour-width: 1600px; /* the walkthrough player at most: a wider screen leaves margins, not wider slides */
+  /* The portable walkthrough's deck, independent of the workbench's player and phone motion. */
+  --rr-export-radius: 16px;
+  --rr-export-display-size: 48px;
+  --rr-export-card-motion: 280ms;
+  --rr-export-fade-motion: 180ms;
+  --rr-export-drift-motion: 48s;
+  --rr-export-settle-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
   --rr-rail-width: 232px;
   /* the assistant (assistant.css): one look in its panel and on the loading screen, which only places it */
   --rr-assistant-text: var(--rr-text-md); /* what Claude says, and what you sent */

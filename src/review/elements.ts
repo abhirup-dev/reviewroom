@@ -17,10 +17,16 @@ import { codeOptions, range, renderPreview } from './previews';
 import { parseRef } from '../kernel/refs/refs.shared';
 
 let APP: ReviewApp | null = null;
+let diagramLinks: ((ref: string) => boolean) | undefined;
 const waiters: ((a: ReviewApp) => void)[] = [];
-export function provideApp(app: ReviewApp) {
+export function provideApp(app: ReviewApp, links?: (ref: string) => boolean) {
   APP = app;
-  app.onDispose(() => { if (APP === app) APP = null; });
+  diagramLinks = links;
+  app.onDispose(() => {
+    if (APP !== app) return;
+    APP = null;
+    diagramLinks = undefined;
+  });
   waiters.splice(0).forEach((w) => w(app));
 }
 const withApp = (fn: (a: ReviewApp) => void) => (APP ? fn(APP) : waiters.push(fn));
@@ -269,7 +275,7 @@ class RRMermaid extends HTMLElement {
       // where the presentation asks (a phone), the walkthrough's diagrams keep their layout, fit to the width, and zoom:
       // a phone-wide layout wraps every label
       const natural = max || !!this.closest('[data-rr-diagram-fit="width"] rr-review');
-      const mounted = await mountDiagram(diagram, source, () => { underlineLinks(diagram); this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })); }, natural, max);
+      const mounted = await mountDiagram(diagram, source, () => { underlineLinks(diagram); this.dispatchEvent(new Event('rr-mermaid:ready', { bubbles: true })); }, { natural, zoomable: max, allowLink: diagramLinks });
       if (generation !== this.generation || !this.isConnected) { mounted.destroy(); return; }
       this.mounted = mounted;
       diagram.setAttribute('aria-busy', 'false');

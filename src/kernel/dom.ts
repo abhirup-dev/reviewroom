@@ -88,6 +88,7 @@ export const icons = {
   wrap: P('M2.5 4h11M2.5 8h9a2 2 0 0 1 0 4H9M10.5 10.5 9 12l1.5 1.5M2.5 12H6'),
   expand: P('M8 2v4M6 4l2-2 2 2M8 14v-4M6 12l2 2 2-2M3 8h10'),
   arrowUp: P('M8 13V3M4 7l4-4 4 4'),
+  download: P('M8 2.5v8M4.5 7 8 10.5 11.5 7M3 11v2.5h10V11'),
   arrowDown: P('M8 3v10M4 9l4 4 4-4'),
   dots: '<circle cx="4" cy="8" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/><circle cx="12" cy="8" r="1.1" fill="currentColor"/>',
   play: P('M5 3.5v9l7.5-4.5z'),

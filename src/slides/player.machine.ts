@@ -25,8 +25,8 @@ export type Slot = { ref: string; code: CodeAt | null };
 export type PaneShown = { kind: 'refs'; slots: Slot[] } | { kind: 'empty' };
 
 /** `pending`: code chunks whose panel has not landed yet; `late`: landing timed out (what is on screen may still move) */
-type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean };
-type PaneEvent = { type: 'show'; want: PaneWant } | { type: 'clear' } | { type: 'landed' } | { type: 'rebuild' };
+type PaneCtx = { want: PaneWant | null; next: PaneShown | null; shown: PaneShown | null; pending: number; late: boolean; fresh: boolean };
+type PaneEvent = { type: 'show'; want: PaneWant; fresh?: boolean } | { type: 'clear' } | { type: 'landed' } | { type: 'rebuild' };
 
 /** Every code chunk's panel lands once per step (its reveal, or a glide's). */
 const toLand = (s: PaneShown | null) => (s?.kind === 'refs' ? s.slots.filter((x) => x.code).length : 0);
@@ -55,16 +55,16 @@ export const paneMachine = setup({
     unmount: () => {},
     /** what is on screen has landed (or landing gave up): drop what it replaced */
     settle: () => {},
-    want: assign({ want: ({ event }) => (event.type === 'show' ? event.want : null) }),
+    want: assign(({ event }) => event.type === 'show' ? { want: event.want, fresh: !!event.fresh } : {}),
     /** what is in `next` is now on screen; its chunks are to land */
     shown: assign(({ context }) => ({ shown: context.next, pending: toLand(context.next), late: false })),
     reshow: assign({ next: ({ context }) => context.shown }),
   },
-  guards: { sameLayout: ({ context }) => sameLayout(context.shown, context.next), wanted: ({ context }) => context.want !== null, landed: ({ context }) => context.pending <= 0 },
+  guards: { sameLayout: ({ context }) => !context.fresh && sameLayout(context.shown, context.next), wanted: ({ context }) => context.want !== null, landed: ({ context }) => context.pending <= 0 },
   delays: { land: 4000 },
 }).createMachine({
   id: 'pane',
-  context: ({ input }) => ({ want: input ?? null, next: null, shown: null, pending: 0, late: false }),
+  context: ({ input }) => ({ want: input ?? null, next: null, shown: null, pending: 0, late: false, fresh: false }),
   initial: 'starting',
   on: { clear: { target: '.idle', actions: ['unmount', assign({ shown: null, next: null, want: null })] } },
   states: {
@@ -114,6 +114,7 @@ type WalkthroughEvent =
   | { type: 'close' }
   /** show these links in the pane without changing the step (a link in the narration, a chip); none: the step's own */
   | { type: 'focus'; refs?: string[] }
+  | { type: 'reset-code' }
   /** a code panel of the pane's has its lines on screen (passed to the pane) */
   | { type: 'landed' };
 
@@ -146,7 +147,11 @@ export const walkthroughMachine = setup({
     // a reloaded document keeps the position where it still exists
     load: assign(({ context, event }) => (event.type !== 'load' ? {} : event.doc ? { doc: event.doc, ...at(event.doc, context.chapter, context.step) } : { doc: null })),
     /** point the pane at the current step, or at the links of a `focus` */
-    aim: sendTo('pane', ({ context, event }) => ({ type: 'show' as const, want: event.type === 'focus' && event.refs?.length ? { kind: 'refs' as const, refs: event.refs } : target(context) })),
+    aim: sendTo('pane', ({ context, event }) => ({
+      type: 'show' as const,
+      want: event.type === 'focus' && event.refs?.length ? { kind: 'refs' as const, refs: event.refs } : target(context),
+      fresh: event.type === 'reset-code',
+    })),
   },
 }).createMachine({
   id: 'walkthrough',
@@ -161,7 +166,7 @@ export const walkthroughMachine = setup({
       // a stopped actor runs no exit actions: have the pane dispose its views while it still can
       exit: sendTo('pane', { type: 'clear' }),
       initial: 'playing',
-      on: { ...move, load: [{ guard: 'docless', target: 'closed', actions: 'load' }, { actions: ['load', 'aim'] }], focus: { actions: 'aim' }, landed: { actions: sendTo('pane', { type: 'landed' }) }, close: 'closed' },
+      on: { ...move, load: [{ guard: 'docless', target: 'closed', actions: 'load' }, { actions: ['load', 'aim'] }], focus: { actions: 'aim' }, 'reset-code': { actions: 'aim' }, landed: { actions: sendTo('pane', { type: 'landed' }) }, close: 'closed' },
       states: {
         playing: { on: { open: { actions: ['open', 'aim'] }, pause: 'paused' } },
         paused: { on: { open: { target: 'playing', actions: ['open', 'aim'] }, resume: 'playing' } },

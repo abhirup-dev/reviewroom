@@ -13,3 +13,8 @@ A report profile's sections file (`skills/reviewroom/references/profiles/<name>/
 Everything else in the review folder belongs to reviewroom: [review state](review-state.md).
 The agent reports generation progress through the CLI (`reviewroom progress <review> read` once it has read the diff,
 then `slide-lint` and `check`), never by writing it.
+
+Download in the live desktop walkthrough player or run `reviewroom export <review>` to save an offline HTML file
+with the player, walkthrough and full source of the files it shows. The default filename is the slugged
+`<review-id>-<title>.html`, capped at 100 characters. The CLI writes to the current directory unless given
+`--out <path>`, which uses the supplied path as written.

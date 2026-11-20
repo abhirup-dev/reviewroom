@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import zlib from 'node:zlib';
 import { readFileSync, readdirSync, realpathSync, writeFileSync, mkdirSync, copyFileSync, rmSync, chmodSync, watch } from 'node:fs';
 import { isPhone } from './features-imports';
+import { stubShiki } from './shiki';
 
 const root = new URL('..', import.meta.url).pathname;
 // RR_DIST: build somewhere other than dist/ (e2e/build.test.ts, so it never wipes the dist/ parallel tests run)
@@ -137,6 +138,44 @@ export function clientBuild({ css, plugins = [], ...opts }: { css: string; plugi
   });
 }
 
+async function buildStandalone() {
+  const languages = [
+    'typescript', 'javascript', 'tsx', 'jsx', 'go', 'python', 'kotlin', 'java', 'swift', 'rust',
+    'sql', 'yaml', 'json', 'shellscript', 'bash', 'css', 'html', 'markdown', 'diff', 'proto', 'protobuf',
+  ];
+  const result = await Bun.build({
+    entrypoints: [at('src/standalone.ts')],
+    format: 'esm',
+    target: 'browser',
+    minify: true,
+    splitting: false,
+    metafile: true,
+    plugins: [stubShiki(languages)],
+  });
+  if (!result.success) throw new AggregateError(result.logs, 'standalone build failed');
+  const outputs = Object.values(result.metafile!.outputs);
+  const forbidden = /(?:^|\/)(?:src\/(?:threads|assistant|hub|kernel\/layouts)\/|src\/(?:presentation|phone|turned)\.ts$|node_modules\/(?:dockview[^/]*|@codemirror)\/)/;
+  const leaks = outputs.flatMap((o) => Object.keys(o.inputs).filter((file) => forbidden.test(file)));
+  if (leaks.length) fail(`standalone loads ${[...new Set(leaks)].join(', ')}`);
+  if (outputs.length !== 1 || outputs[0].imports.length) fail('standalone must be a single module with no imports');
+  const js = (await result.outputs[0].text()).replace(/<\/script/gi, '<\\/script');
+  const inlineFonts = fontFaces((pkg, file) => `data:font/woff2;base64,${readFileSync(fontFile(pkg, file)).toString('base64')}`);
+  const css = sheets(styles.map((group) => group.filter((file) => !/(?:src\/(?:threads|assistant)\/|(?:\.phone|\/phone|\/dockview)\.css$)/.test(file)))) + sheet('src/slides/styles/slides.standalone.css');
+  // The CLI replaces these two markers in one pass, so marker text in the walkthrough stays literal.
+  const shell = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'">
+<title><!--RR_TITLE--></title>
+<style>${inlineFonts}
+${css}</style></head>
+<body><rr-app class="rr-root"></rr-app>
+<script type="application/json" id="rr-bundle"><!--RR_BUNDLE--></script>
+<script type="module">${js}</script></body></html>`;
+  writeFileSync(at('dist/standalone.html'), shell);
+  console.log(`standalone shell: ${Buffer.byteLength(js)} bytes JS, ${Buffer.byteLength(css)} CSS, ${Buffer.byteLength(inlineFonts)} inline fonts`);
+}
+
 async function build() {
   const t = performance.now();
   rmSync(at('dist'), { recursive: true, force: true });
@@ -184,6 +223,7 @@ async function build() {
   // a module's URL is its chunk's: anything resolved against it (sw.js, build-info.json, fonts) belongs in the entry
   leaks('import.meta.url in a shared chunk (pass the entry\'s URL in)', Object.keys(meta.outputs).filter((o) => o.startsWith('./chunks/') && o.endsWith('.js') && readFileSync(at(`dist/${o.slice(2)}`), 'utf8').includes('import.meta.url')));
   leaks('CodeMirror at boot', inputs('./reviewroom.js', desktop, phone, turned).filter((i) => i.includes('node_modules/@codemirror')));
+  await buildStandalone();
   await buildWorker(staticImports(meta, './reviewroom.js', desktop, phone, turned, editor));
   await precompress();
   console.log(`built dist/ in ${Math.round(performance.now() - t)}ms`);
@@ -219,7 +259,7 @@ function staticImports(meta: NonNullable<Bun.BuildOutput['metafile']>, ...entrie
  * (~900, mostly syntax grammars) and emoji.json (~0.4MB, only the emoji picker reads it) are cached at runtime.
  */
 async function buildWorker(shellChunks: Set<string>) {
-  const skip = /^(cli\/|sw\.js$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.(map|br)$/;
+  const skip = /^(cli\/|sw\.js$|standalone\.html$|build-info\.json$|emoji\.json$|manifest\.webmanifest$)|\.(map|br)$/;
   const files = readdirSync(at('dist'), { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile())
     .map((e) => `${e.parentPath}/${e.name}`.slice(at('dist/').length))

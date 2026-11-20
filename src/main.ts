@@ -39,7 +39,7 @@ import { errorText } from './kernel/errors.shared';
 import { mountHoverCards, mountPalette, mountSelectionRelease } from './review/overlays';
 import { mountToasts } from './kernel/toasts';
 import { mountTooltips, tip } from './kernel/tooltip';
-import { mountWalkthrough, renderWalkthroughPreview } from './slides/player';
+import { codeAt, mountWalkthrough, renderWalkthroughPreview } from './slides/player';
 import { renderPreview, registerPreviewExtensions } from './review/previews';
 import { provideFocusCode } from './review/focus';
 import { openInNewPanel } from './review/code';
@@ -223,7 +223,17 @@ export async function boot(root: HTMLElement | null = document.querySelector('rr
   mountHoverCards(app);
   mountThreadPopup(app);
   mountGeneration(app); // first: the headers, the player and the report read where it stands
-  const tour = mountWalkthrough(app, { phoneForm: ui.player });
+  const tour = mountWalkthrough(app, {
+    formFactory: ui.player,
+    resolveCode: (ref) => codeAt(app, ref),
+    holdCommands: (playing) => { app.commands.held = playing; },
+    openLink: (ref) => void app.open(ref),
+    threads: {
+      compose: (anchor) => app.compose(anchor),
+      onSlide: (chapter, step) => app.state.threads.flatMap((t) => t.status === 'open' && t.anchor.kind === 'tour' && t.anchor.chapter === chapter && t.anchor.step === step ? [t.id] : []),
+      open: (id) => app.bus.emit('open-thread', { id }),
+    },
+  });
   ui.mountSurface(app, dockHost, { lastLayout });
   watchShell(app);
   registerCommands(app);

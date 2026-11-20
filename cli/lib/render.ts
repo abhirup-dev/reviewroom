@@ -9,7 +9,12 @@ import { StepAudit, type SlideAuditOptions } from '../../src/slides/model.shared
 
 export type Viewport = { width: number; height: number };
 /** Static headless renders skip CSS motion (Pele's SVG animations and the player's fades), never layout readiness. */
-type RenderOptions = { animations?: boolean; rasterHeight?: number };
+type RenderOptions = {
+  animations?: boolean;
+  rasterHeight?: number;
+  readySelector?: string;
+  onRequest?: (url: string) => void;
+};
 type Clip = { x: number; y: number; width: number; height: number };
 
 /** A cap affects pixels only; CSS viewport dimensions stay fixed. Never upscale a short capture. */
@@ -94,10 +99,21 @@ export async function openPage(url: string, vp: Viewport, scale = 1, options: Re
   }
   try {
     // uncaught errors reach the console too (Chrome; WebKit reports console.error only)
-    if (engine === 'chrome') await within(view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH }), 10_000, 'preparing the page');
+    if (engine === 'chrome') {
+      await within(view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH }), 10_000, 'preparing the page');
+      if (options.onRequest) {
+        await within(view.cdp('Network.enable'), 10_000, 'observing requests');
+        view.addEventListener('Network.requestWillBeSent', (event) => {
+          // Bun's DOM-free typings resolve MessageEvent to the constructor here.
+          const { request } = (event as unknown as { data: { request: { url: string } } }).data;
+          options.onRequest!(request.url);
+        });
+      }
+    }
     // load waits for every image and script: a stalled one must not stall us; the app may be up before it
     await Promise.race([view.navigate(url), new Promise((r) => setTimeout(r, 20_000).unref())]); // unref: the timer must not keep the process up
-    const started = await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => window.rr?.auditWalkthrough ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`), 25_000, 'waiting for the page');
+    const ready = options.readySelector ? `document.querySelector(${JSON.stringify(options.readySelector)})` : 'window.rr?.auditWalkthrough';
+    const started = await within(view.evaluate(`new Promise((ok) => { const t0 = Date.now(); const t = () => ${ready} ? ok(true) : Date.now() - t0 > 20000 ? ok(false) : setTimeout(t, 50); t(); })`), 25_000, 'waiting for the page');
     if (!started) fail(`the review page did not start in 20 s${errors.length ? `; page errors (a script in ${REPORT_FILE}?):\n  ${errors.join('\n  ')}` : ''}`);
     // Applied once, before any slide audit. CSS also covers SVGs inserted later by Pele's lazy renderer.
     if (options.animations === false) await within(view.evaluate(NO_MOTION), 10_000, 'disabling render animations');

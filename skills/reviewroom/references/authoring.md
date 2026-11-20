@@ -224,6 +224,11 @@ Use [Validation and audit](validation-and-audit.md) for checks, iteration and sc
 - `reviewroom publish-slides <review>` posts it to the PR as a ```` ```reviewroom-walkthrough ```` block in a
   comment (updated in place on the next publish); `reviewroom pr <n>` pulls it on another machine.
 
+- Download in the live desktop player or run `reviewroom export <review>` for an offline walkthrough with the code it shows.
+  Both default to a filename made from the slugged review ID and walkthrough title. The CLI accepts `--out <path>`.
+  Code links and slide links work within the file. Report links appear as text. Download allows stale links by
+  default. Pass `--allow-stale` for the same behavior from the CLI.
+
 ## Typography and colour
 
 The tool sets both; don't load fonts or hard-code colours. Headings, lists, tables, code and callouts

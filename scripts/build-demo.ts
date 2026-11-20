@@ -5,7 +5,7 @@ import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.
 //   bun scripts/build-demo.ts <repo> <base> <head> <example-dir> <out.html> [--fragment]
 //
 // --fragment omits <!doctype>/<html>/<head>/<body> (for hosts that wrap the page themselves).
-import type { BunPlugin } from 'bun';
+import { stubShiki } from './shiki.ts';
 import { clientBuild, clientCss, fontFile } from './build.ts';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -16,18 +16,7 @@ const fragment = process.argv.includes('--fragment');
 if (!out) throw new Error('usage: build-demo.ts <repo> <base> <head> <example-dir> <out.html> [--fragment]');
 
 // 1) bundle without code-splitting, keeping only a handful of grammars
-const KEEP = new Set(['go', 'sql', 'proto', 'protobuf', 'typescript', 'javascript', 'tsx', 'json', 'yaml', 'python', 'markdown', 'shellscript', 'bash', 'html', 'css', 'diff']);
-const stub: BunPlugin = {
-  name: 'stub-shiki',
-  setup(b) {
-    b.onResolve({ filter: /^@shikijs\/(langs|themes)\/[\w-]+$/ }, (a) => {
-      const [, kind, name] = a.path.match(/^@shikijs\/(langs|themes)\/([\w-]+)$/)!;
-      if (kind === 'langs' && KEEP.has(name)) return undefined;
-      return { path: a.path, namespace: 'stub' };
-    });
-    b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: 'export default []', loader: 'js' }));
-  },
-};
+const stub = stubShiki(['go', 'sql', 'proto', 'protobuf', 'typescript', 'javascript', 'tsx', 'json', 'yaml', 'python', 'markdown', 'shellscript', 'bash', 'html', 'css', 'diff']);
 // the page has no dist/ next to it, so the fonts travel inline
 const css = clientCss((pkg, file) => `data:font/woff2;base64,${fs.readFileSync(fontFile(pkg, file)).toString('base64')}`);
 const res = await clientBuild({ css, plugins: [stub] });
