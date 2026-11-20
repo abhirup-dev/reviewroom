@@ -18,6 +18,7 @@ const cases: Record<string, { is: string; code: string[] }> = {
   'bucket/s2': { is: 'a two-for-two replacement stays unified', code: ['unified clip whole centred'] },
   'enforce/s1': { is: 'lines inside one change block: the rule marks them', code: ['unified clip whole centred'] },
   'enforce/s2': { is: 'two files stacked, each whole', code: ['unified clip whole centred', 'unified clip whole centred'] },
+  'enforce/s3': { is: 'four files stacked, folded to their hunks (a tiny file has none to fold)', code: ['unified clip whole centred', 'split clip folded centred', 'unified clip folded centred', 'unified clip folded centred'] },
   'types/s1': { is: 'a heavy block in the middle of a large file', code: ['unified clip whole centred'] },
   'types/s2': { is: "lines at a long file's top", code: ['unified clip whole centred'] },
   'disk/s1': { is: 'six lines removed for one: split, clipped', code: ['split clip whole centred'] },

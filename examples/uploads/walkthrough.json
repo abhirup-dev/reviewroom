@@ -53,6 +53,16 @@
             "rr:code/internal/upload/handler.go#L22",
             "rr:code/client/upload.go#L17-23"
           ]
+        },
+        {
+          "id": "s3",
+          "text": "<p>Four smaller edits ride along: the plans’ rates, the disk store’s path, the error’s message and the client’s retry.</p>",
+          "ref": [
+            "rr:code/config/limits.json#L3",
+            "rr:code/internal/upload/disk.go#L24",
+            "rr:code/internal/upload/errors.go#L6",
+            "rr:code/client/upload.go#L20"
+          ]
         }
       ]
     },
