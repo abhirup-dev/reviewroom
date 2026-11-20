@@ -359,9 +359,10 @@ so a wide screen keeps a laptop's proportions. The code is centred, whatever the
 slide's change (its lines and the change blocks they touch, or its lines alone when that is taller than the pane) sits
 in the middle of the pane, near a file's ends too (blank room above its first line or below its last). The boundary
 between the two sides drags; only the pointer says so (no line, no colour). One file
-is shown whole, nothing folded; several share the pane by the height of what each shows (never less than its slide's
-lines), folded to their hunks, each centred and scrolling on its own; the line between two drags to share the height
-differently (held while the slides show the same files). Each demo slide is one of these cases, named and
+is shown whole, nothing folded, and so are up to three stacked ones, sharing the pane by their slide's lines; more than
+three fold to their hunks and share it by the height of what each shows (never less than its slide's lines). Each is
+centred and scrolls on its own; the line between two drags like the boundary (held while the slides show the same
+files). Each demo slide is one of these cases, named and
 checked in `testing/slides/layout.test.ts`.
 
 Its diff is quiet (`diffs.css`, scoped to `.rr-tour`; the rest of the review keeps its look): no hairline beside the line
