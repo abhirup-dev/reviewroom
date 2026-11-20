@@ -163,8 +163,16 @@
 .rr-tour__chunk + .rr-tour__chunk .rr-tour__view {
   display: none;
 }
+.rr-tour[data-form='desktop'] .rr-tour__chapter[data-long-title] {
+  font-size: var(--rr-text-xl);
+}
 .rr-tour[data-form='desktop'] .rr-tour__chapter span {
   white-space: normal;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.rr-tour__reset[hidden] {
+  display: none;
 }
 .rr-tour[data-form='desktop'] .rr-tour__top > .rr-icon-btn:last-child {
   display: none;

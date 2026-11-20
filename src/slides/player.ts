@@ -41,6 +41,8 @@ export type PlayerForm = {
   codeLayout?(): Pick<CodePanelOptions, 'padBottom' | 'cover'>;
   /** show a link's code its own way (a phone: one chunk at a time, nav.machine.ts); else the pane shows just it */
   focus?(ref: string): void;
+  /** Put the presentation's file selection back at the start. */
+  resetCode?(): void;
 };
 
 /** The skeleton shared by the player forms. */
@@ -55,6 +57,8 @@ export type PlayerParts = {
   pane: HTMLElement;
   /** where a link lands (codeAt) */
   codeAt: (ref: string) => Promise<CodeAt | null>;
+  browseCode: (panel: string, code: CodeAt, original: CodeAt | null) => void;
+  reset: HTMLButtonElement;
   bottom: HTMLElement;
   progress: HTMLElement;
   lead: HTMLElement;
@@ -113,6 +117,8 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   // ------------------------------------------------------------ the code pane (paneMachine's actions)
   const pane = h('div', { class: 'rr-tour__pane' });
   const split = h('div', { class: 'rr-tour__body' });
+  // Code shown through the file band's controls or a jump within a phone's current chunk.
+  const browsed = new Set<string>();
   /** per chunk on screen: its code panel (null: a preview) and its header (stacked only) */
   let views: { panel: PanelInstance | null; id: string; head: HTMLElement | null; el: HTMLElement }[] = [];
   const dispose = () => {
@@ -201,7 +207,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
     const fit = (blocks: ChangeBlock[], width: number) => fitDiff(blocks, width, view);
     const plan = planned.get(slot.ref);
     const ahead = plan && { touched: plan.touched, fitted: fit(plan.touched, pane.clientWidth) };
-    const panel = slot.code ? createCodePanel(app, { ...slot.code, pin: slot.code.path, embedded: true, head, fit, planned: ahead, centre: true, whole: n <= FOLD, ...form.codeLayout?.(), ...opts.codeOptions }, id) : null;
+    const panel = slot.code ? createCodePanel(app, { ...slot.code, pin: slot.code.path, embedded: true, head, fit, planned: ahead, centre: true, whole: n <= FOLD, ...form.codeLayout?.(), ...opts.codeOptions, onBrowse: () => markBrowsed(id, true) }, id) : null;
     const body = panel?.element ?? h('div', { class: 'rr-tour__preview' });
     if (!panel) void renderPreview(app, slot.ref).then((el) => body.replaceChildren(el));
     const el = h('div', { class: 'rr-tour__chunk' + (many ? ' is-stacked' : ''), 'data-panel': id }, panel ? null : head, body);
@@ -211,6 +217,8 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   };
   let shapedAs = '';
   const mount = (s: PaneShown) => {
+    browsed.clear();
+    paintReset();
     // the narration changed width since the last code (a new chapter's shape or code width): the code leaving would
     // reflow and re-centre under it, so it goes at once and the new code shows once it has landed (a cut)
     const width = `${player.dataset.shape} ${player.style.getPropertyValue('--_code')}`;
@@ -247,6 +255,8 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
       // same files: each view's highlight moves to its new lines
       glide: ({ context }) => {
         if (context.next!.kind !== 'refs') return;
+        browsed.clear();
+        paintReset();
         const slots = context.next!.slots;
         // the new lines' shares first: every chunk lands in its final size
         if (slots.length > 1 && !dragged) slots.forEach((s, i) => views[i] && shareOf(views[i].el, s, slots.length));
@@ -257,6 +267,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
       },
       settle: dropOld,
       unmount: () => {
+        browsed.clear();
         if (old) drop(old);
         old = null;
         dispose();
@@ -272,6 +283,10 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   chapterPrev.classList.add('rr-tour__flip');
   const chapterBtn = h('button', { class: 'rr-tour__chapter', onclick: () => form.contents() });
   const position = h('span', { class: 'rr-tour__pos' });
+  const resetTitle = 'Restore this slide’s code view';
+  const reset = h('button', {
+    class: 'rr-btn rr-btn--small rr-tour__reset', hidden: true, title: resetTitle, 'aria-label': resetTitle, onclick: () => resetCode(),
+  }, icon('undo', 14), 'Reset code');
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
   // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back (a phone folds it
@@ -353,7 +368,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, h('span', { class: 'rr-toolbar__spacer' }), close),
+    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, reset, h('span', { class: 'rr-toolbar__spacer' }), close),
     (split.append(left, right), split),
     bottom,
   );
@@ -369,13 +384,36 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
   // The phone player goes by the device, either way up, under either shell: composition hands it in
   const form: PlayerForm = (opts.formFactory ?? desktopPlayer)({
-    app, actor, root, player, split, left, right, pane, codeAt: resolveCode,
+    app, actor, root, player, split, left, right, pane, codeAt: resolveCode, browseCode, reset,
     bottom, progress, lead, leadToggle, prev, next, comment: comment ?? null, close, chapterBtn,
   });
 
   const ctx = () => actor.getSnapshot().context;
   const go = (d: number) => actor.send({ type: 'goto', chapter: ctx().chapter + d, step: 0 });
   const focus = (ref: string) => (form.focus ? form.focus(ref) : actor.send({ type: 'focus', refs: [ref] }));
+  function resetCode() {
+    if (document.activeElement === reset) player.focus({ preventScroll: true });
+    form.resetCode?.();
+    actor.send({ type: 'reset-code' });
+  }
+  function paintReset() {
+    const snapshot = actor.getSnapshot();
+    const want = snapshot.children.pane?.getSnapshot().context.want;
+    const own = snapshot.context.doc && target(snapshot.context);
+    const otherRefs = want?.kind === 'refs' && (own?.kind !== 'refs' ||
+      want.refs.length !== own.refs.length || want.refs.some((ref, i) => ref !== own.refs[i]));
+    reset.hidden = !snapshot.matches('open') || !(otherRefs || browsed.size);
+  }
+  function markBrowsed(panel: string, changed: boolean) {
+    if (!views.some((v) => v.id === panel)) return;
+    if (changed) browsed.add(panel);
+    else browsed.delete(panel);
+    paintReset();
+  }
+  function browseCode(panel: string, code: CodeAt, original: CodeAt | null) {
+    markBrowsed(panel, code.start !== original?.start || (code.end ?? code.start) !== (original?.end ?? original?.start));
+    app.bus.emit('reveal-code', { ...code, panel });
+  }
 
   // links in the narration: code goes to the pane (the step stays); anything else pauses and opens in the workbench
   left.addEventListener(
@@ -472,6 +510,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
     } else if (player.contains(document.activeElement)) back?.focus();
   };
   actor.subscribe((s) => {
+    paintReset();
     const mode = s.matches({ open: 'paused' }) ? 'paused' : s.matches('open') ? 'playing' : 'closed';
     const was = root.dataset.mode;
     root.dataset.mode = mode; // first: the player can't take focus while hidden
@@ -516,6 +555,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
     const ch = cur.chapter;
     if (chapter !== prior.chapter || d !== prior.doc) {
       chapterBtn.replaceChildren(h('span', null, ch.title), icon('chevronDown', 12));
+      chapterBtn.toggleAttribute('data-long-title', ch.title.length >= 75);
       prose(lead, `lead/${chapter}`, ch.lead ?? '');
       player.dataset.shape = shapeOf(ch);
       void planAll().then(() => current(ctx()).chapter === ch && paintCodeWidth(ch));
@@ -530,7 +570,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
     const refs = stepRefs(cur.step);
     chips.replaceChildren(
       ...refs.map((ref) => h('button', { class: 'rr-tour__ref', title: refs.length > 1 ? 'Show only this in the code pane' : 'Show this in the code pane', onclick: () => actor.send({ type: 'focus', refs: [ref] }) }, refIcon(parseRef(ref)!), h('span', null, app.label(ref)))),
-      ...(refs.length > 1 ? [h('button', { class: 'rr-tour__ref', title: 'Show all of this slide\'s code again', onclick: () => actor.send({ type: 'focus' }) }, icon('split', 12), h('span', null, `All ${refs.length}`))] : []),
+      ...(refs.length > 1 ? [h('button', { class: 'rr-tour__ref', title: 'Show all of this slide\'s code again', onclick: resetCode }, icon('split', 12), h('span', null, `All ${refs.length}`))] : []),
     );
     prev.toggleAttribute('disabled', cur.isFirst);
     form.paintNav(cur);

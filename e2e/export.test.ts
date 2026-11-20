@@ -42,6 +42,9 @@ test('the exported demo plays from disk with bundled code and zero network reque
     const press = (key: string) => page.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key: ${JSON.stringify(key)}, bubbles: true}))`);
     const code = `${playing} .rr-tour__layer:not(.is-leaving) diffs-container`;
     const active = '.rr-export-tick[aria-current]';
+    const reset = '.rr-tour__reset';
+    const skip = 'button[aria-label="Skip chapter dividers"]';
+    const next = '.rr-export-footer button[title="Next page"]';
     const hash = () => page.evaluate('location.hash');
     expect(await hash()).toBe('#cover');
     expect(await evalAt('#rr-export-title', 'textContent')).toBe(tour.title);
@@ -52,6 +55,7 @@ test('the exported demo plays from disk with bundled code and zero network reque
     )`)).toBe(true);
     await press('?');
     expect(await evalAt<boolean>('.rr-export-help', 'open')).toBe(true);
+    expect(await evalAt('.rr-export-help p', 'textContent')).toContain('Skip chapter dividers');
     await press('ArrowRight');
     expect(await hash()).toBe('#cover');
     await click('.rr-export-help button');
@@ -59,6 +63,9 @@ test('the exported demo plays from disk with bundled code and zero network reque
     await press('ArrowRight');
     expect(await hash()).toBe('#why');
     expect(await evalAt('#rr-export-title', 'textContent')).toBe(tour.chapters[0].title);
+    expect(await evalAt('.rr-export-chapter-number', 'textContent')).toBe('01');
+    expect(await page.evaluate('document.querySelector(".rr-export-solo").children.length')).toBe(1);
+    expect(await page.evaluate('!!document.querySelector(".rr-export-solo rr-mermaid, .rr-export-solo .rr-export-intro")')).toBe(false);
     expect(await page.evaluate(`document.querySelectorAll('${active}').length`)).toBe(0);
     await press('ArrowLeft');
     expect(await hash()).toBe('#cover');
@@ -81,13 +88,24 @@ test('the exported demo plays from disk with bundled code and zero network reque
 
     const renderedCode = (kind: string) =>
       page.evaluate<boolean>(`!!document.querySelector(${JSON.stringify(code)})?.shadowRoot?.querySelector(${JSON.stringify(kind)})`);
-    await until(() => renderedCode('[data-selected-line]'));
+    const selected = () => page.evaluate<string[]>(`[...document.querySelector(${JSON.stringify(code)})?.shadowRoot?.querySelectorAll('[data-line][data-selected-line]') ?? []].map((line) => line.getAttribute('data-line'))`);
+    const initialLines = await until(async () => {
+      const lines = await selected();
+      return lines.length ? lines : undefined;
+    });
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(true);
     await click('.rr-tour__right button[title="Whole file before the change"]');
     await until(() => renderedCode('[data-file]'));
     await click('.rr-tour__right button[title="Whole file after the change"]');
     await until(() => renderedCode('[data-file]'));
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(false);
     await click('.rr-tour__right button[title="Diff of this file"]');
     await until(() => renderedCode('[data-diff-type]'));
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(false);
+    await click(reset);
+    await until(() => renderedCode('[data-diff-type] [data-selected-line]'));
+    expect(await selected()).toEqual(initialLines);
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(true);
     await click('.rr-tour__view button[title^="One column"]');
     await until(() => renderedCode('[data-diff-type="single"]'));
     await press('ArrowRight');
@@ -97,7 +115,11 @@ test('the exported demo plays from disk with bundled code and zero network reque
     expect(await evalAt('.rr-tour__lead .pele-node.is-focus .pele-label', 'textContent')).toBe('Account');
     await page.evaluate("document.querySelector('.rr-tour__lead a[href*=handler]').dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))");
     await until(async () => (await evalAt(filePath, 'textContent'))?.includes('handler.go'));
-    expect(await page.evaluate('location.hash')).toBe('#why/s2');
+    expect(await hash()).toBe('#why/s2');
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(false);
+    await click(reset);
+    await until(async () => (await evalAt(filePath, 'textContent'))?.includes('account.go'));
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(true);
     await press('Escape');
     expect(await evalAt(playing, 'dataset.mode')).toBe('playing');
     await press('ArrowRight');
@@ -112,8 +134,48 @@ test('the exported demo plays from disk with bundled code and zero network reque
     expect(await page.evaluate(`document.querySelectorAll(${JSON.stringify(filePath)}).length`)).toBe(3);
     const chips = await page.evaluate<string[]>("Array.from(document.querySelectorAll('.rr-tour__refs button'), (chip) => chip.textContent)");
     expect(chips).toEqual(['limits.json:1–5', 'limiter.go', 'limits.json:1 (before)', 'All 3']);
+    const chunkCount = () => page.evaluate<number>(`document.querySelectorAll(${JSON.stringify(filePath)}).length`);
+    await click('.rr-tour__refs button');
+    await until(async () => (await chunkCount()) === 1);
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(false);
+    await click(reset);
+    await until(async () => (await chunkCount()) === 3);
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(true);
+
+    await page.evaluate('location.hash = "#types"');
+    await until(() => evalAt('#rr-export-title', 'dataset.size'));
+    expect(await evalAt('#rr-export-title', 'textContent')).toBe(tour.chapters[3].title);
+    expect(await evalAt('.rr-export-chapter-number', 'textContent')).toBe('04');
+    expect(await evalAt(skip, 'getAttribute("aria-pressed")')).toBe('false');
+    await click(skip);
+    expect(await hash()).toBe('#types/s1');
+    expect(await evalAt(skip, 'getAttribute("aria-pressed")')).toBe('true');
+    expect(await evalAt(active, 'dataset.chapter')).toBe('types');
+    expect(await evalAt('.rr-export-position', 'textContent')).toBe('Slide 1 of 2');
+    await press('ArrowLeft');
+    expect(await hash()).toBe('#enforce/s3');
+    await click(next);
+    expect(await hash()).toBe('#types/s1');
+    await page.evaluate('location.hash = "#types"');
+    await until(async () => (await hash()) === '#types/s1');
+    await page.evaluate('location.hash = "#cover"');
+    await until(async () => (await evalAt('.rr-export-position', 'textContent')) === 'Cover');
+    await click('.rr-export-chapters button');
+    expect(await hash()).toBe('#why/s1');
+    expect(await evalAt('.rr-export-tick.is-done', 'dataset.step')).toBeUndefined();
     expect(await page.evaluate("performance.getEntriesByType('resource').filter((e) => /^https?:/.test(e.name)).length")).toBe(0);
     expect(page.errors()).toEqual([]);
+    const canStore = await page.evaluate('(() => { try { return !!localStorage; } catch { return false; } })()');
+    if (canStore) {
+      await page.evaluate('(() => { document.documentElement.dataset.reloading = "yes"; setTimeout(() => location.reload(), 0); return true; })()');
+      await until(() => page.evaluate('!document.documentElement.dataset.reloading && !!document.querySelector(".rr-export-stage[data-page]")'));
+      expect(await evalAt(skip, 'getAttribute("aria-pressed")')).toBe('true');
+    }
+    await click(skip);
+    expect(await evalAt(skip, 'getAttribute("aria-pressed")')).toBe('false');
+    await page.evaluate('location.hash = "#why"');
+    await until(() => evalAt('#rr-export-title', 'textContent'));
+    expect(await hash()).toBe('#why');
   }, 1, { ...opts, colorScheme: 'light' });
 
   await withPage(url + '#risks/s2', { width: 390, height: 844 }, async (page) => {

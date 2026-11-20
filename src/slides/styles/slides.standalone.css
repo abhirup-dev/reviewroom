@@ -83,6 +83,12 @@
   align-items: center;
   gap: var(--rr-space-8);
 }
+.rr-export-tools .rr-export-skip {
+  width: auto;
+  padding-inline: var(--rr-space-8);
+  font: 500 var(--rr-text-sm) var(--rr-font);
+  white-space: nowrap;
+}
 .rr-export-repo {
   min-width: 0;
   color: var(--rr-ink-2);
@@ -176,7 +182,14 @@
 .rr-export-card.is-in .rr-export-solo > * {
   animation: rr-export-fade var(--rr-export-fade-motion) ease-out;
 }
+.rr-export-stage[data-page='divider'] .rr-export-solo {
+  grid-template-columns: minmax(0, var(--rr-doc-width));
+  justify-content: center;
+  align-content: safe center;
+  text-align: center;
+}
 .rr-export-story {
+  container-type: inline-size;
   display: grid;
   gap: var(--rr-space-16);
   min-width: 0;
@@ -187,6 +200,17 @@
   letter-spacing: var(--rr-tracking-tight);
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+.rr-export-solo h1[data-size='medium'] {
+  font-size: var(--rr-text-3xl);
+}
+.rr-export-solo h1[data-size='small'] {
+  font-size: var(--rr-text-2xl);
+}
+@container (min-width: 42rem) {
+  .rr-export-solo h1[data-size='small'] {
+    font-size: var(--rr-text-3xl);
+  }
 }
 .rr-export-solo h1:focus {
   outline: none;
@@ -247,9 +271,6 @@
 .rr-export-intro .rr-mermaid__diagram svg {
   display: block;
   margin-inline: auto;
-}
-.rr-export-stage[data-page='divider'] .rr-export-intro {
-  font-size: var(--rr-text-xl);
 }
 .rr-export-chapter-number {
   color: var(--rr-accent);
@@ -425,6 +446,12 @@
   .rr-export-solo h1,
   .rr-export-chapter-number {
     font-size: var(--rr-text-3xl);
+  }
+  .rr-export-solo h1[data-size='medium'] {
+    font-size: var(--rr-text-2xl);
+  }
+  .rr-export-solo h1[data-size='small'] {
+    font-size: var(--rr-text-xl);
   }
 }
 @media (prefers-reduced-motion: reduce) {

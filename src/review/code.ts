@@ -123,6 +123,8 @@ export type Fit = { diffStyle: 'split' | 'unified'; wrap: boolean };
 export type CodePanelOptions = {
   /** Keep navigation and highlights, without selection actions or review state controls. */
   readOnly?: boolean;
+  /** A reader used the file band's controls to browse away from its reveal. */
+  onBrowse?: () => void;
   /** Pixels of scroll room at the foot (default 16). */
   padBottom?: number;
   /** What covers the pane's foot (a phone's slide card): its height, and a way to hear that it changed. Lines land
@@ -221,6 +223,7 @@ class CodePanel implements PanelInstance {
   /** The walkthrough's code pane: revealed lines stay highlighted, and it never moves the workbench's active file. */
   private embedded: boolean;
   private readOnly: boolean;
+  private onBrowse?: () => void;
   private padBottom?: number;
   /** Centred code: blank room above and below it, so its focus can reach the pane's middle near a file's ends. */
   private room = { above: 0, below: 0 };
@@ -247,6 +250,7 @@ class CodePanel implements PanelInstance {
   private frame = () => new Promise((r) => requestAnimationFrame(r));
 
   constructor(private app: ReviewApp, private panelId: string, params: Record<string, unknown> & CodePanelOptions) {
+    this.onBrowse = params.onBrowse;
     this.isPrimary = panelId === 'code';
     this.pin = (params.pin as string) || undefined;
     this.embedded = !!params.embedded;
@@ -414,7 +418,7 @@ class CodePanel implements PanelInstance {
       cb.addEventListener('change', () => this.app.setViewed(path, cb.checked));
       return this.fileTrail(f, cb, view === 'diff' ? this.tourViewSeg() : null, 'Mark this file as viewed', false);
     };
-    const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.openFile(path, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
+    const lead = f ? this.fileLead(f, { title: 'Open the whole file (after the change)', onclick: () => this.browseView(view, defaultSide(f)) }) : [h('span', { class: 'rr-file__path' }, path)];
     return {
       left: [...lead, this.head ?? null, this.viewSeg(f, view)],
       // quiet: the slide decides how the diff is drawn unless the reader picks a view; no link (the slide's ref is one)
@@ -432,12 +436,19 @@ class CodePanel implements PanelInstance {
     ], { class: 'rr-seg rr-tour__view' });
   }
 
+  private browseView(current: string | undefined, view: 'diff' | 'base' | 'head') {
+    if (this.onBrowse && current === view) return;
+    this.onBrowse?.();
+    if (view === 'diff') this.setMode('diff');
+    else void this.openFile(this.pin!, view);
+  }
+
   private viewSeg(f: ChangedFile | undefined, view: string | undefined) {
     return seg(
       [
-        { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.setMode('diff') },
-        { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.openFile(this.pin!, 'base') },
-        { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.openFile(this.pin!, 'head') },
+        { label: 'Diff', title: 'Diff of this file', on: view === 'diff', disabled: !f, onclick: () => this.browseView(view, 'diff') },
+        { label: 'Before', title: 'Whole file before the change', on: view === 'base', disabled: f?.status === 'added', onclick: () => this.browseView(view, 'base') },
+        { label: 'After', title: 'Whole file after the change', on: view === 'head', disabled: f?.status === 'deleted', onclick: () => this.browseView(view, 'head') },
       ],
       { 'aria-label': 'View' },
     );

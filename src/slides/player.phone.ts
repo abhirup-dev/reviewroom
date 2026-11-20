@@ -9,7 +9,7 @@ import { gestureMachine } from '../kernel/gesture.machine';
 import { sameCode, type paneMachine, type Slot } from './player.machine';
 import { cardMachine, chromeMachine, coachMachine, type Detent, type Orient } from './phone.machine';
 import { navMachine } from './nav.machine';
-import { current, target } from './model.shared';
+import { current } from './model.shared';
 import type { PlayerParts, PlayerForm } from './player';
 
 /** How far sideways a swipe on the card goes to turn the slide. */
@@ -21,7 +21,7 @@ const SWIPE_PX = 60;
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
-export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PlayerParts): PlayerForm {
+export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, browseCode, reset, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PlayerParts): PlayerForm {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
   // the floating toolbar: Back, Contents, Comment, Full screen and Next, plain icon buttons on one pill
@@ -174,6 +174,8 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   // lines are already in place); the file tab on the card's top edge picks which. Every jump to code (the tab, a link,
   // a symbol, a chunk's name) goes through navMachine, which waits out a pane mid-change and picks the chunk
   let slots: Slot[] | null = null, active = 0;
+  reset.className = 'rr-tour__file rr-tour__reset';
+  reset.replaceChildren(icon('undo', 14));
   const files = h('div', { class: 'rr-tour__files', role: 'group', 'aria-label': 'Files on this slide' });
   const filesSheet = sheetDialog({ class: 'rr-tour-toc', 'aria-label': 'Files on this slide', tabindex: '-1' });
   const nav = createActor(
@@ -186,7 +188,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
           active = index;
           paintFiles();
           const panel = chunks()[index]?.getAttribute('data-panel');
-          if (code && panel) app.bus.emit('reveal-code', { ...code, panel });
+          if (code && panel) browseCode(panel, code, slots?.[index]?.code ?? null);
         },
         focus: ({ context: { landing } }) => landing && 'focus' in landing && actor.send({ type: 'focus', refs: [landing.focus] }),
       },
@@ -196,7 +198,6 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
   const chunks = () => [...pane.querySelectorAll(':scope > .rr-tour__layer:not(.is-leaving) > .rr-tour__chunk')];
   const pick = (index: number) => { filesSheet.close(); nav.send({ type: 'go', jump: { index } }); };
   const name = (s: Slot) => (s.code ? s.code.path.split('/').pop()! : app.label(s.ref));
-  let away = false; // the pane shows a link's code, not the slide's own
   const paintFiles = () => {
     const ss = slots ?? [];
     chunks().forEach((c, i) => c.classList.toggle('is-active', i === active));
@@ -206,7 +207,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
       ...(ss.length <= 2
         ? ss.map(tab)
         : [h('button', { class: 'rr-tour__file', title: 'Files on this slide', 'aria-haspopup': 'dialog', 'aria-pressed': 'true', onclick: openFiles }, name(ss[active]), icon('chevronDown', 12), h('small', null, `+${ss.length - 1}`))]),
-      ...(away ? [h('button', { class: 'rr-tour__file', title: 'Back to this slide\'s code', 'aria-label': 'Back to this slide\'s code', onclick: () => actor.send({ type: 'focus' }) }, icon('undo', 14))] : []),
+      reset,
     );
   };
   const openFiles = () => {
@@ -232,8 +233,6 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
         const same = before && now.length === before.length && now.every((s, i) =>
           s.ref === before[i].ref && (s.code || before[i].code ? sameCode(s.code, before[i].code) : true));
         if (!same) active = 0; // different chunks: start with the first
-        const want = ps.context.want, own = target(ctx());
-        away = want?.kind !== own.kind || (want?.kind === 'refs' && own.kind === 'refs' && (want.refs.length !== own.refs.length || want.refs.some((ref, i) => ref !== own.refs[i])));
       }
       if (now) slots = now;
       paintFiles();
@@ -444,6 +443,7 @@ export function phonePlayer({ app, actor, root, player, split, left, right, pane
         return () => void coverFns.delete(fn);
       } },
     },
+    resetCode: () => { nav.send({ type: 'cancel' }); active = 0; paintFiles(); },
     focus: (ref: string) => nav.send({ type: 'go', jump: { ref } }),
     // the last slide's Next is off: the top bar's close ends the walkthrough
     paintNav: ({ isFirst, isLast }: ReturnType<typeof current>) => {

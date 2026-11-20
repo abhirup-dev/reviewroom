@@ -2,6 +2,7 @@ import { backdropCloses, h, icon } from '../kernel/dom';
 import { sanitizeProse } from '../kernel/markdown';
 import { REF_ELEMENTS } from '../kernel/refs/browser';
 import { parseRef } from '../kernel/refs/refs.shared';
+import { loadJSON, saveLocal } from '../kernel/store';
 import type { WalkthroughBundle } from './bundle.shared';
 import { current } from './model.shared';
 import type { PlayerFormFactory, PlayerParts } from './player';
@@ -12,6 +13,7 @@ type DeckPage =
   | { kind: 'divider'; hash: string; chapter: number }
   | { kind: 'step'; hash: string; chapter: number; step: number };
 
+const skipDividersKey = 'reviewroom:export:skip-dividers';
 const number = (index: number) => String(index + 1).padStart(2, '0');
 const intro = (html: string) => h('div', { class: 'rr-export-intro rr-prose', html: sanitizeProse(html) });
 
@@ -31,7 +33,20 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   const indexByHash = new Map(pages.map((page, i) => [page.hash, i]));
   let index = -1;
   let ready = false;
-  const move = (direction: -1 | 1) => go(index + direction);
+  let skipDividers = loadJSON(skipDividersKey) === true;
+  const skip = h('button', {
+    class: 'rr-icon-btn rr-export-skip', title: 'Skip chapter dividers', 'aria-label': 'Skip chapter dividers',
+    'aria-pressed': String(skipDividers), onclick: () => {
+      skipDividers = !skipDividers;
+      skip.setAttribute('aria-pressed', String(skipDividers));
+      saveLocal(skipDividersKey, skipDividers);
+      if (pages[index]?.kind === 'divider') go(index);
+    },
+  }, 'Skip dividers');
+  const move = (direction: -1 | 1) => {
+    const adjacent = index + direction;
+    go(skipDividers && pages[adjacent]?.kind === 'divider' ? adjacent + direction : adjacent);
+  };
   const prev = h('button', { class: 'rr-btn rr-export-prev', title: 'Previous page', 'data-keys': '←', onclick: () => move(-1) }, icon('chevron', 14), 'Prev');
   const next = h('button', { class: 'rr-btn rr-btn--primary', title: 'Next page', 'data-keys': '→', onclick: () => move(1) }, 'Next', icon('chevron', 14));
   const status = h('span', { class: 'rr-export-position', role: 'status' });
@@ -52,7 +67,7 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   const footer = h('footer', { class: 'rr-export-footer' }, prev, progress, status, next);
   const solo = h('section', { class: 'rr-export-solo', 'aria-labelledby': 'rr-export-title' });
   const body = h('main', { class: 'rr-export-body' }, player, solo);
-  const card = h('div', { class: 'rr-export-card' }, toolbar(parts, source), body, footer);
+  const card = h('div', { class: 'rr-export-card' }, toolbar(parts, source, skip), body, footer);
   root.classList.add('rr-export-stage');
   player.removeAttribute('role');
   player.removeAttribute('aria-modal');
@@ -69,7 +84,7 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
       ));
     })),
   );
-  const heading = (text: string) => h('h1', { id: 'rr-export-title', tabindex: '-1' }, text);
+  const heading = (text: string) => h('h1', { id: 'rr-export-title', tabindex: '-1', 'data-size': text.length >= 85 ? 'small' : text.length >= 55 ? 'medium' : undefined }, text);
   const revision = (label: string | undefined, sha: string) => h('span', null, label && label !== sha ? label + ' ' : '', h('code', null, sha.slice(0, 7)));
   const cover = () => [
     h('div', { class: 'rr-export-story' },
@@ -94,18 +109,10 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
     }
     return note;
   });
-  const divider = (ci: number) => {
-    const chapter = chapters[ci];
-    return [
-      h('div', { class: 'rr-export-story' },
-        h('p', { class: 'rr-export-chapter-number' }, number(ci)),
-        heading(chapter.title),
-      ),
-      !chapter.lead && chapter === risks
-        ? h('div', { class: 'rr-export-recap' }, riskNotes())
-        : intro(chapter.lead || chapter.steps[0].text),
-    ];
-  };
+  const divider = (ci: number) => [h('div', { class: 'rr-export-story' },
+    h('p', { class: 'rr-export-chapter-number' }, number(ci)),
+    heading(chapters[ci].title),
+  )];
   const replay = h('button', { class: 'rr-btn rr-btn--primary', onclick: () => go(0) }, icon('round', 14), 'Replay');
   const date = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(source.exportedAt));
   const end = () => [
@@ -153,9 +160,14 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
     card.classList.add('is-in');
   }
 
-  function go(at: number) {
+  function go(requested: number) {
+    const at = skipDividers && pages[requested]?.kind === 'divider' ? requested + 1 : requested;
     const page = pages[at];
-    if (!ready || !page || index === at) return;
+    if (!ready || !page) return;
+    if (index === at) {
+      if (location.hash !== page.hash) history.replaceState(history.state, '', page.hash);
+      return;
+    }
     if (page.kind === 'step') actor.send({ type: 'open', chapter: chapters[page.chapter].id, step: chapters[page.chapter].steps[page.step].id });
     else {
       show(at);
@@ -163,7 +175,7 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
     }
   }
 
-  // Chapter leads can carry the same refs as the steps. A code link opens that chapter's first step.
+  // The cover and recap can carry code links. Open the source chapter's first step before following one.
   solo.addEventListener('click', (e) => {
     const link = (e.target instanceof Element ? e.target : null)?.closest(REF_ELEMENTS);
     const href = link?.getAttribute('href') ?? link?.getAttribute('ref');
@@ -173,18 +185,14 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
     const ref = parseRef(href);
     if (ref?.type === 'code' || ref?.type === 'file') {
       const page = pages[index];
-      const ci = page.kind === 'divider' ? page.chapter : page.kind === 'end' ? chapters.findIndex((chapter) => chapter === risks) : 0;
+      const ci = page.kind === 'end' ? chapters.findIndex((chapter) => chapter === risks) : 0;
       const chapter = chapters[ci];
       if (chapter) go(indexByHash.get(`#${chapter.id}/${chapter.steps[0].id}`)!);
     }
     void app.open(href);
   }, true);
 
-  const followHash = () => {
-    const at = indexByHash.get(location.hash);
-    if (at === undefined && index === 0) history.replaceState(history.state, '', pages[0].hash);
-    else go(at ?? 0);
-  };
+  const followHash = () => go(indexByHash.get(location.hash) ?? 0);
   const sub = actor.subscribe((snapshot) => {
     if (snapshot.matches('open')) {
       const { chapter, step } = current(snapshot.context);
@@ -201,7 +209,7 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   return { ...desktop, dismissible: false, move };
 };
 
-function toolbar({ app }: PlayerParts, source: WalkthroughBundle['source']) {
+function toolbar({ app }: PlayerParts, source: WalkthroughBundle['source'], skip: HTMLButtonElement) {
   const showHelp = () => { if (!help.open) help.showModal(); };
   const helpButton = h('button', { class: 'rr-icon-btn', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts', 'data-keys': '?', onclick: showHelp }, '?');
   const shortcuts = [['←', 'Previous page'], ['→', 'Next page'], ['?', 'Keyboard shortcuts']];
@@ -213,6 +221,7 @@ function toolbar({ app }: PlayerParts, source: WalkthroughBundle['source']) {
       h('button', { class: 'rr-icon-btn', title: 'Close shortcuts', 'aria-label': 'Close shortcuts', autofocus: true, onclick: () => help.close() }, icon('close')),
     ),
     h('dl', null, shortcuts.map(([key, label]) => h('div', null, h('dt', null, h('kbd', null, key)), h('dd', null, label)))),
+    h('p', null, 'Use ', h('strong', null, 'Skip chapter dividers'), ' in the toolbar to move directly between slides.'),
   );
 
   const theme = h('button', { class: 'rr-icon-btn', onclick() {
@@ -253,7 +262,7 @@ function toolbar({ app }: PlayerParts, source: WalkthroughBundle['source']) {
   const context = [source.repo, source.pr && `PR #${source.pr}`].filter(Boolean).join(' · ');
   return h('header', { class: 'rr-export-toolbar' },
     h('div', { class: 'rr-export-repo', title: context || undefined }, icon('book'), h('span', null, context || 'Walkthrough')),
-    h('div', { class: 'rr-export-tools' }, theme, fullscreen, helpButton),
+    h('div', { class: 'rr-export-tools' }, theme, skip, fullscreen, helpButton),
     help,
   );
 }

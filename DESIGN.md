@@ -355,13 +355,14 @@ Spacing is a fixed scale: 2px steps up to 12 for dense controls (2, 4, 6, 8, 10,
 Trees indent 14px per level.
 
 **The walkthrough** is a two-column player on one sheet: narration and code both on `surface-doc` (no well, card
-edges or band fill), the code full height under one white file band (path, Diff/Before/After, size, Viewed: the slide
-decides how its diff is drawn, so no display toggles). Each chapter takes
+edges or band fill), the code full height under one white file band (path, Diff/Before/After, size, Auto/Split/Unified and Viewed).
+Each chapter takes
 a shape from its longest slide (`src/slides/fit.ts`), so nothing moves between its slides: short slides with no intro
 read at the lede size (`text-xl`) a third of the way down beside a 28% narration, long ones (over 150 words) get 50%,
 the rest 36%. Narrow code widens it, up to half: the code keeps only the room the chapter's longest changed line needs
-(`codeWidth`, never less than the file band). A dragged width wins. The chapter title wraps under its arrows and position, ref chips wrap, and the
-bottom bar is ticks only: nothing on the reading side is cut. The player stops growing at `tour-width` and sits centred,
+(`codeWidth`, never less than the file band). A dragged width wins. The chapter title wraps under its arrows and
+position. Long titles use the 19px headline and wrap in balanced lines. Ref chips wrap and the bottom bar is ticks only.
+The player stops growing at `tour-width` and sits centred,
 so a wide screen keeps a laptop's proportions. The code is centred, whatever the narration does (`placement.ts`): the
 slide's change (its lines and the change blocks they touch, or its lines alone when that is taller than the pane) sits
 in the middle of the pane, near a file's ends too (blank room above its first line or below its last). The boundary
@@ -379,9 +380,14 @@ a split view's left column), and the file's changes outside the slide's change b
 the change blocks the slide touches, whole (`fitDiff`), unless the reader picks Split or Unified in the file band's
 Auto / Split / Unified switch (the `tourView` pref, Auto by default): split when they remove 5 lines or more, or more than
 they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
+Reset code appears with the chapter controls when a link, chip or file view changes what the slide shows. It restores
+the slide's refs, views and centred highlights. On a phone it sits alongside the file tabs.
 
 **The portable walkthrough deck** places the shared player inside a paper card with a persistent toolbar and progress
-footer. Cover, chapter dividers and the end page use the 48px Mona Sans `--rr-export-display-size` (32px on phones).
+footer. Cover, chapter dividers and the end page use balanced Mona Sans titles. Titles start at 48px (32px on phones)
+and step down through the headline sizes at 55 and 85 characters. Wide title columns use 32px for long titles.
+Dividers centre the chapter number and title in one column. The toolbar's Skip dividers toggle keeps the cover,
+slides and end in the page sequence.
 The 16px `--rr-export-radius` and modal shadow frame the floating card on desktop. The stage is the export's exception
 to the Meaning Rule: a fixed dot grid and two washes of the orange accent sit behind the opaque card. Gaps tighten
 on laptops. At phone widths the stage is plain, the card fills it, the presentation pages stack, and the navigation
