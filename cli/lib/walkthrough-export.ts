@@ -40,7 +40,7 @@ export async function exportWalkthrough(checkout: string, dir: string, allowStal
   const commit = (rev: string) => isRev(rev) ? git(['rev-parse', '--verify', '--end-of-options', rev + '^{commit}'], checkout, { soft: true })?.trim() ?? null : null;
   const pr = idFromFolder(dir);
   const meta = checked.provider.meta();
-  const reviewId = pr ? formatReviewId(pr) : `${meta.repo}/${readConfig(dir).target || meta.headLabel}`;
+  const reviewId = pr ? formatReviewId(pr) : `${meta.repo ?? path.basename(checkout)}/${readConfig(dir).target || meta.headLabel}`;
   const provider = {
     ...checked.provider,
     meta: () => pr ? { ...meta, repo: formatReviewRepository(pr), number: pr.number } : meta,
