@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { openPage } from '../cli/lib/render.ts';
-import { read, setup } from './fixture.ts';
+import { setup } from './fixture.ts';
 import { until } from '../src/testing/wait.ts';
 
 const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
@@ -63,8 +63,7 @@ describe('built client author contract', () => {
         await fetch(${JSON.stringify(callback)}, { method: 'POST', body: JSON.stringify(result) });
       });
     </script>`;
-    const template = read(import.meta.dir, '..', 'templates', REPORT_FILE);
-    fs.writeFileSync(path.join(dir, REPORT_FILE), template.replace(/\n  <rr-review>[\s\S]*?<\/rr-review>/, `\n  <rr-review>${authored}</rr-review>${script}`));
+    fs.writeFileSync(path.join(dir, REPORT_FILE), `${authored}\n${script}`); // only the writing: the server supplies the page
     let page: Awaited<ReturnType<typeof openPage>> | undefined;
     try {
       const url = await serve();

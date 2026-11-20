@@ -1,14 +1,31 @@
-/* Generation (src/review/generation.ts): the loading screen over the review, and the header's indicator. */
+/* Generation (src/review/generation.ts): the loading screen over the review, and the header's indicator.
+   One accent, Margin Orange, on the stage; everything else ink and grey (DESIGN.md, Generation loading).
+
+   The layout is the mock's (Loading C). Its measures are the --rr-gen-* tokens (tokens.css); the two derived here are
+   --_drafts and --_steps-h. In those terms:
+     one block, --rr-gen-width wide, centred on the stage; its rows --rr-gen-row-gap apart
+     head, across both columns, on a hairline
+     two equal columns, --rr-gen-col-gap apart:
+       the steps, titles only, lowered by     | the transcript, exactly --_steps-h tall, scrolling inside
+       half the drafts' room (--_drafts / 2)  |
+                                              | --rr-assistant-gap, Claude's line: Clawd, "Claude", the busy dots, Stop
+                                              | --rr-assistant-gap, the actions, sharing the row's width (always a row tall)
+   --_steps-h is the four steps with their most draft rows, so the steps never reach past Claude's line,
+   and every part keeps its height: the centred block never moves as the work goes on. The steps are the screen's
+   subject (larger type); the transcript is background, in the assistant's own smaller type. */
 .rr-gen {
+  /* the room the draft rows can take: at most three (generation.ts shows the last two and a count) */
+  --_drafts: calc(var(--rr-space-6) + 3 * var(--rr-gen-draft));
+  --_steps-h: calc(4 * var(--rr-gen-mark) + 3 * var(--rr-gen-step-gap) + var(--_drafts));
   position: fixed;
   inset: 0;
   z-index: 49; /* under the player (50): "Show it anyway" closes this screen first */
   display: grid;
-  align-content: center;
+  align-content: safe center;
   justify-items: center;
-  padding: var(--rr-space-48);
+  padding: var(--rr-space-48) var(--rr-space-32);
   overflow: auto;
-  background: var(--rr-surface-doc);
+  background: var(--rr-surface-stage);
   color: var(--rr-ink);
   outline: none;
 }
@@ -17,46 +34,87 @@
 }
 .rr-gen__body {
   display: grid;
-  gap: var(--rr-space-32) var(--rr-space-48);
-  width: min(100%, 30em);
+  gap: var(--rr-gen-row-gap) var(--rr-gen-col-gap);
+  width: min(100%, var(--rr-gen-width));
+  font-size: var(--rr-text);
 }
-/* with the assistant: the head across, then two equal columns, steps and the assistant, the same height */
 .rr-gen.has-side .rr-gen__body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: min(100%, 64em);
-}
-.rr-gen__head {
-  display: grid;
-  gap: var(--rr-space-12);
-  grid-column: 1 / -1;
-}
-.rr-gen__main {
-  display: grid;
-  align-content: start;
-  gap: var(--rr-space-12);
-}
-.rr-gen h1 {
-  margin: 0;
-  font-family: var(--rr-font-display);
-  font-size: var(--rr-text-3xl);
 }
 .rr-gen p {
   margin: 0;
+}
+
+/* the head: repository and branches, title, author and size */
+.rr-gen__head {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--rr-gen-head-gap);
+  padding-bottom: var(--rr-gen-head-pad);
+  border-bottom: 1px solid var(--rr-line);
+}
+.rr-gen__repo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--rr-space-8);
+  color: var(--rr-muted);
+  font: var(--rr-text-sm) var(--rr-mono);
+}
+.rr-gen__repo > span:first-of-type {
   color: var(--rr-ink-2);
 }
-.rr-gen__title {
-  font-size: var(--rr-text-lg);
+.rr-gen h1 {
+  margin: 0;
+  font: 600 var(--rr-text-2xl) / 1.25 var(--rr-font-display);
+  letter-spacing: var(--rr-tracking-tight);
 }
-.rr-gen p.rr-gen__facts {
+.rr-gen__by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rr-space-8);
   color: var(--rr-muted);
-  font-family: var(--rr-mono);
-  font-size: var(--rr-text-sm);
 }
-p.rr-gen__agent {
+.rr-gen__by b {
+  color: var(--rr-ink);
+  font-weight: 500;
+}
+.rr-gen__avatar {
+  display: grid;
+  place-items: center;
+  width: var(--rr-gen-avatar);
+  height: var(--rr-gen-avatar);
+  border-radius: var(--rr-radius);
+  background: var(--rr-ink-2);
+  color: var(--rr-surface-stage);
+  font: 600 var(--rr-text-2xs) / 1 var(--rr-font);
+}
+.rr-gen__sep {
+  color: var(--rr-line-strong);
+}
+.rr-gen__size {
+  font: var(--rr-text-sm) var(--rr-mono);
+}
+
+/* the two columns, their tops level */
+.rr-gen__main,
+.rr-gen__side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* an auto column would grow to the longest unwrapped tool line */
+  align-content: start;
+  gap: var(--rr-gen-gap);
+}
+.rr-gen__side[hidden] {
+  display: none;
+}
+p.rr-gen__agent,
+.rr-gen p.rr-gen__error {
   color: var(--rr-muted);
   font-size: var(--rr-text-md);
 }
-/* the stepper shows it; kept for screen readers (and as the phone's one line, review.phone.css) */
+/* the steps say both; kept for screen readers (the status is also the phone's one line, review.phone.css) */
+.rr-gen__label,
 .rr-gen__status {
   position: absolute;
   width: 1px;
@@ -66,180 +124,178 @@ p.rr-gen__agent {
   white-space: nowrap;
 }
 
-/* the steps: square markers joined by a thin line, a detail under each (DESIGN.md, Generation steps) */
+/* the steps: square markers joined by a line, titles only (DESIGN.md, Generation steps). Four of them, with their
+   most pass rows, are exactly --_steps-h tall */
+/* lowered by half the drafts' room: the edgeless transcript reads as starting at its first line, so steps level
+   with its top look taller. This way the four steps sit centred against it, and with every draft row they reach at
+   most Claude's line. A fixed offset: nothing moves as they grow */
 .rr-gen-steps {
-  margin: 0;
+  margin: calc(var(--_drafts) / 2) 0 0;
   padding: 0;
   list-style: none;
 }
 .rr-gen-step {
-  --_mk: var(--rr-control); /* the marker box: a step's title line plus its padding */
   position: relative;
   display: grid;
-  grid-template-columns: var(--_mk) 1fr;
-  column-gap: var(--rr-space-12);
-  padding-bottom: var(--rr-space-16);
+  grid-template-columns: var(--rr-gen-mark) minmax(0, 1fr);
+  column-gap: var(--rr-gen-mark-gap);
+  padding-bottom: var(--rr-gen-step-gap);
+}
+.rr-gen-step:last-child {
+  padding-bottom: 0;
 }
 .rr-gen-step:not(:last-child)::before {
   content: '';
   position: absolute;
-  top: var(--_mk);
+  top: var(--rr-gen-mark);
   bottom: 0;
-  left: calc(var(--_mk) / 2 - 0.5px);
-  width: 1px;
-  background: var(--rr-line-strong);
+  left: calc(var(--rr-gen-mark) / 2 - 1px);
+  width: 2px;
+  background: var(--rr-line);
+}
+.rr-gen-step.is-done::before {
+  background: var(--rr-ink);
 }
 .rr-gen-step__mk {
   display: grid;
   place-items: center;
-  width: var(--_mk);
-  height: var(--_mk);
+  width: var(--rr-gen-mark);
+  height: var(--rr-gen-mark);
   box-sizing: border-box;
   border: 1.5px solid var(--rr-line-strong);
-  background: var(--rr-surface-doc);
-  color: var(--rr-faint);
+  background: var(--rr-surface-stage);
+  color: var(--rr-muted);
   font: 600 var(--rr-text-sm) var(--rr-mono);
 }
 .rr-gen-step.is-done .rr-gen-step__mk {
   border-color: var(--rr-ink);
   background: var(--rr-ink);
-  color: var(--rr-surface-doc);
+  color: var(--rr-surface-stage);
 }
+/* the current step: a dashed orange outline that marches, a square at its centre */
 .rr-gen-step.is-current .rr-gen-step__mk {
-  border-color: var(--rr-accent);
-  color: var(--rr-accent);
-  animation: rr-gen-ring 1.6s ease-in-out infinite;
+  --_d: linear-gradient(90deg, var(--rr-comment) 50%, transparent 0);
+  --_v: linear-gradient(0deg, var(--rr-comment) 50%, transparent 0);
+  border: 0;
+  background:
+    var(--_d) repeat-x 0 0 / 0.6em 0.15em,
+    var(--_d) repeat-x 0 100% / 0.6em 0.15em,
+    var(--_v) repeat-y 0 0 / 0.15em 0.6em,
+    var(--_v) repeat-y 100% 0 / 0.15em 0.6em,
+    var(--rr-surface-stage);
+  animation: rr-gen-march 0.8s linear infinite;
 }
+.rr-gen-step__dot {
+  width: 0.6em;
+  height: 0.6em;
+  background: var(--rr-comment);
+}
+/* stopped: said in words, not in red */
 .rr-gen-step.is-stopped .rr-gen-step__mk {
-  border-color: var(--rr-risk);
-  background: var(--rr-risk-soft);
-  color: var(--rr-risk);
+  border-color: var(--rr-ink-2);
+  color: var(--rr-ink-2);
 }
 .rr-gen-step b {
   display: block;
   font-size: var(--rr-text-lg);
   font-weight: 600;
-  line-height: var(--_mk);
+  line-height: var(--rr-gen-mark);
 }
 .rr-gen-step.is-upcoming b {
-  color: var(--rr-faint);
+  color: var(--rr-ink-2);
   font-weight: 500;
-}
-.rr-gen-step.is-stopped b {
-  color: var(--rr-risk);
-}
-.rr-gen-step small {
-  display: block;
-  color: var(--rr-muted);
-  font-size: var(--rr-text-md);
-}
-.rr-gen-step.is-stopped small {
-  color: var(--rr-risk);
 }
 .rr-gen-step__passes {
   margin: var(--rr-space-6) 0 0;
   padding: 0;
   color: var(--rr-muted);
-  font: var(--rr-text-sm) / 1.7 var(--rr-mono);
+  font: var(--rr-text-sm) / var(--rr-gen-draft) var(--rr-mono);
   list-style: none;
 }
+.rr-gen-step__passes li {
+  display: grid;
+  grid-template-columns: 1.2em minmax(0, 1fr);
+  align-items: center;
+}
+/* one line each, however long: a row never wraps under its own marker */
+.rr-gen-step__passes li > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-gen-step__passes li::before {
+  content: '';
+}
 .rr-gen-step__passes .is-current {
-  color: var(--rr-accent);
+  color: var(--rr-comment);
 }
-.rr-gen-step__passes .is-stopped {
-  color: var(--rr-risk);
+.rr-gen-step__passes .is-current::before {
+  width: 0.5em;
+  height: 0.5em;
+  background: currentcolor;
 }
-@keyframes rr-gen-ring {
-  50% {
-    box-shadow: 0 0 0 5px var(--rr-accent-soft); /* the pulse ring's reach */
+@keyframes rr-gen-march {
+  to {
+    background-position:
+      0.6em 0,
+      -0.6em 100%,
+      0 -0.6em,
+      100% 0.6em,
+      0 0;
   }
 }
 
-/* the assistant, edgeless: its own chat, read-only, as tall as the steps beside it (it never sets the height) */
-.rr-gen__side {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  min-height: 24em;
+/* Claude's column: the transcript from the top of the steps' label to the foot of their reserved height (thread.tsx
+   draws it, Claude's line and the actions under it) */
+.rr-gen__live .rr-assistant__thread {
+  height: auto;
 }
-.rr-gen__side[hidden] {
-  display: none;
-}
-.rr-gen__side header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: var(--rr-control); /* level with the first step's marker */
-  color: var(--rr-muted);
-  font-size: var(--rr-text-sm);
-  font-weight: 600;
-  letter-spacing: var(--rr-tracking-caps);
-  text-transform: uppercase;
-}
-.rr-gen__side header .rr-link-btn {
-  font-weight: 400;
-  letter-spacing: normal;
-  text-transform: none;
-}
-/* the ordinary chat, scrolling within the column */
-.rr-gen__live {
-  position: relative;
-  min-height: 0;
-}
-.rr-gen__live > * {
-  position: absolute;
-  inset: 0;
-}
-/* edgeless: the chat takes the screen's paper, not a panel's, and lines up with the label above it */
-.rr-gen__live .rr-assistant__thread,
+.rr-gen__live .rr-assistant__box,
 .rr-gen__live .rr-assistant__viewport {
-  background: none;
+  flex: none;
 }
 .rr-gen__live .rr-assistant__viewport {
-  padding-inline: 0;
+  height: var(--_steps-h);
+  padding-block: 0;
 }
 
-.rr-gen__status.is-busy::before,
-.rr-gen-ind__dot {
+/* the actions: under Claude's foot (thread.tsx), or under the steps without Claude's column */
+.rr-gen__actions {
+  display: flex;
+  gap: var(--rr-space-8);
+  min-height: var(--rr-control); /* a row tall while no button shows yet: nothing above it moves */
+}
+/* under Claude's line: the buttons share the column's width, so the row ends square with the transcript */
+.rr-gen__live .rr-gen__actions > .rr-btn {
+  flex: 1;
+}
+.rr-gen__main > .rr-gen__actions {
+  margin-top: var(--rr-gen-gap);
+}
+
+/* the header's indicator: Clawd and the dots while it works; still, without the dots, once stopped */
+.rr-gen-ind {
+  gap: var(--rr-space-8);
+}
+.rr-gen-ind.is-stopped .rr-dots {
+  display: none;
+}
+.rr-gen__status.is-busy::before {
   content: '';
   flex: none;
   width: 0.5em;
   height: 0.5em;
-  border-radius: 50%;
-  background: var(--rr-accent);
-}
-.rr-gen__status.is-busy::before,
-.rr-gen-ind:not(.is-stopped) .rr-gen-ind__dot {
-  animation: rr-gen-pulse 1.2s ease-in-out infinite;
-}
-.rr-gen-ind.is-stopped .rr-gen-ind__dot {
-  background: var(--rr-warn);
-}
-.rr-gen p.rr-gen__error {
-  color: var(--rr-warn);
-}
-.rr-gen__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rr-space-8);
-  margin-top: var(--rr-space-8);
-}
-/* never below 0.75: the dot keeps 3:1 against the header in both themes (4.8:1 dark, 3.1:1 light) */
-@keyframes rr-gen-pulse {
-  50% {
-    opacity: 0.75;
-  }
+  background: var(--rr-comment);
 }
 @media (prefers-reduced-motion: reduce) {
-  .rr-gen__status.is-busy::before,
-  .rr-gen-ind .rr-gen-ind__dot,
   .rr-gen-step.is-current .rr-gen-step__mk {
     animation: none;
   }
 }
 
-/* a laptop that can't fit both columns: the window goes under the steps */
-@media (max-width: 960px) {
+/* too narrow for two columns: Claude's column goes under the steps */
+@media (max-width: 840px) {
   .rr-gen.has-side .rr-gen__body {
-    grid-template-columns: minmax(0, 36em);
+    grid-template-columns: minmax(0, 1fr);
   }
 }

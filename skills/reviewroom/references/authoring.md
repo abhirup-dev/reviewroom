@@ -4,23 +4,21 @@ The building blocks of the report. For what to write and in what order see `repo
 
 ## The file
 
-`reviewroom pr` scaffolds the report in the review directory. It is ordinary HTML:
+`reviewroom pr` scaffolds the report in the review directory: a title and the profile's sections. The file holds
+only the report itself; reviewroom serves it inside its own page. Don't add `<html>`, `<head>`, `<rr-app>` or
+`<rr-review>`:
 
 ```html
-<rr-app>
-  <script type="application/json" id="rr-meta">{}</script>
-  <rr-review>
-    … anything you want …
-  </rr-review>
-</rr-app>
+<h1>Limit uploads per account</h1>
+<section id="summary"><h2>Summary</h2> … </section>
 ```
 
-Inside `<rr-review>` you may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put
-extra assets (images, js, css) next to the report and reference them relatively (`diagram.svg`, never
-`/diagram.svg`: the hub also serves the review under `/r/<id>/`). Leave `<rr-app>`'s `api` unset.
+You may write any HTML, inline `<style>`, SVG, `<canvas>` or `<script>`. Put extra assets (images, js, css) next to
+the report and reference them relatively (`diagram.svg`, never `/diagram.svg`: the hub also serves the review under
+`/r/<id>/`).
 
-`#rr-meta` is optional JSON; leave it `{}` unless you need it. The CLI supplies the repo, PR and
-revisions. `"title"` replaces the review's title. `"theme"` overrides colour tokens per mode, without the
+`<script type="application/json" id="rr-meta">{…}</script>` anywhere in the report is optional JSON; leave it out
+unless you need it. The CLI supplies the repo, PR and revisions. `"title"` replaces the review's title. `"theme"` overrides colour tokens per mode, without the
 `--rr-` prefix: `{ "theme": { "light": { "accent": "#7a3cff" }, "dark": { … } } }`.
 
 ## Structure the tooling understands

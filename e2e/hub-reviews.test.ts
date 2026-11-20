@@ -67,7 +67,7 @@ describe('the hub starts reviews', async () => {
     const added = await review();
     expect(added).toMatchObject({ stopped: true, hasWork: false });
     const report = path.join(added!.reviewPath!, REPORT_FILE);
-    const edited = fs.readFileSync(report, 'utf8').replace('</rr-review>', '<p>Review notes</p></rr-review>');
+    const edited = `${fs.readFileSync(report, 'utf8')}<p>Review notes</p>\n`;
     fs.writeFileSync(report, edited);
     await until(async () => (await review())?.hasWork, { every: 100 });
     const remove = () => `api/reviews/${routeId}/remove`;

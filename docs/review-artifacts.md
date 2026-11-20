@@ -5,7 +5,7 @@ What an agent writes into a review folder. Code names each file through its cons
 
 | Artifact | Constant | File | What it is |
 | --- | --- | --- | --- |
-| Report | `REPORT_FILE` | `report.html` | Agent-written HTML. `reviewroom pr` creates it from `templates/report.html` (the page shell) and the review's report profile. |
+| Report | `REPORT_FILE` | `report.html` | Agent-written HTML: only what goes inside `<rr-review>`. `reviewroom pr` creates it from the review's title and report profile. The server serves it inside reviewroom's page shell (`cli/lib/report-page.ts`: head, client entry, `<rr-app>`, `<rr-review>`); older reports that carry a shell of their own still work. |
 | Walkthrough | `WALKTHROUGH_FILE` | `walkthrough.json` | The slides, following `schema/walkthrough.schema.json`. It can also come from the PR description. |
 | Assets | none | any | Images, CSS or JS the report links, beside it. |
 
