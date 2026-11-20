@@ -37,6 +37,12 @@
   background: var(--rr-active);
   color: var(--rr-ink);
 }
+.rr-icon-btn--label {
+  width: auto;
+  padding-inline: var(--rr-space-8);
+  font: 500 var(--rr-text-sm) var(--rr-font);
+  white-space: nowrap;
+}
 .rr-link-btn {
   border: 0;
   background: none;

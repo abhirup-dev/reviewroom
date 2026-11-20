@@ -21,9 +21,11 @@ const SWIPE_PX = 60;
  *  drags between two lines, its text and tall (cardMachine); it swipes sideways to the next or previous slide
  *  (gestureMachine). Back (the phone's) closes the player. On its side (data-orient) the slide is a column
  *  beside the code, not a sheet over it. */
-export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, browseCode, reset, bottom, progress, lead, leadToggle, prev, next, comment, chapterBtn }: PlayerParts): PlayerForm {
+export function phonePlayer({ app, actor, root, player, split, left, right, pane, codeAt, browseCode, reset, chapterHead, bottom, progress, lead, leadToggle, prev, next, comment, close, chapterBtn }: PlayerParts): PlayerForm {
   const ctx = () => actor.getSnapshot().context;
   root.dataset.form = 'phone';
+  chapterHead.className = 'rr-tour__top';
+  chapterHead.append(h('span', { class: 'rr-toolbar__spacer' }), close);
   // the floating toolbar: Back, Contents, Comment, Full screen and Next, plain icon buttons on one pill
   prev.replaceChildren(icon('chevron', 20));
   prev.className = 'rr-icon-btn rr-tour__back';

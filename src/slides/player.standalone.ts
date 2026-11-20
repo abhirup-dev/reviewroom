@@ -6,7 +6,7 @@ import { loadJSON, saveLocal } from '../kernel/store';
 import type { WalkthroughBundle } from './bundle.shared';
 import { current } from './model.shared';
 import type { PlayerFormFactory, PlayerParts } from './player';
-import { desktopPlayer } from './player.desktop';
+import { desktopNavigation } from './player.desktop';
 
 type DeckPage =
   | { kind: 'cover' | 'end'; hash: string }
@@ -18,8 +18,8 @@ const number = (index: number) => String(index + 1).padStart(2, '0');
 const intro = (html: string) => h('div', { class: 'rr-export-intro rr-prose', html: sanitizeProse(html) });
 
 export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory => (parts) => {
-  const desktop = desktopPlayer(parts);
-  const { app, actor, root, player, close, bottom } = parts;
+  const desktop = desktopNavigation(parts);
+  const { app, actor, root, player, reset, bottom } = parts;
   const { source, walkthrough: { chapters, title } } = bundle;
   const pages: DeckPage[] = [
     { kind: 'cover', hash: '#cover' },
@@ -35,7 +35,7 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   let ready = false;
   let skipDividers = loadJSON(skipDividersKey) === true;
   const skip = h('button', {
-    class: 'rr-icon-btn rr-export-skip', title: 'Skip chapter dividers', 'aria-label': 'Skip chapter dividers',
+    class: 'rr-icon-btn rr-icon-btn--label', title: 'Skip chapter dividers', 'aria-label': 'Skip chapter dividers',
     'aria-pressed': String(skipDividers), onclick: () => {
       skipDividers = !skipDividers;
       skip.setAttribute('aria-pressed', String(skipDividers));
@@ -71,7 +71,6 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   root.classList.add('rr-export-stage');
   player.removeAttribute('role');
   player.removeAttribute('aria-modal');
-  close.remove();
   bottom.remove();
   root.prepend(card);
 
@@ -152,7 +151,7 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
       }
     }
     if (location.hash !== page.hash) history.replaceState(history.state, '', page.hash);
-    if (focused && (!focused.isConnected || (focused === prev && prev.disabled) || (focused === next && next.disabled) || (!isStep && player.contains(focused)))) {
+    if (focused && (!focused.isConnected || (focused === prev && prev.disabled) || (focused === next && next.disabled) || (!isStep && (focused === reset || player.contains(focused))))) {
       (isStep ? player : solo.querySelector<HTMLElement>('h1'))?.focus({ preventScroll: true });
     }
     card.classList.remove('is-in');
@@ -209,7 +208,8 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   return { ...desktop, dismissible: false, move };
 };
 
-function toolbar({ app }: PlayerParts, source: WalkthroughBundle['source'], skip: HTMLButtonElement) {
+function toolbar({ app, reset }: PlayerParts, source: WalkthroughBundle['source'], skip: HTMLButtonElement) {
+  reset.prepend(icon('undo'));
   const showHelp = () => { if (!help.open) help.showModal(); };
   const helpButton = h('button', { class: 'rr-icon-btn', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts', 'data-keys': '?', onclick: showHelp }, '?');
   const shortcuts = [['←', 'Previous page'], ['→', 'Next page'], ['?', 'Keyboard shortcuts']];
@@ -262,7 +262,7 @@ function toolbar({ app }: PlayerParts, source: WalkthroughBundle['source'], skip
   const context = [source.repo, source.pr && `PR #${source.pr}`].filter(Boolean).join(' · ');
   return h('header', { class: 'rr-export-toolbar' },
     h('div', { class: 'rr-export-repo', title: context || undefined }, icon('book'), h('span', null, context || 'Walkthrough')),
-    h('div', { class: 'rr-export-tools' }, theme, skip, fullscreen, helpButton),
+    h('div', { class: 'rr-export-tools' }, reset, theme, skip, fullscreen, helpButton),
     help,
   );
 }

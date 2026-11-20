@@ -12,11 +12,11 @@ test.skipIf(!browser)('the workbench walkthrough resets the code on desktop and 
   tour.chapters[0].steps[0].text += '<p><a href="rr:code/internal/upload/handler.go@base#L7">Imports</a></p>';
   writeFileSync(file, JSON.stringify(tour));
   const activeLayer = '.rr-tour__layer:not(.is-leaving)';
-  const reset = '.rr-tour__reset';
   await withServer(repo, dir, async (url) => {
     for (const phone of [false, true]) {
       const search = phone ? '?phone&walkthrough=why/s1' : '?walkthrough=why/s1';
       const viewport = phone ? { width: 390, height: 844 } : { width: 1280, height: 800 };
+      const reset = phone ? '.rr-tour__files .rr-tour__reset' : '.rr-tour__top > .rr-tour__reset';
       await withPage(url + search, viewport, async (page) => {
         const click = (selector: string) => page.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
         const resetHidden = () => page.evaluate<boolean>(`document.querySelector('${reset}').hidden`);

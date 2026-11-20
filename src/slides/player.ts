@@ -58,7 +58,9 @@ export type PlayerParts = {
   /** where a link lands (codeAt) */
   codeAt: (ref: string) => Promise<CodeAt | null>;
   browseCode: (panel: string, code: CodeAt, original: CodeAt | null) => void;
+  /** The form places the shared Reset code control. */
   reset: HTMLButtonElement;
+  chapterHead: HTMLElement;
   bottom: HTMLElement;
   progress: HTMLElement;
   lead: HTMLElement;
@@ -285,8 +287,8 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   const position = h('span', { class: 'rr-tour__pos' });
   const resetTitle = 'Restore this slide’s code view';
   const reset = h('button', {
-    class: 'rr-btn rr-btn--small rr-tour__reset', hidden: true, title: resetTitle, 'aria-label': resetTitle, onclick: () => resetCode(),
-  }, icon('undo', 14), 'Reset code');
+    class: 'rr-icon-btn rr-icon-btn--label rr-tour__reset', hidden: true, title: resetTitle, 'aria-label': resetTitle, onclick: () => resetCode(),
+  }, h('span', null, 'Reset code'));
   const lead = h('div', { class: 'rr-tour__lead rr-prose' });
   const divider = h('div', { class: 'rr-tour__divider' });
   // a big lead (a whole-system diagram) can be folded away for the rest of the walkthrough, and back (a phone folds it
@@ -365,10 +367,11 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   const bottom = h('div', { class: 'rr-tour__bottom' }, prev, progress, next);
   const dismiss = (type: 'pause' | 'close') => { if (form.dismissible !== false) actor.send({ type }); };
   const close = btn('close', 'Close the walkthrough', () => dismiss('close'));
+  const chapterHead = h('div', { class: 'rr-tour__chapter-head' }, chapterPrev, chapterBtn, chapterNext, position);
   const player = h(
     'div',
     { class: 'rr-tour__player', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Walkthrough', tabindex: '-1' },
-    h('div', { class: 'rr-tour__top' }, chapterPrev, chapterBtn, chapterNext, position, reset, h('span', { class: 'rr-toolbar__spacer' }), close),
+    chapterHead,
     (split.append(left, right), split),
     bottom,
   );
@@ -384,7 +387,7 @@ export function mountWalkthrough(app: ReviewApp, opts: PlayerOptions = {}) {
   // the chapter button's list and the step buttons' faces differ: a phone's sheet and icons, the desktop's menu and labels.
   // The phone player goes by the device, either way up, under either shell: composition hands it in
   const form: PlayerForm = (opts.formFactory ?? desktopPlayer)({
-    app, actor, root, player, split, left, right, pane, codeAt: resolveCode, browseCode, reset,
+    app, actor, root, player, split, left, right, pane, codeAt: resolveCode, browseCode, reset, chapterHead,
     bottom, progress, lead, leadToggle, prev, next, comment: comment ?? null, close, chapterBtn,
   });
 

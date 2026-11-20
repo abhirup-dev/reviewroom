@@ -42,13 +42,14 @@ test('the exported demo plays from disk with bundled code and zero network reque
     const press = (key: string) => page.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', {key: ${JSON.stringify(key)}, bubbles: true}))`);
     const code = `${playing} .rr-tour__layer:not(.is-leaving) diffs-container`;
     const active = '.rr-export-tick[aria-current]';
-    const reset = '.rr-tour__reset';
+    const reset = '.rr-export-toolbar .rr-export-tools > .rr-tour__reset';
     const skip = 'button[aria-label="Skip chapter dividers"]';
     const next = '.rr-export-footer button[title="Next page"]';
     const hash = () => page.evaluate('location.hash');
     expect(await hash()).toBe('#cover');
     expect(await evalAt('#rr-export-title', 'textContent')).toBe(tour.title);
     expect(await evalAt('.rr-export-position', 'textContent')).toBe('Cover');
+    expect(await evalAt<boolean>(reset, 'hidden')).toBe(true);
     expect(await evalAt<boolean>('.rr-export-prev', 'disabled')).toBe(true);
     expect(await page.evaluate(`[...document.querySelectorAll('.rr-export-tools button:not([hidden]), .rr-export-footer > button')].every((button) =>
       button.getBoundingClientRect().right < document.querySelector('.rr-export-card').getBoundingClientRect().right

@@ -380,14 +380,16 @@ a split view's left column), and the file's changes outside the slide's change b
 the change blocks the slide touches, whole (`fitDiff`), unless the reader picks Split or Unified in the file band's
 Auto / Split / Unified switch (the `tourView` pref, Auto by default): split when they remove 5 lines or more, or more than
 they add (a one-for-one change stays unified); wrap a compact change (5 changed lines or fewer) whose lines overflow a column, else clip and scroll sideways.
-Reset code appears with the chapter controls when a link, chip or file view changes what the slide shows. It restores
-the slide's refs, views and centred highlights. On a phone it sits alongside the file tabs.
+The desktop review player has a full-width toolbar above both columns, with Close at the right.
+When a link, chip or file view changes what the slide shows, Reset code appears beside Close. It restores the slide's
+refs, views and centred highlights. On a phone it sits alongside the file tabs.
 
 **The portable walkthrough deck** places the shared player inside a paper card with a persistent toolbar and progress
 footer. Cover, chapter dividers and the end page use balanced Mona Sans titles. Titles start at 48px (32px on phones)
 and step down through the headline sizes at 55 and 85 characters. Wide title columns use 32px for long titles.
 Dividers centre the chapter number and title in one column. The toolbar's Skip dividers toggle keeps the cover,
-slides and end in the page sequence.
+slides and end in the page sequence. Reset code appears in the same toolbar group, before the theme toggle,
+with an undo icon at phone widths.
 The 16px `--rr-export-radius` and modal shadow frame the floating card on desktop. The stage is the export's exception
 to the Meaning Rule: a fixed dot grid and two washes of the orange accent sit behind the opaque card. Gaps tighten
 on laptops. At phone widths the stage is plain, the card fills it, the presentation pages stack, and the navigation
@@ -437,7 +439,8 @@ desktop. The phone takes Material 3 Expressive shapes on the same palette (Phone
   translucent hover fill. Disabled: 50% opacity.
 - **Primary:** ink fill with chrome-coloured text; hover lightens to `ink-2`.
 - **Ghost:** no border or fill until hover. **Small:** 24px.
-- **Icon button:** 28px square (24px in a bar), muted icon, hover fill; pressed uses the active fill.
+- **Icon button:** 28px square (24px in a bar), muted icon, hover fill; pressed uses the active fill. Labelled toolbar
+  actions use the same muted treatment and size to their labels.
 - **Send:** one button wherever a comment can go. Agent is a flat `comment` fill; PR is a plain button. When the review
   mode leaves one out it stays visible at 45% opacity, its tooltip saying why.
 
