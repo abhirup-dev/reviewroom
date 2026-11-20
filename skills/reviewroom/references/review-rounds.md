@@ -42,6 +42,8 @@ For each thread in the feedback:
    restating it.
 5. Reply with `reviewroom reply <review> <thread-id> --file <reply.md>`; its output says what is left.
 6. Leave resolving to the reviewer unless they ask.
+7. **The round is not over until you do what the last `reply` prints**: `check` if the report changed,
+   then `wait` in the background, then tell the reviewer the replies are in.
 
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or

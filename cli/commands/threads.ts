@@ -10,6 +10,7 @@ import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/kernel/state/model.shared.ts';
 import { issueText, type Op } from '../../src/kernel/state/schema.shared.ts';
 import { awaitingAgent } from '../../src/kernel/state/ops.shared.ts';
+import { unvalidated } from '../lib/progress.ts';
 import { z } from 'zod';
 
 function findThread(s: ReviewState, id: string) {
@@ -81,7 +82,12 @@ export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & 
   if (o.json) console.log(`replied to ${ops.filter((x) => x.op === 'addMessage').length} thread(s)`);
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
   const left = awaitingAgent(readState(dir)).length;
-  hint(left ? `${left} thread(s) still await your reply` : `All answered: run \`reviewroom wait ${reviewArgs('', dir)}\` in the background and tell the reviewer the replies are in`);
+  const args = reviewArgs('', dir);
+  hint(
+    left && `${left} thread(s) still await your reply`,
+    !left && unvalidated(dir, 'report') && `${REPORT_FILE} changed since it last passed: run \`reviewroom check ${args} --fix\` until it passes`,
+    !left && `When that is done, run \`reviewroom wait ${args}\` in the background and tell the reviewer the replies are in`,
+  );
 }
 
 export async function cmdComment(_repo: string | null, dir: string, o: BodyOpts, [ref, body]: string[]) {
