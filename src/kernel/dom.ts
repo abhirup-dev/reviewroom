@@ -96,6 +96,8 @@ export const icons = {
   smile: P('M8 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM5.5 9.5c1.2 1.4 3.8 1.4 5 0M6 6.2v.1M10 6.2v.1'),
   undo: P('M5.5 3 2.5 6l3 3M3 6h6.5a3.5 3.5 0 0 1 0 7H7'),
   bolt: P('M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z'),
+  // the built-in assistant: a robot's head (its panel's tab)
+  bot: P('M3.5 5.5h9v7.5h-9zM8 5.5V3M8 3h.01M6 9h.01M10 9h.01M6.5 11.5h3M2 8.5v2M14 8.5v2'),
   target: P('M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'),
   symbol: P('M5.5 2.5C4 2.5 4 4 4 5.5S3.5 8 2.5 8c1 0 1.5 1 1.5 2.5s0 3 1.5 3M10.5 2.5c1.5 0 1.5 1.5 1.5 3s.5 2.5 1.5 2.5c-1 0-1.5 1-1.5 2.5s0 3-1.5 3'),
   // GitHub's mark (octicons, MIT): a thread on the PR

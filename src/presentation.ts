@@ -3,6 +3,7 @@ import { WALKTHROUGH_FILE } from './kernel/state/files.shared';
 // picks one by app.presentation (kernel/presentation.ts) and loads it lazily; this is the desktop's, the phone's is
 // src/phone.ts, a turned phone's src/turned.ts. Only the presentations with a dock import dockview.
 import { h, icon } from './kernel/dom';
+import { CLAWD } from './kernel/clawd';
 import { buildHeader } from './kernel/header';
 import * as dock from './kernel/dockview';
 import type { LastLayout } from './kernel/layouts/layout.shared';
@@ -45,7 +46,7 @@ export const desktop: PresentationModule = {
           ? h('button', { class: 'rr-hbtn rr-tour-btn', title: app.walkthroughIssues ? `${WALKTHROUGH_FILE} is invalid: ${app.walkthroughIssues[0]}` : 'Play the walkthrough: the main story of this diff, slide by slide', 'data-keys': app.walkthrough ? 'g w' : null, disabled: !app.walkthrough, onclick: () => app.bus.emit('walkthrough-open', {}) }, icon('play', 14), h('span', null, 'Walkthrough'))
           : null,
         app.meta.assistant
-          ? h('button', { class: 'rr-hbtn', title: 'Open the assistant: the same conversation that wrote this review', onclick: () => app.commands.run('assistant.open') }, icon('thread', 14), h('span', null, 'Assistant'))
+          ? h('button', { class: 'rr-hbtn', title: 'Open the assistant: the same conversation that wrote this review', onclick: () => app.commands.run('assistant.open') }, h('img', { class: 'rr-clawd', src: CLAWD, width: 14, height: 14, alt: '' }), h('span', null, 'Claude'))
           : null,
         ...threadHeaderControls(app),
       ],

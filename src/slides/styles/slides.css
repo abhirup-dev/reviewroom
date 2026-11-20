@@ -482,10 +482,10 @@ button.rr-tour__chunk-head:hover {
   height: 14px;
 }
 
-/* paused: a pill bottom-right */
+/* paused: a pill bottom-left, clear of the side panels on the right */
 .rr-tour__pill {
   position: absolute;
-  right: 18px;
+  left: 18px;
   bottom: 18px;
   display: flex;
   align-items: center;
@@ -513,11 +513,11 @@ button.rr-tour__chunk-head:hover {
 .rr-tour__pill-play {
   display: grid;
   place-items: center;
-  width: 26px;
+  width: var(--rr-control);
   height: var(--rr-control);
   border-radius: 50%;
-  background: var(--rr-accent);
-  color: var(--rr-accent-ink);
+  background: var(--rr-ink); /* the primary button's ink, not the accent: the bar under it shows the progress */
+  color: var(--rr-surface-overlay);
 }
 .rr-tour__pill-bar {
   position: absolute;

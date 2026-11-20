@@ -64,7 +64,7 @@ async function pastPlayer(page: Page, go: () => void) {
   await until(page, `rr.app.generation?.context.progress.walkthrough.state === 'validated' && document.querySelector('.rr-tour')?.dataset.mode === 'playing'`, 15_000);
   // the diff was read, then one draft passed (the steps are painted while the screen is closed)
   expect(await page.evaluate<boolean>(`rr.app.generation.context.progress.walkthrough.read`)).toBe(true);
-  expect(await page.evaluate<string[]>(`[...document.querySelectorAll('.rr-gen-step__passes li')].map((li) => li.textContent)`)).toEqual([expect.stringMatching(/^✓ Draft 1 · \d+ slides in \d+ chapters · passes$/)]);
+  expect(await page.evaluate<string[]>(`[...document.querySelectorAll('.rr-gen-step__passes li')].map((li) => li.textContent)`)).toEqual([expect.stringMatching(/^Draft 1 · \d+ slides in \d+ chapters · passes$/)]);
   expect(await page.evaluate<boolean>(`!!window.rrBeforeReload`)).toBe(true);
   await page.evaluate(closePlayer);
   await until(page, `document.querySelector('.rr-tour').dataset.mode === 'closed' && !location.search.includes('walkthrough')`);
@@ -99,11 +99,13 @@ describe('the golden path: Generate, the loading screen, the walkthrough plays, 
       await page.close();
       page = await open(url);
       await until(page, `!document.querySelector('.rr-gen').hidden && ${live}.includes('Reading the diff.')`, 15_000);
-      await until(page, `[...document.querySelectorAll('.rr-gen__live button')].some((b) => b.textContent === 'Stop' && !b.disabled)`);
-      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Open full').click()`);
+      await until(page, `[...document.querySelectorAll('.rr-gen__live .rr-assistant__stop')].some((b) => b.textContent === 'Stop')`);
+      // the screen closed, the panel shows the same running turn
+      await page.evaluate(`[...document.querySelectorAll('.rr-gen button')].find((b) => b.textContent === 'Continue to the review').click()`);
+      await until(page, `document.querySelector('.rr-gen').hidden`);
+      await page.evaluate(`rr.app.commands.run('assistant.open')`);
       await until(page, `[...document.querySelectorAll('.rr-assistant__island button')].some((b) => b.textContent === 'Stop' && !b.disabled)`);
       await page.evaluate(`rr.app.dock.getPanel('assistant').api.close()`);
-      await until(page, `document.querySelector('.rr-gen').hidden`);
       await pastPlayer(page, () => go(1));
       await followUp(page, () => go(2));
       // a draft typed in the panel survives the conversation being taken again (the server's event)

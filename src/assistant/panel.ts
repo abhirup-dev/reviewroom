@@ -9,7 +9,7 @@ import type { ReviewApp } from '../app';
 import { askRef, excerptLines, type AskContext } from './context.shared';
 import type { AssistantChat } from './chat';
 
-const PANEL = { id: 'assistant', component: 'assistant', title: 'Assistant', params: {} };
+const PANEL = { id: 'assistant', component: 'assistant', title: 'Claude', params: {} };
 const open = (app: ReviewApp) => showPanel(app, PANEL.id) || addPanelAt(app, PANEL, 'right');
 
 /** Registers the panel and its commands; returns how generation's loading screen shows the same conversation
@@ -26,17 +26,17 @@ export function registerAssistant(app: ReviewApp) {
   app.onDispose(app.bus.on('assistant-turn', () => void chat?.then((c) => c.sync())));
   app.onDispose(app.bus.on('connection', (c) => void chat?.then((chat) => chat.connected(c))));
   /** A view of the conversation in `host`; returns the unmount. */
-  const view = (host: HTMLElement, readOnly: boolean) => {
+  const view = (host: HTMLElement, readOnly: boolean, extra?: HTMLElement) => {
     let unmount: (() => void) | undefined, gone = false;
     void Promise.all([import('./thread'), service()])
-      .then(([m, c]) => { if (!gone) unmount = m.mount(host, c, { readOnly }); })
+      .then(([m, c]) => { if (!gone) unmount = m.mount(host, c, { readOnly, extra }); })
       .catch((e: unknown) => console.error(`reviewroom: the assistant: ${errorText(e)}`)); // the chunks did not load
     return () => { gone = true; unmount?.(); };
   };
   app.onDispose(definePanel({
     id: PANEL.id,
     title: PANEL.title,
-    icon: 'thread',
+    icon: 'bot',
     create: () => {
       const island = h('div', { class: 'rr-assistant__island' });
       // nothing requested yet: the assistant can write the walkthrough and report (generation.generate, review/generation.ts)
@@ -71,5 +71,5 @@ export function registerAssistant(app: ReviewApp) {
       app.bus.emit('ask-assistant', s.kind === 'code' ? { anchor: { kind: 'code', path: s.path, rev: s.side, start: s.start, end: s.end } } : { anchor: s.anchor, quote: s.label });
     } },
   ));
-  return (host: HTMLElement) => view(host, true);
+  return (host: HTMLElement, extra?: HTMLElement) => view(host, true, extra);
 }
