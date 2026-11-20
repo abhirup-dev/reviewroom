@@ -73,6 +73,7 @@
   --rr-band-h: 38px; /* a file's band: its status, path, size and Viewed, over its code */
   --rr-indent: 14px; /* one level of a tree: files, contents */
   --rr-doc-width: 760px;
+  --rr-tour-width: 1600px; /* the walkthrough player at most: a wider screen leaves margins, not wider slides */
   --rr-rail-width: 232px;
 
   /* light — surfaces, from the ground up. Each dock panel picks its surface (see panels.css),
@@ -96,9 +97,9 @@
   --rr-faint: #8d897f;
   --rr-line: #dbd7cd;
   --rr-line-strong: #c7c2b6;
-  --rr-accent: #2557d6;
+  --rr-accent: #b4570f; /* one accent: Margin Orange, the same as --rr-comment */
   --rr-accent-ink: #ffffff;
-  --rr-accent-soft: #e8eefc;
+  --rr-accent-soft: #fdf0e1;
   --rr-comment: #b4570f;
   --rr-comment-soft: #fdf0e1;
   --rr-comment-ink: #ffffff; /* text on --rr-comment */
@@ -175,9 +176,9 @@
   --rr-faint: #7b776f;
   --rr-line: #2f343b;
   --rr-line-strong: #40464f;
-  --rr-accent: #7aa2f7;
-  --rr-accent-ink: #0d1117;
-  --rr-accent-soft: #1b2638;
+  --rr-accent: #f0a35e;
+  --rr-accent-ink: #1c1206;
+  --rr-accent-soft: #33261a;
   --rr-comment: #f0a35e;
   --rr-comment-soft: #33261a;
   --rr-comment-ink: #1c1206;

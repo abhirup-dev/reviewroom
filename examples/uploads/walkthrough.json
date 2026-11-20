@@ -26,13 +26,13 @@
       "steps": [
         {
           "id": "s1",
-          "text": "<p>The bucket refills with elapsed time, up to the plan\u2019s burst capacity. Take spends a token or returns the wait for the next one.</p>",
+          "text": "<p><a href=\"rr:sym/Take\">Take</a> refills the account’s bucket before it spends: the tokens grow with the seconds since the last call, times the plan’s rate, and stop at the plan’s burst.</p><p>A new account starts full, so its first burst of uploads goes through at once. After that, uploads pass at the plan’s steady rate: one a second on Free, five on Pro.</p><p>When less than one token is left, Take refuses and returns the wait until the next token. The handler turns that into a Retry-After header in whole seconds.</p><p>The buckets live in memory under one mutex, so every upload in the process queues on it for a moment, and a restart refills every bucket. A plan without a rate is never limited: <code>UploadsPerSec &lt;= 0</code> returns true before any bucket is made.</p><p>Worth checking: rates below one a second, and what a clock that moves backwards does to <code>elapsed</code>.</p>",
           "ref": "rr:code/internal/limit/bucket.go#L37-51"
         },
         {
           "id": "s2",
           "text": "<p>Free allows one upload per second with a burst of two; Pro allows five with a burst of ten. The renamed configuration also lists Team. <a href=\"rr:code/internal/limit/limiter.go\">The loader</a> decodes these settings.</p>",
-          "ref": "rr:code/config/limits.json#L1-5"
+          "ref": "rr:code/config/limits.json#L2-3"
         }
       ]
     },
@@ -44,12 +44,63 @@
         {
           "id": "s1",
           "text": "<p>The handler asks Take before storing a body. A rejected request receives 429 and a Retry-After value rounded up to whole seconds.</p>",
-          "ref": "rr:code/internal/upload/handler.go#L18-25"
+          "ref": "rr:code/internal/upload/handler.go#L19-25"
         },
         {
           "id": "s2",
           "text": "<p>The client retries a 429 with the same payload. The handler supplies Retry-After, but the loop never waits; together these paths decide whether a rejected upload can recover.</p>",
-          "ref": "rr:code/client/upload.go#L10-25"
+          "ref": [
+            "rr:code/internal/upload/handler.go#L22",
+            "rr:code/client/upload.go#L17-23"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "types",
+      "title": "Archives and video join the upload allow-list; the rest of the generated type table is unchanged",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>Uploads also accept archives and video now: one block of 23 types in the middle of the generated table.</p>",
+          "ref": "rr:code/internal/upload/types.go#L137-161"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The table is generated, so the new block should come from the generator's registry rather than a hand edit.</p>",
+          "ref": "rr:code/internal/upload/types.go#L1-6"
+        }
+      ]
+    },
+    {
+      "id": "disk",
+      "title": "Uploads land in a folder per id prefix",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>The disk store built each file's path by hand, six lines of separators. <code>filepath.Join</code> now does it in one, so the root may end with a slash or not.</p>",
+          "ref": "rr:code/internal/upload/disk.go#L24"
+        },
+        {
+          "id": "s2",
+          "text": "<p>The body is capped at a gigabyte while it is written, and a failed close now fails the upload instead of being dropped by <code>defer</code>.</p>",
+          "ref": "rr:code/internal/upload/disk.go#L29-30"
+        }
+      ]
+    },
+    {
+      "id": "errors",
+      "title": "Errors",
+      "steps": [
+        {
+          "id": "s1",
+          "text": "<p>A clearer message.</p>",
+          "ref": "rr:code/internal/upload/errors.go#L6"
+        },
+        {
+          "id": "s2",
+          "text": "<p>Callers still match it with <code>errors.Is</code>.</p>",
+          "ref": "rr:code/internal/upload/errors.go#L5-6"
         }
       ]
     },
@@ -60,12 +111,12 @@
         {
           "id": "s1",
           "text": "<p><a href=\"rr:doc/finding-team\">High: Team uploads bypass the limit.</a></p>",
-          "ref": "rr:code/config/limits.json#L1-5"
+          "ref": "rr:code/config/limits.json#L4"
         },
         {
           "id": "s2",
           "text": "<p><a href=\"rr:doc/finding-retry\">Medium: retries ignore Retry-After.</a></p>",
-          "ref": "rr:code/client/upload.go#L10-25"
+          "ref": "rr:code/client/upload.go#L20"
         }
       ]
     }

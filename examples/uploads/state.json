@@ -148,6 +148,16 @@
     "rr:code/internal/upload/handler.go#L22": "e59f2242707a958f",
     "rr:code/internal/upload/account.go#L5-15": "69226fa70d52d892",
     "rr:code/internal/limit/bucket.go#L37-51": "1410c38c75d80fea",
-    "rr:code/internal/upload/handler.go#L18-25": "f99290b956057127"
+    "rr:code/config/limits.json#L2-3": "42fad9e39fa1ddf4",
+    "rr:code/internal/upload/handler.go#L19-25": "a5ba868f06c97cc7",
+    "rr:code/client/upload.go#L17-23": "2f97e0d8890d4978",
+    "rr:code/internal/upload/types.go#L137-161": "b04eedebdcc0c0af",
+    "rr:code/internal/upload/types.go#L1-6": "26117ff2c3d01372",
+    "rr:code/config/limits.json#L4": "abe4efd2c31f1f79",
+    "rr:code/client/upload.go#L20": "9d13f5f2c354804e",
+    "rr:code/internal/upload/disk.go#L24": "ae3085139a1995ff",
+    "rr:code/internal/upload/disk.go#L29-30": "9e061b42d670486b",
+    "rr:code/internal/upload/errors.go#L6": "390405663253860b",
+    "rr:code/internal/upload/errors.go#L5-6": "35f968df8825df3c"
   }
 }

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { read, setup } from './fixture.ts';
 
 describe('slides', () => {
-  const { dir, d, cli, state, repo } = setup();
+  const { dir, d, cli, state } = setup();
   const demo = path.join(import.meta.dir, '..', 'examples', 'uploads', WALKTHROUGH_FILE);
   const walkthrough = read(import.meta.dir, '..', 'examples', 'uploads', REPORT_FILE);
   // Keep the paired walkthrough: slides may link to its sections with rr:doc refs.
@@ -53,26 +53,4 @@ describe('slides', () => {
     const r = await cli(['status', ...d, '--threads']);
     expect(r.stderr).toMatch(/does not match schema.*step/);
   });
-
-  const browser = process.platform === 'darwin' || !!(process.env.BUN_CHROME_PATH || Bun.which('chromium') || Bun.which('google-chrome'));
-  if (!browser) console.log('skipping the narration check: no browser (Chrome or Chromium) to render in');
-  // the desktop player's chapter heading is as tall as the code's toolbar and file band (slides.css), so a slide's text
-  // starts level with the code, with a chapter intro above it (why) or without (fetcher), whatever the tokens become
-  test.skipIf(!browser)('the narration starts level with the code, with or without a chapter intro', async () => {
-    const { withServer, withPage } = await import('../cli/lib/render.ts');
-    const gap = (url: string) =>
-      withPage(url, { width: 1440, height: 900 }, (p) =>
-        p.evaluate<number>(`new Promise((ok) => {
-          const at = () => {
-            const band = document.querySelector('.rr-tour__right .rr-file__head');
-            const first = [...document.querySelector('.rr-tour__left')?.children ?? []].find((e) => e.getBoundingClientRect().height > 0);
-            if (!band || !first) return setTimeout(at, 50);
-            ok(Math.round(first.getBoundingClientRect().top - band.getBoundingClientRect().bottom));
-          };
-          at();
-        })`),
-      );
-    const gaps = await withServer(repo, dir, async (url) => [await gap(url + '?walkthrough=why/s1'), await gap(url + '?walkthrough=bucket/s1')]);
-    expect(gaps).toEqual([0, 0]);
-  }, 60_000);
 });

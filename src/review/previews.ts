@@ -26,7 +26,14 @@ export function registerPreviewExtensions(next: PreviewExtensions) {
 const DARK_INK = 'oklch(from var(--diffs-token-dark,var(--diffs-dark)) calc(l + (1 - l) * var(--rr-code-contrast)) c h)';
 export const CODE_CSS =
   `[data-line] span,[data-edit-prediction-suffix] span{color:light-dark(oklch(from var(--diffs-token-light,var(--diffs-light)) calc(l * (1 - var(--rr-code-contrast))) c h),${DARK_INK})}` +
-  `[data-diff-span] span{--diffs-token-light:var(--_word-ink)!important;color:light-dark(var(--diffs-token-light),${DARK_INK})}`;
+  `[data-diff-span] span{--diffs-token-light:var(--_word-ink)!important;color:light-dark(var(--diffs-token-light),${DARK_INK})}` +
+  // the walkthrough's quiet diff (diffs.css), each a no-op unless a surface sets its variable: the bar Pierre draws at a
+  // changed line's number (--_change-bar), a file's changes faded (--_unlit-change; the code panel's lit-line CSS
+  // restores the slide's), and the revealed lines' numbers marked (a split view's left column takes the rule)
+  `[data-indicators=bars] [data-column-number]:before{opacity:var(--_change-bar,1)}` +
+  `[data-line-type^="change"]{opacity:var(--_unlit-change,1)}` +
+  `[data-column-number][data-selected-line]{color:var(--_lit-num,inherit);font-weight:var(--_lit-weight,inherit)}` +
+  `[data-column-number][data-selected-line]:not([data-additions] *){box-shadow:var(--_lit-rule,none)}`;
 /** @pierre/diffs options for code in the review: our colours and surface from diffs.css, light/dark following the page. */
 export function codeOptions() {
   return {
