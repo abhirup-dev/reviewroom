@@ -35,14 +35,14 @@ export const standalonePlayer = (bundle: WalkthroughBundle): PlayerFormFactory =
   let ready = false;
   let skipDividers = loadJSON(skipDividersKey) === true;
   const skip = h('button', {
-    class: 'rr-icon-btn rr-icon-btn--label', title: 'Skip chapter dividers', 'aria-label': 'Skip chapter dividers',
+    class: 'rr-icon-btn rr-icon-btn--label', title: "Skip each chapter's intro page", 'aria-label': 'Skip chapter intro',
     'aria-pressed': String(skipDividers), onclick: () => {
       skipDividers = !skipDividers;
       skip.setAttribute('aria-pressed', String(skipDividers));
       saveLocal(skipDividersKey, skipDividers);
       if (pages[index]?.kind === 'divider') go(index);
     },
-  }, 'Skip dividers');
+  }, 'Skip chapter intro');
   const move = (direction: -1 | 1) => {
     const adjacent = index + direction;
     go(skipDividers && pages[adjacent]?.kind === 'divider' ? adjacent + direction : adjacent);
@@ -221,7 +221,7 @@ function toolbar({ app, reset }: PlayerParts, source: WalkthroughBundle['source'
       h('button', { class: 'rr-icon-btn', title: 'Close shortcuts', 'aria-label': 'Close shortcuts', autofocus: true, onclick: () => help.close() }, icon('close')),
     ),
     h('dl', null, shortcuts.map(([key, label]) => h('div', null, h('dt', null, h('kbd', null, key)), h('dd', null, label)))),
-    h('p', null, 'Use ', h('strong', null, 'Skip chapter dividers'), ' in the toolbar to move directly between slides.'),
+    h('p', null, 'Use ', h('strong', null, 'Skip chapter intro'), ' in the toolbar to move directly between slides.'),
   );
 
   const theme = h('button', { class: 'rr-icon-btn', onclick() {

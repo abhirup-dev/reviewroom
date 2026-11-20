@@ -43,7 +43,7 @@ test('the exported demo plays from disk with bundled code and zero network reque
     const code = `${playing} .rr-tour__layer:not(.is-leaving) diffs-container`;
     const active = '.rr-export-tick[aria-current]';
     const reset = '.rr-export-toolbar .rr-export-tools > .rr-tour__reset';
-    const skip = 'button[aria-label="Skip chapter dividers"]';
+    const skip = 'button[aria-label="Skip chapter intro"]';
     const next = '.rr-export-footer button[title="Next page"]';
     const hash = () => page.evaluate('location.hash');
     expect(await hash()).toBe('#cover');
@@ -56,7 +56,7 @@ test('the exported demo plays from disk with bundled code and zero network reque
     )`)).toBe(true);
     await press('?');
     expect(await evalAt<boolean>('.rr-export-help', 'open')).toBe(true);
-    expect(await evalAt('.rr-export-help p', 'textContent')).toContain('Skip chapter dividers');
+    expect(await evalAt('.rr-export-help p', 'textContent')).toContain('Skip chapter intro');
     await press('ArrowRight');
     expect(await hash()).toBe('#cover');
     await click('.rr-export-help button');

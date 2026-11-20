@@ -387,7 +387,7 @@ refs, views and centred highlights. On a phone it sits alongside the file tabs.
 **The portable walkthrough deck** places the shared player inside a paper card with a persistent toolbar and progress
 footer. Cover, chapter dividers and the end page use balanced Mona Sans titles. Titles start at 48px (32px on phones)
 and step down through the headline sizes at 55 and 85 characters. Wide title columns use 32px for long titles.
-Dividers centre the chapter number and title in one column. The toolbar's Skip dividers toggle keeps the cover,
+Dividers centre the chapter number and title in one column. The toolbar's Skip chapter intro toggle keeps the cover,
 slides and end in the page sequence. Reset code appears in the same toolbar group, before the theme toggle,
 with an undo icon at phone widths.
 The 16px `--rr-export-radius` and modal shadow frame the floating card on desktop. The stage is the export's exception
