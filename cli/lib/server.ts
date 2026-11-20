@@ -18,6 +18,7 @@ import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '
 import { formatReviewRepository, parseReviewId, pullUrl } from './review-id.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
+import { exportWalkthrough } from './walkthrough-export.ts';
 import { tourText } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -149,6 +150,11 @@ export const localOnly = guarded(allowed);
 
 /** A round's saved report, served as a page like the live one (the client reads its <rr-review>); 404 when there is none. */
 const roundPage = (c: Context, file: string) => (fs.existsSync(file) ? c.html(reportPage(fs.readFileSync(file, 'utf8'))) : c.notFound());
+
+async function downloadWalkthrough(c: Context, repo: string, dir: string) {
+  const { html, filename } = await exportWalkthrough(repo, dir, true);
+  return c.html(html, 200, { 'content-disposition': `attachment; filename="${filename}"` });
+}
 
 /** `readOnly`: a server that only shows the review (`slide-lint`): no writes, no GitHub calls; it holds no lock. */
 type ServerOpts = { repo: string; dir: string; cfg: ReviewConfig; onClient?: () => void; readOnly?: boolean };
@@ -302,6 +308,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     if (ops.some((o) => o?.op === 'finishRound')) throw new OpError('bad_op', 'finish a round with POST /api/finish');
     return json(c, { rev: commit(ops).rev });
   });
+  app.get('/api/export', (c) => downloadWalkthrough(c, repo, dir));
   app.get('/api/walkthrough', (c) => {
     const r = readWalkthrough(dir);
     return !r ? json(c, { error: `no ${WALKTHROUGH_FILE}` }, 404) : r.ok ? json(c, r.value) : json(c, { issues: r.issues }, 422);

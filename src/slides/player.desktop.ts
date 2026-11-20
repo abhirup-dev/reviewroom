@@ -1,12 +1,34 @@
 // The guided walkthrough player on a desktop (and a tablet): the chapter button opens a menu, Next is a labelled button.
 import { h, icon, plural } from '../kernel/dom';
+import { errorText } from '../kernel/errors.shared';
 import { menuItem, popMenu } from '../kernel/menus';
 import type { current } from './model.shared';
 import type { PlayerParts } from './player';
 
 export function desktopPlayer(parts: PlayerParts) {
-  const { player, reset, close } = parts;
-  player.prepend(h('div', { class: 'rr-tour__top' }, reset, close));
+  const { app, player, reset, close } = parts;
+  const title = 'Download this walkthrough as a standalone HTML file';
+  const getExport = app.backend.downloadWalkthrough?.bind(app.backend);
+  const download = getExport && h('button', {
+    class: 'rr-icon-btn', title, 'aria-label': title, onclick: async () => {
+      if (!download) return;
+      download.disabled = true;
+      try {
+        const { file, filename } = await getExport();
+        if (!download.isConnected) return;
+        const href = URL.createObjectURL(file);
+        const link = h('a', { href, download: filename });
+        link.click();
+        // Give the browser time to start consuming the object URL.
+        setTimeout(() => URL.revokeObjectURL(href), 1000);
+      } catch (e) {
+        if (download.isConnected) app.toast(`Could not download walkthrough: ${errorText(e)}`, 'error');
+      } finally {
+        download.disabled = false;
+      }
+    },
+  }, icon('download', 14));
+  player.prepend(h('div', { class: 'rr-tour__top' }, reset, download, close));
   return desktopNavigation(parts);
 }
 

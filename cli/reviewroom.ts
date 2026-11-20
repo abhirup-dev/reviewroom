@@ -4,7 +4,7 @@
 //
 // Reviews live under ~/.reviewroom/reviews/. What the agent
 // writes there: docs/review-artifacts.md; reviewroom's own state: docs/review-state.md.
-import { REPORT_FILE, WALKTHROUGH_EXPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import path from 'node:path';
 import fs from 'node:fs';
 import { cac } from 'cac';
@@ -152,9 +152,9 @@ cli
   .action(run(forReview('publish-slides', cmdPublishSlides)));
 
 cli
-  .command('export <review>', 'Export a self-contained walkthrough including the source of the files it shows')
+  .command('export <review>', 'Export a self-contained walkthrough with its source files (also available via Download in the desktop player)')
   .usage('export <review> [options]')
-  .option('--out <path>', `Output HTML file; defaults to ${WALKTHROUGH_EXPORT_FILE}`)
+  .option('--out <path>', 'Override the output path (default: slugged <review-id>-<title>.html in the current directory)')
   .option('--allow-stale', 'Allow stale links; schema must pass')
   .example('  reviewroom export \'acme/api#31\' --out walkthrough.html')
   .action(run(forReview('export', cmdExport)));
@@ -220,7 +220,8 @@ const notes: Record<string, string> = {
   Uses GitHub authentication from gh.
   Rejects schema errors and comments exceeding 65,536 characters.`,
   'export': `  Validates first. Open the HTML directly in a browser.
-  The file includes the source of the files shown in the walkthrough.`,
+  The file includes the source of the files shown in the walkthrough.
+  Download in the live desktop player exports even if links are stale.`,
   'shot': `  Default: review panel width; phone width is 390 CSS pixels.
   Long sections split at 1400 CSS pixels.
   Slide targets use <chapter>/<step>; findings follow PNG paths.

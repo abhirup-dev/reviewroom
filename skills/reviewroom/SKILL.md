@@ -119,9 +119,10 @@ it was validated before publication. Go to Step 4b without replacing it. Otherwi
    The reviewer sees a loading screen until a full run passes; scoped runs are for iterating and
    do not count. Follow [Validation and audit](references/validation-and-audit.md).
 
-When asked for a shareable walkthrough, run `reviewroom export --dir <dir> --out walkthrough.html`.
+Use Download in the live desktop walkthrough player, or run `reviewroom export <review>`.
+Both default to the slugged review ID and walkthrough title. Use `--out <path>` to name the CLI output.
 The recipient can open the HTML directly in a browser. The file includes the full source of the files the
-walkthrough shows. Export validates links first and requires committed base and head revisions.
+walkthrough shows. Export requires committed base and head revisions. The CLI checks for stale links by default.
 
 ## Step 4b: Fill the report
 

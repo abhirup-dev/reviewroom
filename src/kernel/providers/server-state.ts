@@ -169,6 +169,13 @@ export class ServerState implements StateBackend {
     if (r.ok || r.status === 422) return r.json();
     throw new Error(`${WALKTHROUGH_FILE}: ${r.status} ${r.statusText}`); // not a schema problem: the player stays off
   }
+  async downloadWalkthrough() {
+    const r = await fetch(`${this.api}/export`);
+    if (!r.ok) await json(r);
+    const filename = /^attachment; filename="([a-z0-9-]+\.html)"$/.exec(r.headers.get('content-disposition') ?? '')?.[1];
+    if (!filename) throw new Error('The server did not return a walkthrough download');
+    return { file: await r.blob(), filename };
+  }
   github(refresh = false) {
     return fetch(`${this.api}/github${refresh ? '?refresh=1' : ''}`).then(json);
   }

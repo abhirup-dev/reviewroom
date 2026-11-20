@@ -7,7 +7,7 @@ import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.
 import { until } from '../src/testing/wait.ts';
 import { config, read, setup } from './fixture.ts';
 
-const { cli, dir, d, home, tmp, state } = setup();
+const { cli, dir, d, home, tmp, state, serve, spawn } = setup();
 const demo = path.join(import.meta.dir, '..', 'examples', 'uploads');
 const copyReport = () => fs.copyFileSync(path.join(demo, REPORT_FILE), path.join(dir, REPORT_FILE));
 const stage = '.rr-export-stage';
@@ -24,12 +24,12 @@ test('the exported demo plays from disk with bundled code and zero network reque
   expect((await cli(['comment', ...d, 'rr:tour/why/s1', 'Private slide comment'])).code).toBe(0);
   expect((await cli(['comment', ...d, 'rr:code/internal/upload/handler.go@base#L12', 'Private code comment'])).code).toBe(0);
   const before = state();
-  const output = path.join(tmp, 'demo.html');
+  const output = path.join(tmp, 'Custom walkthrough name.html');
   const r = await cli(['export', ...d, '--out', output]);
   expect(r).toEqual({ code: 0, stdout: output + '\n', stderr: '' });
   expect(state()).toEqual(before);
   expect(fs.statSync(output).size).toBeLessThan(5_200_000);
-  expect(read(tmp, 'demo.html')).not.toContain('Private slide comment');
+  expect(fs.readFileSync(output, 'utf8')).not.toContain('Private slide comment');
 
   const requests: string[] = [];
   let sawChrome = false;
@@ -84,7 +84,7 @@ test('the exported demo plays from disk with bundled code and zero network reque
     await until(() => page.evaluate(`!!document.querySelector(${JSON.stringify(code)})?.shadowRoot?.querySelector('[data-line] span[style]')`));
     expect(await page.evaluate(`[...document.querySelectorAll('rr-code diffs-container')].some((el) => el.shadowRoot?.textContent.includes('key = 1'))`)).toBe(true);
     expect(await page.evaluate(`!!document.querySelector(${JSON.stringify(code)}).shadowRoot.querySelector('[data-gutter-utility], [data-line-annotation]')`)).toBe(false);
-    expect(await page.evaluate(`document.querySelectorAll('.rr-tour__comment, .rr-tour__badge, [title^="Show comment threads"], .rr-viewed, rr-review, [title="Close the walkthrough"]').length`)).toBe(0);
+    expect(await page.evaluate(`document.querySelectorAll('.rr-tour__comment, .rr-tour__badge, [title^="Show comment threads"], .rr-viewed, rr-review, [title="Close the walkthrough"], [title="Download this walkthrough as a standalone HTML file"]').length`)).toBe(0);
     expect(await page.evaluate(`[...document.querySelectorAll('a[href], img[src]')].every((el) => (el.getAttribute('href') ?? '').startsWith('rr:'))`)).toBe(true);
 
     const renderedCode = (kind: string) =>
@@ -197,6 +197,42 @@ test('the exported demo plays from disk with bundled code and zero network reque
   }, 1, { ...opts, colorScheme: 'dark' });
   if (sawChrome) expect(requests).toContain(url);
   expect(withoutRequests(requests)).toBe(true);
+});
+
+test('the review server downloads the same standalone HTML as the CLI', async () => {
+  copyReport();
+  const file = path.join(dir, WALKTHROUGH_FILE);
+  fs.rmSync(file, { force: true });
+  const url = await serve();
+  const request = (headers?: HeadersInit) => fetch(url + 'api/export', { headers });
+  const missing = await request();
+  expect([missing.status, (await missing.json()).error]).toEqual([404, expect.stringContaining(WALKTHROUGH_FILE)]);
+  fs.writeFileSync(file, '{}');
+  const invalid = await request();
+  expect([invalid.status, (await invalid.json()).error]).toEqual([422, expect.stringContaining('does not match')]);
+
+  const tour = JSON.parse(read(demo, WALKTHROUGH_FILE));
+  tour.chapters[0].steps[0].ref = 'rr:file/gone.go@head';
+  fs.writeFileSync(file, JSON.stringify(tour));
+  expect((await request({ 'sec-fetch-site': 'cross-site' })).status).toBe(403);
+  const response = await request();
+  const filename = 'repo-feat-upload-rate-limit-limit-file-uploads-per-account.html';
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-type')).toStartWith('text/html');
+  expect(response.headers.get('content-disposition')).toBe(`attachment; filename="${filename}"`);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  const html = await response.text();
+  expect(html).toContain('<script type="application/json" id="rr-bundle">{"version":1');
+  expect(html).toContain('<script type="module">');
+  expect(html).toContain('<rr-app class="rr-root"></rr-app>');
+
+  const output = path.join(fs.realpathSync(tmp), filename);
+  const command = spawn(['export', ...d, '--allow-stale'], tmp);
+  const stdout = await new Response(command.stdout as ReadableStream).text();
+  expect(await command.exited).toBe(0);
+  expect(stdout.trim()).toBe(output);
+  const withoutTimestamp = (s: string) => s.replace(/"exportedAt":"[^"]+"/, '"exportedAt":"timestamp"');
+  expect(withoutTimestamp(html)).toBe(withoutTimestamp(fs.readFileSync(output, 'utf8')));
 });
 
 test('export refuses stale links unless explicitly allowed', async () => {
