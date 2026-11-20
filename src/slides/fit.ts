@@ -41,10 +41,10 @@ export function fitDiff(blocks: ChangeBlock[], width: number, view: Fit['diffSty
 
 const BAND = 560; // the file band's path, views, size and Viewed
 
-/** The width code needs to show these blocks unclipped, in px (a chapter's widest sets how far its narration may
+/** The width code needs to show these blocks unclipped in the view they are drawn in, in px (a chapter's widest sets how far its narration may
  *  widen, player.ts): the longest changed line with its line numbers, in each column of a split view, and never less
  *  than the file band. */
-export const codeWidth = (blocks: ChangeBlock[], view: Fit['diffStyle'] | 'auto' = 'auto') => Math.max(BAND, (longestOf(blocks) * CHAR + GUTTER) * (viewOf(blocks, view) === 'split' ? 2 : 1));
+export const codeWidth = (blocks: ChangeBlock[], diffStyle: Fit['diffStyle']) => Math.max(BAND, (longestOf(blocks) * CHAR + GUTTER) * (diffStyle === 'split' ? 2 : 1));
 
 const ROW = 20; // a code row
 const FOLD = 32; // a fold: its "N unmodified lines" row

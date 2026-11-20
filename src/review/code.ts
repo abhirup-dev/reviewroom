@@ -294,7 +294,7 @@ class CodePanel implements PanelInstance {
 
     this.offs.push(
       app.bus.on('files', () => this.rebuild()),
-      app.bus.on('prefs', () => { this.refit(); this.refreshOptions(true); }),
+      app.bus.on('prefs', () => this.refreshOptions(true)),
       app.bus.on('theme', () => this.cv.setOptions(this.options())),
       app.bus.on('state', () => { this.refreshItems(); if (this.embedded) this.renderToolbar(); }), // the walkthrough's toolbar holds Viewed
       app.bus.on('reveal-code', (t) => {
@@ -698,17 +698,6 @@ class CodePanel implements PanelInstance {
     this.element.dataset.diffStyle = this.fitted.diffStyle;
     this.litCSS = litCSS(this.touched);
     this.cv.setOptions(this.options());
-  }
-
-  /** A pref the fit reads changed (the walkthrough's view): draw the lines again by it, and land them again. */
-  private refit() {
-    if (!this.fit || !this.fitted) return;
-    const f = this.fit(this.touched, this.scroller.clientWidth);
-    if (f.diffStyle === this.fitted.diffStyle && f.wrap === this.fitted.wrap) return;
-    this.fitted = f;
-    this.element.dataset.diffStyle = f.diffStyle;
-    const t = this.revealer.getSnapshot().context.target;
-    if (t) queueMicrotask(() => this.reveal(t));
   }
 
   /** revealMachine's `unfold`: lines the PR didn't touch sit in folded context; once the file is mounted, unfold around
