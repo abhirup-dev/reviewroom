@@ -14,7 +14,6 @@ type RenderOptions = {
   rasterHeight?: number;
   readySelector?: string;
   onRequest?: (url: string) => void;
-  colorScheme?: 'light' | 'dark';
 };
 type Clip = { x: number; y: number; width: number; height: number };
 
@@ -102,7 +101,6 @@ export async function openPage(url: string, vp: Viewport, scale = 1, options: Re
     // uncaught errors reach the console too (Chrome; WebKit reports console.error only)
     if (engine === 'chrome') {
       await within(view.cdp('Page.addScriptToEvaluateOnNewDocument', { source: CATCH }), 10_000, 'preparing the page');
-      if (options.colorScheme) await within(view.cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: options.colorScheme }] }), 10_000, 'setting the color scheme');
       if (options.onRequest) {
         await within(view.cdp('Network.enable'), 10_000, 'observing requests');
         view.addEventListener('Network.requestWillBeSent', (event) => {

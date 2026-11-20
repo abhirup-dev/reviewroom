@@ -1,5 +1,7 @@
 // Finishing rounds and handing the feedback to the agent.
 import { describe, expect, test } from 'bun:test';
+import path from 'node:path';
+import { slideCases, writeSlideCase } from '../testing/slides/cases.ts';
 import { op, post, read, setup } from './fixture.ts';
 import { shellArg } from '../cli/lib/config.ts';
 
@@ -34,6 +36,11 @@ describe('the external agent round loop', () => {
     try {
       const pid = (await fetch(url + 'api/meta')).headers.get('x-reviewroom-pid');
       expect(pid).toBeString();
+      writeSlideCase(dir, slideCases.demo);
+      const output = path.join(tmp, 'pull.html');
+      expect(await cli(['export', id, '--out', output])).toEqual({ code: 0, stdout: output + '\n', stderr: '' });
+      const bundle = /<script type="application\/json" id="rr-bundle">(.*?)<\/script>/s.exec(read(output))?.[1];
+      expect(JSON.parse(bundle!).source).toMatchObject({ repo: 'demo/project', pr: 7 });
       for (const [round, kind, target] of [
         [1, 'feedback', [id]],
         [2, 'approve', [dir]],

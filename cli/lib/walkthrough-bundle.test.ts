@@ -11,7 +11,7 @@ test('resolves code, symbols, renamed files, historical links and Mermaid nodes 
     modified('main.go'), { ...modified('renamed.go'), prevPath: 'old.go', status: 'renamed' }, modified('unseen.go'),
   ];
   const source = new Map([
-    [`${base}:main.go`, 'before\nwhole file'], [`${head}:main.go`, 'after\nwhole file'],
+    [`${base}:main.go`, 'before\nwhole file'], [`${head}:main.go`, 'after\n</script>'],
     [`${base}:old.go`, 'renamed before'], [`${head}:renamed.go`, 'renamed after'],
     [`${base}:diagram.go`, 'diagram before'], [`${head}:diagram.go`, 'diagram after'], [`${old}:diagram.go`, 'historical'],
     [`${head}:unseen.go`, 'never included'], [`${head}:amp&copy;.go`, 'path with an entity-like name'],
@@ -39,23 +39,12 @@ test('resolves code, symbols, renamed files, historical links and Mermaid nodes 
   expect(bundle.source).toEqual({ title: 'Review', base, head, pr: 7, exportedAt: stamp });
   expect(bundle.files).toEqual(files.slice(0, 2));
   expect(Object.keys(bundle.contents).sort()).toEqual([...source.keys()].filter((key) => !key.endsWith('unseen.go')).sort());
-  expect(bundle.contents[`${head}:main.go`]).toBe('after\nwhole file');
+  expect(bundle.contents[`${head}:main.go`]).toBe('after\n</script>');
   const [chapter] = bundle.walkthrough.chapters;
   expect(chapter.lead).toContain(`click A "rr:file/diagram.go@${old}"`);
   expect(chapter.steps[0].ref).toEqual([`rr:code/main.go@${head}#L2`, `rr:code/renamed.go@${base}#L1`]);
   expect(chapter.steps[0].text).toBe(`<strong>Finding</strong>MoreReport sectionWebsite<a href="rr:tour/first/start">Here</a><rr-code ref="rr:file/amp&amp;copy;.go@${head}"></rr-code>`);
-});
-
-test('bundle JSON cannot terminate the data script and round-trips markup and source', () => {
-  const bundle = buildWalkthroughBundle({
-    version: 1, title: '</SCRIPT>',
-    chapters: [{ id: 'one', title: 'One', steps: [{ id: 'one', text: '<p>Look</p>', ref: 'rr:file/example.ts@head' }] }],
-  }, {
-    base, head, meta: () => ({ title: 'Review', base, head }), files: () => [],
-    read: () => '</script><script>unexpected()</script>', resolveSymbol: () => [],
-  }, () => null, stamp);
   const json = bundleJson(bundle);
   expect(json).not.toContain('<');
-  expect(JSON.parse(json).contents).toEqual(bundle.contents);
-  expect(JSON.parse(json).walkthrough).toEqual(bundle.walkthrough);
+  expect(JSON.parse(json)).toEqual(bundle);
 });
