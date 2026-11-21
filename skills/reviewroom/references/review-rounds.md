@@ -11,13 +11,13 @@ For existing feedback, begin with "Resume an existing review".
 reviewroom pr 'acme/api#31'
 ```
 
-Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
+Run the `wait` command it prints, as in "How to run `wait`" below. The review opens in the macOS app when installed,
 otherwise in the browser. Use `--browser` to open the browser. The server stays up between rounds.
 After feedback, the page opens the next round immediately.
 
 ## Resume an existing review
 
-Run `reviewroom wait 'acme/api#31'` in the background, using the PR's Review ID from any directory.
+Run `reviewroom wait 'acme/api#31'` (see "How to run `wait`"), using the PR's Review ID from any directory.
 For a local review, use its branch from the reviewed repo (or pass `--repo <path>`) or pass an existing
 review folder as an absolute or `./`-relative path. The command starts the server if needed and prints
 the next unread round as soon as it is available.
@@ -29,9 +29,24 @@ Use `reviewroom status 'acme/api#31' --json` for the URL, review directory, base
 add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
 for the round command's completion. To end the review when asked, run `reviewroom stop 'acme/api#31'`.
 
+## How to run `wait`
+
+Choose by what your shell tool can do:
+
+- **It runs background tasks and tells you when one exits** (Claude Code's background Bash): run `wait` as a
+  background task and carry on.
+- **It has no such tasks** (Codex, pi, a plain shell): run `wait` in the **foreground**, after you finish writing.
+  If the call comes back with the command still running (a session id), keep reading that session until it exits.
+  Never use `&`, `nohup` or `setsid` for it: a job started that way is killed when your shell call returns, or
+  runs on where you never see its output.
+
+If `wait` is killed (a timeout, an interrupted call), run it again: a round counts as delivered only once it has been
+printed, so nothing is lost. If it prints `REVIEW CLOSED` (exit code 3), the reviewer stopped the review: tell them,
+and don't wait again unless they ask.
+
 ## Wait for the reviewer
 
-**Do NOT proceed until the background command exits.** Do NOT ask the reviewer to type anything. Do not
+**Do NOT proceed until the `wait` command exits.** Do NOT ask the reviewer to type anything. Do not
 poll threads to determine whether the round is finished. If the reviewer explicitly asks for status,
 inspect it without treating that request as the end of the round. The command exiting is how you
 know the reviewer has finished the round.
@@ -99,7 +114,7 @@ cannot reply to them. When one matters to your answer, link or embed it with `rr
 
 **CRITICAL: you MUST run this step. Do NOT skip it.**
 
-Run the command the feedback names **in the background**. For a PR, use its Review ID:
+Run the command the feedback names, as in "How to run `wait`". For a PR, use its Review ID:
 
 ```bash
 reviewroom wait 'acme/api#31'

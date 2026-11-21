@@ -60,7 +60,7 @@ review folder as an absolute or `./`-relative path. Stop a review only when the 
 
 ## Step 1: Start the review
 
-Run `pr`, then run the printed command (for example, `reviewroom wait 'acme/api#31'`) in the background while writing the walkthrough and the report.
+Run `pr`, then the printed command (for example, `reviewroom wait 'acme/api#31'`): as a background task while you write the walkthrough and the report if your shell reports when such tasks exit; otherwise in the foreground once you finish writing, never with `&` (`references/review-rounds.md`, "How to run `wait`").
 The detached server stays up between rounds. See `references/review-rounds.md`.
 `--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 

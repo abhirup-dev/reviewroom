@@ -242,7 +242,10 @@ const notes: Record<string, string> = {
   'start': `  Prints the review URL. Reuses a running server and its port.`,
   'list': `  Lists running reviews across repositories. The hub can be stopped.`,
   'wait': `  Starts a detached server if needed and leaves it running.
-  Prints saved feedback or APPROVED to stdout and records delivery.`,
+  Prints saved feedback or APPROVED to stdout and records delivery.
+  Exits 3 with REVIEW CLOSED when the review is stopped (stop, the hub's Close) while it waits.
+  Without background jobs that report their exit (Codex, pi), run it in the foreground and keep reading it;
+  a job started with & or nohup is killed when the shell call returns. A killed wait loses nothing: run it again.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.
@@ -285,7 +288,7 @@ cli.help((sections) => {
       title: 'A review',
       body: [
         '  pr \'acme/api#31\': set up a review and start its server.',
-        '  wait \'acme/api#31\': await the next round in the background.',
+        '  wait \'acme/api#31\': await the next round (a background task, else the foreground).',
         '  list: show running reviews and their URLs.',
         '  shot <review> [section]: inspect PNG output.',
         '  reply <review> <thread> "...": answer feedback.',
