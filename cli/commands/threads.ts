@@ -23,7 +23,7 @@ type BodyOpts = Global & { file?: string };
 /** The message: --file, else the body argument, else stdin (`-`, or piped with no argument). */
 function readBody(file: string | undefined, arg: string | undefined) {
   const b = file ? fs.readFileSync(file, 'utf8') : arg === '-' || (!arg && !process.stdin.isTTY) ? fs.readFileSync(0, 'utf8') : arg;
-  if (!b?.trim()) fail('missing message body');
+  if (!b?.trim()) fail('missing message body: pass --file <file.md>, a body argument, or - for stdin', 2);
   return b.trim();
 }
 
@@ -63,14 +63,14 @@ function replyOps(s: ReviewState, input: unknown) {
 export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & { resolve?: boolean; json?: string | true }, [thread, body]: string[]) {
   let items: unknown;
   if (o.json) {
-    if (thread || body) fail('reply <review> --json [file] takes no thread or body');
+    if (thread || body) fail('reply <review> --json [file] takes no thread or body', 2);
     const src = typeof o.json === 'string' ? o.json : '-';
     try {
       items = JSON.parse(fs.readFileSync(src === '-' ? 0 : src, 'utf8'));
     } catch (e) {
       fail(`--json: ${(e as Error).message}`);
     }
-  } else if (!thread) fail('missing thread id');
+  } else if (!thread) fail(`missing thread id: reviewroom reply <review> <thread> --file <reply.md> (\`reviewroom status <review> --threads\` lists them)`, 2);
   else if (o.resolve && body === undefined && !o.file) {
     // `reply <thread> --resolve` without a body: resolve only
     const t = findThread(readState(dir), thread);
@@ -91,7 +91,7 @@ export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & 
 }
 
 export async function cmdComment(_repo: string | null, dir: string, o: BodyOpts, [ref, body]: string[]) {
-  if (!ref) fail('missing rr: ref (or "general")');
+  if (!ref) fail('missing rr: ref (or "general"): reviewroom comment <review> <ref> --file <body.md>', 2);
   const id = uid('t_');
   await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
   console.log(id);

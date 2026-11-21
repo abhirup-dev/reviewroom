@@ -32,7 +32,7 @@ export function summary(repo: string | null, dir: string) {
 
 export function printSummary(x: ReturnType<typeof summary>) {
   console.log([
-    `review: ${shellArg(x.id ?? x.dir)}`, `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review} (profile ${x.profile ?? 'explainer'})`,
+    ...(x.id ? [`review: ${shellArg(x.id)}`] : []), `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review} (profile ${x.profile ?? 'explainer'})`,
     `base: ${x.base ?? '?'}  head: ${x.head ?? '?'}`, `round: ${x.round} (${x.roundStatus})  role: ${x.role}`,
     `threads: ${x.open} open, ${x.awaitingAgent.length} awaiting your reply`,
     ...(x.unread.length ? [`feedback: round ${x.unread.join(', ')} sent and not read yet`] : []),
