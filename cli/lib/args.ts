@@ -21,4 +21,4 @@ export function hint(...lines: unknown[]) {
 }
 
 /** How an agent should run `wait`: a backgrounded `&` job dies when a Codex or pi shell call returns (review-rounds.md). */
-export const WAIT_HOW = 'as a background task if your shell tells you when it exits, else in the foreground; never with &';
+export const WAIT_HOW = 'as a background task if your shell tells you when it exits, else in the foreground with --timeout 25, again until a round prints; never with &';

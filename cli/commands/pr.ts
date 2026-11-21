@@ -143,7 +143,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
 function nextSteps(args: string, dir: string, serving: boolean) {
   const { walkthrough, report } = readProgress(dir);
   hint(
-    serving && `Run \`reviewroom wait ${args}\`: it exits with the reviewer's feedback. Start it now if your shell runs background tasks and tells you when they exit; otherwise run it in the foreground once the walkthrough and report pass, never with &`,
+    serving && `Run \`reviewroom wait ${args}\`: it exits with the reviewer's feedback. Start it now if your shell runs background tasks and tells you when they exit; otherwise, once the walkthrough and report pass, run it in the foreground with --timeout 25, again each time it prints no round yet; never with &`,
     serving && 'Tell the reviewer the url above, verbatim',
     pendingArtifact(walkthrough) && `Once you have read the changed files (not only the stat): \`reviewroom progress ${args} read\`; then write ${WALKTHROUGH_FILE} and run \`reviewroom slide-lint ${args}\` until it passes`,
     pendingArtifact(report) && `Then fill ${REPORT_FILE} and run \`reviewroom check ${args} --fix\` until it passes`,

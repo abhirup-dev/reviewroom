@@ -4,18 +4,22 @@ This round loop is for external agents. The built-in assistant follows the conve
 
 ## How to run `wait`
 
-Choose by what your shell tool can do:
+A round takes as long as the reviewer needs: often 10 to 60 minutes, sometimes hours. `wait` prints nothing until
+the round arrives. Choose by what your shell tool can do:
 
 - **It runs background tasks and tells you when one exits** (Claude Code's background Bash): run `wait` as a
   background task and carry on.
-- **It has no such tasks** (Codex, pi, a plain shell): run `wait` in the **foreground**, after you finish writing.
-  If the call comes back with the command still running (a session id), keep reading that session until it exits.
-  Never use `&`, `nohup` or `setsid` for it: a job started that way is killed when your shell call returns, or
-  runs on where you never see its output.
+- **It has no such tasks** (Codex, pi, a plain shell): after you finish writing, run
+  `reviewroom wait <review> --timeout 25` in the **foreground**, with your tool's timeout set to 30 minutes (or the
+  longest it allows, and `--timeout` a few minutes under it). If the call comes back with the command still
+  running (a session id), keep reading that session until it exits. Never use `&`, `nohup`, `setsid`, or a
+  session or dispatch tool that ends quiet commands: the job is killed, or runs on where you never see its output.
 
-If `wait` is killed (a timeout, an interrupted call), run it again: a round counts as delivered only once it has been
-printed, so nothing is lost. If it prints `REVIEW CLOSED` (exit code 3), the reviewer stopped the review: tell them,
-and don't wait again unless they ask.
+When it prints `no round yet`, the reviewer is still reviewing: run the same command again at once, and keep doing
+so until it prints the round, `APPROVED` or `REVIEW CLOSED`. Do the same if the call times out or is killed: a round
+counts as delivered only once printed, so nothing is lost.
+Never tell the reviewer you are waiting unless a `wait` is running. If it prints `REVIEW CLOSED` (exit code 3), the
+reviewer stopped the review: tell them, and don't wait again unless they ask.
 
 ## Wait for the reviewer
 

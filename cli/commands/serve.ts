@@ -14,7 +14,7 @@ import { agentAncestor } from '../hub/proc.ts';
 
 export { runningServer };
 
-export type StartOpts = Global & { port?: string; open: boolean; browser?: boolean; foreground?: boolean };
+export type StartOpts = Global & { port?: string; open: boolean; browser?: boolean; foreground?: boolean; timeout?: string };
 
 export async function ensureServer(repo: string | null, dir: string, o: StartOpts): Promise<ServerRecord> {
   const live = await runningServer(dir);
@@ -34,6 +34,9 @@ export async function cmdStart(repo: string | null, dir: string, o: StartOpts) {
 
 export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
   const { id } = readConfig(dir);
+  const minutes = o.timeout === undefined ? Infinity : Number(o.timeout);
+  if (!(minutes > 0)) fail(`--timeout takes a number of minutes above 0, not \`${o.timeout}\``, 2);
+  const deadline = Date.now() + minutes * 60_000;
   const { url } = await ensureServer(repo, dir, o);
   console.error(`reviewroom: waiting for feedback | ${dir} | ${url}`);
   for (;; await Bun.sleep(500)) {
@@ -44,6 +47,11 @@ export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
         const msg = `REVIEW CLOSED: the review's server was stopped (\`reviewroom stop\` or the hub's Close), so no feedback will come.\nhelp:\n  Tell the reviewer; run \`reviewroom wait ${shellArg(id ?? dir)}\` again only if they ask (it reopens the review)\n`;
         await new Promise<void>((resolve) => process.stdout.write(msg, () => resolve()));
         process.exit(3);
+      }
+      // the agent's own limit, under its shell's: a definite answer instead of a killed call
+      if (Date.now() > deadline) {
+        console.log(`no round yet after ${o.timeout} min (no-op): the reviewer is still reviewing\nhelp:\n  Run \`reviewroom wait ${shellArg(id ?? dir)} --timeout ${o.timeout}\` again now, the same way`);
+        return;
       }
       continue;
     }

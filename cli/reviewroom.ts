@@ -89,7 +89,9 @@ cli
   .option('--port <n>', 'Port for a new server (default: 4848)')
   .option('--no-open', 'Do not open the browser')
   .option('--browser', 'Open browser instead of macOS app')
+  .option('--timeout <minutes>', 'Give up after this many minutes without a round, exit 0 (default: no limit)')
   .example('  reviewroom wait \'acme/api#31\'')
+  .example('  reviewroom wait \'acme/api#31\' --timeout 25')
   .action(run(forReview<StartOpts>('wait', cmdWait)));
 
 cli
@@ -252,8 +254,10 @@ const notes: Record<string, string> = {
   'wait': `  Starts a detached server if needed and leaves it running.
   Prints saved feedback or APPROVED to stdout and records delivery.
   Exits 3 with REVIEW CLOSED when the review is stopped (stop, the hub's Close) while it waits.
-  Without background jobs that report their exit (Codex, pi), run it in the foreground and keep reading it;
-  a job started with & or nohup is killed when the shell call returns. A killed wait loses nothing: run it again.`,
+  No time limit, and silent until the round arrives (rounds often take 10-60 minutes).
+  Without background jobs that report their exit (Codex, pi), run it in the foreground with --timeout 25
+  (under a 30-minute shell timeout) and run it again until it prints a round; a job started with & or nohup
+  is killed when the shell call returns. A timed-out or killed wait loses nothing.`,
   'reply': `  Thread IDs accept unique prefixes.
   Bulk JSON: [{"thread":"id","body":"reply","resolve":false}].
   Resolve threads only when the user requests it.`,
