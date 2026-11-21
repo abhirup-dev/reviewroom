@@ -22,7 +22,10 @@ describe('cli', () => {
     const r = await cli(['pr', 'feat/upload-rate-limit', '--base', 'main', '--head', 'feat/upload-rate-limit', '--profile', 'nope', '--no-open', '--repo', repo]);
     expect([r.code, r.stdout]).toEqual([1, expect.stringContaining('no report profile "nope" (profiles: explainer')]);
   });
-  test.each(['pr', 'start', 'wait', 'status', 'stop', 'reply', 'comment', 'check', 'slide-lint', 'shot', 'publish-slides'])('%s requires a review', async (command) => {
+  test('bare status prints the home view', async () => {
+    expect(await cli(['status', '--repo', repo])).toMatchObject({ code: 0, stdout: expect.stringContaining('reviews: ') });
+  });
+  test.each(['pr', 'start', 'wait', 'stop','reply', 'comment', 'check', 'slide-lint', 'shot', 'publish-slides'])('%s requires a review', async (command) => {
     expect(await cli([command, '--repo', repo])).toMatchObject({ code: 2, stdout: expect.stringContaining('missing review') });
   });
   test.each([

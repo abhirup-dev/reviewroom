@@ -95,8 +95,8 @@ cli
   .action(run(forReview<StartOpts>('wait', cmdWait)));
 
 cli
-  .command('status <review>', 'Show review status and threads')
-  .usage('status <review> [options]')
+  .command('status [review]', 'Show review status and threads; with no review, the running reviews')
+  .usage('status [review] [options]')
   .option('--threads', 'Include open threads and messages')
   .option('--all', 'Include resolved threads')
   .option('--json', 'Print JSON')
@@ -348,7 +348,11 @@ cli.help((sections) => {
 try {
   cli.parse(process.argv, { run: false });
   const c = cli.matchedCommand;
-  if (c) {
+  if (c?.name === 'status' && !cli.args.length && !cli.options.help && !cli.options.threads) {
+    // bare `status`: the home view (or `list --json`), not a usage error; --threads still needs a review
+    c.checkUnknownOptions();
+    await (cli.options.json ? cmdList({ json: true }) : cmdHome());
+  } else if (c) {
     if (!cli.options.help) c.checkUnknownOptions(); // a typo'd flag is reported before anything else
     if (!['hub', 'list'].includes(c.name) && !cli.args.length && !cli.options.help) {
       resolveReview(repoRoot(path.resolve(cli.options.repo ?? process.cwd())), cli.options, undefined, c.name);
