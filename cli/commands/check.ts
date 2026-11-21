@@ -1,10 +1,11 @@
 import { WALKTHROUGH_FILE, REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import fs from 'node:fs';
 import path from 'node:path';
-import { type Global, fail } from '../lib/args.ts';
-import { progressHash, recordArtifact } from '../lib/progress.ts';
+import { type Global, fail, hint } from '../lib/args.ts';
+import { progressHash, readProgress, recordArtifact } from '../lib/progress.ts';
+import { liveServer } from '../lib/registry.ts';
 import { isFullSha, makeProvider, type Provider } from '../lib/git.ts';
-import { loadConfig } from '../lib/config.ts';
+import { loadConfig, reviewArgs } from '../lib/config.ts';
 import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
 import { checkLinks, problems, report, applyFixes, extractLinks, uncomment, prepareSymbols, type SymbolResolver, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/slides-file.ts';
@@ -77,13 +78,12 @@ export const schemaReport = (issues: string[]) => `${WALKTHROUGH_FILE} does not 
 export async function cmdCheck(repo: string | null, dir: string, o: Global & { fix?: boolean; accept?: boolean; json?: boolean }) {
   const c = await runCheck(repo, dir, o);
   if ('issues' in c) {
-    if (o.json) console.log(JSON.stringify({ links: [], walkthrough: [], schema: c.issues }, null, 2));
-    else console.error(schemaReport(c.issues));
+    console.log(o.json ? JSON.stringify({ links: [], walkthrough: [], schema: c.issues }) : schemaReport(c.issues));
     process.exitCode = 1;
     return;
   }
   const { tour, results, bad, healed, notes } = c;
-  if (o.json) console.log(JSON.stringify({ links: bad, walkthrough: notes }, null, 2));
+  if (o.json) console.log(JSON.stringify({ links: bad, walkthrough: notes }));
   else {
     if (bad.length) console.log(`${bad.length} of ${results.length} links need attention:\n${report(bad)}`);
     else console.log(`${results.length} links ok${tour ? ` (${REPORT_FILE} and ${WALKTHROUGH_FILE})` : ''}${healed ? ' (moved links fixed)' : ''}`);
@@ -91,4 +91,16 @@ export async function cmdCheck(repo: string | null, dir: string, o: Global & { f
   }
   if (bad.length) process.exitCode = 1;
   else recordArtifact(dir, 'report', 'validated', { head: c.head }, c.reportHash);
+  if (o.json) return;
+  const args = reviewArgs(repo ?? '', dir);
+  const has = (status: string) => bad.some((x) => x.status === status);
+  const w = readProgress(dir).walkthrough.state;
+  const url = liveServer(dir)?.url;
+  hint(
+    has('moved') && `moved: run \`reviewroom check ${args} --fix\``,
+    has('changed') && `changed: re-read the code and the prose that links it, then \`reviewroom check ${args} --accept\``,
+    has('broken') && 'broken: fix or remove the link',
+    !bad.length && tour && w !== 'validated' && `Run \`reviewroom slide-lint ${args}\`: the walkthrough is not validated yet`,
+    !bad.length && url && (!tour || w === 'validated') && readState(dir).round === 1 && `Hand over: tell the reviewer the review is ready at ${url}${tour ? '?walkthrough=' : ''}, then leave comments and click Send feedback or Approve`,
+  );
 }

@@ -79,7 +79,7 @@ export function lintTour(w: Walkthrough, changed: ChangedFile[], symPath: (name:
       }
       if (!estimates) return;
       const words = plain(s.text).split(' ').filter(Boolean).length;
-      if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: `Split the slide, or move the detail to the walkthrough (${REPORT_FILE}) and link it. \`reviewroom slide-lint\` measures it.` });
+      if (words > MAX_WORDS) out.push({ check: 'long-text', level: 'warn', where, message: `${words} words; likely needs scrolling`, fix: `Split the slide, or move the detail to the report (${REPORT_FILE}) and link it. \`reviewroom slide-lint\` measures it.` });
       const refs = stepRefs(s);
       if (refs.length > 2) out.push({ check: 'short-chunk', level: 'warn', where, message: `${refs.length} refs stacked`, fix: 'Stack at most 2 refs (about 10 lines each), or split the slide.' });
       else for (const ref of refs) {

@@ -21,7 +21,7 @@ describe('slides', () => {
     expect(c.code).toBe(0);
     expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'enforce', step: 's2' });
     const s = await cli(['status', ...d, '--threads']);
-    expect(s.stdout).toMatch(/guided walkthrough "The handler joins the contract" slide 2\/3: "The client retries/);
+    expect(s.stdout).toMatch(/guided walkthrough "The handler joins the contract" slide 2\/4: "The client retries/);
   });
 
   test(`check covers ${WALKTHROUGH_FILE}: the demo is ok, a broken step ref names its step, a schema error stops it`, async () => {
@@ -35,14 +35,14 @@ describe('slides', () => {
     expect([broken.code, broken.stdout]).toEqual([1, expect.stringMatching(/broken\s+rr:code\/pkg\/gone.go#L1-2.*\[guided walkthrough bucket\/s1\]/)]);
     fs.writeFileSync(file, JSON.stringify({ ...w, version: 2 }));
     const bad = await cli(['check', ...d]);
-    expect([bad.code, bad.stderr]).toEqual([1, expect.stringContaining('version')]);
+    expect([bad.code, bad.stdout]).toEqual([1, expect.stringContaining('version')]);
   });
 
   test('publish-slides --dry-run prints the PR block; without a PR it cannot post', async () => {
     const dry = await cli(['publish-slides', ...d, '--dry-run']);
     expect([dry.code, dry.stdout]).toEqual([0, expect.stringContaining('<!-- reviewroom-walkthrough -->\n```reviewroom-walkthrough\n{')]);
     const real = await cli(['publish-slides', ...d]);
-    expect([real.code, real.stderr]).toEqual([1, expect.stringContaining('not about a GitHub PR')]);
+    expect([real.code, real.stdout]).toEqual([1, expect.stringContaining('not about a GitHub PR')]);
   });
 
   test('a tour anchor without a step breaks the schema', async () => {
@@ -51,6 +51,6 @@ describe('slides', () => {
     st.threads[0].anchor = { kind: 'tour', chapter: 'enforce' };
     fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(st));
     const r = await cli(['status', ...d, '--threads']);
-    expect(r.stderr).toMatch(/does not match schema.*step/);
+    expect(r.stdout).toMatch(/does not match schema.*step/);
   });
 });

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { until } from '../src/testing/wait.ts';
 import { progressLines } from '../cli/lib/progress.ts';
-import { setup } from './fixture.ts';
+import { field, setup } from './fixture.ts';
 import { reviewEvents } from './transport.ts';
 
 const { tmp, repo, dir, d, cli } = setup({ repo: 'tiny', scaffold: false });
@@ -15,7 +15,7 @@ test('pr requests only on creation/force; watcher pushes progress without reload
 
   const requested = progressLines(dir).filter((l) => l.event === 'requested');
   expect(requested.map((l) => [l.artifact, 'by' in l && l.by])).toEqual([['walkthrough', 'agent'], ['report', 'agent']]);
-  const url = (await cli(prArgs)).stdout.trim();
+  const url = field((await cli(prArgs)).stdout, 'url');
   expect(progressLines(dir).filter((l) => l.event === 'requested')).toEqual(requested);
   const stream = await reviewEvents(url);
   try {
@@ -54,14 +54,14 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
 
 test('generate through the hub is refused; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
   const log = path.join(dir, 'progress.jsonl');
-  const url = (await cli(prArgs)).stdout.trim();
+  const url = field((await cli(prArgs)).stdout, 'url');
   const viaHub = await fetch(url + 'api/generate', { method: 'POST', headers: { 'x-reviewroom-via-hub': '1' } });
   expect([viaHub.status, (await viaHub.json()).code]).toEqual([403, 'via_hub']);
   // a generation the previous server was running (the assistant's walkthrough), and an agent's report
   const at = new Date().toISOString();
   fs.appendFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
   await cli(['stop', ...d]);
-  const next = (await cli(prArgs)).stdout.trim();
+  const next = field((await cli(prArgs)).stdout, 'url');
   const progress = await fetch(next + 'api/progress').then((r) => r.json());
   expect([progress.walkthrough.state, progress.walkthrough.reason, progress.report.state]).toEqual(['stopped', 'interrupted', 'requested']);
   expect(progressLines(dir).filter((l) => l.event === 'stopped')).toHaveLength(1);

@@ -11,7 +11,7 @@ describe('corrupt state', () => {
   const fails = async (args: string[], stderr: RegExp) => {
     const r = await cli([args[0], ...d, ...args.slice(1)]);
     expect(r.code).not.toBe(0);
-    expect(r.stderr).toMatch(stderr);
+    expect(r.stdout).toMatch(stderr);
   };
 
   test('corrupt state.json is preserved as .corrupt-* and not overwritten', async () => {

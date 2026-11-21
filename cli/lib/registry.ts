@@ -14,6 +14,9 @@ export type ServerRecord = { pid: number; port: number; url: string; startedAt: 
 /** Directory hash for hub routes and client storage keys (ADR 0001). */
 export const routeId = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 12);
 export const serverFile = (dir: string) => path.join(dir, 'server.json');
+/** closed.json: the reviewer (or `stop`) closed the review on purpose; a crash leaves none. A pending `wait` ends on
+ *  it; the next server start removes it. */
+export const closedFile = (dir: string) => path.join(dir, 'closed.json');
 export function liveServer(dir: string): ServerRecord | null {
   try {
     const rec = JSON.parse(fs.readFileSync(serverFile(dir), 'utf8'));
@@ -66,6 +69,9 @@ export async function stopServer(dir: string, pid?: number) {
   } catch {}
   // past the server's shutdown grace (serve.ts: its assistant saves its session and ends its processes first)
   for (let i = 0; i < 100 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
+  try {
+    fs.writeFileSync(closedFile(dir), JSON.stringify({ at: new Date().toISOString(), pid: rec.pid }));
+  } catch {}
   return rec;
 }
 

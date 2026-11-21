@@ -1,11 +1,12 @@
-import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // slide-lint: `check`, then every slide of the walkthrough measured on screen in a headless browser.
 // shotSlide: one slide's picture (`reviewroom shot <chapter>/<step>`).
 import os from 'node:os';
 import path from 'node:path';
-import { type Global, fail } from '../lib/args.ts';
+import { type Global, fail, hint } from '../lib/args.ts';
 import { reviewArgs } from '../lib/config.ts';
-import { artifactHash, recordArtifact } from '../lib/progress.ts';
+import { artifactHash, readProgress, recordArtifact } from '../lib/progress.ts';
+import { pendingArtifact } from '../../src/kernel/state/progress.shared.ts';
 import { report } from '../lib/links.ts';
 import { readWalkthrough } from '../lib/state.ts';
 import { findingReport, judge, type Finding } from '../lib/slide-lint.ts';
@@ -33,15 +34,23 @@ export async function cmdSlideLint(repo: string | null, dir: string, o: SlideOpt
   const { engine, boot, measurements: ms } = rendered;
   const findings: Finding[] = [...c.notes, ...boot, ...judge(ms)];
   const coverage = { partial, totalSlides: selection.total, measured: selection.slides.map((s) => `${s.chapter}/${s.step}`) };
-  if (o.json) console.log(JSON.stringify({ engine, jobs: rendered.jobs, viewports: viewports.map(vpName), rasterHeight: o.native ? null : 480, selection: selection.scope, coverage, links: c.bad, findings }, null, 2));
+  if (o.json) console.log(JSON.stringify({ engine, jobs: rendered.jobs, viewports: viewports.map(vpName), rasterHeight: o.native ? null : 480, selection: selection.scope, coverage, links: c.bad, findings }));
   else {
     console.log(`${selection.slides.length}${partial ? ` of ${selection.total}` : ''} slides measured at ${viewports.map(vpName).join(', ')} (${engine}; ${rendered.jobs} worker${rendered.jobs === 1 ? '' : 's'}${partial ? '; partial check' : ''})`);
     if (c.bad.length) console.log(`\n${c.bad.length} link(s) need attention:\n${report(c.bad)}`);
     console.log(findings.length ? `\n${findingReport(findings, tour)}` : partial ? '\nno findings in the selected slides (partial check).' : '\nno findings: every slide fits.');
-    if (findings.some((f) => f.level === 'warn')) console.log(`\nSee a slide with \`reviewroom shot ${reviewArgs(repo ?? '', dir)} <chapter>/<step>\`.`);
   }
-  if (c.bad.length || findings.some((f) => f.level === 'warn')) process.exitCode = 1;
+  const failed = c.bad.length || findings.some((f) => f.level === 'warn');
+  if (failed) process.exitCode = 1;
   else if (!partial) recordArtifact(dir, 'walkthrough', 'validated', { head: c.head }, checkedHash);
+  if (o.json) return;
+  const args = reviewArgs(repo ?? '', dir);
+  hint(
+    failed && `Fix, then recheck one slide: \`reviewroom slide-lint ${args} --slide <chapter>/<step>\` (or --chapter <id>)`,
+    failed && `See a slide: \`reviewroom shot ${args} <chapter>/<step>\` (add --native when text is blurry)`,
+    (failed || partial) && `Finish with a full \`reviewroom slide-lint ${args}\`: only a full pass counts`,
+    !failed && !partial && pendingArtifact(readProgress(dir).report) && `Fill ${REPORT_FILE}, then run \`reviewroom check ${args} --fix\``,
+  );
 }
 
 /** `reviewroom shot <chapter>/<step>`: one slide's PNG, and what lint finds on it. */

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { recordArtifact, requestGeneration } from '../cli/lib/progress.ts';
 import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
 import { until } from '../src/testing/wait.ts';
-import { config, setup } from './fixture.ts';
+import { config, field, setup } from './fixture.ts';
 
 const root = path.resolve(import.meta.dir, '..');
 
@@ -81,7 +81,7 @@ describe('the hub starts reviews', async () => {
     const url = 'https://github.com/acme/demo/pull/11';
     const prRun = () => cli(['pr', url, '--no-agent', '--no-serve', '--no-open', '--repo', clone]);
     await $`git -C ${bare} update-ref refs/pull/11/head refs/heads/feat/upload-rate-limit`.quiet();
-    const dir = (await prRun()).stdout.trim();
+    const dir = field((await prRun()).stdout, 'dir');
     const A = (await $`git -C ${clone} rev-parse ${config(dir).head}`.text()).trim();
     // the PR's walkthrough imported at A, generation requested at A, then the walkthrough edited here
     fs.copyFileSync(path.join(root, 'examples', 'uploads', WALKTHROUGH_FILE), path.join(dir, WALKTHROUGH_FILE));

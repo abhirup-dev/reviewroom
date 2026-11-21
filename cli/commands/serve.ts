@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail } from '../lib/args.ts';
-import { loadConfig, readConfig } from '../lib/config.ts';
+import { loadConfig, readConfig, shellArg } from '../lib/config.ts';
 import { readState, commitOps } from '../lib/state.ts';
 import { reapAssistantGroup } from '../lib/assistant-process.ts';
 import { stopAssistantWork } from '../lib/progress.ts';
@@ -9,12 +9,12 @@ import { takeLock, releaseLock } from '../lib/lock.ts';
 import { undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
-import { type ServerRecord, liveServer, serverFile, register, runningServer, startDetached, unregister } from '../lib/registry.ts';
+import { type ServerRecord, closedFile, liveServer, serverFile, register, runningServer, startDetached, unregister } from '../lib/registry.ts';
 import { agentAncestor } from '../hub/proc.ts';
 
 export { runningServer };
 
-export type StartOpts = Global & { port?: string; open: boolean; browser?: boolean; foreground?: boolean };
+export type StartOpts = Global & { port?: string; open: boolean; browser?: boolean; foreground?: boolean; timeout?: string };
 
 export async function ensureServer(repo: string | null, dir: string, o: StartOpts): Promise<ServerRecord> {
   const live = await runningServer(dir);
@@ -34,11 +34,27 @@ export async function cmdStart(repo: string | null, dir: string, o: StartOpts) {
 
 export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
   const { id } = readConfig(dir);
+  const minutes = o.timeout === undefined ? Infinity : Number(o.timeout);
+  if (!(minutes > 0)) fail(`--timeout takes a number of minutes above 0, not \`${o.timeout}\``, 2);
+  const deadline = Date.now() + minutes * 60_000;
   const { url } = await ensureServer(repo, dir, o);
   console.error(`reviewroom: waiting for feedback | ${dir} | ${url}`);
   for (;; await Bun.sleep(500)) {
     const [round] = undelivered(readState(dir, { repair: false }));
-    if (!round) continue;
+    if (!round) {
+      // closed on purpose (`stop`, the hub's Close): no round can come; a crashed server leaves no marker, so keep waiting
+      if (fs.existsSync(closedFile(dir)) && !liveServer(dir)) {
+        const msg = `REVIEW CLOSED: the review's server was stopped (\`reviewroom stop\` or the hub's Close), so no feedback will come.\nhelp:\n  Tell the reviewer; run \`reviewroom wait ${shellArg(id ?? dir)}\` again only if they ask (it reopens the review)\n`;
+        await new Promise<void>((resolve) => process.stdout.write(msg, () => resolve()));
+        process.exit(3);
+      }
+      // the agent's own limit, under its shell's: a definite answer instead of a killed call
+      if (Date.now() > deadline) {
+        console.log(`no round yet after ${o.timeout} min (no-op): the reviewer is still reviewing\nhelp:\n  Run \`reviewroom wait ${shellArg(id ?? dir)} --timeout ${o.timeout}\` again now, the same way`);
+        return;
+      }
+      continue;
+    }
     if (readConfig(dir).id !== id) fail(`review ID changed in ${dir} while waiting`);
     const file = path.join(dir, 'rounds', String(round.n), 'feedback.md');
     const md = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `(round ${round.n} was ${round.status} but ${file} is missing)`;
@@ -76,6 +92,7 @@ async function serve(repo: string | null, dir: string, o: StartOpts) {
     releaseLock(dir);
   };
   process.on('exit', cleanup);
+  fs.rmSync(closedFile(dir), { force: true }); // open again
   reapAssistantGroup(dir); // under the lock, before allowing the new assistant to start
   stopAssistantWork(dir, 'interrupted');
   ready();

@@ -1,14 +1,16 @@
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
-import { type Global, fail } from '../lib/args.ts';
-import { readConfig } from '../lib/config.ts';
+import { type Global, WAIT_HOW, fail, hint } from '../lib/args.ts';
+import { readConfig, reviewArgs } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
 import { anchorOf, anchorRef } from '../../src/kernel/refs/refs.shared.ts';
 import { cachedThreads } from '../lib/github.ts';
 import type { ReviewState } from '../../src/kernel/state/model.shared.ts';
 import { issueText, type Op } from '../../src/kernel/state/schema.shared.ts';
+import { awaitingAgent } from '../../src/kernel/state/ops.shared.ts';
+import { unvalidated } from '../lib/progress.ts';
 import { z } from 'zod';
 
 function findThread(s: ReviewState, id: string) {
@@ -21,18 +23,19 @@ type BodyOpts = Global & { file?: string };
 /** The message: --file, else the body argument, else stdin (`-`, or piped with no argument). */
 function readBody(file: string | undefined, arg: string | undefined) {
   const b = file ? fs.readFileSync(file, 'utf8') : arg === '-' || (!arg && !process.stdin.isTTY) ? fs.readFileSync(0, 'utf8') : arg;
-  if (!b?.trim()) fail('missing message body');
+  if (!b?.trim()) fail('missing message body: pass --file <file.md>, a body argument, or - for stdin', 2);
   return b.trim();
 }
 
-export function cmdThreads(_repo: string | null, dir: string, o: Global & { all?: boolean; json?: boolean }) {
+const LIMIT = 1000;
+/** Colleagues' GitHub text (bot reviews run to many KB) is cut at LIMIT unless --full. */
+const clip = (_k: string, v: unknown) => typeof v === 'string' && v.length > LIMIT ? `${v.slice(0, LIMIT)}... (truncated, ${v.length} chars; --full for all)` : v;
+
+export function cmdThreads(_repo: string | null, dir: string, o: Global & { all?: boolean; json?: boolean; full?: boolean }) {
   const s = readState(dir);
   const list = s.threads.filter((t) => o.all || t.status === 'open');
   const github = cachedThreads(dir).filter((t) => o.all || t.status === 'open');
-  if (o.json) {
-    console.log(JSON.stringify({ id: readConfig(dir).id, round: s.round, threads: list, github }, null, 2));
-    return;
-  }
+  if (o.json) return console.log(JSON.stringify({ id: readConfig(dir).id, round: s.round, threads: list, github: JSON.parse(JSON.stringify(github, o.full ? undefined : clip)) }));
   const walkthrough = validWalkthrough(dir);
   console.log(`round ${s.round} | ${list.length} ${o.all ? '' : 'open '}thread(s)`);
   for (const t of list) {
@@ -60,14 +63,14 @@ function replyOps(s: ReviewState, input: unknown) {
 export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & { resolve?: boolean; json?: string | true }, [thread, body]: string[]) {
   let items: unknown;
   if (o.json) {
-    if (thread || body) fail('reply <review> --json [file] takes no thread or body');
+    if (thread || body) fail('reply <review> --json [file] takes no thread or body', 2);
     const src = typeof o.json === 'string' ? o.json : '-';
     try {
       items = JSON.parse(fs.readFileSync(src === '-' ? 0 : src, 'utf8'));
     } catch (e) {
       fail(`--json: ${(e as Error).message}`);
     }
-  } else if (!thread) fail('missing thread id');
+  } else if (!thread) fail(`missing thread id: reviewroom reply <review> <thread> --file <reply.md> (\`reviewroom status <review> --threads\` lists them)`, 2);
   else if (o.resolve && body === undefined && !o.file) {
     // `reply <thread> --resolve` without a body: resolve only
     const t = findThread(readState(dir), thread);
@@ -78,10 +81,17 @@ export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & 
   await commitOps(dir, ops);
   if (o.json) console.log(`replied to ${ops.filter((x) => x.op === 'addMessage').length} thread(s)`);
   else console.log(`replied to ${(ops[0] as Extract<Op, { op: 'addMessage' }>).threadId}${o.resolve ? ' (resolved)' : ''}`);
+  const left = awaitingAgent(readState(dir)).length;
+  const args = reviewArgs('', dir);
+  hint(
+    left && `${left} thread(s) still await your reply`,
+    !left && unvalidated(dir, 'report') && `${REPORT_FILE} changed since it last passed: run \`reviewroom check ${args} --fix\` until it passes`,
+    !left && `When that is done, run \`reviewroom wait ${args}\` (${WAIT_HOW}) and tell the reviewer the replies are in`,
+  );
 }
 
 export async function cmdComment(_repo: string | null, dir: string, o: BodyOpts, [ref, body]: string[]) {
-  if (!ref) fail('missing rr: ref (or "general")');
+  if (!ref) fail('missing rr: ref (or "general"): reviewroom comment <review> <ref> --file <body.md>', 2);
   const id = uid('t_');
   await commitOps(dir, [{ op: 'createThread', id, anchor: anchorOf(ref), msgId: uid('m_'), body: readBody(o.file, body), author: 'agent' }]);
   console.log(id);

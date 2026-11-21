@@ -3,10 +3,17 @@
 // examples/make-demo-repo.sh, its link's fingerprint in state.json), then a row here.
 import { expect, test } from 'bun:test';
 import { withPage, withServer } from '../../cli/lib/render.ts';
-import { slideCases } from './cases.ts';
+import { slideCases, writeSlideCase } from './cases.ts';
 import { browser, setupSlides } from './fixture.ts';
 
 const { repo, dir } = setupSlides();
+
+// Cases slide-lint warns about, kept out of the teaching demo (it must lint clean, demo.test.ts): this test adds them
+// to its own copy. Four stacked files fold to their hunks (a tiny file has none to fold).
+const stacked = ['rr:code/config/limits.json#L3', 'rr:code/internal/upload/disk.go#L24', 'rr:code/internal/upload/errors.go#L6', 'rr:code/client/upload.go#L20'];
+const extra: Record<string, { is: string; code: string[] }> = {
+  'stacked/s1': { is: 'four files stacked, folded to their hunks (a tiny file has none to fold)', code: ['unified clip whole centred', 'split clip folded centred', 'unified clip folded centred', 'unified clip folded centred'] },
+};
 
 /** Per file on the slide: its view (`file`: one the PR left alone), wrap or clip, whole or folded to its hunks, and
  *  whether its focus is `centred` in its pane (the slide's change, or its lines when the change is taller than the
@@ -18,7 +25,8 @@ const cases: Record<string, { is: string; code: string[] }> = {
   'bucket/s2': { is: 'a two-for-two replacement stays unified', code: ['unified clip whole centred'] },
   'enforce/s1': { is: 'lines inside one change block: the rule marks them', code: ['unified clip whole centred'] },
   'enforce/s2': { is: 'two files stacked, each whole', code: ['unified clip whole centred', 'unified clip whole centred'] },
-  'enforce/s3': { is: 'four files stacked, folded to their hunks (a tiny file has none to fold)', code: ['unified clip whole centred', 'split clip folded centred', 'unified clip folded centred', 'unified clip folded centred'] },
+  'enforce/s3': { is: 'two files stacked, each whole; a removal-heavy one splits', code: ['unified clip whole centred', 'split clip whole centred'] },
+  'enforce/s4': { is: 'two small files stacked, each whole', code: ['unified clip whole centred', 'unified clip whole centred'] },
   'types/s1': { is: 'a heavy block in the middle of a large file', code: ['unified clip whole centred'] },
   'types/s2': { is: "lines at a long file's top", code: ['unified clip whole centred'] },
   'disk/s1': { is: 'six lines removed for one: split, clipped', code: ['split clip whole centred'] },
@@ -49,10 +57,12 @@ test('every demo slide is a named layout case', () => {
 });
 
 test.skipIf(!browser)('each layout case draws as named', async () => {
+  const { tour, html } = slideCases.demo;
+  writeSlideCase(dir, { html, tour: { ...tour, chapters: [...tour.chapters, { id: 'stacked', title: 'Stacked files', steps: [{ id: 's1', text: '<p>Four smaller edits.</p>', ref: stacked }] }] } });
   const drawn = await withServer(repo, dir, (url) =>
     withPage(url, { width: 1440, height: 900 }, async (page) => {
       const out: Record<string, { is: string; code: string[] }> = {};
-      for (const [id, c] of Object.entries(cases)) {
+      for (const [id, c] of Object.entries({ ...cases, ...extra })) {
         const [chapter, step] = id.split('/');
         await page.audit(chapter, step, 'light');
         out[id] = { is: c.is, code: await page.evaluate<string[]>(probe) };
@@ -60,5 +70,5 @@ test.skipIf(!browser)('each layout case draws as named', async () => {
       return out;
     }),
   );
-  expect(drawn).toEqual(cases);
+  expect(drawn).toEqual({ ...cases, ...extra });
 }, 90_000);
