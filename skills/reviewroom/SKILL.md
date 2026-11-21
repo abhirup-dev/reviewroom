@@ -45,7 +45,9 @@ continuing across rounds. Both routes use the same authoring rules and validatio
 
 Run `reviewroom pr 'acme/api#31'` (a PR's quoted Review ID or URL, or a branch; `--head worktree` for
 uncommitted work), from the checkout or with `--repo <path>`. Run `reviewroom` alone to see reviews
-already running. Do what its `help:` lines say: start `wait` in the background, and tell the reviewer
+already running. Do what its `help:` lines say: start `wait` (as a background task if your shell reports
+when such tasks exit; otherwise in the foreground once you finish writing, never with `&`: see
+`references/review-rounds.md`, "How to run `wait`"), and tell the reviewer
 the URL verbatim: **"reviewroom is open at <url>. I'm writing the walkthrough first."**
 `--profile <name>` picks the report profile (default `explainer`; see `references/profiles/index.md`).
 Stop a review only when the reviewer explicitly asks.

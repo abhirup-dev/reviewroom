@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { importToRetry, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
 import { printSummary, summary } from './status.ts';
 import { ARTIFACTS, pendingArtifact } from '../../src/kernel/state/progress.shared.ts';
-import { fail, hint } from '../lib/args.ts';
+import { WAIT_HOW, fail, hint } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, isFullSha, remoteDefaultBranch, makeProvider, remoteHost } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveReview, reviewArgs, loadConfig, readConfig, configPath } from '../lib/config.ts';
@@ -111,7 +111,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
     const args = reviewArgs(repo, dir, saved);
     if (o.force) fail(`review is running; stop it first: reviewroom stop ${args}`);
     printSummary(summary(repo, dir));
-    return hint(`Run \`reviewroom wait ${args}\` in the background: it exits with the reviewer's next round`, `To pick up new commits: \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\``);
+    return hint(`Run \`reviewroom wait ${args}\` (${WAIT_HOW}): it exits with the reviewer's next round`, `To pick up new commits: \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\``);
   }
   const remote = o.remote ?? saved.remote ?? 'origin';
   const found = pr ? prNumberConfig(repo, o, remote, pr, saved) : isPath ? loadConfig(dir, repo, o) : branchConfig(repo, o, arg!, remote);
@@ -143,7 +143,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
 function nextSteps(args: string, dir: string, serving: boolean) {
   const { walkthrough, report } = readProgress(dir);
   hint(
-    serving && `Run \`reviewroom wait ${args}\` in the background now: it exits with the reviewer's feedback`,
+    serving && `Run \`reviewroom wait ${args}\`: it exits with the reviewer's feedback. Start it now if your shell runs background tasks and tells you when they exit; otherwise run it in the foreground once the walkthrough and report pass, never with &`,
     serving && 'Tell the reviewer the url above, verbatim',
     pendingArtifact(walkthrough) && `Once you have read the changed files (not only the stat): \`reviewroom progress ${args} read\`; then write ${WALKTHROUGH_FILE} and run \`reviewroom slide-lint ${args}\` until it passes`,
     pendingArtifact(report) && `Then fill ${REPORT_FILE} and run \`reviewroom check ${args} --fix\` until it passes`,

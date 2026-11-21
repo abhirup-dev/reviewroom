@@ -106,7 +106,7 @@ bun run check       # typecheck, lint, unit tests, no build: run before committi
 bun run smoke       # build + e2e: the built CLI against the demo repo
 bun run test:slides # build + the slide browser suite (slide-lint, shot, audit)
 bun run check:full  # all of the above: run before a PR, or after touching the CLI, server or slides
-bun run demo        # demo repo + live review
+bun run demo        # demo repo + live review of a fresh copy of examples/uploads (.demo/review)
 ```
 
 Commit both lockfiles: root `bun.lock` makes development and CI reproducible; the shipped

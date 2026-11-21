@@ -2,7 +2,7 @@ import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { type Global, hint } from '../lib/args.ts';
+import { type Global, WAIT_HOW, hint } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
 import { loadConfig, readConfig, reviewArgs, shellArg } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
@@ -93,7 +93,7 @@ export async function cmdHome() {
   printReviews(await runningReviews());
   hint(
     "Run `reviewroom pr '<owner/repo#n>'` (a PR, URL or branch; add `--head worktree` for uncommitted work) to start a review",
-    'Run `reviewroom wait <review>` in the background to resume one',
+    `Run \`reviewroom wait <review>\` (${WAIT_HOW}) to resume one`,
     'Run `reviewroom --help` for every command and `reviewroom <command> --help` for its flags',
   );
 }

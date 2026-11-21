@@ -19,3 +19,6 @@ export function hint(...lines: unknown[]) {
   const shown = lines.filter((l): l is string => typeof l === 'string' && !!l);
   if (shown.length) console.log(`help:\n${shown.map((l) => `  ${l}`).join('\n')}`);
 }
+
+/** How an agent should run `wait`: a backgrounded `&` job dies when a Codex or pi shell call returns (review-rounds.md). */
+export const WAIT_HOW = 'as a background task if your shell tells you when it exits, else in the foreground; never with &';

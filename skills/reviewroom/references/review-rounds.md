@@ -2,10 +2,25 @@
 
 This round loop is for external agents. The built-in assistant follows the conversation in its panel.
 
+## How to run `wait`
+
+Choose by what your shell tool can do:
+
+- **It runs background tasks and tells you when one exits** (Claude Code's background Bash): run `wait` as a
+  background task and carry on.
+- **It has no such tasks** (Codex, pi, a plain shell): run `wait` in the **foreground**, after you finish writing.
+  If the call comes back with the command still running (a session id), keep reading that session until it exits.
+  Never use `&`, `nohup` or `setsid` for it: a job started that way is killed when your shell call returns, or
+  runs on where you never see its output.
+
+If `wait` is killed (a timeout, an interrupted call), run it again: a round counts as delivered only once it has been
+printed, so nothing is lost. If it prints `REVIEW CLOSED` (exit code 3), the reviewer stopped the review: tell them,
+and don't wait again unless they ask.
+
 ## Wait for the reviewer
 
 `reviewroom wait <review>` (from `pr`'s or `reply`'s `help:` lines, or `reviewroom` for running
-reviews) starts the server if needed and exits with the next round. Run it in the background.
+reviews) starts the server if needed and exits with the next round. Run it as above.
 **Do NOT proceed until it exits**, do not ask the reviewer to type anything, and do not poll threads
 to tell whether the round is finished. If the reviewer asks for status, run `reviewroom status
 <review>` without treating that as the end of the round. Stop the review only when asked.
@@ -43,7 +58,7 @@ For each thread in the feedback:
 5. Reply with `reviewroom reply <review> <thread-id> --file <reply.md>`; its output says what is left.
 6. Leave resolving to the reviewer unless they ask.
 7. **The round is not over until you do what the last `reply` prints**: `check` if the report changed,
-   then `wait` in the background, then tell the reviewer the replies are in.
+   then `wait` (see "How to run `wait`"), then tell the reviewer the replies are in.
 
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or

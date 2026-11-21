@@ -1,4 +1,4 @@
-import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
+import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // Stale-link check for the rr: links in report.html and walkthrough.json. A link with a line range is fingerprinted (a hash
 // of the lines it points at) the first time it is seen, a symbol link by having a definition; later
 // checks compare against the current code.
@@ -87,7 +87,7 @@ export function checkLinks(html: string, prov: Pick<Provider, 'head' | 'base' | 
     }
     if (r.type === 'doc') {
       if (regex`\b id= ["']? ${r.id} ["'\s>]`.test(visible)) out(ref, 'ok');
-      else out(ref, 'broken', 'no element with this id in the walkthrough');
+      else out(ref, 'broken', `no element with this id in the report (${REPORT_FILE})`);
       continue;
     }
     if (r.type === 'sym') {

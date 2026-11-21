@@ -1,5 +1,6 @@
 // Finishing rounds and handing the feedback to the agent.
 import { describe, expect, test } from 'bun:test';
+import fs from 'node:fs';
 import path from 'node:path';
 import { slideCases, writeSlideCase } from '../testing/slides/cases.ts';
 import { field, op, post, read, setup } from './fixture.ts';
@@ -21,6 +22,27 @@ describe('a round finished while no agent waits', () => {
     expect(late.stdout).toContain(`reviewroom wait ${shellArg(dir)}`);
     expect(state().rounds[0].deliveredAt).toBeString();
     expect((await fetch(url + 'api/meta')).ok).toBe(true);
+  });
+});
+
+describe('a review closed while the agent waits', () => {
+  const { dir, d, cli, spawn } = setup();
+  test('wait exits 3 with REVIEW CLOSED; the next wait reopens it', async () => {
+    const waiter = spawn(['wait', '--no-open', '--port', '0', ...d], dir);
+    const stderr = waiter.stderr.getReader();
+    try {
+      expect(new TextDecoder().decode((await stderr.read()).value)).toContain('waiting for feedback');
+    } finally { stderr.releaseLock(); }
+    expect((await cli(['stop', ...d])).stdout).toContain('stopped server');
+    const out = await new Response(waiter.stdout).text();
+    expect(await waiter.exited).toBe(3);
+    expect(out).toContain('REVIEW CLOSED');
+    expect(fs.existsSync(path.join(dir, 'closed.json'))).toBe(true);
+
+    expect((await cli(['start', ...d, '--no-open', '--port', '0'])).code).toBe(0);
+    try {
+      expect(fs.existsSync(path.join(dir, 'closed.json'))).toBe(false);
+    } finally { await cli(['stop', ...d]); }
   });
 });
 

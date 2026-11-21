@@ -18,6 +18,7 @@ folder directly from the ID.
 | `state.lock` | the CLI and the server | `{pid, port}`. A running server holds it for its lifetime; the CLI holds it for one read-modify-write, and sends its writes to the server while the server holds it. |
 | `server.json` | the review server | The running server, so other commands find it. |
 | `server.log` | the detached server | Server stdout and stderr. |
+| `closed.json` | `reviewroom stop` and the hub's Close | `{at, pid}`: the review was closed on purpose. A pending `wait` exits 3 (`REVIEW CLOSED`); the next server start removes it. A crash leaves none. |
 | `progress.jsonl` | the CLI and the server, never the agent | Generation, per document (below). Drives the loading screen. |
 | `layout.json` | the browser | The dock as the reviewer left it. |
 | `github.json` | the server | The last PR snapshot from GitHub. |
@@ -36,6 +37,7 @@ state operation after stdout flushes. A retry can reprint a round if interrupted
 Concurrent waiters can print the same round.
 A server restart between lock lookup and the delivery request may require a retry.
 The server stays up through feedback and approval. Stop it with `reviewroom stop 'acme/api#31'` or the hub's Close.
+A `wait` pending when it stops that way exits 3; one pending through a crash keeps waiting for the next server.
 
 **`progress.jsonl`** appends events per document (walkthrough, report); `src/kernel/state/progress.shared.ts` reduces
 them to a state, and the client reads that state rather than the events:

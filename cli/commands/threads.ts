@@ -1,7 +1,7 @@
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 // status --threads / reply / comment: the agent's side of the conversation, written as ops
 import fs from 'node:fs';
-import { type Global, fail, hint } from '../lib/args.ts';
+import { type Global, WAIT_HOW, fail, hint } from '../lib/args.ts';
 import { readConfig, reviewArgs } from '../lib/config.ts';
 import { readState, commitOps, uid, validWalkthrough } from '../lib/state.ts';
 import { anchorText, githubContext } from '../../src/threads/feedback.shared.ts';
@@ -86,7 +86,7 @@ export async function cmdReply(_repo: string | null, dir: string, o: BodyOpts & 
   hint(
     left && `${left} thread(s) still await your reply`,
     !left && unvalidated(dir, 'report') && `${REPORT_FILE} changed since it last passed: run \`reviewroom check ${args} --fix\` until it passes`,
-    !left && `When that is done, run \`reviewroom wait ${args}\` in the background and tell the reviewer the replies are in`,
+    !left && `When that is done, run \`reviewroom wait ${args}\` (${WAIT_HOW}) and tell the reviewer the replies are in`,
   );
 }
 

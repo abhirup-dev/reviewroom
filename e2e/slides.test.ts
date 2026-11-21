@@ -21,7 +21,7 @@ describe('slides', () => {
     expect(c.code).toBe(0);
     expect(state().threads[0].anchor).toEqual({ kind: 'tour', chapter: 'enforce', step: 's2' });
     const s = await cli(['status', ...d, '--threads']);
-    expect(s.stdout).toMatch(/guided walkthrough "The handler joins the contract" slide 2\/3: "The client retries/);
+    expect(s.stdout).toMatch(/guided walkthrough "The handler joins the contract" slide 2\/4: "The client retries/);
   });
 
   test(`check covers ${WALKTHROUGH_FILE}: the demo is ok, a broken step ref names its step, a schema error stops it`, async () => {
