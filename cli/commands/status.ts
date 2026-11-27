@@ -1,39 +1,63 @@
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import type { Global } from '../lib/args.ts';
+import { type Global, WAIT_HOW, hint } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
-import { loadConfig, readConfig, shellArg } from '../lib/config.ts';
+import { loadConfig, readConfig, reviewArgs, shellArg } from '../lib/config.ts';
 import { readState } from '../lib/state.ts';
-import { awaitingAgent, currentRound } from '../../src/kernel/state/ops.shared.ts';
+import { awaitingAgent, currentRound, undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { readReviewroom } from '../hub/sources.ts';
 import { runningServer } from './serve.ts';
 
-export type StatusOpts = Global & { all?: boolean; json?: boolean };
+export type StatusOpts = Global & { all?: boolean; json?: boolean; full?: boolean };
+
+/** What an agent needs next about a review: where it is, which revisions, where the round stands. */
+export function summary(repo: string | null, dir: string) {
+  const s = readState(dir, { repair: false });
+  let base, head;
+  try {
+    if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
+  } catch {}
+  const cfg = readConfig(dir);
+  const role = process.env.REVIEWROOM_ASSISTANT_DIR && path.resolve(process.env.REVIEWROOM_ASSISTANT_DIR) === dir ? 'assistant' : 'external';
+  return {
+    id: cfg.id, dir, role, review: path.join(dir, REPORT_FILE), profile: cfg.profile, url: liveServer(dir)?.url ?? null, base, head,
+    round: s.round, roundStatus: currentRound(s)?.status, threads: s.threads.length,
+    open: s.threads.filter((t) => t.status === 'open').length, awaitingAgent: awaitingAgent(s).map((t) => t.id),
+    unread: undelivered(s).map((r) => r.n),
+  };
+}
+
+export function printSummary(x: ReturnType<typeof summary>) {
+  console.log([
+    ...(x.id ? [`review: ${shellArg(x.id)}`] : []), `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review} (profile ${x.profile ?? 'explainer'})`,
+    `base: ${x.base ?? '?'}  head: ${x.head ?? '?'}`, `round: ${x.round} (${x.roundStatus})  role: ${x.role}`,
+    `threads: ${x.open} open, ${x.awaitingAgent.length} awaiting your reply`,
+    ...(x.unread.length ? [`feedback: round ${x.unread.join(', ')} sent and not read yet`] : []),
+  ].join('\n'));
+}
 
 export function cmdStatus(repo: string | null, dir: string, o: StatusOpts) {
-  const s = readState(dir);
-  const open = s.threads.filter((t) => t.status === 'open');
-  const waiting = awaitingAgent(s);
-  if (o.json) {
-    const cfg = readConfig(dir);
-    let base, head;
-    try {
-      if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
-    } catch {}
-    const role = process.env.REVIEWROOM_ASSISTANT_DIR && path.resolve(process.env.REVIEWROOM_ASSISTANT_DIR) === dir ? 'assistant' : 'external';
-    console.log(JSON.stringify({ id: cfg.id, dir, role, review: path.join(dir, REPORT_FILE), url: liveServer(dir)?.url ?? null, base, head, config: cfg, round: s.round, threads: s.threads.length, open: open.length, awaitingAgent: waiting.map((t) => t.id) }, null, 2));
-    return;
-  }
-  console.log(`${dir}\nround ${s.round} (${currentRound(s)?.status}) | ${s.threads.length} threads | ${open.length} open | ${waiting.length} awaiting agent reply`);
+  const x = summary(repo, dir);
+  if (o.json) return console.log(JSON.stringify(x));
+  printSummary(x);
+  const args = reviewArgs(repo ?? '', dir);
+  hint(
+    x.unread.length && `Run \`reviewroom wait ${args}\`: it prints the unread feedback now`,
+    !x.url && x.role === 'external' && `Run \`reviewroom start ${args}\` to serve it`,
+    x.open && `Run \`reviewroom status ${args} --threads\` to read the open threads`,
+    x.awaitingAgent.length && `Answer with \`reviewroom reply ${args} <thread> --file <reply.md>\``,
+  );
 }
 
 export async function cmdStop(_repo: string | null, dir: string) {
   const rec = await stopServer(dir);
-  console.log(rec ? `stopped server on port ${rec.port}` : 'no server running for this review');
+  console.log(rec ? `stopped server on port ${rec.port}` : 'no server running for this review (no-op)');
 }
 
-export async function cmdList({ json }: { json?: boolean }) {
+async function runningReviews() {
   const sessions = await Promise.all(readReviewroom().map(async ({ dir, pid, port, title, url }) => {
     if (!dir) return null;
     const server = await runningServer(dir);
@@ -42,8 +66,34 @@ export async function cmdList({ json }: { json?: boolean }) {
       return { id: readConfig(dir).id, dir, url, pid, title };
     } catch { return null; }
   }));
-  const reviews = sessions.filter((review) => review !== null).sort((a, b) => (a.id ?? a.dir).localeCompare(b.id ?? b.dir));
-  if (json) console.log(JSON.stringify(reviews, null, 2));
-  else if (!reviews.length) console.log('No running reviews');
-  else for (const { id, dir, url } of reviews) console.log(`${shellArg(id ?? dir)}\t${url}`);
+  return sessions.filter((review) => review !== null).sort((a, b) => (a.id ?? a.dir).localeCompare(b.id ?? b.dir));
+}
+
+function printReviews(reviews: Awaited<ReturnType<typeof runningReviews>>) {
+  console.log(`reviews: ${reviews.length || 'none'} running`);
+  for (const { id, dir, url } of reviews) {
+    const s = readState(dir, { repair: false });
+    console.log(`  ${shellArg(id ?? dir)}  round ${s.round}, ${s.threads.filter((t) => t.status === 'open').length} open, ${url}`);
+  }
+}
+
+export async function cmdList({ json }: { json?: boolean }) {
+  const reviews = await runningReviews();
+  if (json) return console.log(JSON.stringify(reviews));
+  printReviews(reviews);
+  hint(!reviews.length && "Run `reviewroom pr '<owner/repo#n>'` to start one");
+}
+
+/** `reviewroom` with no command: who it is, the live reviews, and where to go from here. */
+export async function cmdHome() {
+  const self = fs.realpathSync(process.argv[1] ?? '');
+  const onPath = Bun.which('reviewroom');
+  const bin = onPath && fs.realpathSync(onPath) === self ? onPath : self;
+  console.log(`bin: ${bin.replace(os.homedir(), '~')}\ndescription: Agent-guided code review: write a walkthrough and a report of a diff, then answer the reviewer's threads round by round`);
+  printReviews(await runningReviews());
+  hint(
+    "Run `reviewroom pr '<owner/repo#n>'` (a PR, URL or branch; add `--head worktree` for uncommitted work) to start a review",
+    `Run \`reviewroom wait <review>\` (${WAIT_HOW}) to resume one`,
+    'Run `reviewroom --help` for every command and `reviewroom <command> --help` for its flags',
+  );
 }

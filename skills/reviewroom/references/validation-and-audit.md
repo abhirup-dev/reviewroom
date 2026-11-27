@@ -1,76 +1,34 @@
 # Validation and audit
 
-Pass the review target as `<review>` in each command below. Use command-specific `--help` for other flags.
+Both commands print what failed, how to fix it, and the next command (`help:`); `--help` has the
+flags and checks.
 
 ## Write and validate in order
 
 If the PR shipped a walkthrough pulled by `reviewroom pr`, it was validated before publication.
 Use it as is and go straight to filling the report; do not regenerate it.
 
-Otherwise record that you have read the diff, then write the walkthrough (the order is in SKILL.md, Step 4), then:
+Otherwise record that you have read the diff, then write the walkthrough (SKILL.md, Step 4), then run
+`reviewroom slide-lint <review>` until a **full** run passes, before filling the report. It validates
+schema and links, measures every slide on screen, and reports coverage, pacing, focus, overflow,
+hidden code, stripped prose and page errors. A passing full run clears the reviewer's loading screen;
+scoped runs (`--slide`, `--chapter`) are for iterating and do not count.
 
-```bash
-reviewroom slide-lint <review>
-```
-
-Fix issues and repeat the **full** run until it passes, before filling the report. It includes
-schema and link validation, checks every slide at 1280×800 and 1440×900, and reports coverage,
-pacing, focus, overflow, hidden code, stripped prose and page errors. A passing full run clears the
-reviewer's loading screen. Scoped runs do not count.
-
-Then fill the report and run:
-
-```bash
-reviewroom check <review> --fix
-```
-
-`check --fix` validates links and schema, updating links moved within five lines. Inspect remaining
-changed or broken links and update the explanation; repeat until it passes. Use `check --accept`
-only after verifying changed targets. The report panel stays in its writing state until
-`check` passes. `reviewroom check --help` prints the walkthrough schema path for editor validation.
+Then fill the report and run `reviewroom check <review> --fix` until it passes. Use `--accept` only
+after re-reading changed targets. The report panel stays in its writing state until `check` passes.
 
 On later rounds, recheck edited content. If you edit the walkthrough, pass full `slide-lint` again;
 the loading screen returns until it passes. Finish edits to the report with `check`.
 
-## While iterating
-
-| Command | Use |
-| --- | --- |
-| `reviewroom check <review>` | Static validation without rendering. |
-| `reviewroom slide-lint <review> --chapter services` | Recheck one chapter. |
-| `reviewroom slide-lint <review> --slide services/s1` | Recheck one slide. |
-| `reviewroom slide-lint <review> --jobs 2` | Parallel full audit; gains vary and can be modest. |
-
-Selectors use chapter and step **IDs**, not titles or positions. `--slide` also accepts
-`rr:tour/services/s1`; do not combine it with `--chapter`. Scoped checks retain chapter leads
-and inherited code, but skip whole-walkthrough coverage and pacing. The entire schema is still
-validated. Startup still costs time. Finish with an unscoped run.
-
-In a full audit, each chapter needs at least two slides. The final chapter may have one.
-
-`--jobs` accepts 1–8; default 1. More workers can add contention, so do not assume they are faster.
-`--json` gives structured findings and, for slide audits, the selection and coverage.
-
 ## Screenshots when needed
 
-| Command | Use |
-| --- | --- |
-| `reviewroom shot <review> [section]` | Report screenshots. |
-| `reviewroom shot <review> services/s1` | One walkthrough slide. |
-| `reviewroom shot <review> services/s1 --prose-only` | Exact left-pane crop; skips right-hand code. |
-
-Screenshots default to a 480-pixel height cap; add `--native` when text is blurry or detail matters.
-Neither changes the CSS layout. `--prose-only` preserves pane proportions and renders embedded
-prose code; it excludes right-pane findings and is not a replacement for full slide lint.
-Use it for framing, not as a guaranteed speedup. Use `--theme dark` or `--viewport 1440x900`
-when inspecting those presentations (`--viewport` is for slides).
+Use `reviewroom shot <review> [section]` (or `<chapter>/<step>` for a slide) when a finding is unclear
+or the layout matters: a diagram, a wide table, dense prose. Add `--native` when text is blurry,
+`--theme dark` or `--mobile` to check those views.
 
 ## Reading findings
 
-- `slide-lint` warnings or broken links exit 1. `unsettled` means rendering did not finish; recheck it.
-- Static budget notes are estimates, not visual proof, and do not fail `check`.
-- Start with about 25 highlighted lines, or 10 per stacked ref; at most two refs. Rendered findings decide fit.
+- `unsettled` means rendering did not finish; recheck it.
+- Static budget notes are estimates, not visual proof; rendered findings decide fit.
 - Coverage counts files linked in slide prose too; changes under 10 lines, tests, generated files, dependencies, locks and docs get informational notes.
 - Headless audits disable motion automatically; no manual animation waits are needed.
-- Slide lint does not rewrite the authored files; a full passing run records validation. Screenshots
-  do not modify the review. `check` records fingerprints and validation; `--fix` may rewrite links.

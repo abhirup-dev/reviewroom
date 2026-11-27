@@ -1,40 +1,33 @@
 # Review rounds: server, feedback and replies
 
 This round loop is for external agents. The built-in assistant follows the conversation in its panel.
-For existing feedback, begin with "Resume an existing review".
 
-## Start the review server
+## How to run `wait`
 
-**CRITICAL: you MUST run this step. Do NOT skip it.**
+A round takes as long as the reviewer needs: often 10 to 60 minutes, sometimes hours. `wait` prints nothing until
+the round arrives. Choose by what your shell tool can do:
 
-```bash
-reviewroom pr 'acme/api#31'
-```
+- **It runs background tasks and tells you when one exits** (Claude Code's background Bash): run `wait` as a
+  background task and carry on.
+- **It has no such tasks** (Codex, pi, a plain shell): after you finish writing, run
+  `reviewroom wait <review> --timeout 25` in the **foreground**, with your tool's timeout set to 30 minutes (or the
+  longest it allows, and `--timeout` a few minutes under it). If the call comes back with the command still
+  running (a session id), keep reading that session until it exits. Never use `&`, `nohup`, `setsid`, or a
+  session or dispatch tool that ends quiet commands: the job is killed, or runs on where you never see its output.
 
-Run the `wait` command it prints in the background. The review opens in the macOS app when installed,
-otherwise in the browser. Use `--browser` to open the browser. The server stays up between rounds.
-After feedback, the page opens the next round immediately.
-
-## Resume an existing review
-
-Run `reviewroom wait 'acme/api#31'` in the background, using the PR's Review ID from any directory.
-For a local review, use its branch from the reviewed repo (or pass `--repo <path>`) or pass an existing
-review folder as an absolute or `./`-relative path. The command starts the server if needed and prints
-the next unread round as soon as it is available.
-
-## Check status and stop
-
-Use `reviewroom list` to find running reviews and their IDs or local folders.
-Use `reviewroom status 'acme/api#31' --json` for the URL, review directory, base/head shas and status;
-add `--threads` when the reviewer asks about the threads. Do not use thread polling as a substitute
-for the round command's completion. To end the review when asked, run `reviewroom stop 'acme/api#31'`.
+When it prints `no round yet`, the reviewer is still reviewing: run the same command again at once, and keep doing
+so until it prints the round, `APPROVED` or `REVIEW CLOSED`. Do the same if the call times out or is killed: a round
+counts as delivered only once printed, so nothing is lost.
+Never tell the reviewer you are waiting unless a `wait` is running. If it prints `REVIEW CLOSED` (exit code 3), the
+reviewer stopped the review: tell them, and don't wait again unless they ask.
 
 ## Wait for the reviewer
 
-**Do NOT proceed until the background command exits.** Do NOT ask the reviewer to type anything. Do not
-poll threads to determine whether the round is finished. If the reviewer explicitly asks for status,
-inspect it without treating that request as the end of the round. The command exiting is how you
-know the reviewer has finished the round.
+`reviewroom wait <review>` (from `pr`'s or `reply`'s `help:` lines, or `reviewroom` for running
+reviews) starts the server if needed and exits with the next round. Run it as above.
+**Do NOT proceed until it exits**, do not ask the reviewer to type anything, and do not poll threads
+to tell whether the round is finished. If the reviewer asks for status, run `reviewroom status
+<review>` without treating that as the end of the round. Stop the review only when asked.
 
 ## Read the feedback
 
@@ -66,9 +59,10 @@ For each thread in the feedback:
 4. When the answer builds on an earlier thread, a team thread or what the report said in an
    earlier round, link it (`rr:thread/<id>`, `rr:thread/gh_<n>`, `rr:round/<n>`) instead of
    restating it.
-5. Reply with `reviewroom reply <review> <thread-id> --file <reply.md>`.
-6. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only resolve if the reviewer
-   explicitly asks.
+5. Reply with `reviewroom reply <review> <thread-id> --file <reply.md>`; its output says what is left.
+6. Leave resolving to the reviewer unless they ask.
+7. **The round is not over until you do what the last `reply` prints**: `check` if the report changed,
+   then `wait` (see "How to run `wait`"), then tell the reviewer the replies are in.
 
 After edits, follow [Validation and audit](validation-and-audit.md) again. For a PR
 fetched from GitHub, the review's head is the PR as fetched when the review started: code you commit or
@@ -84,26 +78,3 @@ section (under **Your questions** for someone else's PR) that embeds the slide
 (`<rr-embed ref="rr:tour/<chapter>/<step>">`), links the thread at its top and expands on it. The reply
 links that section, and the discussion continues there. Edit the slide itself only if it was wrong or misleading; keep its ids (threads are anchored to them) and loop
 again using [Validation and audit](validation-and-audit.md) until clean.
-
-<important if="you are replying to several threads at once">
-Write the answers to a JSON file, then send them in one call (all or nothing):
-`reviewroom reply <review> --json <replies.json>`, with `[{"thread": "t_ab12", "body": "…"}]`.
-</important>
-
-<important if="the feedback lists threads under 'Open on GitHub'">
-Those are team threads: colleagues' threads on the PR, shown for context. They are not feedback for you and you
-cannot reply to them. When one matters to your answer, link or embed it with `rr:thread/gh_<n>`.
-</important>
-
-## Start the next round
-
-**CRITICAL: you MUST run this step. Do NOT skip it.**
-
-Run the command the feedback names **in the background**. For a PR, use its Review ID:
-
-```bash
-reviewroom wait 'acme/api#31'
-```
-
-Tell the reviewer: **"Replies are in. Review them in the browser and click Send feedback or Approve
-when ready."** Then wait for the reviewer again.

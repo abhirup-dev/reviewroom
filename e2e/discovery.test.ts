@@ -13,7 +13,7 @@ describe('discovery', () => {
   });
 
   test('missing review lists explicit candidates', async () => {
-    expect(await cli(['status', '--threads', '--repo', repo])).toMatchObject({ code: 1, stderr: expect.stringContaining(dir) });
+    expect(await cli(['status', '--threads', '--repo', repo])).toMatchObject({ code: 2, stdout: expect.stringContaining(dir) });
   });
   test('stop finds and stops the server and releases the lock', async () => {
     await git('checkout', '-q', 'feat/upload-rate-limit');

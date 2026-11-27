@@ -77,7 +77,7 @@ test('the route and CLI export identical attachments, with CLI opt-in for stale 
   const args = ['export', ...d];
   const filesBefore = fs.readdirSync(tmp).sort();
   const stale = spawn(args, tmp);
-  expect(await new Response(stale.stderr).text()).toContain('export anyway with --allow-stale');
+  expect(await new Response(stale.stdout).text()).toContain('export anyway with --allow-stale');
   expect(await stale.exited).toBe(1);
   expect(fs.readdirSync(tmp).sort()).toEqual(filesBefore);
 

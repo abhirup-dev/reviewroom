@@ -2,10 +2,10 @@ import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shar
 // pr: the one-step entry point
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
-import { importToRetry, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
-import { ARTIFACTS } from '../../src/kernel/state/progress.shared.ts';
-import { fail } from '../lib/args.ts';
+import { importToRetry, readProgress, recordArtifact, requestGeneration, resetGeneration, staleArtifacts } from '../lib/progress.ts';
+import { printSummary, summary } from './status.ts';
+import { ARTIFACTS, pendingArtifact } from '../../src/kernel/state/progress.shared.ts';
+import { WAIT_HOW, fail, hint } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, isFullSha, remoteDefaultBranch, makeProvider, remoteHost } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
 import { type ReviewConfig, resolveReview, reviewArgs, loadConfig, readConfig, configPath } from '../lib/config.ts';
@@ -104,19 +104,16 @@ function settleGeneration(dir: string, o: PrOpts, fresh: boolean, head: string) 
 }
 
 export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
-  const { repo, dir, cfg: saved, pr } = resolveReview(selected, o, arg, 'pr');
+  const { repo, dir, cfg: saved, pr, isPath } = resolveReview(selected, o, arg, 'pr');
   if (!repo) fail('review checkout is unavailable (use --repo <path>)');
   const live = await runningServer(dir);
   if (live) {
     const args = reviewArgs(repo, dir, saved);
-    console.error(`reviewroom: review is running in ${dir}. To pick up new commits, run \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\`.`);
     if (o.force) fail(`review is running; stop it first: reviewroom stop ${args}`);
-    console.error(`reviewroom: next round: reviewroom wait ${args}`);
-    console.log(live.url);
-    return;
+    printSummary(summary(repo, dir));
+    return hint(`Run \`reviewroom wait ${args}\` (${WAIT_HOW}): it exits with the reviewer's next round`, `To pick up new commits: \`reviewroom stop ${args}\`, then \`reviewroom pr ${args}\``);
   }
   const remote = o.remote ?? saved.remote ?? 'origin';
-  const isPath = arg?.startsWith('/') || arg?.startsWith('./');
   const found = pr ? prNumberConfig(repo, o, remote, pr, saved) : isPath ? loadConfig(dir, repo, o) : branchConfig(repo, o, arg!, remote);
   const id = pr ? formatReviewId(pr) : undefined;
   // what this run found wins over config.json; what it did not find (undefined) keeps the file's value
@@ -134,12 +131,21 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
   const fresh = scaffoldHash !== undefined;
   writeAtomic(configPath(dir), JSON.stringify(cfg, null, 2));
   settleGeneration(dir, o, fresh, prov.head);
-  console.error(`reviewroom: ${files.length} files changed | review: ${path.relative(process.cwd(), path.join(dir, REPORT_FILE))}${fresh ? ' (scaffolded - fill it in)' : ''}`);
+  console.error(`reviewroom: ${files.length} files changed${fresh ? `; ${REPORT_FILE} scaffolded from profile ${cfg.profile}` : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);
 
-  if (o.serve === false) return console.log(dir); // set up only (the hub's Add a PR): its Play starts the server
-  const rec = await ensureServer(repo, dir, o);
-  console.error(`reviewroom: review directory: ${dir}`);
-  console.error(`reviewroom: next round: reviewroom wait ${reviewArgs(repo, dir, cfg)}`);
-  console.log(rec.url);
+  const serving = o.serve !== false; // --no-serve: set up only (the hub's Add a PR): its Play starts the server
+  if (serving) await ensureServer(repo, dir, o);
+  printSummary(summary(repo, dir));
+  nextSteps(reviewArgs(repo, dir, cfg), dir, serving);
+}
+
+function nextSteps(args: string, dir: string, serving: boolean) {
+  const { walkthrough, report } = readProgress(dir);
+  hint(
+    serving && `Run \`reviewroom wait ${args}\`: it exits with the reviewer's feedback. Start it now if your shell runs background tasks and tells you when they exit; otherwise, once the walkthrough and report pass, run it in the foreground with --timeout 25, again each time it prints no round yet; never with &`,
+    serving && 'Tell the reviewer the url above, verbatim',
+    pendingArtifact(walkthrough) && `Once you have read the changed files (not only the stat): \`reviewroom progress ${args} read\`; then write ${WALKTHROUGH_FILE} and run \`reviewroom slide-lint ${args}\` until it passes`,
+    pendingArtifact(report) && `Then fill ${REPORT_FILE} and run \`reviewroom check ${args} --fix\` until it passes`,
+  );
 }

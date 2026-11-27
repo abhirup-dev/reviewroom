@@ -56,10 +56,10 @@ function requiredTarget(repo: string | null, target: string | undefined, command
   if (!target) {
     const reviews = repo ? reviewFoldersForRepository(remoteName(repo)) : allReviewFolders();
     const calls = reviews.filter((dir) => fs.existsSync(configPath(dir))).map((dir) => `  reviewroom ${command} ${shellArg(readConfig(dir).id ?? dir)}`);
-    throw new ReviewroomError(`missing review; use reviewroom ${command} <review>${calls.length ? `\n${calls.join('\n')}` : ''}`);
+    throw new ReviewroomError(`missing review: reviewroom ${command} <review>, where <review> is 'owner/repo#n', a PR URL, a branch or a review folder${calls.length ? `\nhelp: reviews here:\n${calls.join('\n')}` : ''}`, 2);
   }
   if (/^#\d+$/.test(target) || (command !== 'pr' && /^\d+$/.test(target))) {
-    throw new ReviewroomError('use a full PR review ID (owner/repo#n), URL, branch, or review-folder path; bare numbers are only accepted by pr');
+    throw new ReviewroomError('use a full PR review ID (owner/repo#n), URL, branch, or review-folder path; bare numbers are only accepted by pr', 2);
   }
   if (/^\d+$/.test(target) && (!repo || !remoteHost(repo, remote))) {
     throw new ReviewroomError("A bare PR number needs a GitHub remote. Use the 'owner/repo#n' form.");
@@ -67,10 +67,13 @@ function requiredTarget(repo: string | null, target: string | undefined, command
   return target;
 }
 
+/** A path target, or a bare name that is a review folder here (not a branch). */
+const isFolder = (target: string) => target.startsWith('/') || target.startsWith('./') || fs.existsSync(path.resolve(target, 'config.json'));
+
 export function resolveReview(repo: string | null, o: { dir?: string; repo?: string; remote?: string }, input: string | undefined, command: string) {
   if (o.dir !== undefined) throw new ReviewroomError('--dir was removed; use reviewroom <command> <review-folder> instead');
   const target = requiredTarget(repo, input, command, o.remote);
-  const isPath = target.startsWith('/') || target.startsWith('./');
+  const isPath = isFolder(target);
   const selected = repo ? remoteName(repo, o.remote) : undefined;
   const targetId = isPath ? null : parseReviewId(target, selected, true);
   if (!isPath && !targetId && !repo) throw new ReviewroomError('branch targets require a git repository (use --repo <path>)');
@@ -94,7 +97,7 @@ export function resolveReview(repo: string | null, o: { dir?: string; repo?: str
       throw new ReviewroomError(`no review for ${id} - run \`reviewroom pr ${id}\` first`);
     }
   }
-  return { repo: checkout, dir, cfg, pr };
+  return { repo: checkout, dir, cfg, pr, isPath };
 }
 
 export function loadConfig(dir: string, repo: string, o: { base?: string; head?: string; title?: string } = {}): ReviewConfig {

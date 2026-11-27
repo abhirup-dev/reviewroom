@@ -26,7 +26,7 @@
       "steps": [
         {
           "id": "s1",
-          "text": "<p><a href=\"rr:sym/Take\">Take</a> refills the account’s bucket before it spends: the tokens grow with the seconds since the last call, times the plan’s rate, and stop at the plan’s burst.</p><p>A new account starts full, so its first burst of uploads goes through at once. After that, uploads pass at the plan’s steady rate: one a second on Free, five on Pro.</p><p>When less than one token is left, Take refuses and returns the wait until the next token. The handler turns that into a Retry-After header in whole seconds.</p><p>The buckets live in memory under one mutex, so every upload in the process queues on it for a moment, and a restart refills every bucket. A plan without a rate is never limited: <code>UploadsPerSec &lt;= 0</code> returns true before any bucket is made.</p><p>Worth checking: rates below one a second, and what a clock that moves backwards does to <code>elapsed</code>.</p>",
+          "text": "<p><a href=\"rr:sym/Take\">Take</a> refills the account’s bucket before it spends: the tokens grow with the seconds since the last call, times the plan’s rate, and stop at the plan’s burst.</p><p>A new account starts full; after its first burst, uploads pass at the plan’s steady rate: one a second on Free, five on Pro.</p><p>When less than one token is left, Take refuses and returns the wait until the next token. The handler turns that into a Retry-After header in whole seconds.</p><p>A plan without a rate is never limited: <code>UploadsPerSec &lt;= 0</code> returns true before any bucket is made.</p><p>Worth checking: rates below one a second, and what a clock that moves backwards does to <code>elapsed</code>.</p>",
           "ref": "rr:code/internal/limit/bucket.go#L37-51"
         },
         {
@@ -56,10 +56,16 @@
         },
         {
           "id": "s3",
-          "text": "<p>Four smaller edits ride along: the plans’ rates, the disk store’s path, the error’s message and the client’s retry.</p>",
+          "text": "<p>Two smaller edits ride along on the server: the plans’ rates and the disk store’s path.</p>",
           "ref": [
             "rr:code/config/limits.json#L3",
-            "rr:code/internal/upload/disk.go#L24",
+            "rr:code/internal/upload/disk.go#L24"
+          ]
+        },
+        {
+          "id": "s4",
+          "text": "<p>And two more where the limit shows: the error’s message and the client’s retry.</p>",
+          "ref": [
             "rr:code/internal/upload/errors.go#L6",
             "rr:code/client/upload.go#L20"
           ]

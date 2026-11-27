@@ -16,6 +16,12 @@ export function progressLines(dir: string) {
   const file = path.join(dir, 'progress.jsonl');
   return parseProgress(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '');
 }
+/** The file has changed since it last passed validation, or never passed: true for any edit a round made. */
+export function unvalidated(dir: string, artifact: Artifact) {
+  const hash = artifactHash(dir, artifact);
+  const last = progressLines(dir).findLast((l) => l.artifact === artifact && l.event === 'validated');
+  return !!hash && !(last && 'hash' in last && last.hash === hash);
+}
 export const readProgress = (dir: string) => reduceProgress(progressLines(dir), { walkthrough: artifactHash(dir, 'walkthrough'), report: artifactHash(dir, 'report') });
 type NewLine = ProgressLine extends infer L ? (L extends ProgressLine ? Omit<L, 'at'> : never) : never;
 /** Appends `lines` in one write (all or none of them land). A file whose last line was cut off gets its newline first,
