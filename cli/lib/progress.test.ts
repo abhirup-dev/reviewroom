@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { appendProgress, artifactHash, importToRetry, progressLines, readProgress, recordArtifact, recordRead, requestGeneration, resetGeneration, staleArtifacts } from './progress.ts';
+import { reviewStore } from './review-store.ts';
 
 test('writers deduplicate bytes and validation retains the bytes checked, not a later edit', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
@@ -26,7 +27,7 @@ test('writers deduplicate bytes and validation retains the bytes checked, not a 
 
 const inTemp = (fn: (dir: string, log: string) => void) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-progress-'));
-  try { fn(dir, path.join(dir, 'progress.jsonl')); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  try { fn(dir, reviewStore(dir).progress.file); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 };
 
 test('a cut-off last line stays alone: the next append starts on its own line', () => inTemp((dir, log) => {
@@ -41,7 +42,7 @@ test('both requests land in one write, each with its own id', () => inTemp((dir,
   expect(lines.map((l) => [l.artifact, l.by])).toEqual([['walkthrough', 'assistant'], ['report', 'assistant']]);
   expect(new Set(lines.map((l) => l.id)).size).toBe(2);
   const blocked = path.join(dir, 'blocked');
-  fs.mkdirSync(path.join(blocked, 'progress.jsonl'), { recursive: true }); // appending fails: nothing is requested
+  fs.mkdirSync(reviewStore(blocked).progress.file, { recursive: true }); // appending fails: nothing is requested
   expect(() => requestGeneration(blocked, 'assistant')).toThrow();
 }));
 

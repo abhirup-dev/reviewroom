@@ -9,7 +9,8 @@ import { classifySession, sessionOpenUrl } from './classify.ts';
 import { GitMetaCache } from './gitmeta.ts';
 import { critLoopbackUrl, sanitizeLoopbackUrl } from './loopback.ts';
 import { type Agent, agentAncestor, lsofCwd, processCommand, runCapture } from './proc.ts';
-import { diskReviews, generationOf, serialized } from './reviews.ts';
+import { diskReviews, serialized, summaryOf } from './reviews.ts';
+import type { ReviewSummary } from '../lib/review-summary.ts';
 import { defaultCritHome, readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
 import type { HubSnapshot, SessionInfo, ToolName } from '../../src/hub/model.shared.ts';
 import { alive } from '../lib/lock.ts';
@@ -31,6 +32,19 @@ export interface HubOptions {
 const CRIT_MODES = new Set(['review', 'live', 'preview', 'plan']);
 const basename = (p: string | null) => (p ? path.basename(p.replace(/\/+$/, '')) || p : null);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** A reviewroom row's status, read from its folder the same way whether its server runs or not. */
+function withSummary(info: SessionInfo, s: ReviewSummary | undefined) {
+  if (!s) return;
+  info.reviewRound = s.round;
+  info.commentCount = s.threads;
+  info.unresolvedCommentCount = s.open;
+  info.resolvedCommentCount = s.threads !== null && s.open !== null ? s.threads - s.open : null;
+  info.walkthrough = s.walkthrough;
+  info.generation = s.generation;
+  info.waitingOn = s.waitingOn;
+  info.updatedAt = s.updated ?? info.updatedAt;
+}
 
 /** A session with nothing known beyond what the caller sets. */
 function session(id: string, tool: ToolName, now: string, fields: Partial<SessionInfo>): SessionInfo {
@@ -211,9 +225,10 @@ export class Hub {
 
     for (const r of read('reviewroom sessions', readReviewroom)) {
       const info = session(`reviewroom:${r.pid}`, 'reviewroom', now, {
-        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, label: r.title, project: basename(r.repo), reviewPath: r.dir, routeId: routeId(r.dir), reviewId: r.reviewId, generation: generationOf(r.dir),
+        pid: r.pid, port: r.port, url: r.url, cwd: r.repo, author: r.author ?? null, label: r.title, project: basename(r.repo), reviewPath: r.dir, routeId: routeId(r.dir), reviewId: r.reviewId,
         startedAt: r.startedAt || null, updatedAt: r.registryUpdatedAt,
       });
+      withSummary(info, summaryOf(r.dir));
       withClassification(info, classifySession({ tool: 'reviewroom', reviewId: r.reviewId, head: r.head }));
       next.set(info.id, info);
       // nothing answers as this server: it died without cleaning up (SIGKILL, crash)
@@ -232,19 +247,13 @@ export class Hub {
         if (res && res.headers.get('x-reviewroom-pid') !== String(r.pid)) return gone(); // another process on its port
         if (res) {
           info.health = res.ok ? 'ok' : 'unreachable';
-          // counts only (rounds, threads, tabs): /api/summary never carries thread text. Optional: a bad body is not a dead server.
+          // what only the live server knows (its pages, the diff size from git); the rest came from the folder. Optional:
+          // a bad body is not a dead server.
           const body = res.ok ? ((await res.json().catch(() => null)) as Record<string, unknown> | null) : null;
-          info.reviewRound = num(body?.round);
-          info.commentCount = num(body?.threads);
-          info.unresolvedCommentCount = num(body?.open);
-          info.resolvedCommentCount = info.commentCount !== null && info.unresolvedCommentCount !== null ? info.commentCount - info.unresolvedCommentCount : null;
           info.browserClients = num(body?.browserClients);
-          info.walkthrough = body?.walkthrough === true;
           info.additions = num(body?.additions);
           info.deletions = num(body?.deletions);
           info.changedFiles = num(body?.files);
-          // the registry file is written once at start; state.json changes with every thread and round
-          if (typeof body?.updated === 'string') info.updatedAt = body.updated;
           info.interacted = (info.commentCount ?? 0) > 0 || (info.reviewRound ?? 1) > 1 || (info.browserClients ?? 0) > 0;
         }
         await this.withGit(info, r.repo);
@@ -258,8 +267,9 @@ export class Hub {
       if ([...next.values()].some((s) => s.tool === 'reviewroom' && s.reviewPath === d.dir)) continue;
       const info = session(`review:${d.routeId}`, 'reviewroom', now, {
         cwd: d.repo || null, label: d.title, project: basename(d.repo), reviewPath: d.dir, routeId: d.routeId, reviewId: d.reviewId, branch: d.branch,
-        repository: basename(d.repo), repoRoot: d.repo || null, updatedAt: d.updatedAt, stopped: true, generation: d.generation, hasWork: d.hasWork,
+        repository: basename(d.repo), repoRoot: d.repo || null, stopped: true, hasWork: d.summary.hasWork,
       });
+      withSummary(info, d.summary);
       withClassification(info, classifySession({ tool: 'reviewroom', reviewId: d.reviewId, head: d.branch }));
       next.set(info.id, info);
     }

@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import type { SessionInfo } from '../src/hub/model.shared.ts';
 import { until } from '../src/testing/wait.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 const entry = path.resolve(import.meta.dir, '../dist/cli/reviewroom.js');
 const bun = process.execPath; // the CLI runs on the same Bun as the tests
@@ -17,7 +18,7 @@ export const spawnCli = (env: CliEnv, args: string[], cwd?: string) =>
 
 export const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8');
 export const readJson = (...p: string[]) => JSON.parse(read(...p));
-export const config = (dir: string) => readJson(dir, 'config.json');
+export const config = (dir: string) => reviewStore(dir).config.read()!;
 
 export function hubClient(cli: (args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>) {
   let url = '';

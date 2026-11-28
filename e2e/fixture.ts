@@ -5,9 +5,10 @@ import { $, type Subprocess } from 'bun';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { config, readJson, hubClient, runCli, spawnCli } from './transport.ts';
+import { readJson, hubClient, runCli, spawnCli } from './transport.ts';
 import { until } from '../src/testing/wait.ts';
 import { alive } from '../cli/lib/lock.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 /** A `key: value` line of the CLI's output (`url`, `dir`, ...). */
 export const field = (out: string, key: string) => out.match(new RegExp(`^${key}: (\\S+)`, 'm'))?.[1] ?? '';
@@ -88,7 +89,7 @@ export function setup({ env: extraEnv = {}, assistant = false, repo: kind = 'dem
   fs.cpSync(path.join(template, kind === 'tiny' ? 'tiny' : 'repo'), repo, { recursive: true });
   if (scaffold && kind === 'demo') {
     fs.cpSync(path.join(template, 'home', 'reviews'), path.join(home, 'reviews'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...config(dir), repoPath: repo }));
+    reviewStore(dir).config.update((c) => ({ ...c, repoPath: repo }));
   }
   const cli = (args: string[], input?: string) => runCli(env, args, input);
   const git = (...args: string[]) => $`git -C ${repo} ${args}`.quiet();
@@ -101,7 +102,7 @@ export function setup({ env: extraEnv = {}, assistant = false, repo: kind = 'dem
   });
   return {
     tmp, repo, home, reviews, dir, d, cli, hub: hubClient(cli),
-    state: (reviewDir = dir) => readJson(reviewDir, 'state.json'),
+    state: (reviewDir = dir) => readJson(reviewStore(reviewDir).state.file),
     /** The per-user session registry. */
     sessions,
     git,
@@ -135,6 +136,6 @@ echo '{"number":'$3',"title":"PR '$3'","headRefName":"patch-1","baseRefName":"ma
       return p;
     },
     /** The URL of the server a foreground command started for a review dir. */
-    url: (reviewDir = dir) => until<string>(() => readJson(reviewDir, 'server.json').url),
+    url: (reviewDir = dir) => until(() => reviewStore(reviewDir).server.read()?.url),
   };
 }

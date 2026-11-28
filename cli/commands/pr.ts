@@ -8,10 +8,10 @@ import { ARTIFACTS, pendingArtifact } from '../../src/kernel/state/progress.shar
 import { WAIT_HOW, fail, hint } from '../lib/args.ts';
 import { git, fetchRef, hasRef, defaultBase, isFullSha, remoteDefaultBranch, makeProvider, remoteHost } from '../lib/git.ts';
 import { DEFAULT_PROFILE, profileSections, scaffold } from '../lib/scaffold.ts';
-import { type ReviewConfig, resolveReview, reviewArgs, loadConfig, readConfig, configPath } from '../lib/config.ts';
+import { type ReviewConfig, resolveReview, reviewArgs, loadConfig, readConfig } from '../lib/config.ts';
 import { formatReviewId, formatReviewRepository, parseReviewId, type ReviewId } from '../lib/review-id.ts';
 import { fetchPr } from '../lib/github.ts';
-import { walkthroughPath, writeAtomic } from '../lib/state.ts';
+import { reviewStore } from '../lib/review-store.ts';
 import { pickBlock } from '../lib/slides-file.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 import { ensureServer, runningServer, type StartOpts } from './serve.ts';
@@ -72,11 +72,11 @@ function branchConfig(repo: string, o: PrOpts, branch: string, remote: string): 
 
 /** A PR's own walkthrough (a ```reviewroom-walkthrough block in a comment or the description) when there is no local one. */
 async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, force: boolean, head: string) {
-  const file = walkthroughPath(dir);
+  const file = reviewStore(dir).walkthrough;
   const t = cfg.id ? parseReviewId(cfg.id) : null;
   // a local file is kept, unless it is still an earlier import not validated now (a refresh whose fetch failed): retried
-  if (!t || (fs.existsSync(file) && !force && !importToRetry(dir, head))) return;
-  const read = () => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
+  if (!t || (file.exists() && !force && !importToRetry(dir, head))) return;
+  const read = file.read;
   const before = read();
   let pick;
   try {
@@ -89,7 +89,7 @@ async function pullWalkthrough(repo: string, dir: string, cfg: ReviewConfig, for
   if (!r.ok) return console.error(`reviewroom: the walkthrough in ${pick.from} is invalid, not used:\n  ${r.issues.join('\n  ')}`);
   // an edit saved while GitHub answered wins: recheck right before writing
   if (!force && read() !== before) return console.error(`reviewroom: ${WALKTHROUGH_FILE} changed while fetching the PR's walkthrough; kept yours`);
-  fs.writeFileSync(file, JSON.stringify(r.value, null, 2) + '\n');
+  file.write(JSON.stringify(r.value, null, 2) + '\n');
   recordArtifact(dir, 'walkthrough', 'validated', { source: 'pr', ...(isFullSha(head) ? { head } : {}) });
   console.error(`reviewroom: walkthrough from ${pick.from}`);
 }
@@ -129,7 +129,7 @@ export async function cmdPr(selected: string | null, o: PrOpts, arg?: string) {
   const scaffoldHash = scaffold(repo, dir, cfg, !!o.force);
   if (scaffoldHash) cfg.reportScaffoldHash = scaffoldHash;
   const fresh = scaffoldHash !== undefined;
-  writeAtomic(configPath(dir), JSON.stringify(cfg, null, 2));
+  reviewStore(dir).config.write(cfg);
   settleGeneration(dir, o, fresh, prov.head);
   console.error(`reviewroom: ${files.length} files changed${fresh ? `; ${REPORT_FILE} scaffolded from profile ${cfg.profile}` : ''}`);
   await pullWalkthrough(repo, dir, cfg, !!o.force, prov.head);

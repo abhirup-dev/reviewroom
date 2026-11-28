@@ -10,15 +10,17 @@ import crypto from 'node:crypto';
 import { feedbackMarkdown } from '../../src/threads/feedback.shared.ts';
 import { isFullSha, makeProvider, remoteHost, type Provider } from './git.ts';
 import { readConfig, reviewArgs, type ReviewConfig } from './config.ts';
-import { readState, readWalkthrough, statePath, validWalkthrough, walkthroughPath, writeState } from './state.ts';
+import { readState, readWalkthrough, validWalkthrough, writeState } from './state.ts';
 import { defaultLayoutFile, hubLog, layoutsDir } from './paths.ts';
 import { ensureHub, routeId } from './registry.ts';
 import { builtinLayouts, Layout, LayoutId } from '../../src/kernel/layouts/layout.shared.ts';
-import { applyOp, awaitingAgent, currentRound, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import { applyOp, OpError, ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { formatReviewRepository, parseReviewId, pullUrl } from './review-id.ts';
 import { makeGitHub } from './github.ts';
 import { checkLinks, problems, report } from './links.ts';
 import { exportWalkthrough } from './walkthrough-export.ts';
+import { LastLayout, REVIEW_FILES, isPrivatePath, reviewStore } from './review-store.ts';
+import { reviewSummary } from './review-summary.ts';
 import { tourText } from './slides-file.ts';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -49,7 +51,7 @@ function watchNarrative(dir: string, onChange: (files: Set<string>) => void) {
   let t: NodeJS.Timeout | undefined, changed = new Set<string>();
   fs.mkdirSync(dir, { recursive: true });
   const watcher = fs.watch(dir, (_e, f: string | null) => {
-    if (f === 'progress.jsonl' || f === REPORT_FILE || f === WALKTHROUGH_FILE || (f && /\.(css|js|svg|png)$/.test(f))) {
+    if (f === REVIEW_FILES.progress.name || f === REPORT_FILE || f === WALKTHROUGH_FILE || (f && /\.(css|js|svg|png)$/.test(f))) {
       changed.add(f);
       clearTimeout(t);
       t = setTimeout(() => {
@@ -81,26 +83,18 @@ function diffSizer(prov: Provider) {
     return sized.value ?? {};
   };
 }
-/** When the review last changed: its state.json's time; null before anything has happened. */
-function lastChange(dir: string): string | null {
-  try {
-    return fs.statSync(statePath(dir)).mtime.toISOString();
-  } catch {
-    return null;
-  }
-}
 
 function narrativeCheck(repo: string, dir: string, cfg: ReviewConfig, commit: (ops: Op[]) => unknown) {
-  const reviewFile = path.join(dir, REPORT_FILE);
   let lastReport = '';
   return () => {
     try {
-      if (!fs.existsSync(reviewFile)) return;
+      const html = reviewStore(dir).report.read();
+      if (html === null) return;
       const known = readState(dir).links ?? {};
       // the current head, not the one this server started on: `check` must fingerprint the same code
       const w = readWalkthrough(dir);
       const tour = w?.ok ? tourText(w.value) : '';
-      const checked = checkLinks(fs.readFileSync(reviewFile, 'utf8'), makeProvider(repo, cfg), known, tour, w?.ok ? w.value : null);
+      const checked = checkLinks(html, makeProvider(repo, cfg), known, tour, w?.ok ? w.value : null);
       const { results } = checked;
       // a walkthrough.json that is broken for now hides its links: keep their fingerprints, or fixing it re-baselines moved code
       const links = w && !w.ok ? { ...known, ...checked.links } : checked.links;
@@ -165,13 +159,15 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   const pr = cfg.id ? parseReviewId(cfg.id) : null;
   const host = (pr && remoteHost(repo, cfg.remote ?? 'origin')) || 'github.com';
   const github = makeGitHub({ repo, dir, id: pr, host, prov, onChange: (snap) => send('github', snap) });
-  const reviewFile = path.join(dir, REPORT_FILE);
+  const store = reviewStore(dir);
   // A reconnecting client reloads when the Git range or either artifact changes.
   // each file's part of the hash; a pending artifact's part is 'pending', so saves while the agent writes don't change it
   const parts = () => {
     const progress = readProgress(dir);
-    return ([['report', reviewFile], ['walkthrough', walkthroughPath(dir)]] as const).map(([artifact, f]) =>
-      pendingArtifact(progress[artifact]) ? 'pending' : fs.existsSync(f) ? crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex') : '');
+    return (['report', 'walkthrough'] as const).map((artifact) => {
+      const bytes = store[artifact].bytes();
+      return pendingArtifact(progress[artifact]) ? 'pending' : bytes ? crypto.createHash('sha1').update(bytes).digest('hex') : '';
+    });
   };
   const hash = (p = parts()) => crypto.createHash('sha1').update([prov.base, prov.head, ...p].join('|')).digest('hex').slice(0, 12);
   const read = () => readState(dir, { repair: !readOnly }); // a read-only server never moves a corrupt state.json aside
@@ -256,8 +252,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   });
 
   const page = (c: Context) => {
-    const report = fs.existsSync(reviewFile) ? fs.readFileSync(reviewFile, 'utf8') : '';
-    return c.html(reportPage(report), 200, { 'cache-control': 'no-cache' });
+    return c.html(reportPage(store.report.read() ?? ''), 200, { 'cache-control': 'no-cache' });
   };
   app.get('/', page);
   app.get('/index.html', page);
@@ -296,12 +291,7 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
   app.get('/api/state', (c) => json(c, read()));
   const diffSize = diffSizer(prov);
   // Counts only, no thread text: for local tools that list running reviews (agent-annotation-hub).
-  app.get('/api/summary', (c) => {
-    const s = read();
-    const open = s.threads.filter((t) => t.status === 'open');
-    const round = currentRound(s);
-    return json(c, { ...diffSize(), updated: lastChange(dir), reviewId: cfg.id, round: s.round, roundStatus: round?.status ?? 'open', rounds: s.rounds.length, threads: s.threads.length, open: open.length, awaitingAgent: awaitingAgent(s).length, comments: s.threads.reduce((n, t) => n + t.messages.length, 0), browserClients: clients.size, walkthrough: fs.existsSync(walkthroughPath(dir)) });
-  });
+  app.get('/api/summary', (c) => json(c, { ...diffSize(), ...reviewSummary(dir), reviewId: cfg.id, browserClients: clients.size }));
   // each op is checked by applyOp, which also tells the client which one failed (index)
   app.post('/api/ops', body(z.object({ ops: z.array(z.unknown()) })), (c) => {
     const ops = c.req.valid('json').ops as Op[];
@@ -319,10 +309,10 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     return url ? c.redirect(url) : json(c, { error: `the hub did not start; see ${hubLog()}` }, 500);
   });
   // this review's dock as the reviewer left it (dockview JSON, kept whole) and the PR panels already offered
-  const lastLayout = path.join(dir, 'layout.json');
-  app.get('/api/layout', (c) => json(c, fs.existsSync(lastLayout) ? JSON.parse(fs.readFileSync(lastLayout, 'utf8')) : null));
-  app.put('/api/layout', body(z.object({ dock: z.looseObject({ grid: z.looseObject({}), panels: z.looseObject({}) }), offered: z.array(z.string()), layout: z.string().optional() })), (c) => {
-    fs.writeFileSync(lastLayout, JSON.stringify(c.req.valid('json')));
+  const lastLayout = reviewStore(dir).layout;
+  app.get('/api/layout', (c) => json(c, lastLayout.read()));
+  app.put('/api/layout', body(LastLayout), (c) => {
+    lastLayout.write(c.req.valid('json'));
     return json(c, { ok: true });
   });
   // the reviewer's layout files by name, and which one is their default; a file that no longer parses is skipped, not fatal
@@ -400,28 +390,27 @@ export function startServer({ repo, dir, cfg, onClient, readOnly }: ServerOpts) 
     const n = prev.round;
     const s = applyOp(prev, { op: 'finishRound', kind, note, round }); // 409 unless this round is still open
     const md = feedbackMarkdown(prev, { kind, note, target: reviewArgs(repo, dir, cfg), codeExcerpt: (a) => excerpt(prov, a), github: github.cached()?.threads, walkthrough: validWalkthrough(dir) });
-    const rdir = path.join(dir, 'rounds', String(n));
-    fs.mkdirSync(rdir, { recursive: true });
-    if (fs.existsSync(reviewFile)) fs.copyFileSync(reviewFile, path.join(rdir, REPORT_FILE));
-    fs.writeFileSync(path.join(rdir, 'feedback.md'), md);
+    const sent = store.round(n), html = store.report.read();
+    if (html !== null) sent.report.write(html);
+    sent.feedback.write(md);
     writeState(dir, s);
     send('state', s);
     return json(c, { ok: true, round: s.round, state: s });
   });
-  app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, (c) => roundPage(c, path.join(dir, 'rounds', c.req.param('n'), REPORT_FILE)));
+  app.get(`/api/rounds/:n{[0-9]+}/${REPORT_FILE}`, (c) => roundPage(c, reviewStore(dir).round(Number(c.req.param('n'))).report.file));
   // anything else: static files next to report.html (images, extra css/js the agent wrote). serveStatic refuses
   // `..`, `//` and `\`; it decodes with decodeURI, which keeps reserved chars encoded: decode those too (not %2F),
-  // so `a%231.png` finds `a#1.png`. The review's own state files are never served: checked on the fully decoded path.
-  const stateFile = (p: string) => {
+  // so `a%231.png` finds `a#1.png`. reviewroom's own files are never served: checked on the fully decoded path.
+  const privateFile = (p: string) => {
     try {
-      return /(^|\/)\.?state\.(json|lock)[^/]*$/i.test(decodeURIComponent(p));
+      return isPrivatePath(decodeURIComponent(p));
     } catch {
       return true; // malformed escapes: serveStatic would refuse them anyway
     }
   };
   app.get(
     '*',
-    async (c, next) => (stateFile(c.req.path) ? c.notFound() : next()),
+    async (c, next) => (privateFile(c.req.path) ? c.notFound() : next()),
     serveStatic({
       root: dir,
       allowPercentInPath: true,

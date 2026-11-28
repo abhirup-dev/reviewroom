@@ -10,6 +10,7 @@ import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { auditSlides } from '../../cli/lib/slide-render.ts';
 import { runCheck } from '../../cli/commands/check.ts';
+import { reviewStore } from '../../cli/lib/review-store.ts';
 import { vpName, withServer } from '../../cli/lib/render.ts';
 import { slideCases, writeSlideCase } from './cases.ts';
 import { Benchmark, Report, type CliRun, type Sample } from './schema.ts';
@@ -61,7 +62,7 @@ async function capture(out: string, runs: number) {
       const tour = fixture.tour;
       const dir = path.join(tmp, name);
       writeSlideCase(dir, fixture);
-      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ base: 'main', head: 'feat/upload-rate-limit' }));
+      reviewStore(dir).config.write({ base: 'main', head: 'feat/upload-rate-limit' });
       cases[name] = [];
       for (let i = 0; i < runs; i++) cases[name].push(await sample(repo, dir, tour, home));
       // Same dataset and viewport defaults: full, its largest chapter, and one slide from that chapter.

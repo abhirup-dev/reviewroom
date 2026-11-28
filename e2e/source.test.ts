@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setup } from './fixture';
 import { lookupDeclarations } from '../cli/lib/source/lookup';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 const { repo, dir, d, cli, git } = setup();
 
@@ -41,9 +42,7 @@ test('declaration lookup batches languages, qualifies before limits and preserve
   // A dirty checkout must not replace the committed revision's definitions.
   fs.writeFileSync(path.join(repo, 'symbols.go'), 'package symbols\n// Worker Process Second\n');
   expect((await cli(['check', ...d, '--json'])).code).toBe(0);
-  const config = path.join(dir, 'config.json');
-  const cfg = JSON.parse(fs.readFileSync(config, 'utf8'));
-  fs.writeFileSync(config, JSON.stringify({ ...cfg, head: 'worktree' }));
+  reviewStore(dir).config.update((c) => ({ ...c, head: 'worktree' }));
   fs.writeFileSync(path.join(repo, 'untracked.py'), 'class NewlyAdded: pass\n');
   fs.appendFileSync(path.join(dir, REPORT_FILE), '<a href="rr:sym/NewlyAdded">new</a><a href="rr:sym/ActuallyMissing">missing</a>');
   const changed = await cli(['check', ...d, '--json']);

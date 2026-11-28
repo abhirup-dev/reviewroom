@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { read, setup } from './fixture.ts';
+import { REVIEW_FILES, reviewStore } from '../cli/lib/review-store.ts';
 
 describe('slides', () => {
   const { dir, d, cli, state } = setup();
@@ -13,7 +14,7 @@ describe('slides', () => {
   beforeEach(() => {
     fs.copyFileSync(demo, path.join(dir, WALKTHROUGH_FILE));
     fs.writeFileSync(path.join(dir, REPORT_FILE), walkthrough);
-    for (const f of fs.readdirSync(dir).filter((f) => f.startsWith('state.json'))) fs.rmSync(path.join(dir, f));
+    for (const f of fs.readdirSync(dir).filter((f) => f.startsWith(REVIEW_FILES.state.name))) fs.rmSync(path.join(dir, f));
   });
 
   test('a comment on a step is a tour thread; status --threads shows the slide', async () => {
@@ -49,7 +50,7 @@ describe('slides', () => {
     await cli(['comment', ...d, 'rr:tour/enforce/s2', 'why retry immediately?']);
     const st = state();
     st.threads[0].anchor = { kind: 'tour', chapter: 'enforce' };
-    fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(st));
+    fs.writeFileSync(reviewStore(dir).state.file, JSON.stringify(st));
     const r = await cli(['status', ...d, '--threads']);
     expect(r.stdout).toMatch(/does not match schema.*step/);
   });

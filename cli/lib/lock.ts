@@ -1,9 +1,9 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import { reviewStore } from './review-store.ts';
 
 // state.lock {pid, port}: a running server holds it for its lifetime (port set); a CLI holds it
 // for one read-modify-write (port null). CLI writes go to the server while it holds the lock.
-const lockPath = (dir: string) => path.join(dir, 'state.lock');
+const lockPath = (dir: string) => reviewStore(dir).lockFile;
 export const alive = (pid: number) => {
   try {
     process.kill(pid, 0);

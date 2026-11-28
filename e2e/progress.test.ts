@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { until } from '../src/testing/wait.ts';
 import { progressLines } from '../cli/lib/progress.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 import { field, setup } from './fixture.ts';
 import { reviewEvents } from './transport.ts';
 
@@ -43,7 +44,7 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
   fs.writeFileSync(path.join(dir, WALKTHROUGH_FILE), JSON.stringify({ version: 1, title: 'Change the value', chapters: [
     { id: 'change', title: 'Change the value', steps: [{ id: 'value', text: '<p>The value changes from one to two.</p>', ref: 'rr:code/example.ts#L1' }] },
   ] }));
-  const log = path.join(dir, 'progress.jsonl');
+  const log = reviewStore(dir).progress.file;
   const scoped = await cli(['slide-lint', ...d, '--slide', 'change/value']);
   expect(scoped.code).toBe(0);
   expect(progressLines(dir).filter((l) => l.artifact === 'walkthrough' && l.event === 'validated')).toHaveLength(0);
@@ -53,13 +54,12 @@ test.skipIf(!browser)('only a passing full lint validates the requested walkthro
 }, 30_000);
 
 test('generate through the hub is refused; a server start stops pending assistant work as interrupted, never an agent\'s', async () => {
-  const log = path.join(dir, 'progress.jsonl');
   const url = field((await cli(prArgs)).stdout, 'url');
   const viaHub = await fetch(url + 'api/generate', { method: 'POST', headers: { 'x-reviewroom-via-hub': '1' } });
   expect([viaHub.status, (await viaHub.json()).code]).toEqual([403, 'via_hub']);
   // a generation the previous server was running (the assistant's walkthrough), and an agent's report
   const at = new Date().toISOString();
-  fs.appendFileSync(log, [{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
+  reviewStore(dir).progress.append([{ at, artifact: 'walkthrough', event: 'requested', by: 'assistant', id: 'a1' }, { at, artifact: 'report', event: 'requested', by: 'agent', id: 'g1' }].map((l) => JSON.stringify(l) + '\n').join(''));
   await cli(['stop', ...d]);
   const next = field((await cli(prArgs)).stdout, 'url');
   const progress = await fetch(next + 'api/progress').then((r) => r.json());
@@ -69,10 +69,11 @@ test('generate through the hub is refused; a server start stops pending assistan
 
 test('a failed setup writes no config.json: a re-run keeps the old one, a new folder gets none (no playable row)', async () => {
   await cli(['stop', ...d]); // pr leaves a running review as it is
-  const before = fs.readFileSync(path.join(dir, 'config.json'), 'utf8');
+  const config = reviewStore(dir).config;
+  const before = fs.readFileSync(config.file, 'utf8');
   expect((await cli(['pr', ...d, '--base', 'no-such-ref', '--no-serve'])).code).not.toBe(0);
-  expect(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')).toBe(before);
+  expect(fs.readFileSync(config.file, 'utf8')).toBe(before);
   const fresh = path.join(tmp, 'home', 'reviews', 'repo', 'never-set-up');
   expect((await cli(['pr', 'never-set-up', '--head', 'feature', '--base', 'no-such-ref', '--no-serve', '--repo', repo])).code).not.toBe(0);
-  expect(fs.existsSync(path.join(fresh, 'config.json'))).toBe(false);
+  expect(reviewStore(fresh).config.exists()).toBe(false);
 });

@@ -37,7 +37,8 @@ By default in `~/.reviewroom/reviews/`, never inside the reviewed repo. What the
 - **The walkthrough** follows `schema/walkthrough.schema.json`, generated from
   `src/slides/model.shared.ts` by `bun run schema`. It can come from a PR comment: its prose is sanitized.
 - **Review state** (`docs/review-state.md`): what reviewroom keeps per review and in `~/.reviewroom/`, and how to
-  change it.
+  change it. Every file in a review folder is declared once in `cli/lib/review-store.ts` (name, schema, write rule)
+  and read or written only through `reviewStore(dir)`.
 - **The PWA** (Collie's update flow). `scripts/build.ts` writes `dist/build-info.json` (the build id) and `dist/sw.js`
   (from `src/sw.ts`, with that id and the precache list baked in). Cache headers (`serveClient()`, `cli/lib/pwa.ts`):
   hashed `_rr/chunks/` immutable, fonts a day, everything else (pages, entries, CSS, `sw.js`, the manifest,

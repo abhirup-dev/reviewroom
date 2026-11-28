@@ -1,16 +1,14 @@
 // The ACP bridge and its children share a private process group. Keep a recognizable group leader around
 // the bridge so a saved PID can be checked before signaling it, even after a server crash.
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { writeAtomic } from './state.ts';
+import { reviewStore } from './review-store.ts';
 
 // API-key, gateway and nested-session overrides would replace the reviewer's native subscription login.
 const OVERRIDES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'AI_GATEWAY_API_KEY', 'CLAUDECODE'];
 export const bunCommand = `'${process.execPath.replaceAll("'", "'\\''")}'`;
 
-const groupFile = (dir: string) => path.join(dir, 'assistant-process.json');
 type Group = { pid: number; marker: string };
 
 function killGroup({ pid, marker }: Group) {
@@ -25,11 +23,10 @@ function killGroup({ pid, marker }: Group) {
 }
 
 export function reapAssistantGroup(dir: string) {
-  const file = groupFile(dir);
-  if (!fs.existsSync(file)) return;
-  const group = JSON.parse(fs.readFileSync(file, 'utf8')) as Group;
-  if (Number.isSafeInteger(group.pid) && group.pid > 1 && /^reviewroom-assistant-[0-9a-f-]{36}$/.test(group.marker)) killGroup(group);
-  fs.rmSync(file, { force: true });
+  const file = reviewStore(dir).assistantProcess;
+  const group = file.read();
+  if (group) killGroup(group);
+  file.remove();
 }
 
 export async function spawnAssistantBridge(dir: string, cwd: string, { command, workingDirectory, env, abortSignal }: { command: string; workingDirectory?: string; env: Record<string, string>; abortSignal?: AbortSignal }, claudeExecutable?: string) {
@@ -50,7 +47,7 @@ export async function spawnAssistantBridge(dir: string, cwd: string, { command, 
   try {
     if ((await reader.read()).done) throw new Error('The assistant process group did not start.');
     abortSignal?.throwIfAborted();
-    writeAtomic(groupFile(dir), JSON.stringify(group), 0o600);
+    reviewStore(dir).assistantProcess.write(group);
     await proc.stdin.write('start\n');
     await proc.stdin.end();
   } catch (error) {

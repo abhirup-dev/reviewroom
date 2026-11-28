@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { SearchHit } from '../src/kernel/state/model.shared.ts';
 import { expectClientHeaders, setup } from './fixture.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 describe('api', () => {
   const { tmp, repo, dir, serve, sessions } = setup();
@@ -16,7 +17,7 @@ describe('api', () => {
   test('external-agent reviews do not offer or start the built-in assistant', async () => {
     expect((await (await fetch(url + 'api/meta')).json()).assistant).toBeUndefined();
     expect(await status('api/assistant')).toBe(404);
-    expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false);
+    expect(reviewStore(dir).assistant.exists()).toBe(false);
   });
 
   test('the patch is a plain git diff whatever the git config', async () => expect(await (await fetch(url + 'api/patch')).text()).toStartWith('diff --git a/'));
@@ -71,8 +72,10 @@ describe('api', () => {
   test('write from a foreign origin is refused', async () =>
     expect(await status('api/ops', { method: 'POST', body: '{}', headers: { origin: 'https://evil.example', 'content-type': 'application/json' } })).toBe(403));
   test('foreign Host header is refused', async () => expect(await status('api/meta', { headers: { host: `evil.example:${new URL(url).port}` } })).toBe(403));
-  test('state files are not served', async () =>
-    expect(await Promise.all(['state.json', 'STATE.JSON', 'state%2Ejson', 'state.lock'].map((f) => status(f)))).toEqual([404, 404, 404, 404]));
+  test("reviewroom's own files are not served", async () => {
+    const own = ['state.json', 'STATE.JSON', 'state%2Ejson', 'state.lock', 'config.json', 'github.json', 'assistant.json', 'server.log', 'progress.jsonl', 'state.json.corrupt-1', 'rounds/1/feedback.md'];
+    expect(await Promise.all(own.map((f) => status(f)))).toEqual(own.map(() => 404));
+  });
   test('static file with # and ? in its name is served', async () => {
     fs.writeFileSync(path.join(dir, 'fig #1?.txt'), 'fig');
     const r = await fetch(url + encodeURIComponent('fig #1?.txt'));

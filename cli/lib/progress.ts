@@ -1,21 +1,16 @@
-import { REPORT_FILE, WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 // The CLI/server alone append generation facts. File bytes, never parsed JSON, identify a validation.
-import fs from 'node:fs';
-import path from 'node:path';
 import crypto from 'node:crypto';
+import { reviewStore } from './review-store.ts';
 import { ARTIFACTS, parseProgress, pendingArtifact, reduceProgress, pendingAssistantWork, ProgressLine, type Artifact, type Requester } from '../../src/kernel/state/progress.shared.ts';
 import { parseWalkthrough } from '../../src/slides/model.shared.ts';
 
-const filename = (dir: string, artifact: Artifact) => path.join(dir, artifact === 'report' ? REPORT_FILE : WALKTHROUGH_FILE);
+const document = (dir: string, artifact: Artifact) => reviewStore(dir)[artifact];
 export const progressHash = (bytes: string | Buffer) => crypto.createHash('sha256').update(bytes).digest('hex');
 export function artifactHash(dir: string, artifact: Artifact) {
-  const file = filename(dir, artifact);
-  return fs.existsSync(file) ? progressHash(fs.readFileSync(file)) : undefined;
+  const bytes = document(dir, artifact).bytes();
+  return bytes ? progressHash(bytes) : undefined;
 }
-export function progressLines(dir: string) {
-  const file = path.join(dir, 'progress.jsonl');
-  return parseProgress(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '');
-}
+export const progressLines = (dir: string) => parseProgress(reviewStore(dir).progress.read());
 /** The file has changed since it last passed validation, or never passed: true for any edit a round made. */
 export function unvalidated(dir: string, artifact: Artifact) {
   const hash = artifactHash(dir, artifact);
@@ -24,20 +19,9 @@ export function unvalidated(dir: string, artifact: Artifact) {
 }
 export const readProgress = (dir: string) => reduceProgress(progressLines(dir), { walkthrough: artifactHash(dir, 'walkthrough'), report: artifactHash(dir, 'report') });
 type NewLine = ProgressLine extends infer L ? (L extends ProgressLine ? Omit<L, 'at'> : never) : never;
-/** Appends `lines` in one write (all or none of them land). A file whose last line was cut off gets its newline first,
- *  so the cut line stays alone and malformed instead of swallowing the first new one. */
 export function appendProgress(dir: string, ...lines: NewLine[]) {
-  const file = path.join(dir, 'progress.jsonl');
   const at = new Date().toISOString();
-  let text = lines.map((line) => JSON.stringify(ProgressLine.parse({ ...line, at })) + '\n').join('');
-  if (fs.existsSync(file) && fs.statSync(file).size > 0) {
-    const fd = fs.openSync(file, 'r');
-    const last = Buffer.alloc(1);
-    fs.readSync(fd, last, 0, 1, fs.statSync(file).size - 1);
-    fs.closeSync(fd);
-    if (last[0] !== 0x0a) text = '\n' + text;
-  }
-  fs.appendFileSync(file, text); // shortcut: a short write (EFBIG, disk full) can land half a batch; rare, and Retry recovers
+  reviewStore(dir).progress.append(lines.map((line) => JSON.stringify(ProgressLine.parse({ ...line, at })) + '\n').join(''));
 }
 export function recordArtifact(dir: string, artifact: Artifact, event: 'written' | 'validated', extra: { head?: string; source?: 'pr' } = {}, checkedHash = artifactHash(dir, artifact)) {
   if (!checkedHash) return;
@@ -46,7 +30,7 @@ export function recordArtifact(dir: string, artifact: Artifact, event: 'written'
   const current = since.slice(since.findLastIndex((l) => l.event === 'requested' || l.event === 'reset') + 1);
   const last = current.findLast((l) => 'hash' in l);
   if (event === 'written' && last && 'hash' in last && last.hash === checkedHash) return;
-  const raw = fs.readFileSync(filename(dir, artifact), 'utf8');
+  const raw = document(dir, artifact).read() ?? '';
   let facts = {};
   if (artifact === 'walkthrough') {
     const w = parseWalkthrough(raw);

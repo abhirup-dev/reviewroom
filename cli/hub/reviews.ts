@@ -9,14 +9,12 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { configPath, readConfig } from '../lib/config.ts';
+import { readConfig } from '../lib/config.ts';
+import { reviewStore } from '../lib/review-store.ts';
+import { reviewSummary, type ReviewSummary } from '../lib/review-summary.ts';
 import { allReviewFolders, formatReviewId, parseReviewId, reviewFolder, type ReviewId } from '../lib/review-id.ts';
 import { homeDir } from '../lib/paths.ts';
-import { artifactHash, readProgress } from '../lib/progress.ts';
 import { routeId, runningServer, startDetached, type ServerRecord } from '../lib/registry.ts';
-import { pendingArtifact, type Progress } from '../../src/kernel/state/progress.shared.ts';
-import type { GenerationState } from '../../src/hub/model.shared.ts';
-import { WALKTHROUGH_FILE } from '../../src/kernel/state/files.shared.ts';
 
 const run = promisify(execFile);
 
@@ -32,41 +30,24 @@ export function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return result;
 }
 
-/** Where generation stands, from the review's progress log: ready once both documents validated. */
-export function generationState({ walkthrough: w, report: r }: Progress): GenerationState {
-  if (w.state === 'validated' && r.state === 'validated') return 'ready';
-  if (pendingArtifact(w) || pendingArtifact(r)) return 'generating';
-  if (w.state === 'stopped' || r.state === 'stopped') return 'stopped';
-  return 'idle';
-}
-
-/** A running review's generation state, from its own folder; undefined if it can't be read. */
-export function generationOf(dir: string): GenerationState | undefined {
+/** A review's summary; undefined if its folder can't be read. */
+export function summaryOf(dir: string): ReviewSummary | undefined {
   try {
-    return generationState(readProgress(dir));
+    return reviewSummary(dir);
   } catch {
     return undefined;
   }
 }
 
-export type DiskReview = { dir: string; routeId: string; reviewId?: string; repo: string; title: string | null; branch: string | null; generation: GenerationState; hasWork: boolean; updatedAt: string | null };
-// what Remove would lose; Add writes only config.json, a scaffolded report and the PR snapshot
-const WORK = [WALKTHROUGH_FILE, 'state.json', 'assistant.json', 'rounds'];
+export type DiskReview = { dir: string; routeId: string; reviewId?: string; repo: string; title: string | null; branch: string | null; summary: ReviewSummary };
 
 /** Every review folder with a config.json (a broken one is skipped: the hub lists, it doesn't repair). */
 export function diskReviews(): DiskReview[] {
   return allReviewFolders().flatMap((dir) => {
-    const file = path.join(dir, 'config.json');
-    if (!fs.existsSync(file)) return [];
+    if (!reviewStore(dir).config.exists()) return [];
     try {
       const c = readConfig(dir);
-      const generation = generationState(readProgress(dir));
-      const reportHash = artifactHash(dir, 'report');
-      const editedReport = reportHash !== undefined && reportHash !== c.reportScaffoldHash;
-      return [{
-        dir, routeId: routeId(dir), reviewId: c.id, repo: c.repoPath ?? '', title: c.title ?? null, branch: c.headLabel ?? c.head ?? null,
-        generation, hasWork: editedReport || generation !== 'idle' || WORK.some((f) => fs.existsSync(path.join(dir, f))), updatedAt: fs.statSync(file).mtime.toISOString(),
-      }];
+      return [{ dir, routeId: routeId(dir), reviewId: c.id, repo: c.repoPath ?? '', title: c.title ?? null, branch: c.headLabel ?? c.head ?? null, summary: reviewSummary(dir) }];
     } catch {
       return [];
     }
@@ -182,11 +163,10 @@ export async function play(route: string, entry = process.argv[1]): Promise<Play
     const rec = await runningServer(review.dir);
     if (rec) return { ok: true, url: rec.url, pid: rec.pid, started: false, generate: null };
     if (!review.repo || !fs.existsSync(review.repo)) return { ok: false, error: `The review's repository is gone: ${review.repo || 'not recorded'}` };
-    const file = configPath(review.dir);
-    fs.writeFileSync(file, JSON.stringify({ ...(JSON.parse(fs.readFileSync(file, 'utf8')) as object), assistant: true }, null, 2));
+    reviewStore(review.dir).config.update((c) => ({ ...c, assistant: true }));
     try {
       const { server, started } = await startDetached(review.repo, review.dir, ['--no-open'], entry);
-      const gen = started && review.generation !== 'ready' ? await generate(server) : null;
+      const gen = started && review.summary.generation !== 'ready' ? await generate(server) : null;
       return { ok: true, url: server.url, pid: server.pid, started, generate: gen };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
@@ -204,7 +184,7 @@ export async function remove(route: string, confirmed: boolean): Promise<{ ok: t
     if (await runningServer(found.dir)) return { ok: false, error: 'It is running: Close it first.', status: 409 };
     const current = diskReviews().find((r) => r.routeId === route);
     if (!current) return { ok: false, error: 'No such review on this machine.', status: 404 };
-    if (current.hasWork && !confirmed) return { ok: false, error: 'This review has saved work. Choose Remove again to confirm.', status: 409 };
+    if (current.summary.hasWork && !confirmed) return { ok: false, error: 'This review has saved work. Choose Remove again to confirm.', status: 409 };
     fs.rmSync(found.dir, { recursive: true, force: true });
     return { ok: true };
   });

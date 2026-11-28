@@ -2,6 +2,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import type { StoredMessage } from '../src/kernel/state/schema.shared.ts';
 import { op, read, setup } from './fixture.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 describe('ops', () => {
   const { dir, d, cli, serve, state } = setup();
@@ -11,7 +12,7 @@ describe('ops', () => {
     await op(url, { op: 'createThread', id: 't_one', anchor: { kind: 'general' }, msgId: 'm_one', body: 'why?', author: 'you' });
   });
 
-  test('server holds state.lock', () => expect(JSON.parse(read(dir, 'state.lock')).port).toBe(+new URL(url).port));
+  test('server holds state.lock', () => expect(JSON.parse(read(reviewStore(dir).lockFile)).port).toBe(+new URL(url).port));
   // a CLI reply racing a stream of browser ops (spanning the CLI's whole run): everything must land
   test('concurrent CLI reply and browser ops all survive', async () => {
     const browserOps = async () => {

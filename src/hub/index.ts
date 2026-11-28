@@ -170,8 +170,9 @@ const table = h('table', { class: 'rr-hub__table', hidden: true }, h('thead', nu
 
 const hubPage: HubPage = { say: (n) => { notice = n; paint(true); }, refresh, subject, forget: (id) => selected.delete(id) };
 const stateOf: Record<GenerationState, string> = { idle: 'not generated', generating: 'generating', ready: 'ready', stopped: 'generation stopped' };
-/** Running or stopped, and where generation stands (reviewroom only). */
-const stateText = (s: SessionInfo) => [s.stopped ? 'Stopped' : 'Running', s.generation && stateOf[s.generation]].filter(Boolean).join(' · ');
+const waitingText = { agent: 'waiting on the agent', reviewer: 'waiting on you' } as const;
+/** Running or stopped, where generation stands and whose move it is (reviewroom only). */
+const stateText = (s: SessionInfo) => [s.stopped ? 'Stopped' : 'Running', s.generation && stateOf[s.generation], s.waitingOn && waitingText[s.waitingOn]].filter(Boolean).join(' · ');
 
 mountTooltips();
 startUpdates(import.meta.url);

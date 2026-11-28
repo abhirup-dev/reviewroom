@@ -1,4 +1,5 @@
-import { REPORT_FILE, WALKTHROUGH_FILE } from '../src/kernel/state/files.shared.ts';
+import { REPORT_FILE } from '../src/kernel/state/files.shared.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 // Build a single self-contained demo page (no server): static provider + fixture
 // generated from a git repo + an example review + seeded threads.
 //
@@ -13,7 +14,10 @@ import path from 'node:path';
 
 const [repo, baseRef, headRef, exampleDir, out] = process.argv.slice(2);
 const fragment = process.argv.includes('--fragment');
-if (!out) throw new Error('usage: build-demo.ts <repo> <base> <head> <example-dir> <out.html> [--fragment]');
+const fail = (message: string): never => {
+  throw new Error(message);
+};
+if (!out) fail('usage: build-demo.ts <repo> <base> <head> <example-dir> <out.html> [--fragment]');
 
 // 1) bundle without code-splitting, keeping only a handful of grammars
 const stub = stubShiki(['go', 'sql', 'proto', 'protobuf', 'typescript', 'javascript', 'tsx', 'json', 'yaml', 'python', 'markdown', 'shellscript', 'bash', 'html', 'css', 'diff']);
@@ -68,15 +72,16 @@ const meta = { title: git('log', '-1', '--format=%s', head).trim(), repo: 'examp
 const fixture = { meta, commits, files, contents };
 
 // 3) page
-const review = fs.readFileSync(path.join(exampleDir, REPORT_FILE), 'utf8');
-const state = fs.readFileSync(path.join(exampleDir, 'state.json'), 'utf8');
+const example = reviewStore(exampleDir);
+const review = example.report.read() ?? fail(`no ${REPORT_FILE} in ${exampleDir}`);
+const state = example.state.read({ repair: false }) ?? fail(`no state.json in ${exampleDir}`);
+const walkthrough = example.walkthrough.read();
 const pick = (re: RegExp) => (review.match(re) || ['', ''])[1];
 const style = pick(/<style>([\s\S]*?)<\/style>/);
 let app = pick(/(<rr-app[\s\S]*<\/rr-app>)/).replace('<rr-app>', '<rr-app provider="static">');
 const json = (id: string, data: unknown) => `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
-const tourFile = path.join(exampleDir, WALKTHROUGH_FILE);
-const tour = fs.existsSync(tourFile) ? json('rr-walkthrough', JSON.parse(fs.readFileSync(tourFile, 'utf8'))) : '';
-app = app.replace('</rr-app>', `${json('rr-fixture', fixture)}\n${json('rr-state', JSON.parse(state))}\n${tour}\n</rr-app>`);
+const tour = walkthrough === null ? '' : json('rr-walkthrough', JSON.parse(walkthrough));
+app = app.replace('</rr-app>', `${json('rr-fixture', fixture)}\n${json('rr-state', state)}\n${tour}\n</rr-app>`);
 const body = `<style>${style}</style>\n${app}\n<script type="module">${js}</script>`;
 const html = fragment ? `<title>Reviewroom</title>\n${body}` : `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reviewroom demo</title></head><body>${body}</body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });

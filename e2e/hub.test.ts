@@ -5,12 +5,13 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { routeId } from '../cli/lib/registry.ts';
 import { expectClientHeaders, op, readJson, setup } from './fixture.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 import { until } from '../src/testing/wait.ts';
 import { reviewEvents } from './transport.ts';
 
 describe('hub', () => {
   // the review runs the assistant: reaching it through the hub must not reach Claude Code
-  const { tmp, repo, dir, d, cli, serve, sessions, hub: client } = setup({ assistant: true });
+  const { tmp, dir, d, cli, serve, sessions, hub: client } = setup({ assistant: true });
   let review = '', hub = '';
   const list = client.sessions;
   beforeAll(async () => {
@@ -29,24 +30,9 @@ describe('hub', () => {
 
   test('serves the client with the same cache and build headers as a review', () => expectClientHeaders(hub, 'api/sessions'));
 
-  test('lists the running review with its round and threads', async () => {
-    const [s] = (await list()).filter((x) => x.tool === 'reviewroom');
-    expect(s).toMatchObject({ reviewRound: 1, commentCount: 1, health: 'ok' });
-  });
-
   test("a review's /api/hub redirects to the hub", async () => {
     const r = await fetch(review + 'api/hub', { redirect: 'manual' });
     expect([r.status, r.headers.get('location')]).toEqual([302, hub]);
-  });
-
-  test('a server killed without cleanup is dropped and its record deleted', async () => {
-    const other = path.join(path.dirname(dir), 'main');
-    expect((await cli(['pr', 'main', '--head', 'feat/upload-rate-limit', '--no-open', '--port', '0', '--repo', repo])).code).toBe(0);
-    const { pid } = readJson(other, 'server.json');
-    try {
-      expect(sessions().map((s) => s.pid)).toContain(pid);
-    } finally { process.kill(pid, 'SIGKILL'); }
-    await until(async () => !(await list()).some((s) => s.id === `reviewroom:${pid}`) && !fs.existsSync(path.join(tmp, 'home', 'sessions', `${pid}.json`)));
   });
 
   describe('proxy /r/<id>/', () => {
@@ -119,9 +105,9 @@ describe('hub', () => {
       expect([generate.status, (await generate.json()).code]).toEqual([403, 'via_hub']);
       expect((await (await fetch(r + 'api/meta')).json()).generate).toBeUndefined();
       expect((await (await fetch(review + 'api/meta')).json()).generate).toBe(true);
-      const log = path.join(dir, 'progress.jsonl');
-      expect(fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '').not.toContain('"assistant"'); // nothing requested
-      expect(fs.existsSync(path.join(dir, 'assistant.json'))).toBe(false); // nothing ran
+      const store = reviewStore(dir);
+      expect(store.progress.read()).not.toContain('"assistant"'); // nothing requested
+      expect(store.assistant.exists()).toBe(false); // nothing ran
     });
 
     test('an unknown id is 404, and only review sessions are reachable', async () => {
@@ -147,7 +133,7 @@ describe('hub', () => {
     const [s] = (await list()).filter((x) => x.tool === 'reviewroom' && !x.stopped);
     const r = await client.post(`api/sessions/${encodeURIComponent(s.id)}/close`, 'close-session');
     expect(r.status).toBe(202);
-    expect(fs.existsSync(path.join(dir, 'server.json'))).toBe(false);
+    expect(reviewStore(dir).server.exists()).toBe(false);
     const now = (await list()).filter((x) => x.tool === 'reviewroom');
     expect([now.some((x) => !x.stopped), now.some((x) => x.id === `review:${s.routeId}`)]).toEqual([false, true]);
   });

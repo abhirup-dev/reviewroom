@@ -6,6 +6,7 @@ import { PKG } from './paths.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import { progressHash } from './progress.ts';
+import { reviewStore } from './review-store.ts';
 
 export const DEFAULT_PROFILE = 'explainer';
 const profilesDir = () => path.join(PKG, 'skills', 'reviewroom', 'references', 'profiles');
@@ -21,8 +22,8 @@ export function profileSections(name: string) {
 /** Writes the report from the review's title and profile, once (or again with --force). Only the writing: the server
  *  serves it inside reviewroom's page (cli/lib/report-page.ts). */
 export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = false) {
-  const target = path.join(dir, REPORT_FILE);
-  if (fs.existsSync(target) && !force) return undefined;
+  const target = reviewStore(dir).report;
+  if (target.exists() && !force) return undefined;
   const body = profileSections(cfg.profile ?? DEFAULT_PROFILE);
   const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const report = `<!-- The report: freeform HTML, served inside reviewroom's page. Building blocks and rr: links:
@@ -30,6 +31,6 @@ export function scaffold(repo: string, dir: string, cfg: ReviewConfig, force = f
 <h1>${esc(makeProvider(repo, cfg).meta().title)}</h1>
 ${body}
 `;
-  fs.writeFileSync(target, report);
+  target.write(report);
   return progressHash(report);
 }
