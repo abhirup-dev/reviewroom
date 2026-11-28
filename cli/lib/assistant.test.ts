@@ -7,6 +7,7 @@ import { assistantEnabled, assistantRoutes } from './assistant.ts';
 import { fakeAgent } from '../../e2e/fake-assistant.ts';
 import { PKG } from './paths.ts';
 import { assistantStore } from './assistant-store.ts';
+import { REVIEW_FILES, reviewStore } from './review-store.ts';
 import { progressLines, readProgress, recordArtifact, requestGeneration } from './progress.ts';
 /** Polls until `fn` holds (CLI tests import only shared modules, so not src/testing/wait.ts). */
 async function until(fn: () => unknown, timeout = 5000) {
@@ -21,7 +22,7 @@ test('the assistant is on per review, only by `assistant: true` in its config.js
   try {
     expect(assistantEnabled(dir)).toBe(false);
     for (const [config, on] of [['{"assistant": true}', true], ['{"assistant": "yes"}', false], ['{broken', false]] as const) {
-      fs.writeFileSync(path.join(dir, 'config.json'), config);
+      fs.writeFileSync(reviewStore(dir).config.file, config);
       expect(assistantEnabled(dir)).toBe(on);
     }
   } finally {
@@ -156,8 +157,8 @@ test('the store is private to its review and writes atomically', async () => {
   store.saved.messages = [user('why?')];
   store.write();
   expect(assistantStore(r.dir, r.dir).saved.messages).toEqual(store.saved.messages);
-  expect(fs.statSync(path.join(r.dir, 'assistant.json')).mode & 0o777).toBe(0o600);
-  expect(fs.readdirSync(r.dir)).toEqual(['assistant.json']);
+  expect(fs.statSync(reviewStore(r.dir).assistant.file).mode & 0o777).toBe(0o600);
+  expect(fs.readdirSync(r.dir)).toEqual([REVIEW_FILES.assistant.name]);
 });
 
 test('a failed start keeps the question, so the same window can ask again', async () => {
@@ -172,11 +173,11 @@ test('a failed start keeps the question, so the same window can ask again', asyn
 
 test('a broken conversation or settings disable only the assistant, keep what was saved, and save nothing new', async () => {
   await using r = review();
-  const file = path.join(r.dir, 'assistant.json');
+  const file = reviewStore(r.dir).assistant.file;
   fs.writeFileSync(file, '{broken');
   const read = async (res: Response) => [res.status, await res.text()] as const;
   expect(await read(await r.routes.app.request('/'))).toEqual([503, expect.stringContaining('is not valid JSON')]);
-  const aside = fs.readdirSync(r.dir).filter((f) => f.startsWith('assistant.json.corrupt-'));
+  const aside = fs.readdirSync(r.dir).filter((f) => f.startsWith(`${REVIEW_FILES.assistant.name}.corrupt-`));
   expect([aside.length, fs.readFileSync(path.join(r.dir, aside[0]), 'utf8')]).toEqual([1, '{broken']);
   expect(await read(await r.routes.app.request('/'))).toEqual([503, expect.stringContaining('was moved aside')]); // never a silent new conversation
   fs.renameSync(path.join(r.dir, aside[0]), file);
@@ -187,7 +188,7 @@ test('a broken conversation or settings disable only the assistant, keep what wa
   await using bad = review({ readSettings: () => { throw new Error('Invalid assistant settings in config.json'); } });
   expect(await read(await bad.routes.app.request('/'))).toEqual([503, 'Invalid assistant settings in config.json']);
   expect(await read(await bad.post([user('q1')]))).toEqual([503, 'Invalid assistant settings in config.json']);
-  expect(fs.existsSync(path.join(bad.dir, 'assistant.json'))).toBe(false); // read before the question is saved
+  expect(reviewStore(bad.dir).assistant.exists()).toBe(false); // read before the question is saved
 });
 
 test('generate requests only what is not validated and starts one turn; meanwhile it starts nothing, a question is refused, Stop interrupts what it requested, not an agent\'s request', async () => {
@@ -200,7 +201,7 @@ test('generate requests only what is not validated and starts one turn; meanwhil
   const chat = await r.post([user('q1')]);
   expect([again.started, r.events().length, chat.status, await chat.text()]).toEqual([false, 2, 409, 'The assistant is writing the review.']);
   expect(r.saved().messages.map((m) => [m.role, m.metadata])).toEqual([['user', { custom: { generate: true } }]]); // the generate prompt, marked (shown folded)
-  fs.appendFileSync(path.join(r.dir, 'progress.jsonl'), JSON.stringify({ at: new Date().toISOString(), artifact: 'report', event: 'requested', by: 'agent' }) + '\n'); // pr --force meanwhile
+  reviewStore(r.dir).progress.append(JSON.stringify({ at: new Date().toISOString(), artifact: 'report', event: 'requested', by: 'agent' }) + '\n'); // pr --force meanwhile
   await readUntil(await r.follow(), partial);
   expect((await r.stop(await r.turn())).status).toBe(204);
   await until(() => r.saved().status === 'interrupted');
@@ -241,10 +242,11 @@ test('a generation turn ends: failed what it did not validate, told to the pages
 
 test('a failed log append starts nothing and leaves nothing running or half-requested', async () => {
   await using r = review({ script: hangs });
-  fs.mkdirSync(path.join(r.dir, 'progress.jsonl')); // appending fails
+  const log = reviewStore(r.dir).progress.file;
+  fs.mkdirSync(log); // appending fails
   expect((await r.generate())[0]).toBe(500);
   expect(r.calls.launched).toBe(0);
-  fs.rmdirSync(path.join(r.dir, 'progress.jsonl'));
+  fs.rmdirSync(log);
   const [again, body] = await r.generate(); // not wedged as running
   expect([again, body.started, r.events()]).toEqual([200, true, ['walkthrough requested assistant', 'report requested assistant']]);
   await r.routes.close();

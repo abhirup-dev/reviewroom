@@ -9,7 +9,8 @@ import { takeLock, releaseLock } from '../lib/lock.ts';
 import { undelivered } from '../../src/kernel/state/ops.shared.ts';
 import { startServer, listen, openBrowser } from '../lib/server.ts';
 import { DIST, PKG } from '../lib/paths.ts';
-import { type ServerRecord, closedFile, liveServer, serverFile, register, runningServer, startDetached, unregister } from '../lib/registry.ts';
+import { type ServerRecord, liveServer, register, runningServer, startDetached, unregister } from '../lib/registry.ts';
+import { reviewStore } from '../lib/review-store.ts';
 import { agentAncestor } from '../hub/proc.ts';
 
 export { runningServer };
@@ -43,7 +44,7 @@ export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
     const [round] = undelivered(readState(dir, { repair: false }));
     if (!round) {
       // closed on purpose (`stop`, the hub's Close): no round can come; a crashed server leaves no marker, so keep waiting
-      if (fs.existsSync(closedFile(dir)) && !liveServer(dir)) {
+      if (reviewStore(dir).closed.exists() && !liveServer(dir)) {
         const msg = `REVIEW CLOSED: the review's server was stopped (\`reviewroom stop\` or the hub's Close), so no feedback will come.\nhelp:\n  Tell the reviewer; run \`reviewroom wait ${shellArg(id ?? dir)}\` again only if they ask (it reopens the review)\n`;
         await new Promise<void>((resolve) => process.stdout.write(msg, () => resolve()));
         process.exit(3);
@@ -56,8 +57,8 @@ export async function cmdWait(repo: string | null, dir: string, o: StartOpts) {
       continue;
     }
     if (readConfig(dir).id !== id) fail(`review ID changed in ${dir} while waiting`);
-    const file = path.join(dir, 'rounds', String(round.n), 'feedback.md');
-    const md = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `(round ${round.n} was ${round.status} but ${file} is missing)`;
+    const feedback = reviewStore(dir).round(round.n).feedback, file = feedback.file;
+    const md = feedback.read() ?? `(round ${round.n} was ${round.status} but ${file} is missing)`;
     // Record delivery only after stdout flushes. On interruption, a retry can print the round again.
     await new Promise<void>((resolve, reject) => process.stdout.write(md + '\n', (e) => e ? reject(e) : resolve()));
     await commitOps(dir, [{ op: 'markDelivered', round: round.n }]);
@@ -84,15 +85,16 @@ async function serve(repo: string | null, dir: string, o: StartOpts) {
     await close();
     return liveServer(dir);
   }
+  const store = reviewStore(dir);
   const cleanup = () => {
     unregister(process.pid);
     try {
-      if (JSON.parse(fs.readFileSync(serverFile(dir), 'utf8')).pid === process.pid) fs.unlinkSync(serverFile(dir));
+      if (store.server.read()?.pid === process.pid) store.server.remove();
     } catch {}
     releaseLock(dir);
   };
   process.on('exit', cleanup);
-  fs.rmSync(closedFile(dir), { force: true }); // open again
+  store.closed.remove(); // open again
   reapAssistantGroup(dir); // under the lock, before allowing the new assistant to start
   stopAssistantWork(dir, 'interrupted');
   ready();
@@ -116,7 +118,7 @@ async function serve(repo: string | null, dir: string, o: StartOpts) {
   watch();
   const rec = { pid: process.pid, port, url, startedAt: new Date().toISOString() };
   register({ ...rec, repo, dir, title: cfg.title ?? null, reviewId: cfg.id, head: cfg.headLabel ?? cfg.head, agent, author: cfg.id ? (cfg.author ?? null) : null });
-  fs.writeFileSync(serverFile(dir), JSON.stringify(rec));
+  store.server.write(rec);
   console.error(`reviewroom: ${path.relative(process.cwd(), dir) || '.'} | round ${s.round} | ${url}`);
   if (o.open) {
     // a tab from a previous server reconnects on its own; open one if nobody shows up

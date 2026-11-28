@@ -1,10 +1,10 @@
 // Finishing rounds and handing the feedback to the agent.
 import { describe, expect, test } from 'bun:test';
-import fs from 'node:fs';
 import path from 'node:path';
 import { slideCases, writeSlideCase } from '../testing/slides/cases.ts';
 import { field, op, post, read, setup } from './fixture.ts';
 import { shellArg } from '../cli/lib/config.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 describe('a round finished while no agent waits', () => {
   const { dir, d, cli, serve, state } = setup();
@@ -37,11 +37,11 @@ describe('a review closed while the agent waits', () => {
     const out = await new Response(waiter.stdout).text();
     expect(await waiter.exited).toBe(3);
     expect(out).toContain('REVIEW CLOSED');
-    expect(fs.existsSync(path.join(dir, 'closed.json'))).toBe(true);
+    expect(reviewStore(dir).closed.exists()).toBe(true);
 
     expect((await cli(['start', ...d, '--no-open', '--port', '0'])).code).toBe(0);
     try {
-      expect(fs.existsSync(path.join(dir, 'closed.json'))).toBe(false);
+      expect(reviewStore(dir).closed.exists()).toBe(false);
     } finally { await cli(['stop', ...d]); }
   });
 });
@@ -76,7 +76,7 @@ describe('the external agent round loop', () => {
         expect((await post(url + 'api/finish', { kind, round, note: 'Check the edge case' })).status).toBe(200);
         const feedback = await new Response(waiter.stdout).text();
         expect(await waiter.exited).toBe(0);
-        expect(feedback).toBe(read(dir, 'rounds', String(round), 'feedback.md') + '\n');
+        expect(feedback).toBe(reviewStore(dir).round(round).feedback.read() + '\n');
         expect(feedback).toContain(kind === 'approve' ? 'APPROVED' : `reviewroom wait '${id}'`);
         expect(state(dir).rounds[round - 1].deliveredAt).toBeString();
         expect((await fetch(url + 'api/meta')).headers.get('x-reviewroom-pid')).toBe(pid);

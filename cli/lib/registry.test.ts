@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import { startDetached } from './registry.ts';
+import { reviewStore } from './review-store.ts';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-registry-'));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -33,7 +34,7 @@ const folder = (name: string) => {
 
 test('ready means its own child registered: a server.json naming another live process is not it', async () => {
   const dir = folder('other');
-  fs.writeFileSync(path.join(dir, 'server.json'), JSON.stringify({ pid: process.pid, port: 2, url: 'http://127.0.0.1:2/', startedAt: '' }));
+  reviewStore(dir).server.write({ pid: process.pid, port: 2, url: 'http://127.0.0.1:2/', startedAt: '' });
   const error = await startDetached(tmp, dir, [], entry('never', -1), 600).catch((e: unknown) => e);
   expect(error).toBeInstanceOf(ReviewroomError);
   expect(error).toHaveProperty('message', expect.stringContaining('server did not start'));

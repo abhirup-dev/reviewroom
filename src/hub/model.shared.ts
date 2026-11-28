@@ -23,6 +23,8 @@ export type SessionKind =
 
 /** reviewroom: where generation stands, from the review's progress log. */
 export type GenerationState = 'idle' | 'generating' | 'ready' | 'stopped';
+/** reviewroom: whose move it is; null when nobody's (approved, or nothing asked for yet). */
+export type WaitingOn = 'agent' | 'reviewer' | null;
 
 /** Did the session's server answer a short loopback request? */
 export type Health = 'ok' | 'unreachable' | 'unknown';
@@ -100,13 +102,14 @@ export interface SessionInfo {
   additions: number | null;
   deletions: number | null;
   changedFiles: number | null;
-  /** reviewroom: the review has a guided walkthrough (walkthrough.json) */
+  /** reviewroom: the review has a walkthrough ready to play (validated, not still being written) */
   walkthrough?: boolean;
   /** reviewroom: first 12 hex of sha1(review dir); the hub serves the review at /r/<routeId>/ */
   routeId?: string;
   /** reviewroom: a review folder on disk with no server running (Play starts one) */
   stopped?: boolean;
   generation?: GenerationState;
+  waitingOn?: WaitingOn;
   /** reviewroom, stopped: it holds work Remove would lose (documents, threads, the assistant's transcript) */
   hasWork?: boolean;
   /** Stable PR identity in owner/repo#n form. */

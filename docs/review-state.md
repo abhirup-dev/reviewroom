@@ -1,99 +1,70 @@
 # Review state
 
-What reviewroom keeps for itself, beside what the agent writes ([review artifacts](review-artifacts.md)). Agents and
-reviewers don't edit these files; they change them through the CLI and the page.
+What reviewroom keeps beside the agent's documents ([review artifacts](review-artifacts.md)). Agents and reviewers
+change it only through the CLI and the page.
+
+## The store
+
+Every file in a review folder is declared once in `REVIEW_FILES` (`cli/lib/review-store.ts`: name, schema, write rule)
+and reached only through `reviewStore(dir)`. JSON is validated on read and written atomically; `progress.jsonl` is
+append-only. A broken JSON file is moved aside (`state.json`, `assistant.json`), reported (`config.json`) or read as
+missing (caches and records), as declared. None of these files, nor `rounds/`, is served; only the agent's documents
+and assets are.
+
+`reviewSummary(dir)` (`cli/lib/review-summary.ts`) derives a review's status from its folder alone: round, thread
+counts, generation, whose move it is, last activity. The hub uses it for every review, running or stopped, and
+`api/summary` returns it.
 
 ## In a review folder
 
-Review folders live outside the checkout. PR reviews use `<home>/reviews/<owner>_<repo>/pulls/<n>/`.
-To target an existing review folder, pass its absolute or `./`-relative path after the command.
-
-A PR's `config.json` has a write-once `id` that must match its folder. PR commands resolve that
-folder directly from the ID.
+Review folders live outside the checkout; PR reviews at `<home>/reviews/<owner>_<repo>/pulls/<n>/`, whose
+`config.json` carries a write-once `id` matching the folder.
 
 | File | Written by | Holds |
 | --- | --- | --- |
-| `config.json` | the CLI (`reviewroom pr`) | Repo path, base, head, title, PR metadata, write-once PR ID, report profile and the CLI target for a default review folder. `reportScaffoldHash` identifies the untouched scaffold for the hub's Remove confirmation. `assistant: true`: this review runs the built-in assistant (its Ask panel and `api/generate`), set by the hub's Play and `pr --assistant`, never by an external agent's `pr`. Schema in `cli/lib/config.ts`. |
-| `state.json` | the CLI, the browser (through the server) and agents (through the CLI) | Threads, rounds, viewed files, sign-offs. |
-| `state.lock` | the CLI and the server | `{pid, port}`. A running server holds it for its lifetime; the CLI holds it for one read-modify-write, and sends its writes to the server while the server holds it. |
-| `server.json` | the review server | The running server, so other commands find it. |
-| `server.log` | the detached server | Server stdout and stderr. |
-| `closed.json` | `reviewroom stop` and the hub's Close | `{at, pid}`: the review was closed on purpose. A pending `wait` exits 3 (`REVIEW CLOSED`); the next server start removes it. A crash leaves none. |
-| `progress.jsonl` | the CLI and the server, never the agent | Generation, per document (below). Drives the loading screen. |
+| `config.json` | `reviewroom pr` | Repo, base, head, PR metadata, report profile. `reportScaffoldHash`: the untouched scaffold (Remove asks before losing edits). `assistant: true`: the built-in assistant runs this review (hub Play, `pr --assistant`). |
+| `state.json` | the CLI and the server | Threads, rounds, viewed files, sign-offs. Schema in `src/kernel/state/schema.shared.ts`; `bun run schema` regenerates `schema/state.schema.json`. |
+| `state.lock` | the CLI and the server | `{pid, port}`. A running server holds it; otherwise the CLI holds it for one write. While a server holds it, the CLI sends writes to the server. |
+| `server.json`, `server.log` | the review server | The running server; its output. |
+| `closed.json` | `stop`, the hub's Close | The review was closed on purpose: a pending `wait` exits 3. The next start removes it. |
+| `progress.jsonl` | the CLI and the server | Generation events per document (below). |
 | `layout.json` | the browser | The dock as the reviewer left it. |
-| `github.json` | the server | The last PR snapshot from GitHub. |
-| `assistant.json` | the server | The built-in assistant's transcript (below). |
-| `assistant-process.json` | the server | The assistant bridge's process group and identity, used to reap its processes on shutdown or restart after a crash. |
-| `rounds/<n>/` | the server | Each finished round: a snapshot of the report and `feedback.md`. |
+| `github.json` | the server | The last PR snapshot. |
+| `assistant.json` | the server | The assistant's transcript and resume state (mode 0600). |
+| `assistant-process.json` | the server | The assistant's process group, reaped after a crash. |
+| `rounds/<n>/` | the server | Each finished round: the report snapshot and `feedback.md`. |
 
-**`state.json`** is a contract: change it in `src/kernel/state/schema.shared.ts`, then `bun run schema` to regenerate
-`schema/state.schema.json`. A file that doesn't parse or breaks the schema is moved aside (`<file>.corrupt-<time>`) with
-an error, never silently started over; a read-only server never moves it.
+**Rounds.** The server saves `feedback.md`, then marks the round sent. `wait` prints the oldest undelivered round and
+then records `deliveredAt`; an interrupted `wait` can reprint it.
 
-`pr` and `start` reuse the review's running server. `wait` starts a detached server if needed, then
-reads the round queue from `state.json`. The server saves `feedback.md` before publishing the finished
-round in state. `wait` prints the oldest undelivered round and records `deliveredAt` via the normal
-state operation after stdout flushes. A retry can reprint a round if interrupted before that write.
-Concurrent waiters can print the same round.
-A server restart between lock lookup and the delivery request may require a retry.
-The server stays up through feedback and approval. Stop it with `reviewroom stop 'acme/api#31'` or the hub's Close.
-A `wait` pending when it stops that way exits 3; one pending through a crash keeps waiting for the next server.
-
-**`progress.jsonl`** appends events per document (walkthrough, report); `src/kernel/state/progress.shared.ts` reduces
-them to a state, and the client reads that state rather than the events:
+**`progress.jsonl`** is reduced to one state per document by `src/kernel/state/progress.shared.ts`:
 
 | Event | State | Written by |
 | --- | --- | --- |
 | (none) | `idle` | |
-| `requested`, `by: agent` or `assistant`, with a request `id` | `requested` | `reviewroom pr` for a new or `--force`d review (`agent`; not with `--no-agent`), or `api/generate` (`assistant`, only the documents not validated now). A line without `by` was an agent's. |
-| `read` (walkthrough only), naming the `request` it is for | `writing`, only while that request is current and unfinished | `reviewroom progress <review> read`: the agent has read the diff. Once per request; again writes nothing. |
-| `written`, with the content hash | `writing` | the server, when the file changes |
-| `validated`, with the hash | `validated` while the file still has that hash, else `writing` | `slide-lint` (a full run) and `check` |
-| `stopped`, `reason: failed` or `interrupted`, naming the `request` it stops; `stale`: the validated hash it saw edited since | `stopped`, only while that request is current and unfinished (or validated with exactly that `stale` hash) | the server: an assistant generation turn ended with the document unvalidated (`failed`), or the reviewer stopped the turn, the server closed during it, or a server started while one was pending (`interrupted`; turns live in the server's process) |
-| `reset` | `idle` | `reviewroom pr <review> --force --no-agent` |
+| `requested` (`by: agent` or `assistant`, an `id`) | `requested` | `pr` on a new or `--force`d review; `api/generate` |
+| `read` (walkthrough, naming its request) | `writing` | `reviewroom progress <review> read` |
+| `written` (hash) | `writing` | the server, when the file changes |
+| `validated` (hash) | `validated` while the file has that hash | full `slide-lint`, `check` |
+| `stopped` (`failed` or `interrupted`, naming its request) | `stopped` | the server, for the assistant's turns only |
+| `reset` | `idle` | `pr --force --no-agent` |
 
-Requests and stops of both documents go in one write. Events before the first `requested` are ignored (a review that never asked for generation stays `idle`), except a walkthrough imported from the PR (`validated`, `source: pr`): it counts while the file has those bytes, and edited since, with nobody asked, is `idle` again. `stopped` keeps
-what was written and stays through later saves; a validation or a new request leaves it. An `agent`'s request is never
-stopped by the server, which can't know whether an outside agent is still at work. `/api/progress` and the `progress`
-event add `generation: { running, awaitingApproval }` where the assistant runs. Each document's reduced state also
-carries `since` (when it was requested), `read` (the agent said it has read the diff) and `passes` (one per save of new bytes under that request: its time, slides and
-chapters), derived from these events for the loading screen's steps; nothing new is written. The first step, reading the diff, ends on `read`, or on the
-first save from an agent that never records it. An unknown event fails to parse and is skipped like a malformed line,
-so a server older than `read` ignores it and moves on at the first save.
+Events before the first request are ignored, except a walkthrough imported from the PR. An agent's request is never
+stopped by the server. Unknown events are skipped.
 
-**`assistant.json`** stores the review's AI SDK transcript and opaque harness resume state (private, mode 0600).
-Reopening with the same installation restores the transcript and resumes its existing native session. The harness
-owns recovery; changing the installation path or agent dependencies can invalidate native resume. A corrupt one is
-moved aside like `state.json` and blocks the assistant (not the review) until restored or deleted; one started from
-another checkout is kept and refused there. Every assistant turn, a generation (`POST api/generate`) or a reviewer's question,
-runs with every tool approved (`allow-all`), so none waits on the reviewer. A turn starts in one step: its question
-saved and the turn made before Claude launches. Its UI message stream, whatever started it, is held in memory until it
-ends (never on disk) and served at the AI SDK's resumable-stream URL, `api/assistant/<chatId>/stream?turn=<id>`
-(replayed, then followed; 204 when that turn isn't running). `GET api/assistant` names the running turn with the
-messages (`activeStreamId`, null when none runs, and its `origin`: `question` or `generation`), and the server tells
-its pages (SSE `assistant`) whenever a turn starts, ends or pauses. A page keeps one chat and follows the turn the
-history names, so the loading screen and the panel follow a generation the server started. A page that leaves or
-reloads only stops following: the turn runs on. Stop is explicit, `POST api/assistant/stop {streamId}`, and stops the
-named running turn, whether it started with a question or Generate. The assistant answers
-only the review's own URL: the hub proxy marks what
-it forwards (`x-reviewroom-via-hub`) and the review server refuses it, `api/generate` included (ADR 0001: no identity yet).
+**The assistant** runs each turn with every tool approved. A turn's stream lives in server memory and is served at
+`api/assistant/<chatId>/stream?turn=<id>`; leaving the page doesn't stop it, `POST api/assistant/stop` does. It answers
+only the review's own URL, never through the hub (ADR 0001).
 
 ## In `~/.reviewroom/`
 
 `REVIEWROOM_HOME` overrides the root.
 
-- `reviews/`: the review folders (above). PR identity appears as `id` in CLI status JSON and
-  `reviewId` in review metadata and hub sessions.
-- `sessions/<pid>.json`: one per running server, read by `reviewroom list`, the hub, and other local tools.
-  `list --json` reads the PR ID from `config.json`. The hub deletes stale records. `hub.json` is the running hub.
-- `layouts/<name>.json`: the reviewer's saved layouts, in the format of `src/kernel/layouts/layout.shared.ts` like the
-  shipped ones in `src/kernel/layouts/` (whose names they can't take). `default-layout.json` names their default.
-- `config.json`: the reviewer's settings. Whether the built-in assistant runs is not one of them: it is chosen per
-  review (`assistant` in the review's own `config.json`, above), read when its server starts. `publicOrigin` (`reviewroom hub serve --public-origin`, ADR 0001), read when the
-  hub starts; `defaultAgentHarness` (`claude` only), `defaultReviewModel` (`sonnet` by default), `defaultReviewEffort` (`low` to `max`; Claude Code's default when unset) and
-  `reviewAgentPromptFile` (optional Markdown prompt path, relative to this file); `claudeExecutable` overrides the
-  Claude binary (otherwise the native override environment, `claude` on PATH, then the adapter's bundled binary).
-  Model defaults are reread before new questions; restart for other changes.
-- `repos/<owner>/<repo>/`: the clones the hub's Add a PR makes (fetched again when a PR of that repository is added).
-- `assistant/`: the assistant harness's runtime and session files (`.ai-sdk-harness/`). Its setup commands use
-  `assistant/` as HOME, while the native agent keeps the reviewer's real HOME and login.
+- `reviews/`: the review folders.
+- `sessions/<pid>.json`: one per running server, for `list` and the hub (which deletes stale ones). `hub.json`: the
+  running hub.
+- `layouts/<name>.json`: saved layouts (`src/kernel/layouts/layout.shared.ts`); `default-layout.json` names the default.
+- `config.json`: the reviewer's settings: `publicOrigin`, `defaultAgentHarness`, `defaultReviewModel`,
+  `defaultReviewEffort`, `reviewAgentPromptFile`, `claudeExecutable`.
+- `repos/<owner>/<repo>/`: clones made by the hub's Add.
+- `assistant/`: the assistant harness's runtime files.

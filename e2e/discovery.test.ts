@@ -1,8 +1,8 @@
 // Missing targets list candidates; explicit stop releases the server.
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
-import path from 'node:path';
 import { setup } from './fixture.ts';
+import { reviewStore } from '../cli/lib/review-store.ts';
 
 describe('discovery', () => {
   const { repo, dir, d, cli, serve, git, sessions } = setup();
@@ -18,7 +18,7 @@ describe('discovery', () => {
   test('stop finds and stops the server and releases the lock', async () => {
     await git('checkout', '-q', 'feat/upload-rate-limit');
     expect((await cli(['stop', ...d])).stdout).toStartWith('stopped');
-    expect(fs.existsSync(path.join(dir, 'state.lock'))).toBe(false);
+    expect(fs.existsSync(reviewStore(dir).lockFile)).toBe(false);
   });
   test('a stopped server leaves the session registry', () => expect(sessions()).toEqual([]));
 });

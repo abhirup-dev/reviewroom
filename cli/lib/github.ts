@@ -10,8 +10,6 @@ import { Octokit } from '@octokit/core';
 import { paginateGraphQL } from '@octokit/plugin-paginate-graphql';
 import { retry } from '@octokit/plugin-retry';
 import type { IssueComment, Maybe, PullRequest, PullRequestCommit, PullRequestReview, PullRequestReviewComment, Query, Mutation } from '@octokit/graphql-schema';
-import fs from 'node:fs';
-import path from 'node:path';
 import { anchorOf, githubThread, parseRef } from '../../src/kernel/refs/refs.shared.ts';
 import { isFullSha, type Provider } from './git.ts';
 import type { CiCommit, CiState, GitHubComment, GitHubSnapshot, Message, Thread } from '../../src/kernel/state/model.shared.ts';
@@ -19,6 +17,7 @@ import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
 import type { GitHubAction } from '../../src/kernel/state/schema.shared.ts';
 import { fail } from './args.ts';
 import { formatReviewId, formatReviewRepository, pullUrl, type ReviewId } from './review-id.ts';
+import { reviewStore } from './review-store.ts';
 
 // GitHub's own GraphQL types: they describe every field, PR_QUERY decides which are fetched.
 type Connection<T> = { nodes?: Maybe<Maybe<T>[]> } | null | undefined;
@@ -28,13 +27,7 @@ export type Snapshot = GitHubSnapshot & { pr?: string };
 type GitHubThread = Thread & { gh: NonNullable<Thread['gh']>; messages: (Message & { gh: GitHubComment })[] };
 
 /** The last fetched GitHub threads of a review dir (the CLI reads them; only the server fetches). */
-export function cachedThreads(dir: string): Thread[] {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(dir, 'github.json'), 'utf8')).threads ?? [];
-  } catch {
-    return [];
-  }
-}
+export const cachedThreads = (dir: string): Thread[] => reviewStore(dir).github.read()?.threads ?? [];
 
 const execFileP = promisify(execFile);
 const GH = Octokit.plugin(paginateGraphQL, retry);
@@ -212,19 +205,16 @@ const live = (s: Snapshot | null): s is Live => !!s?.ok && !!s.pr && !!s.headSha
 /** Per-server GitHub link: cached snapshot (also written to <dir>/github.json), refresh, actions. */
 export function makeGitHub({ repo, dir, id, host, prov, onChange }: { repo: string; dir: string; id: ReviewId | null; host: string; prov: Provider; onChange?: (snap: Snapshot) => void }) {
   const localHead = isFullSha(prov.head) ? prov.head : null;
-  const file = path.join(dir, 'github.json');
-  let snap: Snapshot | null = null;
+  const file = reviewStore(dir).github;
+  let snap: Snapshot | null = file.read();
   let inflight: Promise<Snapshot> | null = null;
-  try {
-    snap = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {}
 
   const refresh = (): Promise<Snapshot> =>
     (inflight ??= (async () => {
       try {
         if (!id) return (snap = { ok: false, threads: [], error: 'not a GitHub pull request' });
         snap = { ...(await fetchPr(repo, id, localHead, host)), at: new Date().toISOString() };
-        fs.writeFileSync(file, JSON.stringify(snap, null, 2));
+        file.write(snap);
       } catch (e) {
         // keep showing the last good threads; say why they may be old
         snap = { ...(snap?.ok ? snap : { ok: false, threads: [] }), error: (e as Error).message };

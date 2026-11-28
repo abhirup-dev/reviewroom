@@ -1,40 +1,24 @@
 // Explicit review selection and its saved configuration.
 import fs from 'node:fs';
 import path from 'node:path';
-import { z } from 'zod';
 import { defaultBase, remoteHost, remoteName, repoRoot } from './git.ts';
 import {
   formatReviewId, formatReviewRepository, idFromFolder, localReviewFolder,
   allReviewFolders, parseReviewId, reviewFolder, reviewFoldersForRepository, type ReviewId,
 } from './review-id.ts';
 import { ReviewroomError } from '../../src/kernel/state/ops.shared.ts';
+import { type ConfigFile, reviewStore } from './review-store.ts';
 
-// config.json is hand-editable: a field of the wrong type is dropped, not trusted; unknown fields are kept.
-// repoPath: the checkout the review was made from, so a path target finds its repo; repo: GitHub's owner/name;
-// profile: the report profile its report.html was made from (skills/reviewroom/references/profiles/<profile>/);
-// assistant: this review runs the built-in assistant (its Ask panel and api/generate): set by the hub's Play and
-// `pr --assistant`, never by an external agent's `pr`. Per review, so each can be written by whoever the reviewer picks.
-const text = z.string().optional().catch(undefined);
-const ConfigFile = z.looseObject({ repoPath: text, base: text, head: text, title: text, remote: text, author: text, baseLabel: text, headLabel: text, profile: text, reportScaffoldHash: text, target: text, id: z.string().optional(), assistant: z.boolean().optional().catch(undefined) });
 /** config.json, with --base/--head/--title applied (loadConfig). */
-export type ReviewConfig = z.infer<typeof ConfigFile> & { base: string; head: string };
-export const configPath = (dir: string) => path.join(dir, 'config.json');
+export type ReviewConfig = ConfigFile & { base: string; head: string };
 export const shellArg = (value: string) => /^[\w./][\w./-]*$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 
 export function reviewArgs(_repo: string, dir: string, cfg = readConfig(dir)): string {
   return shellArg(cfg.id ?? dir);
 }
 
-export function readConfig(dir: string): z.infer<typeof ConfigFile> {
-  const file = configPath(dir);
-  let cfg: z.infer<typeof ConfigFile> = {};
-  if (fs.existsSync(file)) {
-    try {
-      cfg = ConfigFile.parse(JSON.parse(fs.readFileSync(file, 'utf8')));
-    } catch (e) {
-      throw new ReviewroomError(`${file} is not valid JSON (${(e as Error).message}); fix or delete it`);
-    }
-  }
+export function readConfig(dir: string): ConfigFile {
+  const cfg = reviewStore(dir).config.read() ?? {};
   const folderId = idFromFolder(dir);
   if ((cfg.id || fs.existsSync(dir)) && cfg.id !== (folderId ? formatReviewId(folderId) : undefined)) {
     throw new ReviewroomError(`review ID mismatch in ${dir}: saved ${cfg.id ?? 'no PR ID'}, folder expects ${folderId ? formatReviewId(folderId) : 'a local review'}`, 409);
@@ -55,7 +39,7 @@ function checkPullRepo(pr: ReviewId, repo: string | null, remote: string, select
 function requiredTarget(repo: string | null, target: string | undefined, command: string, remote = 'origin'): string {
   if (!target) {
     const reviews = repo ? reviewFoldersForRepository(remoteName(repo)) : allReviewFolders();
-    const calls = reviews.filter((dir) => fs.existsSync(configPath(dir))).map((dir) => `  reviewroom ${command} ${shellArg(readConfig(dir).id ?? dir)}`);
+    const calls = reviews.filter((dir) => reviewStore(dir).config.exists()).map((dir) => `  reviewroom ${command} ${shellArg(readConfig(dir).id ?? dir)}`);
     throw new ReviewroomError(`missing review: reviewroom ${command} <review>, where <review> is 'owner/repo#n', a PR URL, a branch or a review folder${calls.length ? `\nhelp: reviews here:\n${calls.join('\n')}` : ''}`, 2);
   }
   if (/^#\d+$/.test(target) || (command !== 'pr' && /^\d+$/.test(target))) {
@@ -68,7 +52,7 @@ function requiredTarget(repo: string | null, target: string | undefined, command
 }
 
 /** A path target, or a bare name that is a review folder here (not a branch). */
-const isFolder = (target: string) => target.startsWith('/') || target.startsWith('./') || fs.existsSync(path.resolve(target, 'config.json'));
+const isFolder = (target: string) => target.startsWith('/') || target.startsWith('./') || reviewStore(path.resolve(target)).config.exists();
 
 export function resolveReview(repo: string | null, o: { dir?: string; repo?: string; remote?: string }, input: string | undefined, command: string) {
   if (o.dir !== undefined) throw new ReviewroomError('--dir was removed; use reviewroom <command> <review-folder> instead');
@@ -78,7 +62,7 @@ export function resolveReview(repo: string | null, o: { dir?: string; repo?: str
   const targetId = isPath ? null : parseReviewId(target, selected, true);
   if (!isPath && !targetId && !repo) throw new ReviewroomError('branch targets require a git repository (use --repo <path>)');
   const dir = isPath ? path.resolve(target) : targetId ? reviewFolder(targetId) : localReviewFolder(remoteName(repo!), target);
-  if ((isPath || command !== 'pr') && !fs.existsSync(configPath(dir))) {
+  if ((isPath || command !== 'pr') && !reviewStore(dir).config.exists()) {
     throw new ReviewroomError(`no review in ${dir} - run \`reviewroom pr ${shellArg(target)}\` first`);
   }
   const cfg = readConfig(dir);

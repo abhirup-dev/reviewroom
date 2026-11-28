@@ -8,19 +8,15 @@ import { fail } from './args.ts';
 import { answers, releaseLock, takeLock } from './lock.ts';
 import { hubFile, hubLog, registryDir } from './paths.ts';
 import type { Agent } from '../hub/proc.ts';
+import { reviewStore, type ServerRecord } from './review-store.ts';
 
-/** server.json, written by `start --foreground`. */
-export type ServerRecord = { pid: number; port: number; url: string; startedAt: string };
+export type { ServerRecord };
 /** Directory hash for hub routes and client storage keys (ADR 0001). */
 export const routeId = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 12);
-export const serverFile = (dir: string) => path.join(dir, 'server.json');
-/** closed.json: the reviewer (or `stop`) closed the review on purpose; a crash leaves none. A pending `wait` ends on
- *  it; the next server start removes it. */
-export const closedFile = (dir: string) => path.join(dir, 'closed.json');
 export function liveServer(dir: string): ServerRecord | null {
+  const rec = reviewStore(dir).server.read();
   try {
-    const rec = JSON.parse(fs.readFileSync(serverFile(dir), 'utf8'));
-    process.kill(rec.pid, 0);
+    if (rec) process.kill(rec.pid, 0);
     return rec;
   } catch {
     return null;
@@ -52,11 +48,11 @@ export function unregister(pid: number) {
 export async function stopServer(dir: string, pid?: number) {
   const rec = liveServer(dir);
   if (!rec) {
-    const file = serverFile(dir);
+    const { server } = reviewStore(dir);
     // A concurrent start writes its record under this lock.
-    if (pid === undefined && fs.existsSync(file) && !(await takeLock(dir))) {
+    if (pid === undefined && server.exists() && !(await takeLock(dir))) {
       try {
-        if (!liveServer(dir)) fs.rmSync(file, { force: true });
+        if (!liveServer(dir)) server.remove();
       } finally {
         releaseLock(dir);
       }
@@ -70,14 +66,14 @@ export async function stopServer(dir: string, pid?: number) {
   // past the server's shutdown grace (serve.ts: its assistant saves its session and ends its processes first)
   for (let i = 0; i < 100 && liveServer(dir); i++) await new Promise((r) => setTimeout(r, 100));
   try {
-    fs.writeFileSync(closedFile(dir), JSON.stringify({ at: new Date().toISOString(), pid: rec.pid }));
+    reviewStore(dir).closed.write({ at: new Date().toISOString(), pid: rec.pid });
   } catch {}
   return rec;
 }
 
 /** Starts a detached review server and owns the child until it registers or exits. */
 export async function startDetached(repo: string, dir: string, extra: string[] = [], entry = process.argv[1], timeoutMs = 60_000) {
-  const log = path.join(dir, 'server.log');
+  const log = reviewStore(dir).serverLog;
   let child;
   try {
     const out = fs.openSync(log, 'a');

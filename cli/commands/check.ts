@@ -1,12 +1,12 @@
 import { WALKTHROUGH_FILE, REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
-import fs from 'node:fs';
 import path from 'node:path';
 import { type Global, fail, hint } from '../lib/args.ts';
 import { progressHash, readProgress, recordArtifact } from '../lib/progress.ts';
 import { liveServer } from '../lib/registry.ts';
 import { isFullSha, makeProvider, type Provider } from '../lib/git.ts';
 import { loadConfig, reviewArgs } from '../lib/config.ts';
-import { readState, commitOps, readWalkthrough, walkthroughPath } from '../lib/state.ts';
+import { readState, commitOps, readWalkthrough } from '../lib/state.ts';
+import { reviewStore } from '../lib/review-store.ts';
 import { checkLinks, problems, report, applyFixes, extractLinks, uncomment, prepareSymbols, type SymbolResolver, type LinkResult } from '../lib/links.ts';
 import { fixTour, locate, tourText } from '../lib/slides-file.ts';
 import { findingReport, lintTour, type Finding } from '../lib/slide-lint.ts';
@@ -43,15 +43,14 @@ function linkScope(html: string, tour: Walkthrough | null, locations?: Map<strin
 export async function runCheck(repo: string | null, dir: string, o: CheckOptions = {}): Promise<Checked> {
   const tour = readWalkthrough(dir);
   if (tour && !tour.ok) return { issues: tour.issues };
-  const file = path.join(dir, REPORT_FILE);
-  const tourFile = walkthroughPath(dir);
+  const { report: reportFile, walkthrough: tourFile } = reviewStore(dir);
   const value = tour?.ok ? tour.value : null; // past the schema check, a walkthrough that is there is valid
   const { selection, selected, locations } = checkScope(value, o, dir);
-  const tourRaw = value ? fs.readFileSync(tourFile, 'utf8') : '';
+  const tourRaw = value ? (tourFile.read() ?? '') : '';
   const r = repo ?? fail('not inside a git repository (use --repo)');
   const raw = makeProvider(r, loadConfig(dir, r));
   const known = readState(dir, { repair: o.store !== false }).links ?? {};
-  const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const html = reportFile.read() ?? '';
   const scope = linkScope(html, value, locations);
   const prov = await prepareSymbols(r, raw, scope.refs);
   let { results, links } = checkLinks(html, prov, o.accept ? {} : known, scope.extra, value);
@@ -60,8 +59,8 @@ export async function runCheck(repo: string | null, dir: string, o: CheckOptions
     if (value) fixedTour = fixTour(tourRaw, results, links); // same rewrites; the fingerprints move once, below
     ({ html: fixed, links } = applyFixes(html, results, links));
   }
-  if (fixed !== html) fs.writeFileSync(file, fixed);
-  if (fixedTour !== tourRaw) fs.writeFileSync(tourFile, fixedTour);
+  if (fixed !== html) reportFile.write(fixed);
+  if (fixedTour !== tourRaw) tourFile.write(fixedTour);
   const healed = fixed !== html || fixedTour !== tourRaw;
   if (healed) ({ results, links } = checkLinks(fixed, prov, links, value ? tourText(JSON.parse(fixedTour)) : '', value));
   if (o.store !== false && JSON.stringify(links) !== JSON.stringify(known)) await commitOps(dir, [{ op: 'setLinks', links }]);

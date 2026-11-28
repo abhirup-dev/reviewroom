@@ -1,12 +1,12 @@
-import { REPORT_FILE } from '../../src/kernel/state/files.shared.ts';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { type Global, WAIT_HOW, hint } from '../lib/args.ts';
 import { makeProvider } from '../lib/git.ts';
 import { loadConfig, readConfig, reviewArgs, shellArg } from '../lib/config.ts';
+import { reviewStore } from '../lib/review-store.ts';
 import { readState } from '../lib/state.ts';
-import { awaitingAgent, currentRound, undelivered } from '../../src/kernel/state/ops.shared.ts';
+import { countsOf } from '../lib/review-summary.ts';
 import { liveServer, stopServer } from '../lib/registry.ts';
 import { readReviewroom } from '../hub/sources.ts';
 import { runningServer } from './serve.ts';
@@ -15,26 +15,21 @@ export type StatusOpts = Global & { all?: boolean; json?: boolean; full?: boolea
 
 /** What an agent needs next about a review: where it is, which revisions, where the round stands. */
 export function summary(repo: string | null, dir: string) {
-  const s = readState(dir, { repair: false });
+  const s = countsOf(readState(dir, { repair: false }));
   let base, head;
   try {
     if (repo) ({ base, head } = makeProvider(repo, loadConfig(dir, repo))); // no repo, or git fails: no base/head
   } catch {}
   const cfg = readConfig(dir);
   const role = process.env.REVIEWROOM_ASSISTANT_DIR && path.resolve(process.env.REVIEWROOM_ASSISTANT_DIR) === dir ? 'assistant' : 'external';
-  return {
-    id: cfg.id, dir, role, review: path.join(dir, REPORT_FILE), profile: cfg.profile, url: liveServer(dir)?.url ?? null, base, head,
-    round: s.round, roundStatus: currentRound(s)?.status, threads: s.threads.length,
-    open: s.threads.filter((t) => t.status === 'open').length, awaitingAgent: awaitingAgent(s).map((t) => t.id),
-    unread: undelivered(s).map((r) => r.n),
-  };
+  return { ...s, id: cfg.id, dir, role, review: reviewStore(dir).report.file, profile: cfg.profile, url: liveServer(dir)?.url ?? null, base, head };
 }
 
 export function printSummary(x: ReturnType<typeof summary>) {
   console.log([
     ...(x.id ? [`review: ${shellArg(x.id)}`] : []), `url: ${x.url ?? 'not running'}`, `dir: ${x.dir}`, `report: ${x.review} (profile ${x.profile ?? 'explainer'})`,
     `base: ${x.base ?? '?'}  head: ${x.head ?? '?'}`, `round: ${x.round} (${x.roundStatus})  role: ${x.role}`,
-    `threads: ${x.open} open, ${x.awaitingAgent.length} awaiting your reply`,
+    `threads: ${x.open} open, ${x.awaitingAgent} awaiting your reply`,
     ...(x.unread.length ? [`feedback: round ${x.unread.join(', ')} sent and not read yet`] : []),
   ].join('\n'));
 }
@@ -48,7 +43,7 @@ export function cmdStatus(repo: string | null, dir: string, o: StatusOpts) {
     x.unread.length && `Run \`reviewroom wait ${args}\`: it prints the unread feedback now`,
     !x.url && x.role === 'external' && `Run \`reviewroom start ${args}\` to serve it`,
     x.open && `Run \`reviewroom status ${args} --threads\` to read the open threads`,
-    x.awaitingAgent.length && `Answer with \`reviewroom reply ${args} <thread> --file <reply.md>\``,
+    x.awaitingAgent && `Answer with \`reviewroom reply ${args} <thread> --file <reply.md>\``,
   );
 }
 
@@ -72,8 +67,8 @@ async function runningReviews() {
 function printReviews(reviews: Awaited<ReturnType<typeof runningReviews>>) {
   console.log(`reviews: ${reviews.length || 'none'} running`);
   for (const { id, dir, url } of reviews) {
-    const s = readState(dir, { repair: false });
-    console.log(`  ${shellArg(id ?? dir)}  round ${s.round}, ${s.threads.filter((t) => t.status === 'open').length} open, ${url}`);
+    const s = countsOf(readState(dir, { repair: false }));
+    console.log(`  ${shellArg(id ?? dir)}  round ${s.round}, ${s.open} open, ${url}`);
   }
 }
 

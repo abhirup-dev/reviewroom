@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { resolveReview, shellArg } from './config.ts';
 import { localReviewFolder, reviewFolder } from './review-id.ts';
+import { reviewStore } from './review-store.ts';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-config-'));
 const previous = process.env.REVIEWROOM_HOME;
@@ -15,8 +16,7 @@ for (const args of [['init', '-b', 'main'], ['remote', 'add', 'origin', 'https:/
 const pull = reviewFolder({ owner: 'acme', repo: 'api', number: 31 });
 const local = localReviewFolder('acme/api', 'feature');
 for (const [dir, cfg] of [[pull, { id: 'acme/api#31' }], [local, { target: 'feature' }]] as const) {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...cfg, repoPath: repo }));
+  reviewStore(dir).config.write({ ...cfg, repoPath: repo });
 }
 afterAll(() => {
   if (previous === undefined) delete process.env.REVIEWROOM_HOME;

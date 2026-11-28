@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Hub } from './hub.ts';
+import { reviewStore } from '../lib/review-store.ts';
 import { hubApp } from './server.ts';
 import { agentAncestor, lsofCwd, runCapture } from './proc.ts';
 import { readCritRaw, readPlanRaw, readReviewroom, resolvePlannotatorDataDir } from './sources.ts';
@@ -95,19 +96,26 @@ describe('poll', () => {
     expect(s['crit:aaaa11112222'].firstSeenAt).toBe(firstSeen);
   });
 
-  test('reviewroom: listed while its server answers with its pid, with counts; a dead record is deleted', async () => {
-    const repo = tmp();
-    using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 2, threads: 5, open: 2, browserClients: 1, additions: 12, deletions: 3, files: 2, updated: '2026-11-18T10:00:00.000Z' }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
+  test('reviewroom: listed while its server answers with its pid, with counts from its folder; a dead record is deleted', async () => {
+    const repo = tmp(), dir = path.join(repo, '.reviewroom', 'branch');
+    // round 2; of five threads two are open, one still owed the agent's reply to round 1
+    const thread = (i: number, status: 'open' | 'resolved', author: 'you' | 'agent') => ({ id: `t${i}`, anchor: { kind: 'general' as const }, status, createdRound: 1, messages: [{ id: `m${i}`, author, round: 1, body: 'x', at: 'x' }] });
+    const rounds = [{ n: 1, status: 'sent' as const, startedAt: 'x', sentAt: 'x', deliveredAt: 'x' }, { n: 2, status: 'open' as const, startedAt: 'x' }];
+    const state = reviewStore(dir).state;
+    state.write({ version: 1, round: 2, rounds, threads: [thread(1, 'open', 'you'), thread(2, 'open', 'agent'), ...[3, 4, 5].map((i) => thread(i, 'resolved', 'agent'))], viewed: {}, pins: [] });
+    const updated = new Date('2026-11-18T10:00:00.000Z');
+    fs.utimesSync(state.file, updated, updated);
+    using server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json({ round: 9, threads: 9, browserClients: 1, additions: 12, deletions: 3, files: 2 }, { headers: { 'x-reviewroom-pid': String(process.pid) } }) });
     const dead = sleeper();
-    write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir: path.join(repo, '.reviewroom', 'branch'), title: 'Upload limits', reviewId: 'acme/demo#42', head: 'feature', agent: { name: 'claude-code', pid: 77 }, author: 'sam-rivera' });
+    write(rrHome, `${process.pid}.json`, { pid: process.pid, port: server.port, repo, dir, title: 'Upload limits', reviewId: 'acme/demo#42', head: 'feature', agent: { name: 'claude-code', pid: 77 }, author: 'sam-rivera' });
     const alsoLive = sleeper(); // answers as itself, with a body that is not JSON: kept
     using garbled = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('{not json', { headers: { 'x-reviewroom-pid': String(alsoLive.pid) } }) });
     write(rrHome, `${alsoLive.pid}.json`, { pid: alsoLive.pid, port: garbled.port, repo, dir: repo, head: 'main', mode: 'serve' });
     write(rrHome, `${dead.pid}.json`, { pid: dead.pid, port: 1, repo, dir: repo, head: 'main', mode: 'serve' }); // alive pid, no server: stale
     const sessions = Object.fromEntries((await new Hub({ critHome: tmp(), plannotatorDataDir: tmp(), healthTimeoutMs: 500 }).poll()).map((x) => [x.id, x]));
     expect(Object.keys(sessions).sort()).toEqual([`reviewroom:${process.pid}`, `reviewroom:${alsoLive.pid}`].sort());
-    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', reviewId: 'acme/demo#42', target: null, label: 'Upload limits', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, additions: 12, deletions: 3, changedFiles: 2, updatedAt: '2026-11-18T10:00:00.000Z', origin: 'claude-code', parentAgentPid: 77, author: 'sam-rivera' });
-    expect(sessions[`reviewroom:${alsoLive.pid}`]).toMatchObject({ health: 'ok', commentCount: null });
+    expect(sessions[`reviewroom:${process.pid}`]).toMatchObject({ kind: 'pull-request-review', reviewId: 'acme/demo#42', target: null, label: 'Upload limits', health: 'ok', reviewRound: 2, commentCount: 5, unresolvedCommentCount: 2, resolvedCommentCount: 3, browserClients: 1, additions: 12, deletions: 3, changedFiles: 2, updatedAt: updated.toISOString(), waitingOn: 'agent', origin: 'claude-code', parentAgentPid: 77, author: 'sam-rivera' });
+    expect(sessions[`reviewroom:${alsoLive.pid}`]).toMatchObject({ health: 'ok', commentCount: 0 });
     expect(fs.existsSync(path.join(rrHome, 'sessions', `${dead.pid}.json`))).toBe(false);
   });
 });
